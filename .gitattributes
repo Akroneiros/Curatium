@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Treat all .txt files in Spreadsheet Operations Template as Visual Basic
+Shared/Spreadsheet Operations Template/*.txt linguist-language=Visual Basic
