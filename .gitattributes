@@ -1,5 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# Treat all .txt files in Spreadsheet Operations Template as VBA (Visual Basic for Applications)
-"Shared/Spreadsheet Operations Template/*.txt" linguist-language=VBA
+# Treat all .txt files in Framework Demonstration and Spreadsheet Operations Template as VBA (Visual Basic for Applications)
+Projects/Framework[[:space:]]Demonstration/*.txt linguist-language=VBA
+Shared/Spreadsheet[[:space:]]Operations[[:space:]]Template/*.txt linguist-language=VBA
