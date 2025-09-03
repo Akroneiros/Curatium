@@ -1,6 +1,7 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Prevents modifying newlines when committing files, preserving their hash value.
+* -text
 
-# Treat all .txt files in Framework Demonstration and Spreadsheet Operations Template as VBA (Visual Basic for Applications)
-Projects/Framework[[:space:]]Demonstration/*.txt linguist-language=VBA
-Shared/Spreadsheet[[:space:]]Operations[[:space:]]Template/*.txt linguist-language=VBA
+# https://github.com/github-linguist/linguist/blob/main/lib/linguist/languages.yml
+
+# GitHub Linguist - force T-SQL for .sql files in Projects\Framework Demonstration.
+Projects/Framework[[:space:]]Demonstration/*.sql linguist-language=TSQL
