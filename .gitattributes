@@ -2,6 +2,3 @@
 * -text
 
 # https://github.com/github-linguist/linguist/blob/main/lib/linguist/languages.yml
-
-# GitHub Linguist - force T-SQL for .sql files in Projects\Framework Demonstration.
-Projects/Framework[[:space:]]Demonstration/*.sql linguist-language=TSQL
