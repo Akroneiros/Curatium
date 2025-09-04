@@ -583,7 +583,7 @@ ExcelScriptExecution(code, evaluationMode := "") {
         SendEvent "+{Home}" ; SHIFT+HOME (Select the whole last line)
         Sleep sleepAmount
         A_Clipboard := "" ; Clear clipboard.
-        sleepAmount
+        Sleep sleepAmount
         SendEvent "^c" ; CTRL+C (Copy)
         if !ClipWait(1 * attempts) {
             continue ; Nothing copied, go to next attempt.
