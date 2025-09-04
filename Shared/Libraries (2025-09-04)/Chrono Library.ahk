@@ -2,9 +2,9 @@
 #Include File Library.ahk
 #Include Logging Library.ahk
 
-AssignFileTimesAsLocalIso(filePath, timeType) {
+AssignFileTimeAsLocalIso(filePath, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("AssignFileTimesAsLocalIso(filePath As String [Type: Absolute Path], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("AssignFileTimeAsLocalIso(filePath As String [Type: Absolute Path], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Assign File Times As Local ISO", methodName, [filePath, timeType])
 
     switch StrLower(timeType) {
@@ -29,7 +29,7 @@ AssignFileTimesAsLocalIso(filePath, timeType) {
 
     try {
         if (fileHandle = -1) {
-            throw Error("Failed to open file for reading: " filePath)
+            throw Error("Failed to open file for reading: " . filePath)
         }
     } catch as failedToOpenFileForReadingError {
         LogInformationConclusion("Failed", logValuesForConclusion, failedToOpenFileForReadingError)
@@ -44,7 +44,7 @@ AssignFileTimesAsLocalIso(filePath, timeType) {
             , "ptr", fileTimeBuffer.Ptr + 16
             , "int")
         {
-            throw Error("GetFileTime failed for: " filePath)
+            throw Error("GetFileTime failed for: " . filePath)
         }
     } catch as getFileTimeFailedError {
         LogInformationConclusion("Failed", logValuesForConclusion, getFileTimeFailedError)
@@ -285,12 +285,101 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
+SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) {
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
+    static methodName := RegisterMethod("SetDirectoryTimeFromLocalIsoDateTime(directoryPath As String [Type: Directory], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Set Directory Time From Local ISO Date Time", methodName, [directoryPath, localIsoDateTime, timeType])
+
+    directoryPath := RTrim(directoryPath, "\")
+
+    numericString := RegExReplace(localIsoDateTime, "[^0-9]")
+    localSystemTime := Buffer(16, 0)
+    NumPut "UShort", SubStr(numericString, 1, 4),  localSystemTime,  0
+    NumPut "UShort", SubStr(numericString, 5, 2),  localSystemTime,  2
+    NumPut "UShort", 0,                            localSystemTime,  4
+    NumPut "UShort", SubStr(numericString, 7, 2),  localSystemTime,  6
+    NumPut "UShort", SubStr(numericString, 9, 2),  localSystemTime,  8
+    NumPut "UShort", SubStr(numericString,11, 2),  localSystemTime, 10
+    NumPut "UShort", SubStr(numericString,13, 2),  localSystemTime, 12
+    NumPut "UShort", 0,                            localSystemTime, 14
+
+    utcSystemTime := Buffer(16, 0)
+    try {
+        if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "ptr", 0, "ptr", localSystemTime, "ptr", utcSystemTime, "int") {
+            throw Error("TzSpecificLocalTimeToSystemTime failed (input may not exist in current time zone)")
+        }
+    } catch as tzSpecificLocalTimeToSystemTimeError {
+        LogInformationConclusion("Failed", logValuesForConclusion, tzSpecificLocalTimeToSystemTimeError)
+    }
+
+    utcFileTime := Buffer(8, 0)
+    try {
+        if !DllCall("Kernel32\SystemTimeToFileTime", "ptr", utcSystemTime, "ptr", utcFileTime, "int") {
+            throw Error("SystemTimeToFileTime failed")
+        }
+    } catch as systemTimeToFileTimeError {
+        LogInformationConclusion("Failed", logValuesForConclusion, systemTimeToFileTimeError)
+    }
+
+    accessMode := 0x100
+    shareMode  := 0x7
+    flags      := 0x80 | 0x02000000
+    handle     := DllCall("Kernel32\CreateFileW"
+        , "wstr", directoryPath
+        , "uint", accessMode
+        , "uint", shareMode
+        , "ptr", 0
+        , "uint", 3
+        , "uint", flags
+        , "ptr", 0
+        , "ptr")
+    try {
+        if (handle = -1) {
+            throw Error("CreateFileW failed")
+        }
+    } catch as createFileWFailedError {
+        LogInformationConclusion("Failed", logValuesForConclusion, createFileWFailedError)
+    }
+
+    pointerCreation := 0
+    pointerAccessed := 0
+    pointerModified := 0
+    switch StrLower(timeType) {
+        case "accessed", "a":
+            pointerAccessed := utcFileTime.Ptr
+        case "created", "c":
+            pointerCreation := utcFileTime.Ptr
+        case "modified", "m":
+            pointerModified := utcFileTime.Ptr
+        default:
+    }
+
+    success := DllCall("Kernel32\SetFileTime"
+        , "ptr", handle
+        , "ptr", pointerCreation
+        , "ptr", pointerAccessed
+        , "ptr", pointerModified
+        , "int")
+
+    DllCall("Kernel32\CloseHandle", "ptr", handle)
+
+    try { 
+        if !success {
+            throw Error("SetFileTime failed")
+        }
+    } catch as setFileTimeFailedError {
+        LogInformationConclusion("Failed", logValuesForConclusion, setFileTimeFailedError)
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
     static methodName := RegisterMethod("SetFileTimeFromLocalIsoDateTime(filePath As String [Type: Absolute Path], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Set File Time From Local ISO Date Time", methodName, [filePath, localIsoDateTime, timeType])
 
-    if AssignFileTimesAsLocalIso(filePath, timeType) = localIsoDateTime {
+    if AssignFileTimeAsLocalIso(filePath, timeType) = localIsoDateTime {
         LogInformationConclusion("Skipped", logValuesForConclusion)
     } else {
         numericString := RegExReplace(localIsoDateTime, "[^0-9]")

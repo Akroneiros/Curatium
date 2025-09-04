@@ -1,4 +1,4 @@
-Public Const frameworkDemonstrationVersion As String = "Framework Demonstration (v1, 2025-09-02)"
+Public Const frameworkDemonstrationVersion As String = "Framework Demonstration (v1, 2025-09-04)"
 
 Sub Startup()
     Call CreateAbout()

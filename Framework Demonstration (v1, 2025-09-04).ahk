@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-#Include Shared\Libraries (2025-08-30)
+#Include Shared\Libraries (2025-09-04)
 
 #Include Base Library.ahk
 #Include Application Library.ahk
@@ -8,10 +8,10 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-global projectDirectory := ExtractDirectory(A_ScriptFullPath) . "Projects\" . RegExReplace(LibraryTag(A_LineFile), "^ @ (.*?) \(.*\)$", "$1") . "\"
+global projectDirectory := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
 
 Main() {
-    OverlayUpdateCustomLine(overlaySummaryKey := OverlayGenerateNextKey("[[Custom]]"), "Overlay Summary: " . StrReplace(LibraryTag(A_LineFile), " @ ", ""))
+    OverlayUpdateCustomLine(overlaySummaryKey := OverlayGenerateNextKey("[[Custom]]"), "Overlay Summary: " . RegExReplace(A_ScriptFullPath, "^.*\\|\.ahk$", ""))
     OverlayInsertSpacer()
 
     ; ******************** ;
@@ -22,8 +22,8 @@ Main() {
 
     ; SQL queries from AdventureWorks2022.bak: https://learn.microsoft.com/en-us/sql/samples/adventureworks-install-configure?view=sql-server-ver17&tabs=ssms
     adventureWorksSqlQueries := [
-        ["Locations (v1, 2025-09-02)",    "5b282f1971ad80d92b4b0b92d268b2882070ba85ec8dbf29459938869474e26a"],
-        ["Unit Measure (v1, 2025-09-02)", "1fd42a6843bbf663a3ac62857439e9e9fa1b2a5a0c0332816fa46bc96e6c07b8"]
+        ["Locations (v1, 2025-09-04)",    "5b282f1971ad80d92b4b0b92d268b2882070ba85ec8dbf29459938869474e26a"],
+        ["Unit Measure (v1, 2025-09-04)", "1fd42a6843bbf663a3ac62857439e9e9fa1b2a5a0c0332816fa46bc96e6c07b8"]
     ]
 
     OverlayUpdateCustomLine(overlayVariablesKey, "Initializing Variables" . overlayStatus["Completed"])
@@ -34,7 +34,7 @@ Main() {
 
     OverlayUpdateCustomLine(overlayRequirementsKey := OverlayGenerateNextKey("[[Custom]]"), "Verifying Requirements" . overlayStatus["Beginning"])
 
-    CreateSharedImages()
+    CreateSharedImages("Image Library Catalog (2025-09-04)")
     RegisterApplications()
     
     ValidateApplicationFact("Excel", "Installed", "Yes")
@@ -64,7 +64,7 @@ Main() {
     }
 
     for index, entry in projectFiles {
-        if AssignFileTimesAsLocalIso(entry[1], "Created") !== entry[2] . " 12:00:00" || AssignFileTimesAsLocalIso(entry[1], "Modified") !== entry[2] . " 12:00:00" {
+        if AssignFileTimeAsLocalIso(entry[1], "Created") !== entry[2] . " 12:00:00" || AssignFileTimeAsLocalIso(entry[1], "Modified") !== entry[2] . " 12:00:00" {
             SetFileTimeFromLocalIsoDateTime(entry[1], entry[2] . " 12:00:00", "Created")
             SetFileTimeFromLocalIsoDateTime(entry[1], entry[2] . " 12:00:00", "Modified")
         }
@@ -81,15 +81,15 @@ Main() {
     spreadsheetOperationsTemplate := AssignSpreadsheetOperationsTemplateCombined("v0.39")
     introCode := spreadsheetOperationsTemplate["Intro Code"]
     outroCode := spreadsheetOperationsTemplate["Outro Code"]
-    frameworkDemonstrationCode := ReadFileOnHashMatch(projectDirectory . "Framework Demonstration (v1, 2025-09-02)" . ".txt", "4804034afb9166a0677233f01266d8523637812e503eaadab0d0e7f158c6035a")
+    frameworkDemonstrationCode := ReadFileOnHashMatch(projectDirectory . "Framework Demonstration (v1, 2025-09-04)" . ".vba", "9cb31a09306cc07b11e05f7d94b2442fdc9c83cedaba7cd82b2bf3c242ad7cf2")
 
     for index, entry in adventureWorksSqlQueries {
         entry.Push("C:\Import\")
-        adventureWorksSqlQueries[index][2] := ReadFileOnHashMatch(projectDirectory . adventureWorksSqlQueries[index][1] . ".sql", adventureWorksSqlQueries[index][2])
+        adventureWorksSqlQueries[index][2] := ReadFileOnHashMatch(projectDirectory . adventureWorksSqlQueries[index][1] . ".tsql", adventureWorksSqlQueries[index][2])
     }
 
     dateOfToday := FormatTime(A_Now, "yyyyMMdd")
-    allSQLFilesUpToDate := true
+    allSqlFilesUpToDate := true
     filteredSQLQueries := []
 
     for query in adventureWorksSqlQueries {
@@ -125,6 +125,7 @@ Main() {
     ; Configuration here later.
 
     OverlayUpdateCustomLine(overlayConfigurationKey, "Selecting Configuration" . overlayStatus["Completed"])
+    OverlayInsertSpacer()
 
     ; ******************** ;
     ; Main                 ;
@@ -133,11 +134,11 @@ Main() {
     ; SSMS: Tools → Options... → Query Results → SQL Server → Results to Grid → Enable: Include column headers when copying or saving the results
     OverlayUpdateCustomLine(adventureWorksSqlQueriesStatusKey := OverlayGenerateNextKey("[[Custom]]"), "AdventureWorks SQL Queries" . overlayStatus["Beginning"])
     if allSqlFilesUpToDate = false {
-        StartMicrosoftSQLServerManagementStudioAndConnect()
+        StartMicrosoftSqlServerManagementStudioAndConnect()
 
         for index, query in filteredSqlQueries {
             OverlayUpdateCustomLine(adventureWorksSqlQueriesStatusKey, "AdventureWorks SQL Queries (" . index . "/" . filteredSqlQueries.Length . ")" . overlayStatus["Beginning"])
-            ExecuteSQLQueryAndSaveAsCsv(query[2], query[3], query[1])
+            ExecuteSqlQueryAndSaveAsCsv(query[2], query[3], query[1])
 
             if filteredSqlQueries.Length = index {
                 OverlayUpdateCustomLine(adventureWorksSqlQueriesStatusKey, "AdventureWorks SQL Queries (" . index . "/" . filteredSqlQueries.Length . ")" . overlayStatus["Completed"])
@@ -149,7 +150,7 @@ Main() {
         OverlayUpdateCustomLine(adventureWorksSqlQueriesStatusKey, "AdventureWorks SQL Queries (Already Done)" . overlayStatus["Skipped"])
     }
 
-    ExcelStartingRun("Framework Demonstration (v1, 2025-09-02)", "C:\Export\", CombineExcelCode(introCode, frameworkDemonstrationCode, outroCode))
+    ExcelStartingRun("Framework Demonstration (v1, 2025-09-04)", "C:\Export\", CombineExcelCode(introCode, frameworkDemonstrationCode, outroCode))
 }
 
 Launcher() {
@@ -160,20 +161,21 @@ Launcher() {
         ; "ValidateApplicationFact",
         ; "ExcelExtensionRun",
         ; "ExcelScriptExecution",
-        "ExcelStartingRun",
+        "ExcelStartingRun"
         ; "WaitForExcelToClose",
         ; "WaitForExcelToLoad",
-        ; "StartMicrosoftSQLServerManagementStudioAndConnect",
-        ; "ExecuteSQLQueryAndSaveAsCsv",
+        ; "StartMicrosoftSqlServerManagementStudioAndConnect",
+        ; "ExecuteSqlQueryAndSaveAsCsv",
         ; "CloseMicrosoftSqlServerManagementStudio",
         ; "ExecuteAutomationApp",
         ; "AssignSpreadsheetOperationsTemplateCombined",
         ; "AssignHeroAliases",
         ; "ModifyScreenCoordinates",
         ; "PerformMouseActionAtCoordinates",
-        ; "AssignFileTimesAsLocalIso",
+        ; "AssignFileTimeAsLocalIso",
         ; "ExtractTrailingDateAsIso",
         ; "PreventSystemGoingIdleUntilRuntime",
+        ; "SetDirectoryTimeFromLocalIsoDateTime",
         ; "SetFileTimeFromLocalIsoDateTime",
         ; "ValidateRuntimeDate",
         ; "WaitUntilFileIsModifiedToday",

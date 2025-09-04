@@ -57,8 +57,8 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         "Outro Code",    ""
     )
 
-    templateCombined["Intro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.txt", templateCombined["Intro SHA-256"])
-    templateCombined["Outro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.txt", templateCombined["Outro SHA-256"])
+    templateCombined["Intro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
+    templateCombined["Outro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
 
     LogInformationConclusion("Completed", logValuesForConclusion)
     return templateCombined
@@ -190,6 +190,16 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
 ; ******************** ;
 ; Helper Methods       ;
 ; ******************** ;
+
+ExtractValuesFromArrayDimension(array, dimension) {
+    arrayDimension := []
+
+    for outerIndex, innerArray in array {
+        arrayDimension.Push(innerArray[dimension])
+    }
+
+    return arrayDimension
+}
 
 ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     uniqueValues := []

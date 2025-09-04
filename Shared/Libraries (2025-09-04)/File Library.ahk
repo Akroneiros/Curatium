@@ -66,7 +66,7 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
     if FileExist(targetPath) {
         LogInformationConclusion("Skipped", logValuesForConclusion)
     } else {
-        fileTimeCreated := AssignFileTimesAsLocalIso(filePath, "Created")
+        fileTimeCreated := AssignFileTimeAsLocalIso(filePath, "Created")
         FileCopy(filePath, targetPath)
 
         try {
@@ -268,9 +268,6 @@ WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
     static methodName := RegisterMethod("WriteBase64IntoImageFileWithHash(base64Text As String [Type: Base64], filePath As String [Type: Absolute Save Path], expectedHash As String [Type: SHA-256])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Write Base64 into Image File with Hash" . " (" . ExtractFilename(filePath) . ")", methodName, [base64Text, filePath, expectedHash])
     
-    SplitPath(filePath, &filename, &directory)
-    EnsureDirectoryExists(directory . "\")
-
     needsWrite := true
 
     if FileExist(filePath) {

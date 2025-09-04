@@ -577,13 +577,14 @@ ExcelScriptExecution(code, evaluationMode := "") {
             continue
         }
         SendEvent "^v" ; CTRL+V (Paste)
-        Sleep sleepAmount
+        Sleep sleepAmount + sleepAmount
 
         ; Verify the paste by reading the sentinel line.
         SendEvent "+{Home}" ; SHIFT+HOME (Select the whole last line)
         Sleep sleepAmount
         A_Clipboard := "" ; Clear clipboard.
-        SendEvent "^c"
+        sleepAmount
+        SendEvent "^c" ; CTRL+C (Copy)
         if !ClipWait(1 * attempts) {
             continue ; Nothing copied, go to next attempt.
         }
@@ -660,7 +661,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     if xlsxPath = "" {
         sidecarPath := saveDirectory . documentName . ".txt"
-        FileAppend("", sidecarPath, "UTF-8")
+        FileAppend("", sidecarPath, "UTF-8-RAW")
 
         Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"')
         WaitForExcelToLoad()
@@ -729,8 +730,8 @@ WaitForExcelToLoad() {
 ; SQL Server MS        ;
 ; ******************** ;
 
-StartMicrosoftSQLServerManagementStudioAndConnect() {
-    static methodName := RegisterMethod("StartMicrosoftSQLServerManagementStudioAndConnect()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+StartMicrosoftSqlServerManagementStudioAndConnect() {
+    static methodName := RegisterMethod("StartMicrosoftSqlServerManagementStudioAndConnect()" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Start Microsoft SQL Server Management Studio and Connect", methodName)
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
@@ -749,15 +750,17 @@ StartMicrosoftSQLServerManagementStudioAndConnect() {
         LogInformationConclusion("Failed", logValuesForConclusion, connectError)
     }
 
-    WinWait("Microsoft SQL Server Management Studio",, 20)
-    WinActivate("Microsoft SQL Server Management Studio")
-    WinWaitActive("Microsoft SQL Server Management Studio",, 10)
+    windowTitle := "Microsoft SQL Server Management Studio"
+    WinWait(windowTitle,, 20)
+    WinActivate(windowTitle)
+    WinWaitActive(windowTitle,, 10)
+    WinMaximize(windowTitle)
 
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-ExecuteSQLQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSQLQueryAndSaveAsCsv(code as String [Type: Code], saveDirectory as String [Type: Directory], filename as String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
+    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code as String [Type: Code], saveDirectory as String [Type: Directory], filename as String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
     SendInput("^n") ; CTRL+N (Query with Current Connection)
@@ -770,8 +773,8 @@ ExecuteSQLQueryAndSaveAsCsv(code, saveDirectory, filename) {
     A_Clipboard := ""
     Sleep 400
     SendInput("!x") ; ALT+X (Execute)
-    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SMMS Query Successful", "12-24", "86-98", 360)
-    sqlQueryResultsWindow := ModifyScreenCoordinates(40, -40, sqlQuerySuccessfulCoordinates)
+    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SMMS Query Successful", "6-26", "88-96", 360)
+    sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
     Sleep 800
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindow)

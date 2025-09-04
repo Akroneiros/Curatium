@@ -49,6 +49,9 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
 
     errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
 
+    SplitPath(A_LineFile, , &parentFolderPath)
+    libraryReleaseDate := RegExReplace(parentFolderPath, ".*Libraries \((\d{4}-\d{2}-\d{2})\)$", "$1")
+
     lineNumber := errorObject.Line
     if logValuesForConclusion["Validation"] !== "" {
         lineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
@@ -57,7 +60,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
     fullErrorText := unset
     if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] !== "" {
         fullErrorText :=
-            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . "`n" . 
+            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . " (" . libraryReleaseDate . ")" . "`n" . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . "`n" . 
             "Arguments: " .    logValuesForConclusion["Arguments"] . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
@@ -65,7 +68,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
             "Error Output: " . errorMessage
     } else {
         fullErrorText :=
-            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . "`n" . 
+            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . " (" . libraryReleaseDate . ")" . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
             "Date Runtime: " . currentDateTime . "`n" . 
             "Error Output: " . errorMessage
@@ -80,7 +83,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
     if logValuesForConclusion["Method Name"] !== "AbortExecution" {
         errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
         errorWindow.SetFont("s10", "Segoe UI")
-        errorWindow.AddEdit("ReadOnly r10 w960 -VScroll vErrorTextField", fullErrorText)
+        errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", fullErrorText)
 
         exitButton := errorWindow.AddButton("w60 Default", "Exit")
         exitButton.OnEvent("Click", (*) => ExitApp())
@@ -129,17 +132,22 @@ LogEngine(status, fullErrorText := "") {
         logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . filenameWithoutExtension . " - " . "Symbol Ledger" . " - " . logFileDateOfToday . ".csv"
     }
 
-    if status !== "Intermission" {
+    if status = "Beginning" {
+        SplitPath(A_LineFile, , &parentFolderPath)
+        libraryReleaseDate := RegExReplace(parentFolderPath, ".*Libraries \((\d{4}-\d{2}-\d{2})\)$", "$1")
+
         inputLanguage            := GetInputLanguage()
         keyboardLayout           := GetActiveKeyboardLayout()
         regionFormat             := GetRegionFormat()
         primaryDisplayResolution := A_ScreenWidth . "x" . A_ScreenHeight
+        physicalRamSituation     := GetPhysicalMemoryStatus()
         remainingDiskSpace       := GetRemainingFreeDiskSpace()
 
         executionLogLines := [
             "Project Name: " .                           filenameWithoutExtension,
-            "AutoHotkey Runtime Version: " .             A_AhkVersion,
             "Script File Hash: " .                       Hash.File("SHA256", A_ScriptFullPath),
+            "Library Release Date: " .                   libraryReleaseDate,
+            "AutoHotkey Runtime Version: " .             A_AhkVersion,
             "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
             "Tick After Change: " .                      timeAnchor["Tick After Change"],
             "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
@@ -156,16 +164,42 @@ LogEngine(status, fullErrorText := "") {
             "Keyboard Layout: " .                        keyboardLayout,
             "Region Format: " .                          regionFormat,
             "Primary Display Resolution: " .             primaryDisplayResolution,
+            "Physical RAM Situation: " .                 physicalRamSituation,
+            "Remaining Free Disk Space: " .              remainingDiskSpace
+        ]
+    } else if status !== "Intermission" {
+        inputLanguage            := GetInputLanguage()
+        keyboardLayout           := GetActiveKeyboardLayout()
+        regionFormat             := GetRegionFormat()
+        primaryDisplayResolution := A_ScreenWidth . "x" . A_ScreenHeight
+        remainingDiskSpace       := GetRemainingFreeDiskSpace()
+
+        executionLogLines := [
+            "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
+            "Tick After Change: " .                      timeAnchor["Tick After Change"],
+            "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
+            "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
+            "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
+            "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
+            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
+            "Input Language: " .                         inputLanguage,
+            "Keyboard Layout: " .                        keyboardLayout,
+            "Region Format: " .                          regionFormat,
+            "Primary Display Resolution: " .             primaryDisplayResolution,
             "Remaining Free Disk Space: " .              remainingDiskSpace
         ]
     } else {
+        physicalRamSituation := GetPhysicalMemoryStatus()
+
         for line in [
             "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
             "Tick After Change: " .                      timeAnchor["Tick After Change"],
             "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
+            "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
             "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
             "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
-            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"]
+            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
+            "Physical RAM Situation: " .                 physicalRamSituation
         ] {
             intermissionBuffer.Push(line)
         }
@@ -251,6 +285,11 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
 
     argumentsAndValidation["Arguments Full"] := ""
     argumentsAndValidation["Arguments Log"]  := ""
+
+    if methodName = "OverlayInsertSpacer" {
+        return argumentsAndValidation
+    }
+
     for index, argumentValue in arguments {
         argumentsAndValidation["Parameter"] := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
         argumentsAndValidation["Argument"]  := argumentValue
@@ -373,8 +412,15 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                                 argumentValueLog  := argumentValueFull
                             }
                         case "Code":
-                            argumentValueFull := "<Code (Length: " . StrLen(argumentValue) . ", Rows: " . StrSplit(argumentValue, "`n").Length . ")>"
-                            argumentValueLog  := argumentValueFull
+                            codeSummary := "<Code (Length: " . StrLen(argumentValue) . ", Rows: " . StrSplit(argumentValue, "`n").Length . ")>"
+
+                            if !symbolLedger.Has(codeSummary . "|C") {
+                                csvsymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
+                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                            }
+
+                            argumentValueFull := codeSummary
+                            argumentValueLog := symbolLedger[codeSummary . "|C"]["Symbol"]
                         case "Directory":
                             isDrive := RegExMatch(argumentValue, "^[A-Za-z]:\\")
                             isUNC   := RegExMatch(argumentValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
@@ -498,9 +544,15 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                                 argumentsAndValidation["Validation"] := "Invalid SHA-256 hash length: " . StrLen(argumentValue) . "."
                             } else if !RegExMatch(argumentValue, "^[0-9a-fA-F]{64}$") {
                                 argumentsAndValidation["Validation"] := "Invalid SHA-256 hash content: must be hex digits only."
-                            } else {
-                                argumentValueLog  := EncodeSha256HexToBase80(argumentValue)
                             }
+
+                            encodedHash := EncodeSha256HexToBase80(argumentValue)
+                            if !symbolLedger.Has(encodedHash . "|H") {
+                                csvsymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
+                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                            }
+
+                            argumentValueLog := symbolLedger[encodedHash . "|H"]["Symbol"]
                         default:
                             if (StrLen(argumentValue) > 192) {
                                 argumentValueFull := SubStr(argumentValue, 1, 224) . "…"
@@ -542,7 +594,7 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         overlayKey                 := OverlayGenerateNextKey(methodName)
     } else {
         overlayKey := overlayCustomKey
-        if methodName = "OverlayUpdateCustomLine" {
+        if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
             arguments[1] := overlayKey
         }
     }
@@ -639,6 +691,10 @@ LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject :
 
                 if logValuesForConclusion["Overlay Key"] !== 0 {
                     OverlayUpdateStatus(logValuesForConclusion, "Failed")
+                }
+
+                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" {
+                    OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
                 }
 
                 DisplayErrorMessage(logValuesForConclusion, errorObject)
@@ -825,10 +881,9 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
 
 OverlayInsertSpacer() {
     static methodName := RegisterMethod("OverlayInsertSpacer()" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Overlay Insert Spacer", methodName)
+    logValuesForConclusion := LogInformationBeginning("", methodName, [""], overlayKey := OverlayGenerateNextKey("[[Custom]]"))
     
-    OverlayUpdateLine(overlayKey := OverlayGenerateNextKey(), "")
-    logValuesForConclusion["Overlay Key"] := overlayKey
+    OverlayUpdateLine(overlayKey, "")
 
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
@@ -865,7 +920,7 @@ OverlayUpdateStatus(logValuesForConclusion, newStatus) {
 
     currentText := overlayLines[overlayKey]
 
-    if logValuesForConclusion["Method Name"] !== "OverlayUpdateCustomLine" {
+    if logValuesForConclusion["Method Name"] !== "OverlayInsertSpacer" && logValuesForConclusion["Method Name"] !== "OverlayUpdateCustomLine" {
         switch newStatus {
             case "Skipped":
                 OverlayUpdateLine(overlayKey, StrReplace(currentText, overlayStatus["Beginning"], overlayStatus["Skipped"]))
@@ -1307,6 +1362,32 @@ GetOperatingSystemFamilyAndEdition() {
     return operatingSystemFamily . " (" . operatingSystemEdition . ")"
 }
 
+GetPhysicalMemoryStatus() {
+    memoryStatusExSize := 64
+    memoryBuffer := Buffer(memoryStatusExSize, 0)
+    NumPut("UInt", memoryStatusExSize, memoryBuffer, 0)
+
+    if !DllCall("Kernel32.dll\GlobalMemoryStatusEx", "ptr", memoryBuffer.Ptr, "int") {
+        physicalRamSituation := "GlobalMemoryStatusEx failed."
+
+        return physicalRamSituation
+    } else {
+        memoryLoadPercent              := NumGet(memoryBuffer, 4,  "UInt")
+        totalPhysicalMemoryBytes       := NumGet(memoryBuffer, 8,  "UInt64")
+        availablePhysicalMemoryBytes   := NumGet(memoryBuffer, 16, "UInt64")
+
+        ; Divide by 1024^3 so results align with Task Manager (labeled GB)
+        bytesPerGB := 1024**3
+        totalGB     := totalPhysicalMemoryBytes / bytesPerGB
+        availableGB := availablePhysicalMemoryBytes / bytesPerGB
+        usedGB      := totalGB - availableGB
+
+        physicalRamSituation := "Total " . Format("{:.1f}", totalGB) . " GB, " . "Available " . Format("{:.1f}", availableGB) . " GB " . "(" . memoryLoadPercent . "%" . ")"
+
+        return physicalRamSituation
+    }
+}
+
 GetRegionFormat() {
     regionFormat := ""
     try {
@@ -1334,12 +1415,7 @@ LibraryTag(sourceFilePath) {
     }
 
     SplitPath(sourceFilePath, &filenameWithExtension, &parentFolderPath, &fileExtension, &filenameWithoutExtension)
-
-    if RegExMatch(parentFolderPath, "\((\d{4}-\d{2}-\d{2})\)", &parentFolderMatch) {
-        libraryTag := " @ " . filenameWithoutExtension . " (" . parentFolderMatch[1] . ")"
-    } else {
-        libraryTag := " @ " . filenameWithoutExtension
-    }
+    libraryTag := " @ " . filenameWithoutExtension
 
     cacheByFilePath[sourceFilePath] := libraryTag
     return libraryTag
@@ -1554,6 +1630,17 @@ RegisterSymbol(value, type, addNewLine := true) {
     symbolLine     := ""
 
     switch StrLower(type) {
+        case "code", "c":
+            if !symbolLedger.Has(value . "|C") {
+                symbolLedger[value . "|C"] := Map(
+                    "Symbol", SymbolLedgerAlias()
+                )
+
+                symbolLine :=
+                    value . "|" . 
+                    "C" . "|" . 
+                    symbolLedger[value . "|C"]["Symbol"]
+            }
         case "directory", "d":
             directoryPath := RTrim(value, "\")
             if !symbolLedger.Has(directoryPath . "|D") {
@@ -1576,6 +1663,17 @@ RegisterSymbol(value, type, addNewLine := true) {
                     value . "|" . 
                     "F" . "|" . 
                     symbolLedger[value . "|F"]["Symbol"]
+            }
+        case "hash", "h":
+            if !symbolLedger.Has(value . "|H") {
+                symbolLedger[value . "|H"] := Map(
+                    "Symbol", SymbolLedgerAlias()
+                )
+
+                symbolLine :=
+                    value . "|" . 
+                    "H" . "|" . 
+                    symbolLedger[value . "|H"]["Symbol"]
             }
         case "method", "m":
             if !symbolLedger.Has(value . "|M") {
@@ -1623,10 +1721,14 @@ SymbolLedgerBatchAppend(symbolType, array) {
     static newLine := "`r`n"
 
     switch StrLower(symbolType) {
+        case "code", "c":
+            symbolType := "C"
         case "directory", "d":
             symbolType := "D"
         case "file", "f":
             symbolType := "F"
+        case "hash", "h":
+            symbolType := "H"
         case "search", "s":
             symbolType := "S"
         default:
@@ -1639,6 +1741,12 @@ SymbolLedgerBatchAppend(symbolType, array) {
     for index, value in array {
         if value = "" {
             continue
+        }
+
+        if symbolType = "C" {
+            value := "<Code (Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ")>"
+        } else if symbolType = "H" {
+            value := EncodeSha256HexToBase80(value)
         }
 
         if arrayLength !== index {
