@@ -126,6 +126,130 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     return modifiedCoordinatePair
 }
 
+PasteCode(code, commentPrefix) {
+    static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'",  "--", "#", "%", "//", ";")
+    static methodName := RegisterMethod("PasteCode(code As String [Type: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Paste Code (Length: " . StrLen(code) . ")", methodName, [code, commentPrefix])
+
+    sentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
+    code := code . "`r`n" . sentinel
+    
+    attempts    := 0
+    maxAttempts := 4
+    sleepAmount := 280
+    success     := false
+
+    while (attempts < maxAttempts) {
+        attempts++
+        sleepAmount := sleepAmount + (attempts * 40)
+
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+
+        SendEvent("^a") ; CTRL+A (Select All)
+        Sleep(sleepAmount/2)
+        SendEvent("^a") ; CTRL+A (Select All)
+        Sleep(sleepAmount/2)
+        SendEvent("{Delete}") ; Delete (Delete)
+        Sleep(sleepAmount/2)
+
+        A_Clipboard := code ; Load combined code into clipboard.
+        if !ClipWait(1 * attempts) { ; Clipboard not ready, go to next attempt.
+            continue
+        }
+        SendEvent("^v") ; CTRL+V (Paste)
+        Sleep(sleepAmount + sleepAmount)
+
+        ; Verify the paste by reading the sentinel line.
+        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        Sleep(sleepAmount/2)
+        SendEvent("^c") ; CTRL+C (Copy)
+        Sleep(sleepAmount)
+
+        if A_Clipboard !== sentinel {
+            continue ; Sentinel content not copied, go to next attempt.
+        }
+
+        SendEvent("{Delete}")
+        Sleep(sleepAmount/2)
+        SendEvent("{Backspace}")
+        Sleep(sleepAmount/2)
+
+        success := true
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+        break
+    }
+
+    if success = false {
+        try {
+            throw Error("Paste of code failed.")
+        } catch as pasteOfCodeFailedError {
+            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfCodeFailedError)
+        }
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
+PastePath(savePath) {
+    static methodName := RegisterMethod("PastePath(savePath As String [Type: Absolute Save Path])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Paste Path (" . savePath . ")", methodName, [savePath])
+
+    attempts    := 0
+    maxAttempts := 4
+    sleepAmount := 200
+    success     := false
+
+    while (attempts < maxAttempts) {
+        attempts++
+        sleepAmount := sleepAmount + (attempts * 20)
+
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+
+        SendEvent("{End}") ; END (End of Line)
+        Sleep(sleepAmount)
+        SendEvent("+{Home}") ; SHIFT+HOME (Select the full line)
+        Sleep(sleepAmount/2)
+        SendEvent("{Delete}") ; Delete (Delete)
+        Sleep(sleepAmount/2)
+        SendText(savePath)
+        Sleep(sleepAmount + sleepAmount)
+
+        ; Verify the paste by reading the sentinel line.
+        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        Sleep(sleepAmount)
+        SendEvent("^c") ; CTRL+C (Copy)
+        Sleep(sleepAmount)
+
+        if A_Clipboard !== savePath {
+            continue ; Clipboard content does not match Save Path, go to next attempt.
+        }
+
+        SendEvent("{End}") ; END (End of Line)
+
+        success := true
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+        break
+    }
+
+    if success = false {
+        try {
+            throw Error("Paste of path failed.")
+        } catch as pasteOfPathFailedError {
+            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfPathFailedError)
+        }
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Double", "Left", "Middle", "Move", "Right")
     static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Pattern: ^\d+x\d+$])" . LibraryTag(A_LineFile), A_LineNumber + 1)

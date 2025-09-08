@@ -267,19 +267,21 @@ FactsResolve(applicationName) {
 
                 excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
 
-                ExcelScriptExecution(excelMacroTestCode, "Module")
-                Sleep 200
+                ExcelScriptExecution(excelMacroTestCode, true)
+                Sleep(160)
+                SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
+                Sleep(160)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                     facts := facts . "Code Execution: Basic"
 
                     excelApplication.ActiveSheet.Range("A1").Value := ""
 
-                    ExcelScriptExecution(excelMacroTestCode, "Personal Macro Workbook")
-                    Sleep 200
+                    ExcelScriptExecution(excelMacroTestCode)
+                    Sleep(160)
 
                     if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
-                    facts := StrReplace(facts, "Code Execution: Basic", "Code Execution: Full")
+                        facts := StrReplace(facts, "Code Execution: Basic", "Code Execution: Full")
                     }
                 } else {
                     facts := facts . "Code Execution: Failed"
@@ -292,7 +294,7 @@ FactsResolve(applicationName) {
                 activeWorkbook := 0
                 excelApplication := 0
             } else {
-                facts := "Installed: No" . "|"
+                facts := "Installed: No"
             }
         case "Notepad++":
             if applicationRegistry[applicationName]["Executable Path"] !== "" {
@@ -528,110 +530,24 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     }
 }
 
-ExcelScriptExecution(code, evaluationMode := "") {
-    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], evaluationMode As String [Optional]" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Excel Script Execution (Length: " . StrLen(code) . ")", methodName, [code])
-
-    static sentinel := "' == AutoHotkey Paste Sentinel == '"
-    code := code . "`r`n" . sentinel
-
-    
-    SendEvent "!{F11}" ; F11 (Microsoft Visual Basic for Applications)
+ExcelScriptExecution(code, insertModule := false) {
+    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional]" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Excel Script Execution (Length: " . StrLen(code) . ")", methodName, [code, insertModule])
+   
+    SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)
     WinWait("ahk_class wndclass_desked_gsk", , 10)
     WinActivate("ahk_class wndclass_desked_gsk")
     WinWaitActive("ahk_class wndclass_desked_gsk", , 2)
 
-    attempts    := 0
-    maxAttempts := 8
-    sleepAmount := 180
-    success     := false
-
-    if evaluationMode = "Module" || evaluationMode = "Personal Macro Workbook" {
-        sleepAmount := 260
-        maxAttempts := 1
+    if insertModule = true {
+        SendEvent("!i") ; ALT+I (Insert)
+        Sleep(280)
+        SendEvent("m") ; M (Module)
     }
 
-    while (attempts < maxAttempts) {
-        attempts++
-        sleepAmount := sleepAmount + (attempts * 20)
+    PasteCode(code, "'")
 
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-
-        if evaluationMode = "Module" {
-            SendEvent "!i" ; ALT+I (Insert)
-            Sleep sleepAmount
-            SendEvent "m" ; ; (Module)
-        }
-
-        SendEvent "^a" ; CTRL+A (Select All)
-        Sleep sleepAmount
-        SendEvent "^a" ; CTRL+A (Select All)
-        Sleep sleepAmount
-        SendEvent "{Delete}" ; Delete (Delete)
-        Sleep sleepAmount
-
-        A_Clipboard := code ; Load combined code into clipboard.
-        if !ClipWait(1 * attempts) { ; clipboard not ready, go to next attempt.
-            continue
-        }
-        SendEvent "^v" ; CTRL+V (Paste)
-        Sleep sleepAmount + sleepAmount
-
-        ; Verify the paste by reading the sentinel line.
-        SendEvent "+{Home}" ; SHIFT+HOME (Select the whole last line)
-        Sleep sleepAmount
-        A_Clipboard := "" ; Clear clipboard.
-        Sleep sleepAmount
-        SendEvent "^c" ; CTRL+C (Copy)
-        if !ClipWait(1 * attempts) {
-            continue ; Nothing copied, go to next attempt.
-        }
-
-        if A_Clipboard != sentinel {
-            continue ; Wrong sentinel content copied, go to next attempt.
-        }
-
-        SendEvent "{Delete}"
-        Sleep sleepAmount
-        SendEvent "{Backspace}"
-        Sleep sleepAmount
-
-        success := true
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-        break
-    }
-
-    if success = false && evaluationMode = "" {
-        try {
-            throw Error("Code paste into Excel failed.")
-        } catch as codePasteError {
-            LogInformationConclusion("Failed", logValuesForConclusion, codePasteError)
-        }
-    }
-
-    ; Wait for rollover to next minute if second 59.
-    if SubStr(A_Now, 13, 2) = "59" {
-        loop {
-            Sleep 16
-            if SubStr(A_Now, 13, 2) != "59" {
-                break
-            }
-        }
-    }
-    SendEvent "{F5}" ; F5 (Run Sub/UserForm)
-
-    if evaluationMode = "Module" {
-        SendEvent "^{F4}" ; CTRL+F4 (Close Window: Module)
-    }
-
-    if evaluationMode !== "" {
-        Sleep 200
-        SendEvent "{Esc}"
-    }
+    SendEvent("{F5}") ; F5 (Run Sub/UserForm)
 
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
@@ -683,7 +599,7 @@ WaitForExcelToClose(maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
     secondsSinceLastMouseMove := 0
 
     Loop totalSecondsToWait {
-        Sleep 1000
+        Sleep(1000)
         secondsSinceLastMouseMove += 1
 
         if secondsSinceLastMouseMove >= mouseMoveIntervalSec {
@@ -737,9 +653,9 @@ StartMicrosoftSqlServerManagementStudioAndConnect() {
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
 
     WinWait("Connect to Server",, 20)
-    Sleep 2000
+    Sleep(2000)
 
-    SendEvent "{Enter}"
+    SendEvent("{Enter}")
 
     try {
         if WinWaitClose("Connect to Server",, 40) {
@@ -763,35 +679,30 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code as String [Type: Code], saveDirectory as String [Type: Directory], filename as String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
+    savePath       := saveDirectory . filename . ".csv"
+
     SendInput("^n") ; CTRL+N (Query with Current Connection)
-    Sleep 2000
-    A_Clipboard := ""
-    A_Clipboard := code
-    ClipWait(2)
-    SendEvent "^v" ; CTRL+V (Paste)
-    Sleep 800
-    A_Clipboard := ""
-    Sleep 400
+    Sleep(2000)
+
+    PasteCode(code, "--")
+
     SendInput("!x") ; ALT+X (Execute)
     sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SMMS Query Successful", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
-    Sleep 800
+    Sleep(480)
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindow)
-    Sleep 800
-    SendEvent "v" ; V (Save Results As...)
-    Sleep 800
-    A_Clipboard := ""
-    A_Clipboard := saveDirectory . filename . ".csv"
-    ClipWait(2)
-    SendEvent "^v" ; CTRL+V (Paste)
-    Sleep 800
-    A_Clipboard := ""
-    Sleep 400
-    SendEvent "{Enter}" ; Enter (Save)
-    Sleep 400
-    SendEvent "y" ; Y (Yes)
-    Sleep 400
+    Sleep(480)
+    SendEvent("v") ; V (Save Results As...)
+    Sleep(2000)
+    SendEvent("!n") ; ALT+N (File name)
+
+    PastePath(savePath)
+
+    SendEvent("{Enter}") ; ENTER (Save)
+    Sleep(480)
+    SendEvent("y") ; Y (Yes)
+    Sleep(240)
 }
 
 CloseMicrosoftSqlServerManagementStudio() {
@@ -838,11 +749,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     WinActivate(windowCriteria)
     WinMaximize(windowCriteria)
 
-    SendEvent "!s"      ; Alt+S (Session)
-    Sleep 400
-    SendEvent "s"       ; s (Test Connection)
-    Sleep 400
-    SendEvent "{Enter}" ; Enter (Apply)
+    SendEvent("!s")      ; ALT+S (Session)
+    Sleep(400)
+    SendEvent("s")       ; S (Test Connection)
+    Sleep(400)
+    SendEvent("{Enter}") ; ENTER (Apply)
     
     overallStartTickCount := A_TickCount
     firstSeenTickCount := 0
@@ -875,13 +786,13 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             }
         }
 
-        Sleep 32
+        Sleep(32)
     }
 
-    Sleep 800
+    Sleep(800)
 
     try {
-        SendEvent "!u" ; ALT+U (Utilities)
+        SendEvent("!u") ; ALT+U (Utilities)
         submenuWindowHandle := WinWait("ahk_exe " toadExecutableFilename " ahk_class TdxBarSubMenuControl", , 1000)
         if !submenuWindowHandle {
             throw Error("Failed to open the Utilities menu (submenu was not detected).")
@@ -891,7 +802,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
 
     try {
-        SendEvent "{Enter}" ; Enter (Automation Designer)
+        SendEvent("{Enter}") ; ENTER (Automation Designer)
 
         if !WinWaitClose("ahk_id " submenuWindowHandle, , 1000) {
             throw Error("Failed to launch Automation Designer from the Utilities menu.")
@@ -902,38 +813,38 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     toadForOracleSearchCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Search", "0-40", "80-100")
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
-    Sleep 2000
+    Sleep(2000)
 
-    SendEvent "{Tab}" ; TAB (Text to find:)
-    Sleep 1200
-    SendText appName
-    Sleep 1200
-    SendEvent "{Enter}" ; Enter (Search)
-    Sleep 1200
-    SendEvent "+{Tab}" ; SHIFT+TAB (Item)
-    Sleep 1200
-    SendEvent "+{F10}" ; SHIFT+F10 (Right-click)
-    Sleep 1200
-    SendEvent "{Down}"
-    Sleep 1200
-    SendEvent "{Enter}" ; Enter (Goto Item)
-    Sleep 1200
+    SendEvent("{Tab}") ; TAB (Text to find:)
+    Sleep(1200)
+    SendText(appName)
+    Sleep(1200)
+    SendEvent("{Enter}") ; ENTER (Search)
+    Sleep(1200)
+    SendEvent("+{Tab}") ; SHIFT+TAB (Item)
+    Sleep(1200)
+    SendEvent("+{F10}") ; SHIFT+F10 (Right-click)
+    Sleep(1200)
+    SendEvent("{Down}") ; DOWN ARROW (Goto Item)
+    Sleep(1200)
+    SendEvent("{Enter}") ; ENTER (Goto Item)
+    Sleep(1200)
     toadForOraclePlayCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Play", "0-40", "0-20")
 
     if runtimeDate !== "" {
         PerformMouseActionAtCoordinates("Move", toadForOraclePlayCoordinates)
 
         while (A_Now < DateAdd(runtimeDate, -1, "Seconds")) {
-            Sleep 240
+            Sleep(240)
         }
 
         while (A_Now < runtimeDate) {
-            Sleep 16
+            Sleep(16)
         }
     }
 
     PerformMouseActionAtCoordinates("Left", toadForOraclePlayCoordinates)
-    Sleep 16
+    Sleep(16)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 
     LogInformationConclusion("Completed", logValuesForConclusion)

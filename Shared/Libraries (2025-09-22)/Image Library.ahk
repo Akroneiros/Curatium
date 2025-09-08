@@ -259,7 +259,7 @@ RetrieveImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, vertical
             }
         }
 
-        Sleep 800
+        Sleep(800)
     }
 
     if overlayVisibility = True {

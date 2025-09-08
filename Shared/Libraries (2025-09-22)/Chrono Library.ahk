@@ -224,7 +224,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
                 counter := 0
             }
 
-            Sleep 10000
+            Sleep(10000)
         }
     } else {
         while (DateDiff(runtimeDate, A_Now, "Seconds") > 60) {
@@ -256,7 +256,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
                     MouseMove 0, -1, 0, "R"
                 }
 
-                Sleep Random(200, 800)
+                Sleep(Random(200, 800))
                 if (direction = 1) {
                     MouseMove -1, 0, 0, "R"
                 } else if (direction = 2) {
@@ -270,16 +270,16 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
                 counter := 0
             }
 
-            Sleep 10000
+            Sleep(10000)
         }
     }
 
     while (A_Now < DateAdd(runtimeDate, -1, "Seconds")) {
-        Sleep 240
+        Sleep(240)
     }
 
     while (A_Now < runtimeDate) {
-        Sleep 16
+        Sleep(16)
     }
 
     LogInformationConclusion("Completed", logValuesForConclusion)
