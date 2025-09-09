@@ -3,7 +3,7 @@
 #Include Logging Library.ahk
 
 CleanOfficeLocksInFolder(directoryPath) {
-    static methodName := RegisterMethod("CleanOfficeLocksInFolder(directoryPath as String [Type: Directory])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("CleanOfficeLocksInFolder(directoryPath As String [Type: Directory])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Clean Office Locks in Folder (" . directoryPath . ")", methodName, [directoryPath])
 
     deletedCount     := 0

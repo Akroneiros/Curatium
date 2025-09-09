@@ -528,9 +528,7 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
 
                             if RegExMatch(argumentValue, pattern) {
                                 forbiddenList := "\ / : * ? " Chr(34) " < > |"
-                                argumentsAndValidation["Validation"] := "Invalid Search Filename: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
-                            } else if (argumentValue = "." || argumentValue = "..") {
-                                argumentsAndValidation["Validation"] := "Invalid Search Filename: " . argumentValue . " (reserved)."
+                                argumentsAndValidation["Validation"] := "Invalid Search: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
                             }
 
                             if !symbolLedger.Has(argumentValue . "|S") {

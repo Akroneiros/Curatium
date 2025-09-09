@@ -385,7 +385,7 @@ ValidateApplicationFact(applicationName, factName, factValue) {
 ; ******************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName as String [Type: Search], saveDirectory as String [Type: Directory], code as String [Type: Code], displayName As String [Optional], aboutRange as String [Optional], aboutCondition as String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -676,7 +676,7 @@ StartMicrosoftSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code as String [Type: Code], saveDirectory as String [Type: Directory], filename as String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
     savePath       := saveDirectory . filename . ".csv"
@@ -722,7 +722,7 @@ CloseMicrosoftSqlServerManagementStudio() {
 ; ******************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static methodName := RegisterMethod("ExecuteAutomationApp(appName as String, runtimeDate as String [Optional] [Type: Raw Date Time])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Verify Toad for Oracle Works", methodName, [appName, runtimeDate])
 
     toadForOracleExecutablePath := applicationRegistry["Toad for Oracle"]["Executable Path"]
@@ -817,7 +817,9 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     SendEvent("{Tab}") ; TAB (Text to find:)
     Sleep(1200)
-    SendText(appName)
+
+    PasteSearch(appName)
+
     Sleep(1200)
     SendEvent("{Enter}") ; ENTER (Search)
     Sleep(1200)

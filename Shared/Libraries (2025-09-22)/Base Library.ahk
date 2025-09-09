@@ -136,7 +136,7 @@ PasteCode(code, commentPrefix) {
     
     attempts    := 0
     maxAttempts := 4
-    sleepAmount := 280
+    sleepAmount := 360
     success     := false
 
     while (attempts < maxAttempts) {
@@ -242,6 +242,62 @@ PastePath(savePath) {
     if success = false {
         try {
             throw Error("Paste of path failed.")
+        } catch as pasteOfPathFailedError {
+            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfPathFailedError)
+        }
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
+PasteSearch(searchValue) {
+    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Paste Search (" . searchValue . ")", methodName, [searchValue])
+
+    attempts    := 0
+    maxAttempts := 4
+    sleepAmount := 200
+    success     := false
+
+    while (attempts < maxAttempts) {
+        attempts++
+        sleepAmount := sleepAmount + (attempts * 20)
+
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+
+        SendEvent("{End}") ; END (End of Line)
+        Sleep(sleepAmount)
+        SendEvent("+{Home}") ; SHIFT+HOME (Select the full line)
+        Sleep(sleepAmount/2)
+        SendEvent("{Delete}") ; Delete (Delete)
+        Sleep(sleepAmount/2)
+        SendText(searchValue)
+        Sleep(sleepAmount + sleepAmount)
+
+        ; Verify the paste by reading the sentinel line.
+        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        Sleep(sleepAmount)
+        SendEvent("^c") ; CTRL+C (Copy)
+        Sleep(sleepAmount)
+
+        if A_Clipboard !== searchValue {
+            continue ; Clipboard content does not match Save Path, go to next attempt.
+        }
+
+        SendEvent("{End}") ; END (End of Line)
+
+        success := true
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+        }
+        break
+    }
+
+    if success = false {
+        try {
+            throw Error("Paste of search failed.")
         } catch as pasteOfPathFailedError {
             LogInformationConclusion("Failed", logValuesForConclusion, pasteOfPathFailedError)
         }
