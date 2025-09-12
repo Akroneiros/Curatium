@@ -35,7 +35,7 @@ AssignSharedImages() {
 }
 
 CreateSharedImages(imageCatalogName) {
-    static methodName := RegisterMethod("CreateSharedImages(imageCatalogName As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("CreateSharedImages(imageCatalogName As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Create Shared Images", methodName, [imageCatalogName])
 
     SplitPath(A_LineFile, , &libraryFileDirectory)
@@ -61,7 +61,7 @@ CreateSharedImages(imageCatalogName) {
 
     for line in StrSplit(FileRead(imageCatalogFilePath, "UTF-8"), "`n") {
         line := Trim(line, "`r`n ")
-        if (line = "" || SubStr(line, 1, 1) = "#") {
+        if line = "" || SubStr(line, 1, 1) = "#" {
             continue
         }
 

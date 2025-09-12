@@ -255,7 +255,7 @@ LogEngine(status, fullErrorText := "") {
             FinalizeLogs()
         Case "Intermission":
             currentTick := A_TickCount
-            if (currentTick - lastIntermissionFlushTick >= intermissionFlushInterval) {
+            if currentTick - lastIntermissionFlushTick >= intermissionFlushInterval {
                 lastIntermissionFlushTick := currentTick
                 ExecutionLogBatchAppend("Intermission", intermissionBuffer)
                 intermissionBuffer.Length := 0
@@ -305,10 +305,10 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
             case "Boolean":
                 if argumentsAndValidation["Optional"] = "" && argumentValue = "" {
                     argumentsAndValidation["Validation"] := "Parameter " . argumentsAndValidation["Parameter"] . " has no value passed into it."
-                } else if (Type(argumentValue) = "Boolean") {
+                } else if Type(argumentValue) = "Boolean" {
                     argumentValueFull := (argumentValue ? "true" : "false")
                     argumentValueLog  := argumentValueFull
-                } else if (Type(argumentValue) = "Integer" && (argumentValue = 0 || argumentValue = 1)) {
+                } else if Type(argumentValue) = "Integer" && (argumentValue = 0 || argumentValue = 1) {
                     argumentValueFull := (argumentValue ? "true" : "false")
                     argumentValueLog  := argumentValueFull
                 } else {
@@ -320,13 +320,13 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                 } else {
                     switch argumentsAndValidation["Type"] {
                         case "Byte":
-                            if (argumentValue < 0 || argumentValue > 255) {
+                            if argumentValue < 0 || argumentValue > 255 {
                                 argumentsAndValidation["Validation"] := "Value out of byte range (0–255): " . argumentValue
                             }
                         case "Year":
                             if !RegExMatch(argumentValue, "^\d+$") {
                                 argumentsAndValidation["Validation"] := "Invalid Year value: " . argumentValue . " (must be integer digits only)."
-                            } else if (argumentValue < 1900 || argumentValue > 2100) {
+                            } else if argumentValue < 1900 || argumentValue > 2100 {
                                 argumentsAndValidation["Validation"] := "Invalid Year value: " . argumentValue . " (must be between 1900 and 2100)."
                             }
                         default:
@@ -346,13 +346,13 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                     valueIsWhitelisted := false
 
                     for index, whitelistEntry in argumentsAndValidation["Whitelist"] {
-                        if (StrLower(Trim(argumentValue)) = StrLower(Trim(whitelistEntry))) {
+                        if StrLower(Trim(argumentValue)) = StrLower(Trim(whitelistEntry)) {
                             valueIsWhitelisted := true
                             break
                         }
                     }
 
-                    if (valueIsWhitelisted = false) {
+                    if valueIsWhitelisted = false {
                         argumentsAndValidation["Validation"] := "Failed as argument not in whitelist: " . argumentValue
                     }
                 } else {
@@ -408,8 +408,15 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             } else if RegExMatch(argumentValueClean, "=[^=]") {
                                 argumentsAndValidation["Validation"] := "Invalid Base64 padding: '=' can only appear at the end."
                             } else {
-                                argumentValueFull := "<Base64 (Length: " . StrLen(argumentValueClean) . ")>"
-                                argumentValueLog  := argumentValueFull
+                                base64Summary := "<Base64 (Length: " . StrLen(argumentValueClean) . ")>"
+
+                                if !symbolLedger.Has(base64Summary . "|B") {
+                                    csvsymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
+                                    AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                }
+
+                                argumentValueFull := base64Summary
+                                argumentValueLog := symbolLedger[base64Summary . "|B"]["Symbol"]
                             }
                         case "Code":
                             codeSummary := "<Code (Length: " . StrLen(argumentValue) . ", Rows: " . StrSplit(argumentValue, "`n").Length . ")>"
@@ -446,7 +453,7 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             if RegExMatch(argumentValue, pattern) {
                                 forbiddenList := "\ / : * ? " Chr(34) " < > |"
                                 argumentsAndValidation["Validation"] := "Invalid Filename: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
-                            } else if (argumentValue = "." || argumentValue = "..") {
+                            } else if argumentValue = "." || argumentValue = ".." {
                                 argumentsAndValidation["Validation"] := "Invalid Filename: " . argumentValue . " (reserved)."
                             }
 
@@ -498,9 +505,9 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                                 first  := parts[1] + 0
                                 second := parts[2] + 0
 
-                                if (first < 0 || first > 100 || second < 0 || second > 100) {
+                                if first < 0 || first > 100 || second < 0 || second > 100 {
                                     argumentsAndValidation["Validation"] := "Invalid Percent Range: " . argumentValue . " (values must be between 0 and 100)."
-                                } else if (first >= second) {
+                                } else if first >= second {
                                     argumentsAndValidation["Validation"] := "Invalid Percent Range: " . argumentValue . " (first value must be lower than second)."
                                 }
                             }
@@ -523,10 +530,10 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             if !RegExMatch(argumentValue, "^(0|[1-9]\d*|-0|-[1-9]\d*)$") {
                                 argumentsAndValidation["Validation"] := "Invalid Screen Delta: " . argumentValue . " (must be 0 or integer without leading zeros, optional leading '-')."
                             }
-                        case "Search":
+                        case "Search, Search Open":
                             pattern := "[\\/:*?" Chr(34) "<>|]"
 
-                            if RegExMatch(argumentValue, pattern) {
+                            if argumentsAndValidation["Type"] = "Search" && RegExMatch(argumentValue, pattern) {
                                 forbiddenList := "\ / : * ? " Chr(34) " < > |"
                                 argumentsAndValidation["Validation"] := "Invalid Search: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
                             }
@@ -552,7 +559,7 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
 
                             argumentValueLog := symbolLedger[encodedHash . "|H"]["Symbol"]
                         default:
-                            if (StrLen(argumentValue) > 192) {
+                            if StrLen(argumentValue) > 192 {
                                 argumentValueFull := SubStr(argumentValue, 1, 224) . "…"
                                 argumentValueLog  := SubStr(argumentValue, 1, 192) . "…"
                             }
@@ -582,7 +589,7 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
     intermissionInterval := 6 * 60 * 1000
     intermissionTick := A_TickCount
 
-    if (lastIntermissionTick = 0) {
+    if lastIntermissionTick = 0 {
         lastIntermissionTick := intermissionTick
     }
 
@@ -597,7 +604,7 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         }
     }
 
-    if (intermissionTick - lastIntermissionTick >= intermissionInterval) {
+    if intermissionTick - lastIntermissionTick >= intermissionInterval {
         lastIntermissionTick := intermissionTick
         LogEngine("Intermission")
     }
@@ -830,11 +837,7 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
     measureVisualRectangle := () => (
         overlayGui.Show("Hide AutoSize"),
         rectBuffer := Buffer(16, 0),
-        DllCall("dwmapi\DwmGetWindowAttribute"
-            , "ptr", overlayGui.Hwnd
-            , "int", 9
-            , "ptr", rectBuffer
-            , "int", 16),
+        DllCall("dwmapi\DwmGetWindowAttribute", "ptr", overlayGui.Hwnd, "int", 9, "ptr", rectBuffer, "int", 16),
         Map(
             "left",   NumGet(rectBuffer,  0, "int"),
             "top",    NumGet(rectBuffer,  4, "int"),
@@ -1447,7 +1450,7 @@ ParseMethodDeclaration(declaration) {
 
             ; Toggle quoted-string mode on a double quote (").
             ; While inQuotedString = true, commas and brackets are considered literal characters.
-            if (currentCharacter = Chr(34)) {    ; Chr(34) = "
+            if currentCharacter = Chr(34) {    ; Chr(34) = "
                 inQuotedString := !inQuotedString
                 currentParameterText .= currentCharacter
                 continue
@@ -1455,19 +1458,19 @@ ParseMethodDeclaration(declaration) {
 
             ; If not inside quotes, structural characters may affect parsing.
             if !inQuotedString {
-                if (currentCharacter = "[") {
+                if currentCharacter = "[" {
                     squareBracketDepth += 1
                     currentParameterText .= currentCharacter
                     continue
                 }
-                if (currentCharacter = "]" && squareBracketDepth > 0) {
+                if currentCharacter = "]" && squareBracketDepth > 0 {
                     squareBracketDepth -= 1
                     currentParameterText .= currentCharacter
                     continue
                 }
 
                 ; Top-level comma → this marks the end of one parameter.
-                if (currentCharacter = "," && squareBracketDepth = 0) {
+                if currentCharacter = "," && squareBracketDepth = 0 {
                     parameterParts.Push(Trim(currentParameterText))
                     currentParameterText := ""
                     removeLeadingSpaceAfterComma := true
@@ -1476,7 +1479,7 @@ ParseMethodDeclaration(declaration) {
             }
 
             ; Immediately after a delimiter comma, drop exactly one space if it exists.
-            if (removeLeadingSpaceAfterComma && currentCharacter = " ") {
+            if removeLeadingSpaceAfterComma && currentCharacter = " " {
                 removeLeadingSpaceAfterComma := false
                 continue
             }
@@ -1503,11 +1506,12 @@ ParseMethodDeclaration(declaration) {
             whitelist      := []
 
             for metadataBlock in StrSplit(metadataValue, "]", true) {
-                if (metadataBlock = "") {
+                if metadataBlock = "" {
                     continue
                 }
+
                 blockContent := Trim(metadataBlock, "[ `t")
-                if (blockContent = "") {
+                if blockContent = "" {
                     continue
                 }
 
@@ -1628,75 +1632,36 @@ RegisterSymbol(value, type, addNewLine := true) {
     symbolLine     := ""
 
     switch StrLower(type) {
+        case "application", "a":
+            type := "A"
+        case "base64", "b":
+            type := "B"
         case "code", "c":
-            if !symbolLedger.Has(value . "|C") {
-                symbolLedger[value . "|C"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    value . "|" . 
-                    "C" . "|" . 
-                    symbolLedger[value . "|C"]["Symbol"]
-            }
+            type := "C"
         case "directory", "d":
-            directoryPath := RTrim(value, "\")
-            if !symbolLedger.Has(directoryPath . "|D") {
-                symbolLedger[directoryPath . "|D"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    directoryPath . "|" . 
-                    "D" . "|" . 
-                    symbolLedger[directoryPath . "|D"]["Symbol"]
-            }
+            type := "D"
+            value := RTrim(value, "\")
         case "filename", "f":
-            if !symbolLedger.Has(value . "|F") {
-                symbolLedger[value . "|F"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    value . "|" . 
-                    "F" . "|" . 
-                    symbolLedger[value . "|F"]["Symbol"]
-            }
+            type := "F"
         case "hash", "h":
-            if !symbolLedger.Has(value . "|H") {
-                symbolLedger[value . "|H"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    value . "|" . 
-                    "H" . "|" . 
-                    symbolLedger[value . "|H"]["Symbol"]
-            }
+            type := "H"
         case "method", "m":
-            if !symbolLedger.Has(value . "|M") {
-                symbolLedger[value . "|M"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    value . "|" . 
-                    "M" . "|" . 
-                    symbolLedger[value . "|M"]["Symbol"]
-            }
+            type := "M"
         case "search", "s":
-            if !symbolLedger.Has(value . "|S") {
-                symbolLedger[value . "|S"] := Map(
-                    "Symbol", SymbolLedgerAlias()
-                )
-
-                symbolLine :=
-                    value . "|" . 
-                    "S" . "|" . 
-                    symbolLedger[value . "|S"]["Symbol"]
-            }
+            type := "S"
         default:
             type := "[[Invalid]]"
+    }
+
+    if !symbolLedger.Has(value . "|" . type) {
+        symbolLedger[value . "|" . type] := Map(
+            "Symbol", SymbolLedgerAlias()
+        )
+
+        symbolLine :=
+            value . "|" . 
+            type . "|" . 
+            symbolLedger[value . "|" . type]["Symbol"]
     }
 
     if type !== "[[Invalid]]" && addNewLine = true {
@@ -1719,6 +1684,10 @@ SymbolLedgerBatchAppend(symbolType, array) {
     static newLine := "`r`n"
 
     switch StrLower(symbolType) {
+        case "application", "a":
+            symbolType := "A"
+        case "base64", "b":
+            symbolType := "B"
         case "code", "c":
             symbolType := "C"
         case "directory", "d":
@@ -1741,7 +1710,9 @@ SymbolLedgerBatchAppend(symbolType, array) {
             continue
         }
 
-        if symbolType = "C" {
+        if symbolType = "B" {
+            value := "<Base64 (Length: " . StrLen(value) . ")>"
+        } else if symbolType = "C" {
             value := "<Code (Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ")>"
         } else if symbolType = "H" {
             value := EncodeSha256HexToBase80(value)

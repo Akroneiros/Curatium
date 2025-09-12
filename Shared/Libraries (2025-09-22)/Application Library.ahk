@@ -21,8 +21,67 @@ RegisterApplications() {
         applicationRegistry[applicationName] := Map()
 
         applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
-        applicationRegistry[applicationName]["Facts"]           := FactsResolve(applicationName)
+
+        if applicationRegistry[applicationName]["Executable Path"] = "" {
+            applicationRegistry[applicationName]["Installed"] := false
+        } else {
+            applicationRegistry[applicationName]["Installed"] := true
+            ResolveFactsForApplication(applicationName)
+        }
     }
+
+    installedApplications := []
+    for outerKey, innerMap in applicationRegistry {
+        if innermap["Installed"] = true {
+            baseConfiguration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
+
+            switch outerKey
+            {
+                case "Excel":
+                    installedApplications.Push(baseConfiguration . "|" . "Personal Macro Workbook: " . innerMap["Personal Macro Workbook"] . "|" . "Code Execution: " . innerMap["Code Execution"])
+                default:
+                    installedApplications.Push(baseConfiguration)
+            }
+        }
+    }
+
+    SymbolLedgerBatchAppend("A", installedApplications)
+}
+
+DetermineWindowsBinaryType(applicationName) {
+    static SCS_32BIT_BINARY := 0
+    static SCS_DOS_BINARY   := 1
+    static SCS_WOW_BINARY   := 2
+    static SCS_PIF_BINARY   := 3
+    static SCS_POSIX_BINARY := 4
+    static SCS_OS2_BINARY   := 5
+    static SCS_64BIT_BINARY := 6
+
+    classificationResult := "N/A"
+    scsCode := 0
+
+    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "str", applicationRegistry[applicationName]["Executable Path"], "uint*", &scsCode, "int")
+
+    if callSucceeded != 0 {
+        switch scsCode {
+            case SCS_32BIT_BINARY:
+                classificationResult := "32-bit"
+            case SCS_64BIT_BINARY:
+                classificationResult := "64-bit"
+            case SCS_DOS_BINARY:
+                classificationResult := "DOS"
+            case SCS_WOW_BINARY:
+                classificationResult := "Windows 16-bit"
+            case SCS_PIF_BINARY:
+                classificationResult := "PIF"
+            case SCS_POSIX_BINARY:
+                classificationResult := "POSIX"
+            case SCS_OS2_BINARY:
+                classificationResult := "OS/2"
+        }
+    }
+
+    return classificationResult
 }
 
 ExecutablePathResolve(applicationName) {
@@ -50,22 +109,22 @@ ExecutablePathResolve(applicationName) {
             }
 
             ; Fallback: vendor key stores install directory in "Path"
-            if (executablePath = "" || !FileExist(executablePath)) {
+            if executablePath = "" || !FileExist(executablePath) {
                 try {
                     installDirectory := RegRead("HKLM\SOFTWARE\Notepad++", "Path")
-                    if (installDirectory != "" && FileExist(installDirectory . "\notepad++.exe")) {
+                    if installDirectory != "" && FileExist(installDirectory . "\notepad++.exe") {
                         executablePath := installDirectory . "\notepad++.exe"
                     }
                 }
             }
 
             ; Fallbacks: typical install locations
-            if (executablePath = "" || !FileExist(executablePath)) {
+            if executablePath = "" || !FileExist(executablePath) {
                 if FileExist(A_ProgramFiles . "\Notepad++\notepad++.exe") {
                     executablePath := A_ProgramFiles . "\Notepad++\notepad++.exe"
                 }
             }
-            if (executablePath = "" || !FileExist(executablePath)) {
+            if executablePath = "" || !FileExist(executablePath) {
                 if FileExist(A_ProgramFiles . " (x86)\Notepad++\notepad++.exe") {
                     executablePath := A_ProgramFiles . " (x86)\Notepad++\notepad++.exe"
                 }
@@ -244,92 +303,57 @@ ExecutablePathResolve(applicationName) {
     return executablePath
 }
 
-FactsResolve(applicationName) {
-    facts := ""
+ResolveFactsForApplication(applicationName) {
+    global applicationRegistry
+
+    applicationRegistry[applicationName]["Executable Hash"]    := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
+    applicationRegistry[applicationName]["Executable Version"] := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
+    applicationRegistry[applicationName]["Binary Type"]        := DetermineWindowsBinaryType(applicationName)
 
     switch applicationName
     {
         case "Excel":
-            if applicationRegistry[applicationName]["Executable Path"] !== "" {
-                facts := ApplicationBaseFacts(applicationName, facts)
+            personalMacroWorkbookPath := EnvGet("AppData") . "\Microsoft\Excel\XLSTART\PERSONAL.XLSB"
+            if FileExist(personalMacroWorkbookPath) {
+                applicationRegistry["Excel"]["Personal Macro Workbook"] := "Enabled"
+            } else {
+                applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
+            }
 
-                personalMacroWorkbookPath := EnvGet("AppData") "\Microsoft\Excel\XLSTART\PERSONAL.XLSB"
-                if FileExist(personalMacroWorkbookPath) {
-                    facts := facts . "Personal Macro Workbook: Enabled" . "|"
-                } else {
-                    facts := facts . "Personal Macro Workbook: Disabled" . "|"
-                }
+            Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"')
+            WaitForExcelToLoad()
+            excelApplication := ComObjActive("Excel.Application")
+            activeWorkbook := excelApplication.ActiveWorkbook
 
-                Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"')
-                WaitForExcelToLoad()
-                excelApplication := ComObjActive("Excel.Application")
-                activeWorkbook := excelApplication.ActiveWorkbook
+            excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
 
-                excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
+            ExcelScriptExecution(excelMacroTestCode, true)
+            Sleep(160)
+            SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
+            Sleep(160)
 
-                ExcelScriptExecution(excelMacroTestCode, true)
-                Sleep(160)
-                SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
+            if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
+                applicationRegistry["Excel"]["Code Execution"] := "Basic"
+
+                excelApplication.ActiveSheet.Range("A1").Value := ""
+
+                ExcelScriptExecution(excelMacroTestCode)
                 Sleep(160)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
-                    facts := facts . "Code Execution: Basic"
-
-                    excelApplication.ActiveSheet.Range("A1").Value := ""
-
-                    ExcelScriptExecution(excelMacroTestCode)
-                    Sleep(160)
-
-                    if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
-                        facts := StrReplace(facts, "Code Execution: Basic", "Code Execution: Full")
-                    }
-                } else {
-                    facts := facts . "Code Execution: Failed"
+                    applicationRegistry["Excel"]["Code Execution"] := "Full"
                 }
+            } else {
+                applicationRegistry["Excel"]["Code Execution"] := "Failed"
+            }
 
-                activeWorkbook.Close(false)
-                excelApplication.DisplayAlerts := false
-                excelApplication.Quit()
+            activeWorkbook.Close(false)
+            excelApplication.DisplayAlerts := false
+            excelApplication.Quit()
 
-                activeWorkbook := 0
-                excelApplication := 0
-            } else {
-                facts := "Installed: No"
-            }
-        case "Notepad++":
-            if applicationRegistry[applicationName]["Executable Path"] !== "" {
-                facts := ApplicationBaseFacts(applicationName, facts, true)
-            } else {
-                facts := "Installed: No"
-            }
-        case "SQL Server Management Studio":
-            if applicationRegistry[applicationName]["Executable Path"] !== "" {
-                facts := ApplicationBaseFacts(applicationName, facts, true)
-            } else {
-                facts := "Installed: No"
-            }
-        case "Toad for Oracle":
-            if applicationRegistry[applicationName]["Executable Path"] !== "" {
-                facts := ApplicationBaseFacts(applicationName, facts, true)
-            } else {
-                facts := "Installed: No"
-            }
-        default:
+            activeWorkbook := 0
+            excelApplication := 0
     }
-
-    return facts
-}
-
-ApplicationBaseFacts(applicationName, facts, trimLastDelimiter := false) {
-    facts := "Installed: Yes" . "|"
-    facts := facts . "Executable Path: " . applicationRegistry[applicationName]["Executable Path"] . "|"
-    facts := facts . "Executable Hash: " . Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"]) . "|"
-
-    if trimLastDelimiter = true {
-        facts := RTrim(facts, "|")
-    }
-
-    return facts
 }
 
 ValidateApplicationFact(applicationName, factName, factValue) {
@@ -337,44 +361,19 @@ ValidateApplicationFact(applicationName, factName, factValue) {
     logValuesForConclusion := LogInformationBeginning("Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")", methodName, [applicationName, factName, factValue])
 
     try {
-        if !applicationRegistry.Has(applicationName) {
-            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " not registered.")
-        }
-    } catch as applicationNotRegisteredError {
-        LogInformationConclusion("Failed", logValuesForConclusion, applicationNotRegisteredError)
-    }
-
-    factMap := Map()
-    for index, factPair in StrSplit(applicationRegistry[applicationName]["Facts"], "|") {
-        positionOfDelimiter := InStr(factPair, ":")
-        if positionOfDelimiter = 0 {
-            continue
-        }
-        factNamePart  := Trim(SubStr(factPair, 1, positionOfDelimiter - 1))
-        factValuePart := Trim(SubStr(factPair, positionOfDelimiter + 1))
-        factMap[factNamePart] := factValuePart
-    }
-
-    try {
-        if !factMap.Has(factName) {
-            throw Error(Chr(34) . applicationName . Chr(34) . " does not have a valid fact name " . Chr(34) . factName . Chr(34) . ".")
+        if !applicationRegistry[applicationName].Has(factName) {
+            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " does not have a valid fact name: " . Chr(34) . factName . Chr(34))
         }
     } catch as factNameMissingError {
         LogInformationConclusion("Failed", logValuesForConclusion, factNameMissingError)
     }
 
     try {
-        if factMap[factName] !== factValue {
-            throw Error(Chr(34) . applicationName . Chr(34) . " with fact name of " . Chr(34) . factName . Chr(34) . " does not match fact value " . Chr(34) . factValue . Chr(34) . ".")
+        if applicationRegistry[applicationName][factName] !== factValue {
+            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " with fact name of " . Chr(34) . factName . Chr(34) . " does not match fact value of: " . Chr(34) . factValue . Chr(34))
         }
     } catch as factValueMissingError {
         LogInformationConclusion("Failed", logValuesForConclusion, factValueMissingError)
-    }
-
-    if factName = "Installed" && factMap["Installed"] = "Yes" {
-        factsRevised := "|" . applicationRegistry[applicationName]["Facts"] "|"
-        factsRevised := StrReplace(factsRevised, "|Installed: Yes|", "|")
-        AppendCsvLineToLog(applicationName . factsRevised . "Application", "Execution Log")
     }
 
     LogInformationConclusion("Completed", logValuesForConclusion)
@@ -385,7 +384,7 @@ ValidateApplicationFact(applicationName, factName, factValue) {
 ; ******************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional] [Type: Search Open], aboutCondition As String [Optional] [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -679,7 +678,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
-    savePath       := saveDirectory . filename . ".csv"
+    savePath := saveDirectory . filename . ".csv"
 
     SendInput("^n") ; CTRL+N (Query with Current Connection)
     Sleep(2000)
@@ -762,23 +761,23 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     while true {
         dialogExists := WinExist("ahk_exe " . toadExecutableFilename . " ahk_class TReconnectForm")
 
-        if (dialogHasAppeared = false) {
+        if dialogHasAppeared = false {
             ; Phase 1: waiting for the dialog to appear
-            if (dialogExists != false) {
+            if dialogExists != false {
                 dialogHasAppeared := true
                 firstSeenTickCount := A_TickCount
-            } else if (A_TickCount - overallStartTickCount >= 2000) {
+            } else if A_TickCount - overallStartTickCount >= 2000 {
                 ; No dialog ever appeared -> likely instant/local reconnect
                 break
             }
         } else {
             ; Phase 2: dialog has appeared; wait until it closes (disappears)
-            if (dialogExists = false) {
+            if dialogExists = false {
                 ; Closed = reconnect finished
                 break
             }
             try {
-                if (A_TickCount - firstSeenTickCount >= 30000) {
+                if A_TickCount - firstSeenTickCount >= 30000 {
                     throw Error("Reconnect dialog did not close within " . Round(30000 / 1000) . " seconds.")
                 }
             } catch as reconnectFailedError {

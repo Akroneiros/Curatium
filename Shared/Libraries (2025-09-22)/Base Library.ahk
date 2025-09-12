@@ -251,7 +251,7 @@ PastePath(savePath) {
 }
 
 PasteSearch(searchValue) {
-    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Search (" . searchValue . ")", methodName, [searchValue])
 
     attempts    := 0

@@ -17,18 +17,10 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
         default:
     }
 
-    fileHandle := DllCall("Kernel32\CreateFileW"
-        , "wstr", filePath
-        , "uint", 0x80000000
-        , "uint", 0x1
-        , "ptr", 0
-        , "uint", 3
-        , "uint", 0x02000000
-        , "ptr", 0
-        , "ptr")
+    fileHandle := DllCall("Kernel32\CreateFileW", "wstr", filePath, "uint", 0x80000000, "uint", 0x1, "ptr", 0, "uint", 3, "uint", 0x02000000, "ptr", 0, "ptr")
 
     try {
-        if (fileHandle = -1) {
+        if fileHandle = -1 {
             throw Error("Failed to open file for reading: " . filePath)
         }
     } catch as failedToOpenFileForReadingError {
@@ -37,12 +29,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
 
     fileTimeBuffer := Buffer(24, 0)
     try {
-        if !DllCall("Kernel32\GetFileTime"
-            , "ptr", fileHandle
-            , "ptr", fileTimeBuffer.Ptr
-            , "ptr", fileTimeBuffer.Ptr + 8
-            , "ptr", fileTimeBuffer.Ptr + 16
-            , "int")
+        if !DllCall("Kernel32\GetFileTime", "ptr", fileHandle, "ptr", fileTimeBuffer.Ptr, "ptr", fileTimeBuffer.Ptr + 8, "ptr", fileTimeBuffer.Ptr + 16, "int")
         {
             throw Error("GetFileTime failed for: " . filePath)
         }
@@ -236,32 +223,32 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
 
                 direction := Random(1, 4)
 
-                if (direction = 1 && mouseX >= screenWidth - 1) {
+                if direction = 1 && mouseX >= screenWidth - 1 {
                     direction := 2
-                } else if (direction = 2 && mouseX <= 0) {
+                } else if direction = 2 && mouseX <= 0 {
                     direction := 1
-                } else if (direction = 3 && mouseY >= screenHeight - 1) {
+                } else if direction = 3 && mouseY >= screenHeight - 1 {
                     direction := 4
-                } else if (direction = 4 && mouseY <= 0) {
+                } else if direction = 4 && mouseY <= 0 {
                     direction := 3
                 }
 
-                if (direction = 1) {
+                if direction = 1 {
                     MouseMove 1, 0, 0, "R"
-                } else if (direction = 2) {
+                } else if direction = 2 {
                     MouseMove -1, 0, 0, "R"
-                } else if (direction = 3) {
+                } else if direction = 3 {
                     MouseMove 0, 1, 0, "R"
                 } else {
                     MouseMove 0, -1, 0, "R"
                 }
 
                 Sleep(Random(200, 800))
-                if (direction = 1) {
+                if direction = 1 {
                     MouseMove -1, 0, 0, "R"
-                } else if (direction = 2) {
+                } else if direction = 2 {
                     MouseMove 1, 0, 0, "R"
-                } else if (direction = 3) {
+                } else if direction = 3 {
                     MouseMove 0, -1, 0, "R"
                 } else {
                     MouseMove 0, 1, 0, "R"
@@ -324,17 +311,10 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
     accessMode := 0x100
     shareMode  := 0x7
     flags      := 0x80 | 0x02000000
-    handle     := DllCall("Kernel32\CreateFileW"
-        , "wstr", directoryPath
-        , "uint", accessMode
-        , "uint", shareMode
-        , "ptr", 0
-        , "uint", 3
-        , "uint", flags
-        , "ptr", 0
-        , "ptr")
+    handle     := DllCall("Kernel32\CreateFileW", "wstr", directoryPath, "uint", accessMode, "uint", shareMode, "ptr", 0, "uint", 3, "uint", flags, "ptr", 0, "ptr")
+
     try {
-        if (handle = -1) {
+        if handle = -1 {
             throw Error("CreateFileW failed")
         }
     } catch as createFileWFailedError {
@@ -414,17 +394,10 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
         accessMode := 0x100
         shareMode  := 0x7
         flags      := 0x80 | 0x02000000
-        handle     := DllCall("Kernel32\CreateFileW"
-            , "wstr", filePath
-            , "uint", accessMode
-            , "uint", shareMode
-            , "ptr", 0
-            , "uint", 3
-            , "uint", flags
-            , "ptr", 0
-            , "ptr")
+        handle     := DllCall("Kernel32\CreateFileW", "wstr", filePath, "uint", accessMode, "uint", shareMode, "ptr", 0, "uint", 3, "uint", flags, "ptr", 0, "ptr")
+
         try {
-            if (handle = -1) {
+            if handle = -1 {
                 throw Error("CreateFileW failed")
             }
         } catch as createFileWFailedError {
@@ -444,12 +417,7 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
             default:
         }
 
-        success := DllCall("Kernel32\SetFileTime"
-            , "ptr", handle
-            , "ptr", pointerCreation
-            , "ptr", pointerAccessed
-            , "ptr", pointerModified
-            , "int")
+        success := DllCall("Kernel32\SetFileTime", "ptr", handle, "ptr", pointerCreation, "ptr", pointerAccessed, "ptr", pointerModified, "int")
 
         DllCall("Kernel32\CloseHandle", "ptr", handle)
 
@@ -640,7 +608,7 @@ IsValidGregorianDay(year, month, day) {
     isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
     daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    if (day <= daysInMonth[month]) {
+    if day <= daysInMonth[month] {
         return true
     } else {
         return false
@@ -724,22 +692,22 @@ ValidateIsoDate(year, month, day, hour := 0, minute := 0, second := 0) {
     minute := Number(minute)
     second := Number(second)
 
-    if (year < 0 || year > 9999) {
+    if year < 0 || year > 9999 {
         validationResults := "Invalid ISO 8601 Date: " . year . " (year out of range 0000–9999)."
-    } else if (month < 1 || month > 12) {
+    } else if month < 1 || month > 12 {
         validationResults := "Invalid ISO 8601 Date: " . month . " (month must be 01–12)."
-    } else if (day < 1 || day > 31) {
+    } else if day < 1 || day > 31 {
         validationResults := "Invalid ISO 8601 Date: " . day . " (day must be 01–31)."
     } else if !IsValidGregorianDay(year, month, day) {
         validationResults := "Invalid ISO 8601 Date: " . day . " (day out of range for month)."
     }
     
     if validationResults = "" && !(hour = 0 && minute = 0 && second = 0) {
-        if (hour < 0 || hour > 23) {
+        if hour < 0 || hour > 23 {
             validationResults := "Invalid ISO 8601 Date Time: " . hour . " (hour must be 00–23)."
-        } else if (minute < 0 || minute > 59) {
+        } else if minute < 0 || minute > 59 {
             validationResults := "Invalid ISO 8601 Date Time: " . minute . " (minute must be 00–59)."
-        } else if (second < 0 || second > 59) {
+        } else if second < 0 || second > 59 {
             validationResults := "Invalid ISO 8601 Date Time: " . second . " (second must be 00–59)."
         } else {
             localSystemTime := Buffer(16, 0)
@@ -764,7 +732,7 @@ ValidateIsoDate(year, month, day, hour := 0, minute := 0, second := 0) {
                 roundTripHour   := NumGet(systemTimeLocal, 8, "UShort")
                 roundTripMinute := NumGet(systemTimeLocal, 10, "UShort")
                 roundTripSecond := NumGet(systemTimeLocal, 12, "UShort")
-                if (roundTripYear != year || roundTripMonth != month || roundTripDay != day || roundTripHour != hour || roundTripMinute != minute || roundTripSecond != second) {
+                if roundTripYear != year || roundTripMonth != month || roundTripDay != day || roundTripHour != hour || roundTripMinute != minute || roundTripSecond != second {
                     validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time after round-trip, DST gap).", year, month, day, hour, minute, second)
                 }
             }
