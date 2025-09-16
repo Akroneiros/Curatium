@@ -71,6 +71,14 @@ CreateSharedImages(imageCatalogName) {
         sharedImages.Push(image)
     }
 
+    if imageCatalogName = "Image Library Catalog (2025-09-04)" {
+        for index, image in sharedImages {
+            if InStr(image["Name"], "SMMS") {
+                image["Name"] := StrReplace(image["Name"], "SMMS", "SSMS")
+            }
+        }
+    }
+
     filenameValues := []
     for index, image in sharedImages {
         filenameValues.Push(image["Name"] . " (" . image["Variation"] . ")." . image["Extension"])

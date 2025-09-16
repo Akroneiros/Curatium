@@ -12,11 +12,19 @@ global applicationRegistry := Map()
 RegisterApplications() {
     global applicationRegistry
 
-    for index, applicationName in [
+    for applicationName in [
+        "7-Zip",
+        "Chrome",
+        "Edge",
+        "Everything",
         "Excel",
+        "Firefox",
         "Notepad++",
+        "PowerPoint",
         "SQL Server Management Studio",
-        "Toad for Oracle"
+        "Toad for Oracle",
+        "TrueCrypt",
+        "Word"
     ] {
         applicationRegistry[applicationName] := Map()
 
@@ -33,271 +41,229 @@ RegisterApplications() {
     installedApplications := []
     for outerKey, innerMap in applicationRegistry {
         if innermap["Installed"] = true {
-            baseConfiguration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
+            configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
 
             switch outerKey
             {
                 case "Excel":
-                    installedApplications.Push(baseConfiguration . "|" . "Personal Macro Workbook: " . innerMap["Personal Macro Workbook"] . "|" . "Code Execution: " . innerMap["Code Execution"])
-                default:
-                    installedApplications.Push(baseConfiguration)
+                    configuration := configuration . "|" . "Personal Macro Workbook: " . innerMap["Personal Macro Workbook"] . "|" . "Code Execution: " . innerMap["Code Execution"]
             }
+
+            installedApplications.Push(configuration)
+            innerMap["Symbol Ledger Lookup"] := configuration . "|" . "A"
         }
     }
 
     SymbolLedgerBatchAppend("A", installedApplications)
-}
 
-DetermineWindowsBinaryType(applicationName) {
-    static SCS_32BIT_BINARY := 0
-    static SCS_DOS_BINARY   := 1
-    static SCS_WOW_BINARY   := 2
-    static SCS_PIF_BINARY   := 3
-    static SCS_POSIX_BINARY := 4
-    static SCS_OS2_BINARY   := 5
-    static SCS_64BIT_BINARY := 6
-
-    classificationResult := "N/A"
-    scsCode := 0
-
-    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "str", applicationRegistry[applicationName]["Executable Path"], "uint*", &scsCode, "int")
-
-    if callSucceeded != 0 {
-        switch scsCode {
-            case SCS_32BIT_BINARY:
-                classificationResult := "32-bit"
-            case SCS_64BIT_BINARY:
-                classificationResult := "64-bit"
-            case SCS_DOS_BINARY:
-                classificationResult := "DOS"
-            case SCS_WOW_BINARY:
-                classificationResult := "Windows 16-bit"
-            case SCS_PIF_BINARY:
-                classificationResult := "PIF"
-            case SCS_POSIX_BINARY:
-                classificationResult := "POSIX"
-            case SCS_OS2_BINARY:
-                classificationResult := "OS/2"
+    for outerKey, innerMap in applicationRegistry {
+        if innermap["Installed"] = true {
+            innerMap["Symbol"] := symbolLedger[innerMap["Symbol Ledger Lookup"]]["Symbol"]
         }
     }
-
-    return classificationResult
 }
 
 ExecutablePathResolve(applicationName) {
-    executablePath := ""
+    executablePath      := ""
+    executableName      := ""
+    executableDirectory := ""
+    registryKeyPaths    := []
 
     switch applicationName
     {
+        case "7-Zip":
+            executableName      := "7zFM.exe"
+            executableDirectory := "7-Zip"
+            registryKeyPaths    := [
+                "HKCU\Software\7-Zip",
+                "HKLM\Software\7-Zip",
+                "HKLM\Software\WOW6432Node\7-Zip"
+            ]
+        case "Chrome":
+            executableName      := "chrome.exe"
+            executableDirectory := "Google\Chrome\Application"
+        case "Edge":
+            executableName      := "msedge.exe"
+            executableDirectory := "Microsoft\Edge\Application"
+        case "Everything":
+            executableName      := "Everything.exe"
+            executableDirectory := "Everything"
+            registryKeyPaths    := [
+                "HKCU\Software\voidtools\Everything",
+                "HKLM\Software\voidtools\Everything",
+                "HKLM\Software\WOW6432Node\voidtools\Everything"
+            ]
         case "Excel":
-            try {
-                executablePath := RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe", "")
-
-                if executablePath = "" {
-                    executablePath := RegRead("HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\excel.exe", "")
-                }
-            }
+            executableName      := "EXCEL.EXE"
+            executableDirectory := "Microsoft Office\root\Office16"
+            registryKeyPaths    := [
+                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+            ]
+        case "Firefox":
+            executableName      := "firefox.exe"
+            executableDirectory := "Mozilla Firefox"
         case "Notepad++":
-            try {
-                executablePath := RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\notepad++.exe", "")
-            }
-
-            if executablePath = "" {
-                try {
-                    executablePath := RegRead("HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\notepad++.exe", "")
-                }
-            }
-
-            ; Fallback: vendor key stores install directory in "Path"
-            if executablePath = "" || !FileExist(executablePath) {
-                try {
-                    installDirectory := RegRead("HKLM\SOFTWARE\Notepad++", "Path")
-                    if installDirectory != "" && FileExist(installDirectory . "\notepad++.exe") {
-                        executablePath := installDirectory . "\notepad++.exe"
-                    }
-                }
-            }
-
-            ; Fallbacks: typical install locations
-            if executablePath = "" || !FileExist(executablePath) {
-                if FileExist(A_ProgramFiles . "\Notepad++\notepad++.exe") {
-                    executablePath := A_ProgramFiles . "\Notepad++\notepad++.exe"
-                }
-            }
-            if executablePath = "" || !FileExist(executablePath) {
-                if FileExist(A_ProgramFiles . " (x86)\Notepad++\notepad++.exe") {
-                    executablePath := A_ProgramFiles . " (x86)\Notepad++\notepad++.exe"
-                }
-            }
+            executableName      := "notepad++.exe"
+            executableDirectory := "Notepad++"
+        case "PowerPoint":
+            executableName      := "POWERPNT.EXE"
+            executableDirectory := "Microsoft Office\root\Office16"
+            registryKeyPaths    := [
+                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+            ]
         case "SQL Server Management Studio":
-            try {
-                ; Attempt 1: SSMSInstallRoot (SSMS 18–20)
-                baseKeys := [
-                    "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server Management Studio",
-                    "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Microsoft SQL Server Management Studio"
-                ]
-                for baseKey in baseKeys {
-                    Loop Reg, baseKey, "K" {
-                        try {
-                            installRoot := RegRead(A_LoopRegKey, "SSMSInstallRoot")
-                        } catch {
-                            installRoot := ""
-                        }
-                        if installRoot != "" {
-                            candidate := installRoot "\Common7\IDE\SSMS.exe"
-                            if FileExist(candidate) {
-                                executablePath := candidate
-                                break 2
-                            }
-                        }
-                    }
-                }
-
-                ; Attempt 2: pre‑18 releases (sqlwb.exe)
-                if executablePath = "" {
-                    regKeys := [
-                        "HKLM\\SOFTWARE\\Classes\\Applications\\sqlwb.exe\\shell\\open\\command",
-                        "HKLM\\SOFTWARE\\WOW6432Node\\Classes\\Applications\\sqlwb.exe\\shell\\open\\command"
-                    ]
-                    for key in regKeys {
-                        try {
-                            executableCommandLine := RegRead(key, "")
-                        } catch {
-                            executableCommandLine := ""
-                        }
-                        if executableCommandLine != "" {
-                            executablePath := RegExReplace(executableCommandLine, '^\s*"([^"]+\.exe).*', "$1")
-                            break
-                        }
-                    }
-                }
-
-                ; Attempt 3: SSMS 21 (file‑system probe)
-                if executablePath = "" {
-                    versionRoots := [
-                        "C:\Program Files\Microsoft SQL Server Management Studio*",
-                        "C:\Program Files (x86)\Microsoft SQL Server Management Studio*"
-                    ]
-                    for rootPattern in versionRoots {
-                        Loop Files, rootPattern, "D" {
-                            candidate := A_LoopFilePath "\Release\Common7\IDE\SSMS.exe"
-                            if FileExist(candidate) {
-                                executablePath := candidate
-                                break 2
-                            }
-                            candidate := A_LoopFilePath "\Common7\IDE\SSMS.exe"
-                            if FileExist(candidate) {
-                                executablePath := candidate
-                                break 2
-                            }
-                        }
-                    }
-                }
-            }
+            executableName      := "SSMS.exe"
+            executableDirectory := "Microsoft SQL Server Management Studio 21\Release\Common7\IDE"
+            registryKeyPaths    := [
+                "HKLM\Software\Microsoft\Microsoft SQL Server Management Studio",
+                "HKLM\Software\WOW6432Node\Microsoft\Microsoft SQL Server Management Studio"
+            ]
         case "Toad for Oracle":
+            executableName      := "Toad.exe"
+            executableDirectory := "Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription"
+            registryKeyPaths := [
+                "HKLM\Software\Quest Software\Toad for Oracle",
+                "HKLM\Software\WOW6432Node\Quest Software\Toad for Oracle",
+                "HKLM\Software\Dell\Toad for Oracle",
+                "HKLM\Software\WOW6432Node\Dell\Toad for Oracle"
+            ]
+        case "TrueCrypt":
+            executableName      := "TrueCrypt.exe"
+            executableDirectory := "TrueCrypt"
+        case "Word":
+            executableName      := "WINWORD.EXE"
+            executableDirectory := "Microsoft Office\root\Office16"
+            registryKeyPaths    := [
+                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
+                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
+                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+            ]
+    }
+
+    executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
+    executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
+    executablePath := ExecutablePathViaUninstall(executablePath, executableName)
+
+    return executablePath
+}
+
+ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
+    if executablePath !== "" {
+        return executablePath
+    }
+
+    candidateBaseDirectories := []
+
+    programFilesDirectory := EnvGet("ProgramFiles")
+    if programFilesDirectory {
+        candidateBaseDirectories.Push(programFilesDirectory)
+    }
+
+    programFilesX86Directory := EnvGet("ProgramFiles(x86)")
+    if programFilesX86Directory && programFilesX86Directory != programFilesDirectory {
+        candidateBaseDirectories.Push(programFilesX86Directory)
+    }
+
+    programFilesW6432Directory := EnvGet("ProgramW6432")
+    if programFilesW6432Directory && programFilesW6432Directory != programFilesDirectory && programFilesW6432Directory != programFilesX86Directory {
+        candidateBaseDirectories.Push(programFilesW6432Directory)
+    }
+
+    localApplicationDataDirectory := EnvGet("LOCALAPPDATA")
+    if localApplicationDataDirectory {
+        candidateBaseDirectories.Push(localApplicationDataDirectory "\Programs")
+    }
+
+    for baseDirectory in candidateBaseDirectories {
+        candidatePath := baseDirectory . "\" . directoryName . "\" . executableName
+
+        if FileExist(candidatePath) {
+            executablePath := candidatePath
+            break
+        }
+    }
+
+    return executablePath
+}
+
+ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
+    if executablePath !== "" {
+        return executablePath
+    }
+
+    registryKeyPaths.Push("HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths")
+    registryKeyPaths.Push("HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths")
+    registryKeyPaths.Push("HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths")
+
+    for registryKeyPath in registryKeyPaths {
+        installFolder := ""
+
+        try {
+            installFolder := RegRead(registryKeyPath, "Path")
+        }
+
+        if installFolder {
+            candidatePath := RTrim(installFolder, "\/") . "\" . executableName
+
+            if FileExist(candidatePath) {
+                executablePath := candidatePath
+                break
+            }
+        }
+    }
+
+    return executablePath
+}
+
+ExecutablePathViaUninstall(executablePath, executableName) {
+    if executablePath !== "" {
+        return executablePath
+    }
+
+    for uninstallBaseKeyPath in [
+        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    ] {
+        Loop Reg, uninstallBaseKeyPath, "K" {
+            uninstallSubKeyPath := A_LoopRegKey "\" A_LoopRegName
+
+            displayName := ""
             try {
-                ; Attempt 1: Uninstall keys (DisplayIcon or InstallLocation)
-                if executablePath = "" {
-                    for uninstallBaseKeyPath in [
-                        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                        "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-                    ] {
-                        Loop Reg, uninstallBaseKeyPath, "K" {
-                            uninstallSubKeyPath := A_LoopRegKey "\" A_LoopRegName
+                displayName := RegRead(uninstallSubKeyPath, "DisplayName")
+            }
+            if !(displayName && InStr(StrLower(displayName), StrLower(StrReplace(executableName, ".exe", "")))) {
+                continue
+            }
 
-                            displayName := ""
-                            try {
-                                displayName := RegRead(uninstallSubKeyPath, "DisplayName")
-                            }
-                            if !(displayName && InStr(StrLower(displayName), "toad") && InStr(StrLower(displayName), "oracle")) {
-                                continue
-                            }
-
-                            displayIcon := ""
-                            try {
-                                displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
-                            }
-                            if displayIcon {
-                                pathToExecutable := Trim(StrSplit(displayIcon, ",")[1], ' "')
-                                if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -9) = "\toad.exe") {
-                                    executablePath := pathToExecutable
-                                }
-                            }
-
-                            installLocation := ""
-                            try {
-                                installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
-                            }
-                            if installLocation {
-                                pathToExecutable := RTrim(installLocation, "\/") "\Toad.exe"
-                                if FileExist(pathToExecutable) {
-                                    executablePath := pathToExecutable
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ; Attempt 2: App Paths (usually exact exe)
-                if executablePath = "" {
-                    for registryKeyPath in [
-                        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Toad.exe",
-                        "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\Toad.exe"
-                    ] {
-                        try {
-                            registryDefaultValue := RegRead(registryKeyPath, "")
-                            if registryDefaultValue {
-                                pathToExecutable := Trim(StrSplit(registryDefaultValue, ",")[1], ' "')
-                                if FileExist(pathToExecutable) {
-                                    executablePath := pathToExecutable
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ; Attempt 3: Vendor keys (Quest/Dell rebrand)
-                if executablePath = "" {
-                    for vendorRegistryKeyPath in [
-                        "HKLM\SOFTWARE\Quest Software\Toad for Oracle",
-                        "HKLM\SOFTWARE\WOW6432Node\Quest Software\Toad for Oracle",
-                        "HKLM\SOFTWARE\Dell\Toad for Oracle",
-                        "HKLM\SOFTWARE\WOW6432Node\Dell\Toad for Oracle"
-                    ] {
-                        for vendorValueName in ["InstallPath","InstallLocation","Path"] {
-                            try {
-                                registryValue := RegRead(vendorRegistryKeyPath, vendorValueName)
-                                if registryValue {
-                                    pathToExecutable := (SubStr(StrLower(registryValue), -9) = "\toad.exe") ? Trim(StrSplit(registryValue, ",")[1], ' "') : RTrim(registryValue, "\/") "\Toad.exe"
-                                    pathToExecutable := Trim(pathToExecutable, ' "')
-                                    if FileExist(pathToExecutable) {
-                                        executablePath := pathToExecutable
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ; Attempt 4: Narrow Program Files scan (no full-disk search)
-                if executablePath = "" {
-                    for programFilesDirectory in [EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)")] {
-                        if !programFilesDirectory {
-                            continue
-                        }
-                        for vendorName in ["Quest Software","Dell"] {
-                            vendorRootDirectory := programFilesDirectory "\" vendorName
-                            if !DirExist(vendorRootDirectory) {
-                                continue
-                            }
-                            Loop Files, vendorRootDirectory "\Toad for Oracle*\Toad.exe", "R" {
-                                executablePath := A_LoopFileFullPath
-                            }
-                        }
-                    }
+            displayIcon := ""
+            try {
+                displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
+            }
+            if displayIcon {
+                pathToExecutable := Trim(StrSplit(displayIcon, ",")[1], ' "')
+                if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -9) = "\" . StrLower(executableName)) {
+                    executablePath := pathToExecutable
                 }
             }
-        default:
+
+            installLocation := ""
+            try {
+                installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
+            }
+            if installLocation {
+                pathToExecutable := RTrim(installLocation, "\/") "\" . executableName
+                if FileExist(pathToExecutable) {
+                    executablePath := pathToExecutable
+                }
+            }
+        }
     }
 
     return executablePath
@@ -354,6 +320,42 @@ ResolveFactsForApplication(applicationName) {
             activeWorkbook := 0
             excelApplication := 0
     }
+}
+
+DetermineWindowsBinaryType(applicationName) {
+    static SCS_32BIT_BINARY := 0
+    static SCS_DOS_BINARY   := 1
+    static SCS_WOW_BINARY   := 2
+    static SCS_PIF_BINARY   := 3
+    static SCS_POSIX_BINARY := 4
+    static SCS_OS2_BINARY   := 5
+    static SCS_64BIT_BINARY := 6
+
+    classificationResult := "N/A"
+    scsCode := 0
+
+    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "str", applicationRegistry[applicationName]["Executable Path"], "uint*", &scsCode, "int")
+
+    if callSucceeded != 0 {
+        switch scsCode {
+            case SCS_32BIT_BINARY:
+                classificationResult := "32-bit"
+            case SCS_64BIT_BINARY:
+                classificationResult := "64-bit"
+            case SCS_DOS_BINARY:
+                classificationResult := "DOS"
+            case SCS_WOW_BINARY:
+                classificationResult := "Windows 16-bit"
+            case SCS_PIF_BINARY:
+                classificationResult := "PIF"
+            case SCS_POSIX_BINARY:
+                classificationResult := "POSIX"
+            case SCS_OS2_BINARY:
+                classificationResult := "OS/2"
+        }
+    }
+
+    return classificationResult
 }
 
 ValidateApplicationFact(applicationName, factName, factValue) {
@@ -686,7 +688,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PasteCode(code, "--")
 
     SendInput("!x") ; ALT+X (Execute)
-    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SMMS Query Successful", "6-26", "88-96", 360)
+    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SSMS Query Successful", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
     Sleep(480)
@@ -699,9 +701,44 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PastePath(savePath)
 
     SendEvent("{Enter}") ; ENTER (Save)
-    Sleep(480)
-    SendEvent("y") ; Y (Yes)
-    Sleep(240)
+
+    maximumWaitMilliseconds := 10000
+    pollIntervalMilliseconds := 100
+    startTickCount := A_TickCount
+
+    fileExistsAlready := !!FileExist(savePath)
+
+    if fileExistsAlready = false {
+        while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+            Sleep(pollIntervalMilliseconds)
+        }
+    }
+
+    if fileExistsAlready = true {
+        previousModifiedTime := FileGetTime(savePath, "M")
+
+        Sleep(480)
+
+        SendEvent("y") ; Y (Yes)
+
+        startTickCount := A_TickCount
+        Sleep(1000)
+        while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+            Sleep(pollIntervalMilliseconds)
+        }
+
+        try {
+            if FileGetTime(savePath, "M") = previousModifiedTime {
+                throw Error("Timed out waiting for overwrite: " . savePath)
+            }
+        } catch as timedOutError {
+            LogInformationConclusion("Failed", logValuesForConclusion, timedOutError)
+        }
+
+        Sleep(240)
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
 CloseMicrosoftSqlServerManagementStudio() {
