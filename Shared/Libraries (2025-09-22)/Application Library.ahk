@@ -15,15 +15,23 @@ RegisterApplications() {
     for applicationName in [
         "7-Zip",
         "Chrome",
+        "DevToys",
         "Edge",
         "Everything",
         "Excel",
         "Firefox",
+        "KeePass",
         "Notepad++",
+        "OBS Studio",
+        "Paint Shop Pro",
         "PowerPoint",
+        "qBittorrent",
         "SQL Server Management Studio",
         "Toad for Oracle",
         "TrueCrypt",
+        "Visual Studio Code",
+        "Workstation Pro",
+        "WinSCP",
         "Word"
     ] {
         applicationRegistry[applicationName] := Map()
@@ -82,6 +90,9 @@ ExecutablePathResolve(applicationName) {
         case "Chrome":
             executableName      := "chrome.exe"
             executableDirectory := "Google\Chrome\Application"
+        case "DevToys":
+            executableName      := "DevToys.exe"
+            executableDirectory := "DevToys Preview"
         case "Edge":
             executableName      := "msedge.exe"
             executableDirectory := "Microsoft\Edge\Application"
@@ -105,9 +116,18 @@ ExecutablePathResolve(applicationName) {
         case "Firefox":
             executableName      := "firefox.exe"
             executableDirectory := "Mozilla Firefox"
+        case "KeePass":
+            executableName      := "KeePass.exe"
+            executableDirectory := "KeePass Password Safe 2"
         case "Notepad++":
             executableName      := "notepad++.exe"
             executableDirectory := "Notepad++"
+        case "OBS Studio":
+            executableName      := "obs64.exe"
+            executableDirectory := "obs-studio\bin\64bit"
+        case "Paint Shop Pro":
+            executableName      := "Paint Shop Pro 9.exe"
+            executableDirectory := "Jasc Software Inc\Paint Shop Pro 9"
         case "PowerPoint":
             executableName      := "POWERPNT.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
@@ -117,6 +137,9 @@ ExecutablePathResolve(applicationName) {
                 "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
                 "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "qBittorrent":
+            executableName      := "qbittorrent.exe"
+            executableDirectory := "qBittorrent"
         case "SQL Server Management Studio":
             executableName      := "SSMS.exe"
             executableDirectory := "Microsoft SQL Server Management Studio 21\Release\Common7\IDE"
@@ -136,6 +159,12 @@ ExecutablePathResolve(applicationName) {
         case "TrueCrypt":
             executableName      := "TrueCrypt.exe"
             executableDirectory := "TrueCrypt"
+        case "Visual Studio Code":
+            executableName      := "Code.exe"
+            executableDirectory := "Microsoft VS Code"
+        case "WinSCP":
+            executableName      := "WinSCP.exe"
+            executableDirectory := "WinSCP"
         case "Word":
             executableName      := "WINWORD.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
@@ -145,6 +174,9 @@ ExecutablePathResolve(applicationName) {
                 "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
                 "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "Workstation Pro":
+            executableName      := "vmware.exe"
+            executableDirectory := "VMware\VMware Workstation"
     }
 
     executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
@@ -178,7 +210,7 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
 
     localApplicationDataDirectory := EnvGet("LOCALAPPDATA")
     if localApplicationDataDirectory {
-        candidateBaseDirectories.Push(localApplicationDataDirectory "\Programs")
+        candidateBaseDirectories.Push(localApplicationDataDirectory . "\Programs")
     }
 
     for baseDirectory in candidateBaseDirectories {
@@ -688,7 +720,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PasteCode(code, "--")
 
     SendInput("!x") ; ALT+X (Execute)
-    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SSMS Query Successful", "6-26", "88-96", 360)
+    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SQL Server Management Studio Query Successful", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
     Sleep(480)

@@ -74,7 +74,7 @@ CreateSharedImages(imageCatalogName) {
     if imageCatalogName = "Image Library Catalog (2025-09-04)" {
         for index, image in sharedImages {
             if InStr(image["Name"], "SMMS") {
-                image["Name"] := StrReplace(image["Name"], "SMMS", "SSMS")
+                image["Name"] := StrReplace(image["Name"], "SMMS", "SQL Server Management Studio")
             }
         }
     }
