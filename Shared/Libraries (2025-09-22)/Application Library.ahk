@@ -5,31 +5,43 @@
 
 global applicationRegistry := Map()
 
-; ******************** ;
-; Application Registry ;
-; ******************** ;
+; **************************** ;
+; Application Registry         ;
+; **************************** ;
 
 RegisterApplications() {
     global applicationRegistry
 
     for applicationName in [
         "7-Zip",
+        "Acrobat Reader",
         "Chrome",
+        "DBeaver",
+        "DbSchema",
         "DevToys",
         "Edge",
         "Everything",
         "Excel",
         "Firefox",
+        "Foxit PDF Reader",
         "KeePass",
         "Notepad++",
         "OBS Studio",
+        "Outlook",
         "Paint Shop Pro",
+        "Paint.NET",
         "PowerPoint",
+        "PuTTY",
         "qBittorrent",
+        "ScreenToGif",
         "SQL Server Management Studio",
+        "StartAllBack",
         "Toad for Oracle",
         "TrueCrypt",
+        "VeraCrypt",
+        "Visual Studio",
         "Visual Studio Code",
+        "WinRAR",
         "Workstation Pro",
         "WinSCP",
         "Word"
@@ -83,13 +95,20 @@ ExecutablePathResolve(applicationName) {
             executableName      := "7zFM.exe"
             executableDirectory := "7-Zip"
             registryKeyPaths    := [
-                "HKCU\Software\7-Zip",
-                "HKLM\Software\7-Zip",
-                "HKLM\Software\WOW6432Node\7-Zip"
+                "7-Zip"
             ]
+        case "Acrobat Reader":
+            executableName      := "Acrobat.exe"
+            executableDirectory := "Adobe\Acrobat DC\Acrobat"
         case "Chrome":
             executableName      := "chrome.exe"
             executableDirectory := "Google\Chrome\Application"
+        case "DBeaver":
+            executableName      := "dbeaver.exe"
+            executableDirectory := "DBeaver"
+        case "DbSchema":
+            executableName      := "DbSchema.exe"
+            executableDirectory := "DbSchema"
         case "DevToys":
             executableName      := "DevToys.exe"
             executableDirectory := "DevToys Preview"
@@ -100,22 +119,21 @@ ExecutablePathResolve(applicationName) {
             executableName      := "Everything.exe"
             executableDirectory := "Everything"
             registryKeyPaths    := [
-                "HKCU\Software\voidtools\Everything",
-                "HKLM\Software\voidtools\Everything",
-                "HKLM\Software\WOW6432Node\voidtools\Everything"
+                "voidtools\Everything"
             ]
         case "Excel":
             executableName      := "EXCEL.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
             registryKeyPaths    := [
-                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+                "Microsoft\Office\16.0\Common\InstallRoot",
+                "Microsoft\Office\15.0\Common\InstallRoot"
             ]
         case "Firefox":
             executableName      := "firefox.exe"
             executableDirectory := "Mozilla Firefox"
+        case "Foxit PDF Reader":
+            executableName      := "FoxitPDFReader.exe"
+            executableDirectory := "Foxit Software\Foxit PDF Reader"
         case "KeePass":
             executableName      := "KeePass.exe"
             executableDirectory := "KeePass Password Safe 2"
@@ -125,43 +143,66 @@ ExecutablePathResolve(applicationName) {
         case "OBS Studio":
             executableName      := "obs64.exe"
             executableDirectory := "obs-studio\bin\64bit"
+        case "Outlook":
+            executableName      := "OUTLOOK.EXE"
+            executableDirectory := "Microsoft Office\root\Office16"
+            registryKeyPaths    := [
+                "Microsoft\Office\16.0\Common\InstallRoot",
+                "Microsoft\Office\15.0\Common\InstallRoot"
+            ]
         case "Paint Shop Pro":
             executableName      := "Paint Shop Pro 9.exe"
             executableDirectory := "Jasc Software Inc\Paint Shop Pro 9"
+        case "Paint.NET":
+            executableName      := "paintdotnet.exe"
+            executableDirectory := "Paint.NET"
         case "PowerPoint":
             executableName      := "POWERPNT.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
             registryKeyPaths    := [
-                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+                "Microsoft\Office\16.0\Common\InstallRoot",
+                "Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "PuTTY":
+            executableName      := "putty.exe"
+            executableDirectory := "PuTTY"
         case "qBittorrent":
             executableName      := "qbittorrent.exe"
             executableDirectory := "qBittorrent"
+        case "ScreenToGif":
+            executableName      := "ScreenToGif.exe"
+            executableDirectory := "ScreenToGif"
         case "SQL Server Management Studio":
             executableName      := "SSMS.exe"
             executableDirectory := "Microsoft SQL Server Management Studio 21\Release\Common7\IDE"
             registryKeyPaths    := [
-                "HKLM\Software\Microsoft\Microsoft SQL Server Management Studio",
-                "HKLM\Software\WOW6432Node\Microsoft\Microsoft SQL Server Management Studio"
+                "Microsoft\Microsoft SQL Server Management Studio"
             ]
+        case "StartAllBack":
+            executableName      := "StartAllBackCfg.exe"
+            executableDirectory := "StartAllBack"
         case "Toad for Oracle":
             executableName      := "Toad.exe"
             executableDirectory := "Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription"
             registryKeyPaths := [
-                "HKLM\Software\Quest Software\Toad for Oracle",
-                "HKLM\Software\WOW6432Node\Quest Software\Toad for Oracle",
-                "HKLM\Software\Dell\Toad for Oracle",
-                "HKLM\Software\WOW6432Node\Dell\Toad for Oracle"
+                "Quest Software\Toad for Oracle",
+                "Dell\Toad for Oracle"
             ]
         case "TrueCrypt":
             executableName      := "TrueCrypt.exe"
             executableDirectory := "TrueCrypt"
+        case "VeraCrypt":
+            executableName      := "VeraCrypt.exe"
+            executableDirectory := "VeraCrypt"
+        case "Visual Studio":
+            executableName      := "devenv.exe"
+            executableDirectory := "Microsoft Visual Studio\2022\Community\Common7\IDE"
         case "Visual Studio Code":
             executableName      := "Code.exe"
             executableDirectory := "Microsoft VS Code"
+        case "WinRAR":
+            executableName      := "WinRAR.exe"
+            executableDirectory := "WinRAR"
         case "WinSCP":
             executableName      := "WinSCP.exe"
             executableDirectory := "WinSCP"
@@ -169,19 +210,17 @@ ExecutablePathResolve(applicationName) {
             executableName      := "WINWORD.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
             registryKeyPaths    := [
-                "HKLM\Software\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\16.0\Common\InstallRoot",
-                "HKLM\Software\Microsoft\Office\15.0\Common\InstallRoot",
-                "HKLM\Software\WOW6432Node\Microsoft\Office\15.0\Common\InstallRoot"
+                "Microsoft\Office\16.0\Common\InstallRoot",
+                "Microsoft\Office\15.0\Common\InstallRoot"
             ]
         case "Workstation Pro":
             executableName      := "vmware.exe"
             executableDirectory := "VMware\VMware Workstation"
     }
 
-    executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
     executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
     executablePath := ExecutablePathViaUninstall(executablePath, executableName)
+    executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
 
     return executablePath
 }
@@ -191,26 +230,31 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
         return executablePath
     }
 
-    candidateBaseDirectories := []
+    static candidateBaseDirectories
 
-    programFilesDirectory := EnvGet("ProgramFiles")
-    if programFilesDirectory {
-        candidateBaseDirectories.Push(programFilesDirectory)
-    }
+    if !IsSet(candidateBaseDirectories) {
+        candidateBaseDirectories := []
 
-    programFilesX86Directory := EnvGet("ProgramFiles(x86)")
-    if programFilesX86Directory && programFilesX86Directory != programFilesDirectory {
-        candidateBaseDirectories.Push(programFilesX86Directory)
-    }
+        programFilesDirectory := EnvGet("ProgramFiles")
+        if programFilesDirectory {
+            candidateBaseDirectories.Push(programFilesDirectory)
+        }
 
-    programFilesW6432Directory := EnvGet("ProgramW6432")
-    if programFilesW6432Directory && programFilesW6432Directory != programFilesDirectory && programFilesW6432Directory != programFilesX86Directory {
-        candidateBaseDirectories.Push(programFilesW6432Directory)
-    }
+        programFilesX86Directory := EnvGet("ProgramFiles(x86)")
+        if programFilesX86Directory && programFilesX86Directory != programFilesDirectory {
+            candidateBaseDirectories.Push(programFilesX86Directory)
+        }
 
-    localApplicationDataDirectory := EnvGet("LOCALAPPDATA")
-    if localApplicationDataDirectory {
-        candidateBaseDirectories.Push(localApplicationDataDirectory . "\Programs")
+        programFilesW6432Directory := EnvGet("ProgramW6432")
+        if programFilesW6432Directory && programFilesW6432Directory != programFilesDirectory && programFilesW6432Directory != programFilesX86Directory {
+            candidateBaseDirectories.Push(programFilesW6432Directory)
+        }
+
+        localApplicationDataDirectory := EnvGet("LOCALAPPDATA")
+        if localApplicationDataDirectory {
+            candidateBaseDirectories.Push(localApplicationDataDirectory)
+            candidateBaseDirectories.Push(localApplicationDataDirectory . "\Programs")
+        }
     }
 
     for baseDirectory in candidateBaseDirectories {
@@ -228,6 +272,17 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
 ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
     if executablePath !== "" {
         return executablePath
+    }
+
+    if registryKeyPaths.Length !== 0 {
+        originalRegistryKeyPaths := registryKeyPaths.Clone()
+        registryKeyPaths := []
+
+        for registryKeyPath in originalRegistryKeyPaths {
+            registryKeyPaths.Push("HKCU\Software\" . registryKeyPath)
+            registryKeyPaths.Push("HKLM\Software\" . registryKeyPath)
+            registryKeyPaths.Push("HKLM\Software\WOW6432Node\" . registryKeyPath)
+        }
     }
 
     registryKeyPaths.Push("HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths")
@@ -260,16 +315,18 @@ ExecutablePathViaUninstall(executablePath, executableName) {
     }
 
     for uninstallBaseKeyPath in [
-        "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ] {
         Loop Reg, uninstallBaseKeyPath, "K" {
-            uninstallSubKeyPath := A_LoopRegKey "\" A_LoopRegName
+            uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
 
             displayName := ""
             try {
                 displayName := RegRead(uninstallSubKeyPath, "DisplayName")
             }
+
             if !(displayName && InStr(StrLower(displayName), StrLower(StrReplace(executableName, ".exe", "")))) {
                 continue
             }
@@ -278,9 +335,10 @@ ExecutablePathViaUninstall(executablePath, executableName) {
             try {
                 displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
             }
+
             if displayIcon {
                 pathToExecutable := Trim(StrSplit(displayIcon, ",")[1], ' "')
-                if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -9) = "\" . StrLower(executableName)) {
+                if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -StrLen(executableName)) = StrLower(executableName)) {
                     executablePath := pathToExecutable
                 }
             }
@@ -289,8 +347,9 @@ ExecutablePathViaUninstall(executablePath, executableName) {
             try {
                 installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
             }
+
             if installLocation {
-                pathToExecutable := RTrim(installLocation, "\/") "\" . executableName
+                pathToExecutable := RTrim(installLocation, "\/") . "\" . executableName
                 if FileExist(pathToExecutable) {
                     executablePath := pathToExecutable
                 }
@@ -304,9 +363,12 @@ ExecutablePathViaUninstall(executablePath, executableName) {
 ResolveFactsForApplication(applicationName) {
     global applicationRegistry
 
-    applicationRegistry[applicationName]["Executable Hash"]    := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
-    applicationRegistry[applicationName]["Executable Version"] := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
-    applicationRegistry[applicationName]["Binary Type"]        := DetermineWindowsBinaryType(applicationName)
+    applicationRegistry[applicationName]["Executable Hash"]     := EncodeSha256HexToBase80(Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"]))
+    applicationRegistry[applicationName]["Executable Version"]  := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
+    applicationRegistry[applicationName]["Binary Type"]         := DetermineWindowsBinaryType(applicationName)
+
+    SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
+    applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
     switch applicationName
     {
@@ -390,6 +452,25 @@ DetermineWindowsBinaryType(applicationName) {
     return classificationResult
 }
 
+CloseApplication(applicationName) {
+    static methodName := RegisterMethod("CloseApplication(applicationName As String [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Close Application (" . applicationName . ")", methodName, [applicationName])
+
+    try {
+        if !applicationRegistry.Has(applicationName) {
+            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " invalid.")
+        }
+    } catch as missingApplicationError {
+        LogInformationConclusion("Failed", logValuesForConclusion, missingApplicationError)
+    }
+
+    SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableName)
+    ProcessClose(executableName)
+    ProcessWaitClose(executableName, 4)
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 ValidateApplicationFact(applicationName, factName, factValue) {
     static methodName := RegisterMethod("ValidateApplicationFact(applicationName As String, factName As String, factValue As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")", methodName, [applicationName, factName, factValue])
@@ -413,9 +494,9 @@ ValidateApplicationFact(applicationName, factName, factValue) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-; ******************** ;
-; Excel                ;
-; ******************** ;
+; **************************** ;
+; Excel                        ;
+; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
     static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional] [Type: Search Open], aboutCondition As String [Optional] [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 7)
@@ -675,13 +756,13 @@ WaitForExcelToLoad() {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-; ******************** ;
-; SQL Server MS        ;
-; ******************** ;
+; **************************** ;
+; SQL Server Management Studio ;
+; **************************** ;
 
-StartMicrosoftSqlServerManagementStudioAndConnect() {
-    static methodName := RegisterMethod("StartMicrosoftSqlServerManagementStudioAndConnect()" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Start Microsoft SQL Server Management Studio and Connect", methodName)
+StartSqlServerManagementStudioAndConnect() {
+    static methodName := RegisterMethod("StartSqlServerManagementStudioAndConnect()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Start SQL Server Management Studio and Connect", methodName)
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
 
@@ -720,7 +801,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PasteCode(code, "--")
 
     SendInput("!x") ; ALT+X (Execute)
-    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SQL Server Management Studio Query Successful", "6-26", "88-96", 360)
+    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SQL Server Management Studio Query executed successfully", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
     Sleep(480)
@@ -773,28 +854,15 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-CloseMicrosoftSqlServerManagementStudio() {
-    static methodName := RegisterMethod("CloseMicrosoftSqlServerManagementStudio()" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Close Microsoft SQL Server Management Studio", methodName)
-
-    fullPath := applicationRegistry["SQL Server Management Studio"]["Executable Path"]
-    SplitPath(fullPath, &executableName)
-    ProcessClose(executableName)
-    ProcessWaitClose(executableName, 4)
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-}
-
-; ******************** ;
-; Toad for Oracle      ;
-; ******************** ;
+; **************************** ;
+; Toad for Oracle              ;
+; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
     static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Verify Toad for Oracle Works", methodName, [appName, runtimeDate])
 
-    toadForOracleExecutablePath := applicationRegistry["Toad for Oracle"]["Executable Path"]
-    SplitPath(toadForOracleExecutablePath, &toadExecutableFilename)
+    static toadExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
     windowCriteria := "ahk_exe " . toadExecutableFilename . " ahk_class TfrmMain"
 
@@ -899,7 +967,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(1200)
     SendEvent("{Enter}") ; ENTER (Goto Item)
     Sleep(1200)
-    toadForOraclePlayCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Play", "0-40", "0-20")
+    toadForOraclePlayCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
 
     if runtimeDate !== "" {
         PerformMouseActionAtCoordinates("Move", toadForOraclePlayCoordinates)
@@ -920,9 +988,9 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-; ******************** ;
-; Helper Methods       ;
-; ******************** ;
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 CombineExcelCode(introCode, mainCode, outroCode := "") {
     combinedCode := introCode . "`r`n`r`n" . mainCode

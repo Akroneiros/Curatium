@@ -367,9 +367,9 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-; ******************** ;
-; Helper Methods       ;
-; ******************** ;
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 ExtractValuesFromArrayDimension(array, dimension) {
     arrayDimension := []

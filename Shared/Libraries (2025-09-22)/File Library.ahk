@@ -325,9 +325,9 @@ WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
     }
 }
 
-; ******************** ;
-; Helper Methods       ;
-; ******************** ;
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 ExtractDirectory(filePath) {
     SplitPath(filePath, , &directoryPath)

@@ -73,8 +73,12 @@ CreateSharedImages(imageCatalogName) {
 
     if imageCatalogName = "Image Library Catalog (2025-09-04)" {
         for index, image in sharedImages {
-            if InStr(image["Name"], "SMMS") {
-                image["Name"] := StrReplace(image["Name"], "SMMS", "SQL Server Management Studio")
+            if image["Name"] = "SMMS Query Successful" {
+                image["Name"] := "SQL Server Management Studio Query executed successfully"
+            }
+
+            if image["Name"] = "Toad for Oracle Play" {
+                image["Name"] := "Toad for Oracle Run selected apps"
             }
         }
     }

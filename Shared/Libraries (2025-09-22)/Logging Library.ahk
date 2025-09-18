@@ -972,9 +972,9 @@ FinalizeLogs() {
     logFilePath["Symbol Ledger"] := ""
 }
 
-; ******************** ;
-; Helper Methods       ;
-; ******************** ;
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 AssignBase80CharacterSet() {
     static cachedResult := Unset

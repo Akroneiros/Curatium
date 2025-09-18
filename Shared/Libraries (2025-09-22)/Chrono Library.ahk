@@ -490,9 +490,9 @@ WaitUntilFileIsModifiedToday(filePath) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-; ******************** ;
-; Helper Methods       ;
-; ******************** ;
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 CaptureTimeAnchor() {
     maximumSpinIterations := 2000000
