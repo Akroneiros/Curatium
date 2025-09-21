@@ -1,0 +1,49 @@
+﻿Name|Executable|Directory
+7-Zip|7zFM.exe|7-Zip
+Acrobat Reader|Acrobat.exe|Adobe\Acrobat DC\Acrobat
+Beyond Compare|BCompare.exe|Beyond Compare 5
+CherryTree|cherrytree.exe|CherryTree\ucrt64\bin
+Chrome|chrome.exe|Google\Chrome\Application
+CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
+DBeaver|dbeaver.exe|DBeaver
+DbSchema|DbSchema.exe|DbSchema
+DevToys|DevToys.exe|DevToys Preview
+Docker Desktop|Docker Desktop.exe|Docker\Docker
+Edge|msedge.exe|Microsoft\Edge\Application
+Everything|Everything.exe|Everything
+Excel|EXCEL.EXE|Microsoft Office\root\Office16
+FileOptimizer|FileOptimizer64.exe|FileOptimizer
+FileZilla|filezilla.exe|FileZilla FTP Client
+Firefox|firefox.exe|Mozilla Firefox
+Foxit PDF Reader|FoxitPDFReader.exe|Foxit Software\Foxit PDF Reader
+GIMP|gimp-3.exe|GIMP 3\bin
+GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
+HWiNFO|HWiNFO64.EXE|HWiNFO64
+Inkscape|inkscape.exe|Inkscape\bin
+Internet Download Manager|IDMan.exe|Internet Download Manager
+IrfanView|i_view64.exe|IrfanView
+KeePass|KeePass.exe|KeePass Password Safe 2
+Notepad++|notepad++.exe|Notepad++
+OBS Studio|obs64.exe|obs-studio\bin\64bit
+Outlook|OUTLOOK.EXE|Microsoft Office\root\Office16
+Paint Shop Pro|Paint Shop Pro 9.exe|Jasc Software Inc\Paint Shop Pro 9
+Paint.NET|paintdotnet.exe|Paint.NET
+PowerPoint|POWERPNT.EXE|Microsoft Office\root\Office16
+PowerToys|PowerToys.exe|PowerToys
+Pulover's Macro Creator|MacroCreator.exe|MacroCreator
+PuTTY|putty.exe|PuTTY
+qBittorrent|qbittorrent.exe|qBittorrent
+ScreenToGif|ScreenToGif.exe|ScreenToGif
+SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 21\Release\Common7\IDE
+StartAllBack|StartAllBackCfg.exe|StartAllBack
+Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
+TrueCrypt|TrueCrypt.exe|TrueCrypt
+VeraCrypt|VeraCrypt.exe|VeraCrypt
+Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
+Visual Studio Code|Code.exe|Microsoft VS Code
+WinRAR|WinRAR.exe|WinRAR
+WinSCP|WinSCP.exe|WinSCP
+WizTree|WizTree64.exe|WizTree
+Word|WINWORD.EXE|Microsoft Office\root\Office16
+Workstation Pro|vmware.exe|VMware\VMware Workstation
+XnView MP|xnviewmp.exe|XnViewMP
