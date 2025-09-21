@@ -34,6 +34,54 @@ CleanOfficeLocksInFolder(directoryPath) {
     }
 }
 
+ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
+    static methodName := RegisterMethod("ConvertCsvToObject(filePath As String [Type: Absolute Path], delimiter As String [Optional: |])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")", methodName, [filePath])
+
+    hashValue := Hash.File("SHA256", filePath)
+    fileText  := ReadFileOnHashMatch(filePath, hashValue)
+
+    fileText := StrReplace(StrReplace(fileText, "`r`n", "`n"), "`r", "`n")
+    allLines := StrSplit(fileText, "`n")
+
+    try {
+        if allLines[1] = "" {
+            throw Error("Header line is empty.")
+        }
+    } catch as headerLineEmptyError {
+        LogInformationConclusion("Failed", logValuesForConclusion, headerLineEmptyError)
+    }
+
+    headerNames := StrSplit(Trim(allLines[1], " `t"), delimiter)
+
+    rowsAsMaps := []
+    Loop allLines.Length - 1 {
+        currentLine := Trim(allLines[1 + A_Index], " `t")
+
+        try { 
+            if currentLine = "" {
+                throw Error("Found an empty line on line #" . A_Index + 1 . ".")
+            }
+        } catch as emptyLineError {
+            LogInformationConclusion("Failed", logValuesForConclusion, emptyLineError)
+        }
+
+        fieldValues := StrSplit(currentLine, delimiter)
+        rowMap := Map()
+
+        Loop headerNames.Length {
+            headerName := Trim(headerNames[A_Index], " `t")
+            valueText := (A_Index <= fieldValues.Length) ? Trim(fieldValues[A_Index], " `t") : ""
+            rowMap[headerName] := valueText
+        }
+
+        rowsAsMaps.Push(rowMap)
+    }
+    
+    LogInformationConclusion("Completed", logValuesForConclusion)
+    return rowsAsMaps
+}
+
 CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "") {
     static methodName := RegisterMethod("CopyFileToTarget(filePath As String [Type: Absolute Path], targetDirectory As String [Type: Directory], findValue As String [Optional], replaceValue As String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Copy File to Target (" . ExtractFilename(filePath) . ")", methodName, [filePath, targetDirectory, findValue, replaceValue])
@@ -260,8 +308,54 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         LogInformationConclusion("Failed", logValuesForConclusion, hashMismatchError)
     }
 
+    fileBuffer := FileRead(filePath, "RAW")
+    totalSize  := fileBuffer.Size
+    fileText   := ""
+    
+    try {
+        if totalSize = 0 {
+            throw Error("File is empty: " . filePath)
+        }
+    } catch as emptyFileError {
+        LogInformationConclusion("Failed", logValuesForConclusion, emptyFileError)
+    }
+
+    byte1 := NumGet(fileBuffer.Ptr, 0, "UChar")
+    byte2 := totalSize > 1 ? NumGet(fileBuffer.Ptr, 1, "UChar") : 0
+    byte3 := totalSize > 2 ? NumGet(fileBuffer.Ptr, 2, "UChar") : 0
+    byte4 := totalSize > 3 ? NumGet(fileBuffer.Ptr, 3, "UChar") : 0
+
+    if totalSize >= 3 && byte1=0xEF && byte2=0xBB && byte3=0xBF {
+        fileText := StrGet(fileBuffer.Ptr + 3, totalSize - 3, "UTF-8")
+    } else if totalSize >= 2 && byte1=0xFF && byte2=0xFE {
+        fileText := StrGet(fileBuffer.Ptr + 2, (totalSize - 2) // 2, "UTF-16")
+    } else if totalSize >= 2 && byte1=0xFE && byte2=0xFF {
+        beSize := totalSize - 2
+        swapped := Buffer(beSize)
+        sourcePtr := fileBuffer.Ptr + 2
+
+        Loop beSize // 2 {
+            offset := (A_Index - 1) * 2
+            NumPut("UChar", NumGet(sourcePtr + offset, 1, "UChar"), swapped.Ptr + offset, 0)
+            NumPut("UChar", NumGet(sourcePtr + offset, 0, "UChar"), swapped.Ptr + offset, 1)
+        }
+        fileText := StrGet(swapped.Ptr, beSize // 2, "UTF-16")
+    } else if (totalSize >= 4 && ((byte1=0x00 && byte2=0x00 && byte3=0xFE && byte4=0xFF) || (byte1=0xFF && byte2=0xFE && byte3=0x00 && byte4=0x00))) {
+        try {
+            throw Error("UTF-32 encoded text for file " . filePath . " is not supported.")
+        } catch as utf32EncodingError {
+            LogInformationConclusion("Failed", logValuesForConclusion, utf32EncodingError)
+        }
+    } else {
+        fileText := StrGet(fileBuffer.Ptr, totalSize, "UTF-8")
+    }
+
+    if (SubStr(fileText, 1, 1) = Chr(0xFEFF)) {
+        fileText := SubStr(fileText, 2)
+    }
+
     LogInformationConclusion("Completed", logValuesForConclusion)
-    return FileRead(filePath)
+    return fileText
 }
 
 WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
@@ -348,4 +442,15 @@ ExtractFilename(filePath, removeFileExtension := false) {
     }
 
     return filename
+}
+
+ExtractParentDirectory(filePath) {
+    SplitPath(filePath, , &directoryPath)
+    SplitPath(directoryPath, , &parentFolderPath)
+
+    if parentFolderPath != "" && SubStr(parentFolderPath, -1) != "\" {
+        parentFolderPath .= "\"
+    }
+
+    return parentFolderPath
 }

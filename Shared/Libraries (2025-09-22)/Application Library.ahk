@@ -11,57 +11,12 @@ global applicationRegistry := Map()
 
 RegisterApplications() {
     global applicationRegistry
+   
+    applications := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Applications.csv")
 
-    for applicationName in [
-        "7-Zip",
-        "Acrobat Reader",
-        "Beyond Compare",
-        "CherryTree",
-        "Chrome",
-        "CrystalDiskInfo",
-        "DBeaver",
-        "DbSchema",
-        "DevToys",
-        "Docker Desktop",
-        "Edge",
-        "Everything",
-        "Excel",
-        "FileOptimizer",
-        "FileZilla",
-        "Firefox",
-        "Foxit PDF Reader",
-        "GIMP",
-        "GitHub Desktop",
-        "HWiNFO",
-        "Inkscape",
-        "Internet Download Manager",
-        "IrfanView",
-        "KeePass",
-        "Notepad++",
-        "OBS Studio",
-        "Outlook",
-        "Paint Shop Pro",
-        "Paint.NET",
-        "PowerPoint",
-        "PowerToys",
-        "Pulover's Macro Creator",
-        "PuTTY",
-        "qBittorrent",
-        "ScreenToGif",
-        "SQL Server Management Studio",
-        "StartAllBack",
-        "Toad for Oracle",
-        "TrueCrypt",
-        "VeraCrypt",
-        "Visual Studio",
-        "Visual Studio Code",
-        "WinRAR",
-        "WinSCP",
-        "WizTree",
-        "Word",
-        "Workstation Pro",
-        "XnView MP",
-    ] {
+    for application in applications {
+        applicationName := application["Name"]
+
         applicationRegistry[applicationName] := Map()
 
         applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
@@ -105,186 +60,31 @@ ExecutablePathResolve(applicationName) {
     executableDirectory := ""
     registryKeyPaths    := []
 
-    switch applicationName
-    {
-        case "7-Zip":
-            executableName      := "7zFM.exe"
-            executableDirectory := "7-Zip"
-            registryKeyPaths    := [
-                "7-Zip"
-            ]
-        case "Acrobat Reader":
-            executableName      := "Acrobat.exe"
-            executableDirectory := "Adobe\Acrobat DC\Acrobat"
-        case "Beyond Compare":
-            executableName      := "BCompare.exe"
-            executableDirectory := "Beyond Compare 5"
-        case "CherryTree":
-            executableName      := "cherrytree.exe"
-            executableDirectory := "CherryTree\ucrt64\bin"
-        case "Chrome":
-            executableName      := "chrome.exe"
-            executableDirectory := "Google\Chrome\Application"
-        case "CrystalDiskInfo":
-            executableName      := "DiskInfo64.exe"
-            executableDirectory := "CrystalDiskInfo"
-        case "DBeaver":
-            executableName      := "dbeaver.exe"
-            executableDirectory := "DBeaver"
-        case "DbSchema":
-            executableName      := "DbSchema.exe"
-            executableDirectory := "DbSchema"
-        case "DevToys":
-            executableName      := "DevToys.exe"
-            executableDirectory := "DevToys Preview"
-        case "Docker Desktop":
-            executableName      := "Docker Desktop.exe"
-            executableDirectory := "Docker\Docker"
-        case "Edge":
-            executableName      := "msedge.exe"
-            executableDirectory := "Microsoft\Edge\Application"
-        case "Everything":
-            executableName      := "Everything.exe"
-            executableDirectory := "Everything"
-            registryKeyPaths    := [
-                "voidtools\Everything"
-            ]
-        case "Excel":
-            executableName      := "EXCEL.EXE"
-            executableDirectory := "Microsoft Office\root\Office16"
-            registryKeyPaths    := [
-                "Microsoft\Office\16.0\Common\InstallRoot",
-                "Microsoft\Office\15.0\Common\InstallRoot"
-            ]
-        case "FileOptimizer":
-            executableName      := "FileOptimizer64.exe"
-            executableDirectory := "FileOptimizer"
-        case "FileZilla":
-            executableName      := "filezilla.exe"
-            executableDirectory := "FileZilla FTP Client"
-        case "Firefox":
-            executableName      := "firefox.exe"
-            executableDirectory := "Mozilla Firefox"
-        case "Foxit PDF Reader":
-            executableName      := "FoxitPDFReader.exe"
-            executableDirectory := "Foxit Software\Foxit PDF Reader"
-        case "GIMP":
-            executableName      := "gimp-3.exe"
-            executableDirectory := "GIMP 3\bin"
-        case "GitHub Desktop":
-            executableName      := "GitHubDesktop.exe"
-            executableDirectory := "GitHubDesktop"
-        case "HWiNFO":
-            executableName      := "HWiNFO64.EXE"
-            executableDirectory := "HWiNFO64"
-        case "Inkscape":
-            executableName      := "inkscape.exe"
-            executableDirectory := "Inkscape\bin"
-        case "Internet Download Manager":
-            executableName      := "IDMan.exe"
-            executableDirectory := "Internet Download Manager"
-        case "IrfanView":
-            executableName      := "i_view64.exe"
-            executableDirectory := "IrfanView"
-        case "KeePass":
-            executableName      := "KeePass.exe"
-            executableDirectory := "KeePass Password Safe 2"
-        case "Notepad++":
-            executableName      := "notepad++.exe"
-            executableDirectory := "Notepad++"
-        case "OBS Studio":
-            executableName      := "obs64.exe"
-            executableDirectory := "obs-studio\bin\64bit"
-        case "Outlook":
-            executableName      := "OUTLOOK.EXE"
-            executableDirectory := "Microsoft Office\root\Office16"
-            registryKeyPaths    := [
-                "Microsoft\Office\16.0\Common\InstallRoot",
-                "Microsoft\Office\15.0\Common\InstallRoot"
-            ]
-        case "Paint Shop Pro":
-            executableName      := "Paint Shop Pro 9.exe"
-            executableDirectory := "Jasc Software Inc\Paint Shop Pro 9"
-        case "Paint.NET":
-            executableName      := "paintdotnet.exe"
-            executableDirectory := "Paint.NET"
-        case "PowerPoint":
-            executableName      := "POWERPNT.EXE"
-            executableDirectory := "Microsoft Office\root\Office16"
-            registryKeyPaths    := [
-                "Microsoft\Office\16.0\Common\InstallRoot",
-                "Microsoft\Office\15.0\Common\InstallRoot"
-            ]
-        case "PowerToys":
-            executableName      := "PowerToys.exe"
-            executableDirectory := "PowerToys"
-        case "Pulover's Macro Creator":
-            executableName      := "MacroCreator.exe"
-            executableDirectory := "MacroCreator"
-        case "PuTTY":
-            executableName      := "putty.exe"
-            executableDirectory := "PuTTY"
-        case "qBittorrent":
-            executableName      := "qbittorrent.exe"
-            executableDirectory := "qBittorrent"
-        case "ScreenToGif":
-            executableName      := "ScreenToGif.exe"
-            executableDirectory := "ScreenToGif"
-        case "SQL Server Management Studio":
-            executableName      := "SSMS.exe"
-            executableDirectory := "Microsoft SQL Server Management Studio 21\Release\Common7\IDE"
-            registryKeyPaths    := [
-                "Microsoft\Microsoft SQL Server Management Studio"
-            ]
-        case "StartAllBack":
-            executableName      := "StartAllBackCfg.exe"
-            executableDirectory := "StartAllBack"
-        case "Toad for Oracle":
-            executableName      := "Toad.exe"
-            executableDirectory := "Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription"
-            registryKeyPaths := [
-                "Quest Software\Toad for Oracle",
-                "Dell\Toad for Oracle"
-            ]
-        case "TrueCrypt":
-            executableName      := "TrueCrypt.exe"
-            executableDirectory := "TrueCrypt"
-        case "VeraCrypt":
-            executableName      := "VeraCrypt.exe"
-            executableDirectory := "VeraCrypt"
-        case "Visual Studio":
-            executableName      := "devenv.exe"
-            executableDirectory := "Microsoft Visual Studio\2022\Community\Common7\IDE"
-        case "Visual Studio Code":
-            executableName      := "Code.exe"
-            executableDirectory := "Microsoft VS Code"
-        case "WinRAR":
-            executableName      := "WinRAR.exe"
-            executableDirectory := "WinRAR"
-        case "WinSCP":
-            executableName      := "WinSCP.exe"
-            executableDirectory := "WinSCP"
-        case "WizTree":
-            executableName      := "WizTree64.exe"
-            executableDirectory := "WizTree"
-        case "Word":
-            executableName      := "WINWORD.EXE"
-            executableDirectory := "Microsoft Office\root\Office16"
-            registryKeyPaths    := [
-                "Microsoft\Office\16.0\Common\InstallRoot",
-                "Microsoft\Office\15.0\Common\InstallRoot"
-            ]
-        case "Workstation Pro":
-            executableName      := "vmware.exe"
-            executableDirectory := "VMware\VMware Workstation"
-        case "XnView MP":
-            executableName      := "xnviewmp.exe"
-            executableDirectory := "XnViewMP"
-    }
+    static applicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Application Executable Directory Candidates.csv")
+    static applicationRegistryPathCandidates        := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Application Registry Path Candidates.csv")
 
-    executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
-    executablePath := ExecutablePathViaUninstall(executablePath, executableName)
-    executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
+    for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+        if applicationExecutableDirectoryCandidate["Name"] = applicationName {
+            executableName      := applicationExecutableDirectoryCandidate["Executable"]
+            executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
+
+            for applicationRegistryPathCandidate in applicationRegistryPathCandidates {
+                if applicationRegistryPathCandidate["Name"] = applicationName {
+                    registryPath := applicationRegistryPathCandidate["Registry Path"]
+
+                    registryKeyPaths.Push(registryPath)
+                }
+            }
+
+            executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
+            executablePath := ExecutablePathViaUninstall(executablePath, executableName)
+            executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
+
+            if executablePath !== "" {
+                break
+            }
+        }
+    }
 
     return executablePath
 }
