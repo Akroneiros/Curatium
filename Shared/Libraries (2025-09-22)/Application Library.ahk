@@ -22,12 +22,19 @@ RegisterApplications() {
         "DBeaver",
         "DbSchema",
         "DevToys",
+        "Docker Desktop",
         "Edge",
         "Everything",
         "Excel",
+        "FileOptimizer",
+        "FileZilla",
         "Firefox",
         "Foxit PDF Reader",
+        "GIMP",
         "GitHub Desktop",
+        "HWiNFO",
+        "Inkscape",
+        "Internet Download Manager",
         "IrfanView",
         "KeePass",
         "Notepad++",
@@ -36,6 +43,7 @@ RegisterApplications() {
         "Paint Shop Pro",
         "Paint.NET",
         "PowerPoint",
+        "PowerToys",
         "Pulover's Macro Creator",
         "PuTTY",
         "qBittorrent",
@@ -129,6 +137,9 @@ ExecutablePathResolve(applicationName) {
         case "DevToys":
             executableName      := "DevToys.exe"
             executableDirectory := "DevToys Preview"
+        case "Docker Desktop":
+            executableName      := "Docker Desktop.exe"
+            executableDirectory := "Docker\Docker"
         case "Edge":
             executableName      := "msedge.exe"
             executableDirectory := "Microsoft\Edge\Application"
@@ -145,15 +156,33 @@ ExecutablePathResolve(applicationName) {
                 "Microsoft\Office\16.0\Common\InstallRoot",
                 "Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "FileOptimizer":
+            executableName      := "FileOptimizer64.exe"
+            executableDirectory := "FileOptimizer"
+        case "FileZilla":
+            executableName      := "filezilla.exe"
+            executableDirectory := "FileZilla FTP Client"
         case "Firefox":
             executableName      := "firefox.exe"
             executableDirectory := "Mozilla Firefox"
         case "Foxit PDF Reader":
             executableName      := "FoxitPDFReader.exe"
             executableDirectory := "Foxit Software\Foxit PDF Reader"
+        case "GIMP":
+            executableName      := "gimp-3.exe"
+            executableDirectory := "GIMP 3\bin"
         case "GitHub Desktop":
             executableName      := "GitHubDesktop.exe"
             executableDirectory := "GitHubDesktop"
+        case "HWiNFO":
+            executableName      := "HWiNFO64.EXE"
+            executableDirectory := "HWiNFO64"
+        case "Inkscape":
+            executableName      := "inkscape.exe"
+            executableDirectory := "Inkscape\bin"
+        case "Internet Download Manager":
+            executableName      := "IDMan.exe"
+            executableDirectory := "Internet Download Manager"
         case "IrfanView":
             executableName      := "i_view64.exe"
             executableDirectory := "IrfanView"
@@ -186,6 +215,9 @@ ExecutablePathResolve(applicationName) {
                 "Microsoft\Office\16.0\Common\InstallRoot",
                 "Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "PowerToys":
+            executableName      := "PowerToys.exe"
+            executableDirectory := "PowerToys"
         case "Pulover's Macro Creator":
             executableName      := "MacroCreator.exe"
             executableDirectory := "MacroCreator"
