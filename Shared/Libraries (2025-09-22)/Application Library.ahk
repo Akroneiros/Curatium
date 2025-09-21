@@ -15,7 +15,10 @@ RegisterApplications() {
     for applicationName in [
         "7-Zip",
         "Acrobat Reader",
+        "Beyond Compare",
+        "CherryTree",
         "Chrome",
+        "CrystalDiskInfo",
         "DBeaver",
         "DbSchema",
         "DevToys",
@@ -24,6 +27,8 @@ RegisterApplications() {
         "Excel",
         "Firefox",
         "Foxit PDF Reader",
+        "GitHub Desktop",
+        "IrfanView",
         "KeePass",
         "Notepad++",
         "OBS Studio",
@@ -31,6 +36,7 @@ RegisterApplications() {
         "Paint Shop Pro",
         "Paint.NET",
         "PowerPoint",
+        "Pulover's Macro Creator",
         "PuTTY",
         "qBittorrent",
         "ScreenToGif",
@@ -42,9 +48,11 @@ RegisterApplications() {
         "Visual Studio",
         "Visual Studio Code",
         "WinRAR",
-        "Workstation Pro",
         "WinSCP",
-        "Word"
+        "WizTree",
+        "Word",
+        "Workstation Pro",
+        "XnView MP",
     ] {
         applicationRegistry[applicationName] := Map()
 
@@ -100,9 +108,18 @@ ExecutablePathResolve(applicationName) {
         case "Acrobat Reader":
             executableName      := "Acrobat.exe"
             executableDirectory := "Adobe\Acrobat DC\Acrobat"
+        case "Beyond Compare":
+            executableName      := "BCompare.exe"
+            executableDirectory := "Beyond Compare 5"
+        case "CherryTree":
+            executableName      := "cherrytree.exe"
+            executableDirectory := "CherryTree\ucrt64\bin"
         case "Chrome":
             executableName      := "chrome.exe"
             executableDirectory := "Google\Chrome\Application"
+        case "CrystalDiskInfo":
+            executableName      := "DiskInfo64.exe"
+            executableDirectory := "CrystalDiskInfo"
         case "DBeaver":
             executableName      := "dbeaver.exe"
             executableDirectory := "DBeaver"
@@ -134,6 +151,12 @@ ExecutablePathResolve(applicationName) {
         case "Foxit PDF Reader":
             executableName      := "FoxitPDFReader.exe"
             executableDirectory := "Foxit Software\Foxit PDF Reader"
+        case "GitHub Desktop":
+            executableName      := "GitHubDesktop.exe"
+            executableDirectory := "GitHubDesktop"
+        case "IrfanView":
+            executableName      := "i_view64.exe"
+            executableDirectory := "IrfanView"
         case "KeePass":
             executableName      := "KeePass.exe"
             executableDirectory := "KeePass Password Safe 2"
@@ -163,6 +186,9 @@ ExecutablePathResolve(applicationName) {
                 "Microsoft\Office\16.0\Common\InstallRoot",
                 "Microsoft\Office\15.0\Common\InstallRoot"
             ]
+        case "Pulover's Macro Creator":
+            executableName      := "MacroCreator.exe"
+            executableDirectory := "MacroCreator"
         case "PuTTY":
             executableName      := "putty.exe"
             executableDirectory := "PuTTY"
@@ -206,6 +232,9 @@ ExecutablePathResolve(applicationName) {
         case "WinSCP":
             executableName      := "WinSCP.exe"
             executableDirectory := "WinSCP"
+        case "WizTree":
+            executableName      := "WizTree64.exe"
+            executableDirectory := "WizTree"
         case "Word":
             executableName      := "WINWORD.EXE"
             executableDirectory := "Microsoft Office\root\Office16"
@@ -216,6 +245,9 @@ ExecutablePathResolve(applicationName) {
         case "Workstation Pro":
             executableName      := "vmware.exe"
             executableDirectory := "VMware\VMware Workstation"
+        case "XnView MP":
+            executableName      := "xnviewmp.exe"
+            executableDirectory := "XnViewMP"
     }
 
     executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
