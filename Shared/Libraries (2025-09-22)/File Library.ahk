@@ -217,11 +217,8 @@ GetFileListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
     files := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
-    Loop Files, pattern
+    Loop Files, pattern, "F"
     {
-        if InStr(A_LoopFileAttrib, "D") { ; Skip Directories.
-            continue
-        }
         files.Push(A_LoopFileFullPath)
     }
 
@@ -235,6 +232,30 @@ GetFileListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
 
     LogInformationConclusion("Completed", logValuesForConclusion)
     return files
+}
+
+GetFolderListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
+    static methodName := RegisterMethod("GetFolderListFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Get Folder List from Directory (" . directoryPath . ")", methodName, [directoryPath, emptyDirectoryAllowed])
+
+    folders := []
+    pattern := RTrim(directoryPath, "\/") . "\*"
+
+    Loop Files, pattern, "D"
+    {
+        folders.Push(A_LoopFileFullPath . "\")
+    }
+
+    try {
+        if !emptyDirectoryAllowed && folders.Length = 0 {
+            throw Error("Directory exists but contains no folders: " . directoryPath)
+        }
+    } catch as emptyDirectoryError {
+        LogInformationConclusion("Failed", logValuesForConclusion, emptyDirectoryError)
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+    return folders
 }
 
 MoveFileToDirectory(filePath, directoryPath, overwrite := false) {

@@ -244,10 +244,9 @@ ResolveFactsForApplication(applicationName) {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
             }
 
-            Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"')
-            WaitForExcelToLoad()
-            excelApplication := ComObjActive("Excel.Application")
-            activeWorkbook := excelApplication.ActiveWorkbook
+            Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" /e', , , &excelProcessIdentifier)
+            excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
+            excelWorkbook    := excelApplication.Workbooks.Add()
 
             excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
 
@@ -271,11 +270,11 @@ ResolveFactsForApplication(applicationName) {
                 applicationRegistry["Excel"]["Code Execution"] := "Failed"
             }
 
-            activeWorkbook.Close(false)
+            excelWorkbook.Close(false)
             excelApplication.DisplayAlerts := false
             excelApplication.Quit()
 
-            activeWorkbook := 0
+            excelWorkbook := 0
             excelApplication := 0
     }
 }
@@ -381,10 +380,9 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         LogInformationConclusion("Failed", logValuesForConclusion, documentNameNotFoundError)
     }
 
-    Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"  "' . excelFilePath . '"')
-    WaitForExcelToLoad()
-    excelWorkbook := ComObjGet(excelFilePath)
-    excelApplication := excelWorkbook.Application
+    Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" "' . excelFilePath . '"', , , &excelProcessIdentifier)
+    excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
+    excelWorkbook := excelApplication.ActiveWorkbook
 
     aboutWorksheet := ""
     aboutWorksheetFound := false
@@ -392,9 +390,12 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     for sheet in excelWorkbook.Worksheets {
         if sheet.Name = "About" {
             aboutWorksheet := sheet
+            sheet := 0
             aboutWorksheetFound := true
             break
         }
+
+        sheet := 0
     }
 
     if (aboutRange !== "" || aboutCondition !== "") && aboutWorksheetFound = false {
@@ -439,11 +440,12 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
 
         if aboutValues[aboutRange] = aboutCondition {
-            ExcelScriptExecution(code)
-            WaitForExcelToClose()
-
+            aboutWorksheet   := 0
             excelWorkbook    := 0
             excelApplication := 0
+
+            ExcelScriptExecution(code)
+            WaitForExcelToClose(excelProcessIdentifier)
 
             LogInformationConclusion("Completed", logValuesForConclusion)
         } else if aboutRange = "ProgressionStatus" {
@@ -466,11 +468,12 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             }
 
             if matchedIndex > 0 {
-                ExcelScriptExecution(code)
-                WaitForExcelToClose()
-
+                aboutWorksheet   := 0
                 excelWorkbook    := 0
                 excelApplication := 0
+
+                ExcelScriptExecution(code)
+                WaitForExcelToClose(excelProcessIdentifier)
 
                 LogInformationConclusion("Completed", logValuesForConclusion)
             } else {
@@ -479,6 +482,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 excelApplication.DisplayAlerts := false
                 excelApplication.Quit()
 
+                aboutWorksheet   := 0
                 activeWorkbook   := 0
                 excelWorkbook    := 0
                 excelApplication := 0
@@ -491,6 +495,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             excelApplication.DisplayAlerts := false
             excelApplication.Quit()
 
+            aboutWorksheet   := 0
             activeWorkbook   := 0
             excelWorkbook    := 0
             excelApplication := 0
@@ -498,11 +503,12 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             LogInformationConclusion("Skipped", logValuesForConclusion)
         }
     } else {
-        ExcelScriptExecution(code)
-        WaitForExcelToClose()
-
+        aboutWorksheet   := 0
         excelWorkbook    := 0
         excelApplication := 0
+
+        ExcelScriptExecution(code)
+        WaitForExcelToClose(excelProcessIdentifier)
 
         LogInformationConclusion("Completed", logValuesForConclusion)
     }
@@ -557,10 +563,13 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         sidecarPath := saveDirectory . documentName . ".txt"
         FileAppend("", sidecarPath, "UTF-8-RAW")
 
-        Run('"' . applicationRegistry["Excel"]["Executable Path"] . '"')
-        WaitForExcelToLoad()
+        Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" /e', , , &excelProcessIdentifier)
+        excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
+        excelWorkbook := excelApplication.Workbooks.Add()
+        excelWorkbook    := 0
+        excelApplication := 0
         ExcelScriptExecution(code)
-        WaitForExcelToClose()
+        WaitForExcelToClose(excelProcessIdentifier)
 
         DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
         LogInformationConclusion("Completed", logValuesForConclusion)
@@ -569,29 +578,31 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     }
 }
 
-WaitForExcelToClose(maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
-    static methodName := RegisterMethod("WaitForExcelToClose(maxWaitMinutes As Integer [Optional: 240], mouseMoveIntervalSec As Integer [Optional: 120])" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close", methodName, [maxWaitMinutes, mouseMoveIntervalSec])
+WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
+    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer, maxWaitMinutes As Integer [Optional: 240], mouseMoveIntervalSec As Integer [Optional: 120])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close", methodName, [excelProcessIdentifier, maxWaitMinutes, mouseMoveIntervalSec])
 
     totalSecondsToWait := maxWaitMinutes * 60
     secondsSinceLastMouseMove := 0
 
+    sawProcessExit := false
     Loop totalSecondsToWait {
-        Sleep(1000)
-        secondsSinceLastMouseMove += 1
-
-        if secondsSinceLastMouseMove >= mouseMoveIntervalSec {
-            MouseMove 0, 0, 0, "R" ; For preventing screen saver from activating.
-            secondsSinceLastMouseMove := 0
+        if ProcessWaitClose(excelProcessIdentifier, 1) = 0 {
+            sawProcessExit := true
+            break
         }
 
-        if !WinExist("ahk_class XLMAIN ahk_exe EXCEL.EXE") {
-            break
+        secondsSinceLastMouseMove += 1
+        if secondsSinceLastMouseMove >= mouseMoveIntervalSec {
+            ; Generate real input (0,0 is a no-op): nudge out and back.
+            MouseMove 1, 0, 0, "R"
+            MouseMove -1, 0, 0, "R"
+            secondsSinceLastMouseMove := 0
         }
     }
 
     try {
-        if WinExist("ahk_class XLMAIN ahk_exe EXCEL.EXE") {
+        if sawProcessExit = false {
             throw Error("Excel did not close within " . maxWaitMinutes . " minutes.")
         }
     } catch as excelCloseError {
@@ -601,23 +612,25 @@ WaitForExcelToClose(maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-WaitForExcelToLoad() {
-    static methodName := RegisterMethod("WaitForExcelToLoad()" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Load", methodName)
+WaitForExcelToLoad(excelProcessIdentifier) {
+    static methodName := RegisterMethod("WaitForExcelToLoad(excelProcessIdentifier As Integer)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Load", methodName, [excelProcessIdentifier])
 
     try {
-        if !WinWait("ahk_class XLMAIN", , 480) {
+        if !WinWait("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 480) {
             throw Error("Excel document did not appear within 480 seconds.")
         }
     } catch as documentNotLoadedError {
         LogInformationConclusion("Failed", logValuesForConclusion, documentNotLoadedError)
     }
 
-    WinActivate("ahk_class XLMAIN")
-    WinActivate("ahk_class XLMAIN")
-    WinWaitActive("ahk_class XLMAIN", , 10)
+    WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
+    WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
+
+    excelApplication := ComObjActive("Excel.Application")
 
     LogInformationConclusion("Completed", logValuesForConclusion)
+    return excelApplication
 }
 
 ; **************************** ;
@@ -665,7 +678,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PasteCode(code, "--")
 
     SendInput("!x") ; ALT+X (Execute)
-    sqlQuerySuccessfulCoordinates := RetrieveImageCoordinatesFromSegment("SQL Server Management Studio Query executed successfully", "6-26", "88-96", 360)
+    sqlQuerySuccessfulCoordinates := GetImageCoordinatesFromSegment("SQL Server Management Studio Query executed successfully", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
     Sleep(480)
@@ -811,7 +824,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         LogInformationConclusion("Failed", logValuesForConclusion, selectAutomationDesignerError)
     }
 
-    toadForOracleSearchCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Search", "0-40", "80-100")
+    toadForOracleSearchCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Search", "0-40", "80-100")
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
     Sleep(2000)
 
@@ -831,7 +844,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(1200)
     SendEvent("{Enter}") ; ENTER (Goto Item)
     Sleep(1200)
-    toadForOraclePlayCoordinates := RetrieveImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
+    toadForOraclePlayCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
 
     if runtimeDate !== "" {
         PerformMouseActionAtCoordinates("Move", toadForOraclePlayCoordinates)

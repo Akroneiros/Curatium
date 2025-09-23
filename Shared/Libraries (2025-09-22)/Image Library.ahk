@@ -104,9 +104,47 @@ CreateSharedImages(imageCatalogName) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-RetrieveImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure := 60) {
-    static methodName := RegisterMethod("RetrieveImageCoordinatesFromSegment(imageAlias As String, horizontalPercentRange As String [Type: Percent Range], verticalPercentRange As String [Type: Percent Range], secondsOfWaitingBeforeFailure As Integer [Optional: 60])" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Retrieve Image Coordinates from Segment", methodName, [imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure])
+GetBase64FromFile(filePath) {
+    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Get Base64 from File (" . ExtractFilename(filePath) . ")", methodName, [filePath])
+
+    fileContentBuffer := FileRead(filePath, "RAW")
+
+    static CRYPT_STRING_BASE64 := 0x1
+    static CRYPT_STRING_NOCRLF := 0x40000000
+    static base64Flags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
+
+    requiredCharacters := 0
+    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "ptr",  fileContentBuffer.Ptr, "uint", fileContentBuffer.Size, "uint", base64Flags, "ptr", 0, "uint*", &requiredCharacters, "int")
+
+    try {
+        if !successFlag {
+            throw OSError("CryptBinaryToStringW (size probe) failed.")
+        }
+    } catch as sizeProbeFailed {
+        LogInformationConclusion("Failed", logValuesForConclusion, sizeProbeFailed)
+    }
+
+    outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
+    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "ptr",  fileContentBuffer.Ptr, "uint", fileContentBuffer.Size, "uint", base64Flags, "ptr", outputUtf16Buffer.Ptr, "uint*", &requiredCharacters, "int")
+
+    try {
+        if !successFlag {
+            throw OSError("CryptBinaryToStringW (encode) failed.")
+        }
+    } catch as encodeFailedError {
+        LogInformationConclusion("Failed", logValuesForConclusion, encodeFailedError)
+    }
+
+    base64Output := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+    return base64Output
+}
+
+GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure := 60) {
+    static methodName := RegisterMethod("GetImageCoordinatesFromSegment(imageAlias As String, horizontalPercentRange As String [Type: Percent Range], verticalPercentRange As String [Type: Percent Range], secondsOfWaitingBeforeFailure As Integer [Optional: 60])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Get Image Coordinates from Segment", methodName, [imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure])
 
     coordinatePair := ""
 

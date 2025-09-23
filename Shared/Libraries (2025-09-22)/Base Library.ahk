@@ -371,6 +371,21 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
 ; Helper Methods               ;
 ; **************************** ;
 
+ConvertArrayIntoCsvString(array) {
+    static newLine := "`r`n"
+
+    result := ""
+    for index, value in array {
+        if (index > 1) {
+            result .= newLine
+        }
+
+        result .= value
+    }
+
+    return result
+}
+
 ExtractValuesFromArrayDimension(array, dimension) {
     arrayDimension := []
 
@@ -417,4 +432,22 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
     }
 
     return returnValue
+}
+
+RemoveDuplicateFromArray(array) {
+    seen := Map()
+    index := array.Length
+
+    while index >= 1 {
+        currentValue := array[index]
+        if seen.Has(currentValue) {
+            array.RemoveAt(index)
+        } else {
+            seen[currentValue] := true
+        }
+
+        index -= 1
+    }
+
+    return array
 }
