@@ -204,7 +204,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     counter := 0
 
     if randomizePixelMovement = false {
-        while (DateDiff(runtimeDate, A_Now, "Seconds") > 60) {
+        while DateDiff(runtimeDate, A_Now, "Seconds") > 60 {
             counter += 1
             if counter >= 48 {
                 MouseMove(0, 0, 0, "R")
@@ -214,7 +214,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
             Sleep(10000)
         }
     } else {
-        while (DateDiff(runtimeDate, A_Now, "Seconds") > 60) {
+        while DateDiff(runtimeDate, A_Now, "Seconds") > 60 {
             counter += 1
             if counter >= 48 {
                 MouseGetPos(&mouseX, &mouseY)
@@ -261,11 +261,11 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
         }
     }
 
-    while (A_Now < DateAdd(runtimeDate, -1, "Seconds")) {
+    while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
         Sleep(240)
     }
 
-    while (A_Now < runtimeDate) {
+    while A_Now < runtimeDate {
         Sleep(16)
     }
 

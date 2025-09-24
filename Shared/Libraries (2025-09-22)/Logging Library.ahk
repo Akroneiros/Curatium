@@ -852,7 +852,7 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
 
     ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
     adjustAttemptsForWidth  := 0
-    while (Mod(visualWidth, 2) && adjustAttemptsForWidth < 6) {
+    while Mod(visualWidth, 2) && adjustAttemptsForWidth < 6 {
         baseLogicalWidth += 1
         statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
         visualRectangle := measureVisualRectangle()
@@ -861,7 +861,7 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
     }
 
     adjustAttemptsForHeight := 0
-    while (Mod(visualHeight, 2) && adjustAttemptsForHeight < 6) {
+    while Mod(visualHeight, 2) && adjustAttemptsForHeight < 6 {
         baseLogicalHeight += 1
         statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
         visualRectangle := measureVisualRectangle()
@@ -1077,7 +1077,7 @@ DecodeBase80ToSha256Hex(base80Text) {
     ; value = value * base80Radix + digit  (in place on the 32-byte buffer)
     base80Length := StrLen(base80Text)
     base80Position := 1
-    while (base80Position <= base80Length) {
+    while base80Position <= base80Length {
         base80Character := SubStr(base80Text, base80Position, 1)
         if !base80DigitByCharacterMap.Has(base80Character) {
             throw Error("DecodeAliasBase80ToSha256Hex: character not in Base80 set: " . base80Character)
@@ -1086,7 +1086,7 @@ DecodeBase80ToSha256Hex(base80Text) {
 
         carryValue := digitValue
         byteIndex := 31
-        while (byteIndex >= 0) {
+        while byteIndex >= 0 {
             currentByte := NumGet(sha256Bytes, byteIndex, "UChar")
             productValue := currentByte * base80Radix + carryValue
             NumPut("UChar", Mod(productValue, 256), sha256Bytes, byteIndex)
@@ -1102,7 +1102,7 @@ DecodeBase80ToSha256Hex(base80Text) {
     ; 32 bytes → canonical 64-char lowercase hex string
     hexOutput := ""
     byteIndex := 0
-    while (byteIndex < 32) {
+    while byteIndex < 32 {
         hexOutput .= Format("{:02x}", NumGet(sha256Bytes, byteIndex, "UChar"))
         byteIndex += 1
     }
@@ -1125,7 +1125,7 @@ EncodeIntegerToBase80(identifier) {
 
     base80Text  := ""
     integerValue := identifier
-    while (integerValue > 0) {
+    while integerValue > 0 {
         digitValue  := Mod(integerValue, base80Radix)
         base80Text := SubStr(base80Characters, digitValue + 1, 1) . base80Text
         integerValue := Floor(integerValue / base80Radix)
@@ -1157,7 +1157,7 @@ EncodeSha256HexToBase80(hexSha256) {
 
     isAllZero := true
     byteIndex := 0
-    while (byteIndex < 32) {
+    while byteIndex < 32 {
         if NumGet(sha256Bytes, byteIndex, "UChar") {
             isAllZero := false
             break
@@ -1173,7 +1173,7 @@ EncodeSha256HexToBase80(hexSha256) {
             remainderValue := 0
             hasNonZeroQuotientByte := false
             byteIndex := 0
-            while (byteIndex < 32) {
+            while byteIndex < 32 {
                 currentByte := NumGet(sha256Bytes, byteIndex, "UChar")
                 accumulator := remainderValue * 256 + currentByte
                 quotientByte := Floor(accumulator / base80Radix)
@@ -1193,7 +1193,7 @@ EncodeSha256HexToBase80(hexSha256) {
 
     base80Text := ""
     digitIndex := base80DigitsLeastSignificantFirst.Length
-    while (digitIndex >= 1) {
+    while digitIndex >= 1 {
         digitValue := base80DigitsLeastSignificantFirst[digitIndex]
         base80Text .= SubStr(base80Characters, digitValue + 1, 1)
         digitIndex -= 1
@@ -1204,7 +1204,7 @@ EncodeSha256HexToBase80(hexSha256) {
         return hexSha256
     }
     base80ZeroDigit := SubStr(base80Characters, 1, 1)
-    while (StrLen(base80Text) < 41) {
+    while StrLen(base80Text) < 41 {
         base80Text := base80ZeroDigit . base80Text
     }
 
@@ -1450,7 +1450,7 @@ ParseMethodDeclaration(declaration) {
 
             ; Toggle quoted-string mode on a double quote (").
             ; While inQuotedString = true, commas and brackets are considered literal characters.
-            if currentCharacter = Chr(34) {    ; Chr(34) = "
+            if currentCharacter = Chr(34) { ; Chr(34) = "
                 inQuotedString := !inQuotedString
                 currentParameterText .= currentCharacter
                 continue

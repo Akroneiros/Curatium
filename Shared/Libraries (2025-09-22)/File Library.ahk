@@ -184,7 +184,7 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     }
 
     index := filesInDirectory.Length
-    while (index >= 1) {
+    while index >= 1 {
         filePath := filesInDirectory[index]
         SplitPath(filePath, , , &loopFileExtension, &nameWithoutExtension)
 

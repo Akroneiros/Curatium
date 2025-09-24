@@ -286,7 +286,7 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
         imageDimensionsCache[imagePath] := [imageWidthPixels, imageHeightPixels]
     }
 
-    while (A_Now < endTime) {
+    while A_Now < endTime {
         for aliasVariant, imagePath in chosenImages {
             imageDimensions   := imageDimensionsCache[imagePath]
             imageWidthPixels  := imageDimensions [1]

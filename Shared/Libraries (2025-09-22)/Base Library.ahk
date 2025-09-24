@@ -139,7 +139,7 @@ PasteCode(code, commentPrefix) {
     sleepAmount := 360
     success     := false
 
-    while (attempts < maxAttempts) {
+    while attempts < maxAttempts {
         attempts++
         sleepAmount := sleepAmount + (attempts * 40)
 
@@ -203,7 +203,7 @@ PastePath(savePath) {
     sleepAmount := 200
     success     := false
 
-    while (attempts < maxAttempts) {
+    while attempts < maxAttempts {
         attempts++
         sleepAmount := sleepAmount + (attempts * 20)
 
@@ -259,7 +259,7 @@ PasteSearch(searchValue) {
     sleepAmount := 200
     success     := false
 
-    while (attempts < maxAttempts) {
+    while attempts < maxAttempts {
         attempts++
         sleepAmount := sleepAmount + (attempts * 20)
 

@@ -237,16 +237,27 @@ ResolveFactsForApplication(applicationName) {
     switch applicationName
     {
         case "Excel":
-            personalMacroWorkbookPath := EnvGet("AppData") . "\Microsoft\Excel\XLSTART\PERSONAL.XLSB"
+            excelApplication := ComObject("Excel.Application")
+            personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+
             if FileExist(personalMacroWorkbookPath) {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Enabled"
+                excelApplication.Workbooks.Open(personalMacroWorkbookPath)
             } else {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
+            }           
+            
+            excelWorkbook := excelApplication.Workbooks.Add()
+            excelApplication.Visible := true
+            excelWindowHandle := excelApplication.Hwnd
+
+            while !excelWindowHandle := excelApplication.Hwnd {
+                Sleep(16)
             }
 
-            Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" /e', , , &excelProcessIdentifier)
-            excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
-            excelWorkbook    := excelApplication.Workbooks.Add()
+            excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+            WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
+            WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
 
             excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
 
@@ -380,9 +391,33 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         LogInformationConclusion("Failed", logValuesForConclusion, documentNameNotFoundError)
     }
 
-    Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" "' . excelFilePath . '"', , , &excelProcessIdentifier)
-    excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
+    excelApplication := ComObject("Excel.Application")
+    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+
+    if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
+        excelApplication.Workbooks.Open(personalMacroWorkbookPath)
+    }
+
+    excelApplication.Visible := true
+    ; https://learn.microsoft.com/en-us/office/vba/api/excel.workbooks.open
+    excelApplication.Workbooks.Open(excelFilePath, 0)
     excelWorkbook := excelApplication.ActiveWorkbook
+    excelWindowHandle := excelApplication.Hwnd
+
+    while !excelWindowHandle := excelApplication.Hwnd {
+        Sleep(32)
+    }
+
+    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+    WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
+    WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
+
+    excelApplication.CalculateUntilAsyncQueriesDone()
+
+    ; https://learn.microsoft.com/en-us/office/vba/api/excel.xlcalculationstate
+    while excelApplication.CalculationState != 0 {
+        Sleep(64)
+    }
 
     aboutWorksheet := ""
     aboutWorksheetFound := false
@@ -563,9 +598,24 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         sidecarPath := saveDirectory . documentName . ".txt"
         FileAppend("", sidecarPath, "UTF-8-RAW")
 
-        Run('"' . applicationRegistry["Excel"]["Executable Path"] . '" /e', , , &excelProcessIdentifier)
-        excelApplication := WaitForExcelToLoad(excelProcessIdentifier)
+        excelApplication := ComObject("Excel.Application")
+        static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+
+        if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
+            excelApplication.Workbooks.Open(personalMacroWorkbookPath)
+        }
+
         excelWorkbook := excelApplication.Workbooks.Add()
+        excelApplication.Visible := true
+        excelWindowHandle := excelApplication.Hwnd
+
+        while !excelWindowHandle := excelApplication.Hwnd {
+            Sleep(32)
+        }
+
+        excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+        WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
+        WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
         excelWorkbook    := 0
         excelApplication := 0
         ExcelScriptExecution(code)
@@ -610,27 +660,6 @@ WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveInte
     }
 
     LogInformationConclusion("Completed", logValuesForConclusion)
-}
-
-WaitForExcelToLoad(excelProcessIdentifier) {
-    static methodName := RegisterMethod("WaitForExcelToLoad(excelProcessIdentifier As Integer)" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Load", methodName, [excelProcessIdentifier])
-
-    try {
-        if !WinWait("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 480) {
-            throw Error("Excel document did not appear within 480 seconds.")
-        }
-    } catch as documentNotLoadedError {
-        LogInformationConclusion("Failed", logValuesForConclusion, documentNotLoadedError)
-    }
-
-    WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
-    WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
-
-    excelApplication := ComObjActive("Excel.Application")
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-    return excelApplication
 }
 
 ; **************************** ;
@@ -849,11 +878,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     if runtimeDate !== "" {
         PerformMouseActionAtCoordinates("Move", toadForOraclePlayCoordinates)
 
-        while (A_Now < DateAdd(runtimeDate, -1, "Seconds")) {
+        while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
             Sleep(240)
         }
 
-        while (A_Now < runtimeDate) {
+        while A_Now < runtimeDate {
             Sleep(16)
         }
     }
