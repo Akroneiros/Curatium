@@ -1,0 +1,35 @@
+# <Root>: Ignore everything.
+/*
+
+# <Root>: Re-include only these top-level files.
+!.gitattributes
+!.gitignore
+!/LICENSE
+!/README.md
+
+# <Root>: Keep any top-level file whose NAME contains this phrase.
+!/*Framework Demonstration*
+
+# History: Ignore everything by default.
+/History/**
+
+# History: Re-open the directory so Git can see inside (needed for later exceptions).
+!/History/
+!/History/**/
+
+# History: Keep only files whose FILENAME contains the phrase (any depth).
+!/History/**/*Framework Demonstration*
+
+# Projects: Re-open the directory so Git can look inside (root had /*).
+!/Projects/
+
+# Projects: Ignore everything by default.
+/Projects/**
+
+# Projects: Whitelist the specific subfolder and all its contents.
+!/Projects/Framework Demonstration/
+!/Projects/Framework Demonstration/**
+
+# Shared: Include everything.
+!/Shared/
+!/Shared/**
