@@ -33,3 +33,9 @@
 # Shared: Include everything.
 !/Shared/
 !/Shared/**
+
+# Shared/Images: Keep only files whose FILENAME contains the phrase (any depth).
+/Shared/Images/**
+!/Shared/Images/
+!/Shared/Images/**/
+!/Shared/Images/**/*Image Library Catalog*
