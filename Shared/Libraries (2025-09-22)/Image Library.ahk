@@ -5,7 +5,7 @@
 #Include Logging Library.ahk
 
 AssignSharedImages() {
-    static methodName := RegisterMethod("AssignSharedImages()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("AssignSharedImages()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Assign Shared Images", methodName)
 
     SplitPath(A_LineFile, , &libraryFileDirectory)
@@ -35,7 +35,7 @@ AssignSharedImages() {
 }
 
 CreateSharedImages(imageCatalogName) {
-    static methodName := RegisterMethod("CreateSharedImages(imageCatalogName As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("CreateSharedImages(imageCatalogName As String [Type: Search])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Create Shared Images", methodName, [imageCatalogName])
 
     SplitPath(A_LineFile, , &libraryFileDirectory)
@@ -105,7 +105,7 @@ CreateSharedImages(imageCatalogName) {
 }
 
 GetBase64FromFile(filePath) {
-    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Get Base64 from File (" . ExtractFilename(filePath) . ")", methodName, [filePath])
 
     fileContentBuffer := FileRead(filePath, "RAW")
@@ -143,7 +143,7 @@ GetBase64FromFile(filePath) {
 }
 
 GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure := 60) {
-    static methodName := RegisterMethod("GetImageCoordinatesFromSegment(imageAlias As String, horizontalPercentRange As String [Type: Percent Range], verticalPercentRange As String [Type: Percent Range], secondsOfWaitingBeforeFailure As Integer [Optional: 60])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("GetImageCoordinatesFromSegment(imageAlias As String, horizontalPercentRange As String [Type: Percent Range], verticalPercentRange As String [Type: Percent Range], secondsOfWaitingBeforeFailure As Integer [Optional: 60])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Get Image Coordinates from Segment", methodName, [imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure])
 
     coordinatePair := ""

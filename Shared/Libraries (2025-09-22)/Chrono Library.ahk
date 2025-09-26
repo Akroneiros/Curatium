@@ -4,7 +4,7 @@
 
 AssignFileTimeAsLocalIso(filePath, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("AssignFileTimeAsLocalIso(filePath As String [Type: Absolute Path], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("AssignFileTimeAsLocalIso(filePath As String [Type: Absolute Path], timeType As String [Whitelist: " . timeTypeWhitelist . "])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Assign File Times As Local ISO", methodName, [filePath, timeType])
 
     switch StrLower(timeType) {
@@ -81,7 +81,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
     static dateOrderWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Day-Month-Year", "DMY", "Month-Day-Year", "MDY", "Year-Month-Day", "YMD")
-    static methodName := RegisterMethod("ExtractTrailingDateAsIso(inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExtractTrailingDateAsIso(inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Extract Trailing Date as ISO (" . inputValue . ")", methodName, [inputValue, dateOrder])
 
     isoDate := ""
@@ -198,7 +198,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
 }
 
 PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false) {
-    static methodName := RegisterMethod("PreventSystemGoingIdleUntilRuntime(runtimeDate As String [Type: Raw Date Time], randomizePixelMovement As Boolean [Optional: false])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PreventSystemGoingIdleUntilRuntime(runtimeDate As String [Type: Raw Date Time], randomizePixelMovement As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")", methodName, [runtimeDate, randomizePixelMovement])
     
     counter := 0
@@ -274,7 +274,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
 
 SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("SetDirectoryTimeFromLocalIsoDateTime(directoryPath As String [Type: Directory], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("SetDirectoryTimeFromLocalIsoDateTime(directoryPath As String [Type: Directory], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Set Directory Time From Local ISO Date Time", methodName, [directoryPath, localIsoDateTime, timeType])
 
     directoryPath := RTrim(directoryPath, "\")
@@ -356,7 +356,7 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
 
 SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("SetFileTimeFromLocalIsoDateTime(filePath As String [Type: Absolute Path], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("SetFileTimeFromLocalIsoDateTime(filePath As String [Type: Absolute Path], localIsoDateTime As String [Type: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Set File Time From Local ISO Date Time", methodName, [filePath, localIsoDateTime, timeType])
 
     if AssignFileTimeAsLocalIso(filePath, timeType) = localIsoDateTime {
@@ -434,7 +434,7 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
 }
 
 ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
-    static methodName := RegisterMethod("ValidateRuntimeDate(runtimeDate As String [Type: Raw Date Time], minimumStartupInSeconds As Integer)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ValidateRuntimeDate(runtimeDate As String [Type: Raw Date Time], minimumStartupInSeconds As Integer)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Validate Runtime Date (" . runtimeDate . ")", methodName, [runtimeDate, minimumStartupInSeconds])
 
     try {
@@ -458,7 +458,7 @@ ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
 }
 
 WaitUntilFileIsModifiedToday(filePath) {
-    static methodName := RegisterMethod("WaitUntilFileIsModifiedToday(filePath As String [Type: Absolute Path])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("WaitUntilFileIsModifiedToday(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Wait Until File is Modified Today: " . ExtractFilename(filePath, true), methodName, [filePath])
 
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")

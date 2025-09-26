@@ -21,6 +21,7 @@ global overlayStatus := Map(
     "Failed",    "... Failed 😞"
 )
 global symbolLedger := Map()
+global system := Map()
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
@@ -33,7 +34,7 @@ $Esc:: {
 }
 
 AbortExecution() {
-    static methodName := RegisterMethod("AbortExecution()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("AbortExecution()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Abort Execution", methodName)
 
     try {
@@ -44,23 +45,22 @@ AbortExecution() {
 }
 
 DisplayErrorMessage(logValuesForConclusion, errorObject) {
-    windowTitle := "AutoHotkey v" . A_AhkVersion . ": " . A_ScriptName
+    windowTitle := "AutoHotkey v" . system["AutoHotkey Runtime Version"] . ": " . A_ScriptName
     currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
 
     errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
-
-    SplitPath(A_LineFile, , &parentFolderPath)
-    libraryReleaseDate := RegExReplace(parentFolderPath, ".*Libraries \((\d{4}-\d{2}-\d{2})\)$", "$1")
 
     lineNumber := errorObject.Line
     if logValuesForConclusion["Validation"] !== "" {
         lineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
     }
 
+    declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
+
     fullErrorText := unset
     if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] !== "" {
         fullErrorText :=
-            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . " (" . libraryReleaseDate . ")" . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release Date"] . ")" . "`n" . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . "`n" . 
             "Arguments: " .    logValuesForConclusion["Arguments"] . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
@@ -68,7 +68,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
             "Error Output: " . errorMessage
     } else {
         fullErrorText :=
-            "Declaration: " .  methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"] . " (" . libraryReleaseDate . ")" . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release Date"] . ")" . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
             "Date Runtime: " . currentDateTime . "`n" . 
             "Error Output: " . errorMessage
@@ -133,47 +133,47 @@ LogEngine(status, fullErrorText := "") {
     }
 
     if status = "Beginning" {
-        SplitPath(A_LineFile, , &parentFolderPath)
-        libraryReleaseDate := RegExReplace(parentFolderPath, ".*Libraries \((\d{4}-\d{2}-\d{2})\)$", "$1")
+        global system
 
-        inputLanguage            := GetInputLanguage()
-        keyboardLayout           := GetActiveKeyboardLayout()
-        regionFormat             := GetRegionFormat()
-        primaryDisplayResolution := A_ScreenWidth . "x" . A_ScreenHeight
-        physicalRamSituation     := GetPhysicalMemoryStatus()
-        remainingDiskSpace       := GetRemainingFreeDiskSpace()
+        system["Project Name"]               := filenameWithoutExtension
+        system["Script File Hash"]           := Hash.File("SHA256", A_ScriptFullPath)
+        system["Library Release Date"]       := (RegExMatch(A_LineFile, "Libraries\s*\((\d{4}-\d{2}-\d{2})\)", &regularExpressionMatch), regularExpressionMatch[1])
+        system["AutoHotkey Runtime Version"] := A_AhkVersion
+        system["Computer Name"]              := A_ComputerName
+        system["Username"]                   := A_UserName
+        system["Operating System"]           := GetOperatingSystem()
+        system["Input Language"]             := GetInputLanguage()
+        system["Keyboard Layout"]            := GetActiveKeyboardLayout()
+        system["Region Format"]              := GetRegionFormat()
+        system["Display Resolution"]         := A_ScreenWidth . "x" . A_ScreenHeight
+        system["DPI Scaling"]                := Round(A_ScreenDPI / 96 * 100) . "%"
+        system["Memory Size and Type"]       := GetMemorySizeAndType()
+        system["Motherboard"]                := GetMotherboard()
 
         executionLogLines := [
-            "Project Name: " .                           filenameWithoutExtension,
-            "Script File Hash: " .                       Hash.File("SHA256", A_ScriptFullPath),
-            "Library Release Date: " .                   libraryReleaseDate,
-            "AutoHotkey Runtime Version: " .             A_AhkVersion,
+            system["Project Name"]               ,
+            system["Script File Hash"]           ,
+            system["Library Release Date"]       ,
+            system["AutoHotkey Runtime Version"] ,
+            system["Computer Name"]              ,
+            system["Username"]                   ,
+            system["Operating System"]           ,
+            system["Input Language"]             ,
+            system["Keyboard Layout"]            ,
+            system["Region Format"]              ,
+            system["Display Resolution"]         ,
+            system["DPI Scaling"]                ,
+            system["Memory Size and Type"]       ,
+            system["Motherboard"]                ,
             "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
             "Tick After Change: " .                      timeAnchor["Tick After Change"],
             "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
             "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
             "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
             "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
-            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
-            "Computer Name: " .                          A_ComputerName,
-            "Username: " .                               A_UserName,
-            "Operating System Family: " .                GetOperatingSystemFamilyAndEdition(),
-            "Operating System Version: " .               A_OSVersion,
-            "Operating System Architecture: " .          (A_Is64bitOS ? "64-bit" : "32-bit"),
-            "Input Language: " .                         inputLanguage,
-            "Keyboard Layout: " .                        keyboardLayout,
-            "Region Format: " .                          regionFormat,
-            "Primary Display Resolution: " .             primaryDisplayResolution,
-            "Physical RAM Situation: " .                 physicalRamSituation,
-            "Remaining Free Disk Space: " .              remainingDiskSpace
+            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"]
         ]
     } else if status !== "Intermission" {
-        inputLanguage            := GetInputLanguage()
-        keyboardLayout           := GetActiveKeyboardLayout()
-        regionFormat             := GetRegionFormat()
-        primaryDisplayResolution := A_ScreenWidth . "x" . A_ScreenHeight
-        remainingDiskSpace       := GetRemainingFreeDiskSpace()
-
         executionLogLines := [
             "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
             "Tick After Change: " .                      timeAnchor["Tick After Change"],
@@ -182,11 +182,7 @@ LogEngine(status, fullErrorText := "") {
             "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
             "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
             "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
-            "Input Language: " .                         inputLanguage,
-            "Keyboard Layout: " .                        keyboardLayout,
-            "Region Format: " .                          regionFormat,
-            "Primary Display Resolution: " .             primaryDisplayResolution,
-            "Remaining Free Disk Space: " .              remainingDiskSpace
+            "Remaining Free Disk Space: " .              GetRemainingFreeDiskSpace()
         ]
     } else {
         physicalRamSituation := GetPhysicalMemoryStatus()
@@ -411,8 +407,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                                 base64Summary := "<Base64 (Length: " . StrLen(argumentValueClean) . ")>"
 
                                 if !symbolLedger.Has(base64Summary . "|B") {
-                                    csvsymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
-                                    AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                    csvSymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
+                                    AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                                 }
 
                                 argumentValueFull := base64Summary
@@ -422,8 +418,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             codeSummary := "<Code (Length: " . StrLen(argumentValue) . ", Rows: " . StrSplit(argumentValue, "`n").Length . ")>"
 
                             if !symbolLedger.Has(codeSummary . "|C") {
-                                csvsymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
-                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                csvSymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueFull := codeSummary
@@ -442,8 +438,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             }
 
                             if !symbolLedger.Has(RTrim(argumentValue, "\") . "|D") {
-                                csvsymbolLedgerLine := RegisterSymbol(argumentValue, "Directory", false)
-                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Directory", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[RTrim(argumentValue, "\") . "|D"]["Symbol"]
@@ -458,8 +454,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             }
 
                             if !symbolLedger.Has(argumentValue . "|F") {
-                                csvsymbolLedgerLine := RegisterSymbol(argumentValue, "Filename", false)
-                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Filename", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[argumentValue . "|F"]["Symbol"]
@@ -530,7 +526,7 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             if !RegExMatch(argumentValue, "^(0|[1-9]\d*|-0|-[1-9]\d*)$") {
                                 argumentsAndValidation["Validation"] := "Invalid Screen Delta: " . argumentValue . " (must be 0 or integer without leading zeros, optional leading '-')."
                             }
-                        case "Search, Search Open":
+                        case "Search", "Search Open":
                             pattern := "[\\/:*?" Chr(34) "<>|]"
 
                             if argumentsAndValidation["Type"] = "Search" && RegExMatch(argumentValue, pattern) {
@@ -539,8 +535,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
                             }
 
                             if !symbolLedger.Has(argumentValue . "|S") {
-                                csvsymbolLedgerLine := RegisterSymbol(argumentValue, "Search", false)
-                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Search", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[argumentValue . "|S"]["Symbol"]
@@ -553,8 +549,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
 
                             encodedHash := EncodeSha256HexToBase80(argumentValue)
                             if !symbolLedger.Has(encodedHash . "|H") {
-                                csvsymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
-                                AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
+                                csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[encodedHash . "|H"]["Symbol"]
@@ -713,16 +709,8 @@ LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject :
 }
 
 OverlayChangeTransparency(transparencyValue) {
-    static methodName := RegisterMethod("OverlayChangeTransparency(transparencyValue As Integer [Type: Byte])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayChangeTransparency(transparencyValue As Integer [Type: Byte])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Change Transparency (" . transparencyValue . ")", methodName, [transparencyValue])
-
-    try {
-        if !IsInteger(transparencyValue) || transparencyValue < 0 || transparencyValue > 255 {
-            throw ValueError("Transparency must be an integer between 0 and 255.", -1, transparencyValue)
-        }
-    } catch as transparencyValueError {
-        LogInformationConclusion("Failed", logValuesForConclusion, transparencyValueError)
-    }
 
     WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
 
@@ -730,7 +718,7 @@ OverlayChangeTransparency(transparencyValue) {
 }
 
 OverlayChangeVisibility() {
-    static methodName := RegisterMethod("OverlayChangeVisibility()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayChangeVisibility()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Change Visibility", methodName)
 
     if DllCall("user32\IsWindowVisible", "ptr", overlayGui.Hwnd) {
@@ -743,7 +731,7 @@ OverlayChangeVisibility() {
 }
 
 OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("OverlayHideLogForMethod(methodNameInput As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayHideLogForMethod(methodNameInput As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Hide Log for Method (" . methodName . ")", methodName, [methodName])
 
     global methodRegistry
@@ -762,7 +750,7 @@ OverlayHideLogForMethod(methodNameInput) {
 }
 
 OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("OverlayShowLogForMethod(methodNameInput As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayShowLogForMethod(methodNameInput As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Show Log for Method (" . methodNameInput . ")", methodName, [methodNameInput])
 
     global methodRegistry
@@ -881,7 +869,7 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
 }
 
 OverlayInsertSpacer() {
-    static methodName := RegisterMethod("OverlayInsertSpacer()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayInsertSpacer()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("", methodName, [""], overlayKey := OverlayGenerateNextKey("[[Custom]]"))
     
     OverlayUpdateLine(overlayKey, "")
@@ -890,7 +878,7 @@ OverlayInsertSpacer() {
 }
 
 OverlayUpdateCustomLine(overlayKey, value) {
-    static methodName := RegisterMethod("OverlayUpdateCustomLine(overlayKey As Integer, value As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayUpdateCustomLine(overlayKey As Integer, value As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning(value, methodName, [""], overlayKey) ; No arguments as log will show in overlay.
 
     ;  OverlayUpdateCustomLine(overlaySummaryKey := OverlayGenerateNextKey("[[Custom]]"), "Overlay Summary: " . "Project A")
@@ -1254,6 +1242,7 @@ GetActiveKeyboardLayout() {
             keyboardLayoutKlid := StrGet(buf)
         }
     }
+
     if keyboardLayoutKlid = "" {
         ; Fallback: build KLID from HKL if needed
         try {
@@ -1282,9 +1271,15 @@ GetActiveKeyboardLayout() {
     ; Layout text from registry
     keyboardLayoutLayoutText := ""
     if keyboardLayoutKlid != "" {
-        try keyboardLayoutLayoutText := RegRead("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . keyboardLayoutKlid, "Layout Text")
+        try {
+            keyboardLayoutLayoutText := RegRead("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . keyboardLayoutKlid, "Layout Text")
+        }
+
         if keyboardLayoutLayoutText = "" {
-            try keyboardLayoutLayoutText := RegRead("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . keyboardLayoutKlid, "Layout Display Name")
+            try {
+                keyboardLayoutLayoutText := RegRead("HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . keyboardLayoutKlid, "Layout Display Name")
+            }
+
             ; Resolve @-style resource names when possible
             if keyboardLayoutLayoutText != "" && SubStr(keyboardLayoutLayoutText, 1, 1) = "@" {
                 try {
@@ -1296,6 +1291,7 @@ GetActiveKeyboardLayout() {
             }
         }
     }
+
     if keyboardLayoutLayoutText = "" {
         keyboardLayoutLayoutText := "Unknown Layout"
     }
@@ -1304,7 +1300,9 @@ GetActiveKeyboardLayout() {
         keyboardLayoutKlid := "????????"
     }
 
-    return keyboardLayoutLocaleName . " - " . keyboardLayoutLayoutText . " (" . keyboardLayoutKlid . ")"
+    keyboardLayout := keyboardLayoutLocaleName . " - " . keyboardLayoutLayoutText . " (" . keyboardLayoutKlid . ")"
+
+    return keyboardLayout
 }
 
 GetInputLanguage() {
@@ -1324,43 +1322,226 @@ GetInputLanguage() {
     return inputLanguageLocaleName
 }
 
-GetOperatingSystemFamilyAndEdition() {
+GetMemorySizeAndType() {
+    windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
+    memoryModuleRecords := windowsManagementInstrumentationService.ExecQuery(
+        "SELECT Capacity, SMBIOSMemoryType, PartNumber FROM Win32_PhysicalMemory"
+    )
+
+    totalInstalledMemoryBytes := 0
+    memoryTypeCodeCounts := Map()
+    partNumberStrings := []
+
+    for memoryModuleRecord in memoryModuleRecords {
+        try {
+            totalInstalledMemoryBytes += memoryModuleRecord.Capacity + 0
+        }
+
+        systemManagementBiosMemoryTypeCode := ""
+        try {
+            systemManagementBiosMemoryTypeCode := memoryModuleRecord.SMBIOSMemoryType + 0
+        }
+
+        if systemManagementBiosMemoryTypeCode != "" {
+            if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCode) {
+                memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] := 0
+            }
+
+            memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] += 1
+        }
+
+        partNumberValue := ""
+        try {
+            partNumberValue := Trim(memoryModuleRecord.PartNumber . "")
+        }
+
+        if partNumberValue != "" {
+            partNumberStrings.Push(partNumberValue)
+        }
+    }
+
+    installedMemorySizeInGigabytes := (totalInstalledMemoryBytes > 0) ? Round(totalInstalledMemoryBytes / 1024 / 1024 / 1024) : 0
+    installedMemorySizeDisplay := (installedMemorySizeInGigabytes > 0) ? (installedMemorySizeInGigabytes . " GB") : "Unknown Size"
+
+    memoryTypeDisplayByCode := Map(
+        14, "SDRAM",
+        17, "SGRAM",
+        20, "DDR SDRAM",
+        21, "DDR2 SDRAM",
+        22, "DDR2 FB-DIMM",
+        24, "DDR3 SDRAM",
+        26, "DDR4 SDRAM",
+        34, "DDR5 SDRAM"
+    )
+
+    installedMemoryTypeDisplay := ""
+    if memoryTypeCodeCounts.Count > 0 {
+        mostCommonMemoryTypeCode := ""
+        mostCommonMemoryTypeCount := -1
+        for memoryTypeCode, memoryTypeCount in memoryTypeCodeCounts {
+            if memoryTypeCount > mostCommonMemoryTypeCount {
+                mostCommonMemoryTypeCount := memoryTypeCount
+                mostCommonMemoryTypeCode := memoryTypeCode
+            }
+        }
+
+        if memoryTypeDisplayByCode.Has(mostCommonMemoryTypeCode) {
+            installedMemoryTypeDisplay := memoryTypeDisplayByCode[mostCommonMemoryTypeCode]
+        } else {
+            installedMemoryTypeDisplay := "Unknown Type (code " . mostCommonMemoryTypeCode . ")"
+        }
+    }
+
+    if installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") {
+        combinedPartNumbers := ""
+        for partNumberItem in partNumberStrings {
+            combinedPartNumbers .= partNumberItem . " "
+        }
+        combinedPartNumbersLower := StrLower(combinedPartNumbers)
+
+        switch true {
+            case InStr(combinedPartNumbersLower, "lpddr5x"):
+                installedMemoryTypeDisplay := "LPDDR5X"
+            case InStr(combinedPartNumbersLower, "lpddr5"):
+                installedMemoryTypeDisplay := "LPDDR5"
+            case InStr(combinedPartNumbersLower, "ddr5") || InStr(combinedPartNumbersLower, "pc5"):
+                installedMemoryTypeDisplay := "DDR5 SDRAM"
+            case InStr(combinedPartNumbersLower, "lpddr4x"):
+                installedMemoryTypeDisplay := "LPDDR4X"
+            case InStr(combinedPartNumbersLower, "lpddr4"):
+                installedMemoryTypeDisplay := "LPDDR4"
+            case InStr(combinedPartNumbersLower, "ddr4") || InStr(combinedPartNumbersLower, "pc4"):
+                installedMemoryTypeDisplay := "DDR4 SDRAM"
+            case InStr(combinedPartNumbersLower, "ddr3") || InStr(combinedPartNumbersLower, "pc3"):
+                installedMemoryTypeDisplay := "DDR3 SDRAM"
+            case InStr(combinedPartNumbersLower, "ddr2") || InStr(combinedPartNumbersLower, "pc2"):
+                installedMemoryTypeDisplay := "DDR2 SDRAM"
+            case InStr(combinedPartNumbersLower, "ddr "):
+                installedMemoryTypeDisplay := "DDR SDRAM"
+            default:
+                if installedMemoryTypeDisplay = "" {
+                    installedMemoryTypeDisplay := "Unknown Type"
+                }
+        }
+    }
+
+    memorySizeAndType := installedMemorySizeDisplay . " " . installedMemoryTypeDisplay
+
+    return memorySizeAndType
+}
+
+GetMotherboard() {
+    windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
+    baseboardRecords := windowsManagementInstrumentationService.ExecQuery(
+        "SELECT Manufacturer, Product FROM Win32_BaseBoard"
+    )
+
+    rawManufacturer := ""
+    rawProduct := ""
+    for baseboardRecord in baseboardRecords {
+        try {
+            rawManufacturer := Trim(baseboardRecord.Manufacturer . "")
+        }
+
+        try {
+            rawProduct := Trim(baseboardRecord.Product . "")
+        }
+        
+        break
+    }
+
+    if rawManufacturer = "" {
+        rawManufacturer := "Unknown Manufacturer"
+    }
+
+    if rawProduct = "" {
+        rawProduct := "Unknown Product"
+    }
+
+    normalizedManufacturer := rawManufacturer
+    switch StrLower(rawManufacturer) {
+        case "asustek computer inc.", "asustek computer inc", "asustek computer incorporated":
+            normalizedManufacturer := "ASUS"
+        case "micro-star international co., ltd.", "micro-star international co.,ltd.":
+            normalizedManufacturer := "MSI"
+        case "gigabyte technology co., ltd.", "giga-byte technology co., ltd.":
+            normalizedManufacturer := "GIGABYTE"
+        case "hewlett-packard", "hp", "hp inc.", "hewlett packard":
+            normalizedManufacturer := "HP"
+    }
+
+    motherboard := Trim(normalizedManufacturer . " " . rawProduct)
+    
+    return motherboard
+}
+
+
+GetOperatingSystem() {
     currentBuildNumber := ""
     try {
-        currentBuildNumber := RegRead(
-        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", 
-        "CurrentBuildNumber"
-    )
+        currentBuildNumber := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")
     }
+
     currentBuildNumberNumeric := currentBuildNumber + 0
 
+    family := "Unknown Windows"
     switch true {
-        case (currentBuildNumberNumeric >= 22000):
-            operatingSystemFamily := "Windows 11"
-        case (currentBuildNumberNumeric >= 10240):
-            operatingSystemFamily := "Windows 10"
-        case (currentBuildNumberNumeric >= 9600):
-            operatingSystemFamily := "Windows 8.1"
-        case (currentBuildNumberNumeric >= 9200):
-            operatingSystemFamily := "Windows 8"
-        case (currentBuildNumberNumeric >= 7600):
-            operatingSystemFamily := "Windows 7"
-        default:
-            operatingSystemFamily := "Unknown Windows"
+        case currentBuildNumberNumeric >= 22000:
+            family := "Windows 11"
+        case currentBuildNumberNumeric >= 10240:
+            family := "Windows 10"
+        case currentBuildNumberNumeric >= 9600:
+            family := "Windows 8.1"
+        case currentBuildNumberNumeric >= 9200:
+            family := "Windows 8"
+        case currentBuildNumberNumeric >= 7600:
+            family := "Windows 7"
     }
 
-    operatingSystemEdition := ""
+    edition := "Unknown Edition"
     try {
-        operatingSystemEdition := RegRead(
-        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", 
-        "EditionID"
-    )
-    }
-    if operatingSystemEdition = "" {
-        operatingSystemEdition := "Unknown Edition"
+        edition := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "EditionID")
     }
 
-    return operatingSystemFamily . " (" . operatingSystemEdition . ")"
+    architectureTag := A_Is64bitOS ? "x64" : "x86"
+
+    version := "Build "
+    switch true {
+        case currentBuildNumberNumeric >= 10240:
+            version := version . SubStr(A_OSVersion, 6) ; Remove "10.0." for Windows 10 and upward.
+        case currentBuildNumberNumeric >= 7600:
+            version := version . A_OSVersion
+        default:
+            version := "Unknown Version"
+    }
+
+    updateBuildRevisionNumber := ""
+    try {
+        updateBuildRevisionNumber := RegRead("HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR")
+    }
+
+    if updateBuildRevisionNumber !== "" {
+        updateBuildRevisionNumber := "." . updateBuildRevisionNumber
+    }
+
+    releaseDisplay := ""
+    try {
+        releaseDisplay := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "DisplayVersion")
+    }
+
+    if releaseDisplay = "" {
+        try {
+            releaseDisplay := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseId")
+        }
+    }
+
+    if releaseDisplay !== "" {
+        releaseDisplay := " (" . releaseDisplay . ")"
+    }
+
+    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . updateBuildRevisionNumber . releaseDisplay
+
+    return operatingSystem
 }
 
 GetPhysicalMemoryStatus() {
@@ -1408,24 +1589,12 @@ GetRemainingFreeDiskSpace() {
     return result
 }
 
-LibraryTag(sourceFilePath) {
-    static cacheByFilePath := Map()
-
-    if cacheByFilePath.Has(sourceFilePath) {
-        return cacheByFilePath[sourceFilePath]
-    }
-
-    SplitPath(sourceFilePath, &filenameWithExtension, &parentFolderPath, &fileExtension, &filenameWithoutExtension)
-    libraryTag := " @ " . filenameWithoutExtension
-
-    cacheByFilePath[sourceFilePath] := libraryTag
-    return libraryTag
-}
-
 ParseMethodDeclaration(declaration) {
     atParts     := StrSplit(declaration, "@", , 2)
     signature   := RTrim(atParts[1])
-    library     := LTrim(atParts[2])
+    RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
+    library := Trim(regularExpressionMatch[1])
+    lineNumberForValidation := regularExpressionMatch[2] + 0
 
     methodParts := StrSplit(signature, "(", , 2)
     methodName  := methodParts[1]
@@ -1562,8 +1731,7 @@ ParseMethodDeclaration(declaration) {
         }
     }
 
-    parsedMethod := Map()
-    parsedMethod[methodName] := Map(
+    parsedMethod := Map(
         "Overlay Log",         "",
         "Symbol",              "",
         "Declaration",         declaration,
@@ -1573,53 +1741,60 @@ ParseMethodDeclaration(declaration) {
         "Parameters",          parameters,
         "Data Types",          dataTypes,
         "Metadata",            metadata,
-        "Validation Line",     "",
+        "Validation Line",     lineNumberForValidation,
         "Parameter Contracts", parameterContracts
     )
 
     return parsedMethod
 }
 
-RegisterMethod(declaration, lineNumber) {
-    parsedMethod := ParseMethodDeclaration(declaration)
-
-    methodName := ""
-    for outerKey, innerMap in parsedMethod {
-        methodName := outerKey
-        break
+RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
+    if sourceFilePath !== "" && validationLineNumber !== 0 {
+        SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
+        libraryTag := " @ " . filenameWithoutExtension
+        validationLineNumber := " " . "<" . validationLineNumber . ">"
+        declaration := declaration . libraryTag . validationLineNumber
     }
 
-    csvsymbolLedgerLine := RegisterSymbol(declaration, "M", false)
-    AppendCsvLineToLog(csvsymbolLedgerLine, "Symbol Ledger")
-    csvParts := StrSplit(csvsymbolLedgerLine, "|")
-    symbol   := csvParts[csvParts.Length]
+    parsedMethod := ParseMethodDeclaration(declaration)
+
+    methodName := RTrim(SubStr(parsedMethod["Signature"], 1, InStr(parsedMethod["Signature"], "(") - 1))
+
+    if !symbolLedger.Has(declaration . "|" . "M") {
+        csvSymbolLedgerLine := RegisterSymbol(declaration, "M", false)
+        AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+        csvParts := StrSplit(csvSymbolLedgerLine, "|")
+        symbol   := csvParts[csvParts.Length]
+    } else {
+        ; Later logic for dealing with re-use of Symbol Ledger.
+    }
 
     global methodRegistry
 
     if methodRegistry.Has(methodName) {
-        methodRegistry[methodName]["Declaration"]         := parsedMethod[methodName]["Declaration"]
+        methodRegistry[methodName]["Declaration"]         := parsedMethod["Declaration"]
         methodRegistry[methodName]["Symbol"]              := symbol
-        methodRegistry[methodName]["Signature"]           := parsedMethod[methodName]["Signature"]
-        methodRegistry[methodName]["Library"]             := parsedMethod[methodName]["Library"]
-        methodRegistry[methodName]["Contract"]            := parsedMethod[methodName]["Contract"]
-        methodRegistry[methodName]["Parameters"]          := parsedMethod[methodName]["Parameters"]
-        methodRegistry[methodName]["Data Types"]          := parsedMethod[methodName]["Data Types"]
-        methodRegistry[methodName]["Metadata"]            := parsedMethod[methodName]["Metadata"]
-        methodRegistry[methodName]["Validation Line"]     := lineNumber
-        methodRegistry[methodName]["Parameter Contracts"] := parsedMethod[methodName]["Parameter Contracts"]
+        methodRegistry[methodName]["Signature"]           := parsedMethod["Signature"]
+        methodRegistry[methodName]["Library"]             := parsedMethod["Library"]
+        methodRegistry[methodName]["Contract"]            := parsedMethod["Contract"]
+        methodRegistry[methodName]["Parameters"]          := parsedMethod["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := parsedMethod["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := parsedMethod["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := parsedMethod["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := parsedMethod["Parameter Contracts"]
     } else {
         methodRegistry[methodName] := Map(
             "Overlay Log",         false,
             "Symbol",              symbol,
-            "Declaration",         parsedMethod[methodName]["Declaration"],
-            "Signature",           parsedMethod[methodName]["Signature"],
-            "Library",             parsedMethod[methodName]["Library"],
-            "Contract",            parsedMethod[methodName]["Contract"],
-            "Parameters",          parsedMethod[methodName]["Parameters"],
-            "Data Types",          parsedMethod[methodName]["Data Types"],
-            "Metadata",            parsedMethod[methodName]["Metadata"],
-            "Validation Line",     lineNumber,
-            "Parameter Contracts", parsedMethod[methodName]["Parameter Contracts"]
+            "Declaration",         parsedMethod["Declaration"],
+            "Signature",           parsedMethod["Signature"],
+            "Library",             parsedMethod["Library"],
+            "Contract",            parsedMethod["Contract"],
+            "Parameters",          parsedMethod["Parameters"],
+            "Data Types",          parsedMethod["Data Types"],
+            "Metadata",            parsedMethod["Metadata"],
+            "Validation Line",     parsedMethod["Validation Line"],
+            "Parameter Contracts", parsedMethod["Parameter Contracts"]
         )
     }
 
@@ -1704,7 +1879,7 @@ SymbolLedgerBatchAppend(symbolType, array) {
 
     consolidatedSymbolLedger := ""
 
-    arrayLength := array.Length
+    symbolLedgerArray := []
     for index, value in array {
         if value = "" {
             continue
@@ -1718,12 +1893,21 @@ SymbolLedgerBatchAppend(symbolType, array) {
             value := EncodeSha256HexToBase80(value)
         }
 
-        if arrayLength !== index {
-            consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType)
-        } else {
-            consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType, false)
+        if !symbolLedger.Has(value . "|" . symbolType) {
+            symbolLedgerArray.Push(value)
         }
     }
+  
+    arrayLength := symbolLedgerArray.Length
+    if arrayLength !== 0 {
+        for index, value in symbolLedgerArray {
+            if arrayLength !== index {
+                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType)
+            } else {
+                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType, false)
+            }
+        }
 
-    AppendCsvLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+        AppendCsvLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+    }
 }

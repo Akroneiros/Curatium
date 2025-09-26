@@ -3,7 +3,7 @@
 #Include Logging Library.ahk
 
 AssignSpreadsheetOperationsTemplateCombined(version := "") {
-    static methodName := RegisterMethod("AssignSpreadsheetOperationsTemplateCombined(version As String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 7)
+    static methodName := RegisterMethod("AssignSpreadsheetOperationsTemplateCombined(version As String [Optional])", A_LineFile, A_LineNumber + 7)
     overlayValue := "Assign Spreadsheet Operations Template Code"
     if version = "" {
         overlayValue := overlayValue . " ([Latest])"
@@ -65,7 +65,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
 }
 
 AssignHeroAliases() {
-    static methodName := RegisterMethod("AssignHeroAliases()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("AssignHeroAliases()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Assign Variations", methodName)
 
     static variations := Map(
@@ -92,7 +92,7 @@ AssignHeroAliases() {
 }
 
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As String [Type: Screen Delta], verticalValue As String [Type: Screen Delta], coordinatePair As String [Pattern: ^\d+x\d+$])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As String [Type: Screen Delta], verticalValue As String [Type: Screen Delta], coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")", methodName, [horizontalValue, verticalValue, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
@@ -128,7 +128,7 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
 
 PasteCode(code, commentPrefix) {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'",  "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("PasteCode(code As String [Type: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PasteCode(code As String [Type: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Code (Length: " . StrLen(code) . ")", methodName, [code, commentPrefix])
 
     sentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
@@ -195,7 +195,7 @@ PasteCode(code, commentPrefix) {
 }
 
 PastePath(savePath) {
-    static methodName := RegisterMethod("PastePath(savePath As String [Type: Absolute Save Path])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PastePath(savePath As String [Type: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Path (" . savePath . ")", methodName, [savePath])
 
     attempts    := 0
@@ -251,7 +251,7 @@ PastePath(savePath) {
 }
 
 PasteSearch(searchValue) {
-    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search Open])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Search (" . searchValue . ")", methodName, [searchValue])
 
     attempts    := 0
@@ -308,7 +308,7 @@ PasteSearch(searchValue) {
 
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Double", "Left", "Middle", "Move", "Right")
-    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Pattern: ^\d+x\d+$])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")", methodName, [mouseAction, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth

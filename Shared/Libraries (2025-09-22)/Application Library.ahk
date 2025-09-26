@@ -237,6 +237,8 @@ ResolveFactsForApplication(applicationName) {
     switch applicationName
     {
         case "Excel":
+            CloseApplication("Excel")
+
             excelApplication := ComObject("Excel.Application")
             personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
 
@@ -326,27 +328,8 @@ DetermineWindowsBinaryType(applicationName) {
     return classificationResult
 }
 
-CloseApplication(applicationName) {
-    static methodName := RegisterMethod("CloseApplication(applicationName As String [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Close Application (" . applicationName . ")", methodName, [applicationName])
-
-    try {
-        if !applicationRegistry.Has(applicationName) {
-            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " invalid.")
-        }
-    } catch as missingApplicationError {
-        LogInformationConclusion("Failed", logValuesForConclusion, missingApplicationError)
-    }
-
-    SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableName)
-    ProcessClose(executableName)
-    ProcessWaitClose(executableName, 4)
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-}
-
 ValidateApplicationFact(applicationName, factName, factValue) {
-    static methodName := RegisterMethod("ValidateApplicationFact(applicationName As String, factName As String, factValue As String)" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ValidateApplicationFact(applicationName As String, factName As String, factValue As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")", methodName, [applicationName, factName, factValue])
 
     try {
@@ -369,11 +352,39 @@ ValidateApplicationFact(applicationName, factName, factValue) {
 }
 
 ; **************************** ;
+; Shared                       ;
+; **************************** ;
+
+CloseApplication(applicationName) {
+    static methodName := RegisterMethod("CloseApplication(applicationName As String [Type: Search Open])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Close Application (" . applicationName . ")", methodName, [applicationName])
+
+    try {
+        if !applicationRegistry.Has(applicationName) {
+            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " invalid.")
+        }
+    } catch as missingApplicationError {
+        LogInformationConclusion("Failed", logValuesForConclusion, missingApplicationError)
+    }
+
+    executableName := applicationRegistry[applicationName]["Executable Filename"]
+
+    if ProcessExist(executableName) {
+        ProcessClose(executableName)
+        ProcessWaitClose(executableName, 4)
+
+        LogInformationConclusion("Completed", logValuesForConclusion)
+    } else {
+        LogInformationConclusion("Skipped", logValuesForConclusion)
+    }
+}
+
+; **************************** ;
 ; Excel                        ;
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional] [Type: Search Open], aboutCondition As String [Optional] [Type: Search Open])" . LibraryTag(A_LineFile), A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional] [Type: Search Open], aboutCondition As String [Optional] [Type: Search Open])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -550,7 +561,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelScriptExecution(code, insertModule := false) {
-    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional]" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional]", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Excel Script Execution (Length: " . StrLen(code) . ")", methodName, [code, insertModule])
    
     SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)
@@ -572,7 +583,7 @@ ExcelScriptExecution(code, insertModule := false) {
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional])" . LibraryTag(A_LineFile), A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Starting Run"
@@ -629,7 +640,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 }
 
 WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
-    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer, maxWaitMinutes As Integer [Optional: 240], mouseMoveIntervalSec As Integer [Optional: 120])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer, maxWaitMinutes As Integer [Optional: 240], mouseMoveIntervalSec As Integer [Optional: 120])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close", methodName, [excelProcessIdentifier, maxWaitMinutes, mouseMoveIntervalSec])
 
     totalSecondsToWait := maxWaitMinutes * 60
@@ -667,7 +678,7 @@ WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveInte
 ; **************************** ;
 
 StartSqlServerManagementStudioAndConnect() {
-    static methodName := RegisterMethod("StartSqlServerManagementStudioAndConnect()" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("StartSqlServerManagementStudioAndConnect()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Start SQL Server Management Studio and Connect", methodName)
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
@@ -696,7 +707,7 @@ StartSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
     savePath := saveDirectory . filename . ".csv"
@@ -765,7 +776,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])" . LibraryTag(A_LineFile), A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Verify Toad for Oracle Works", methodName, [appName, runtimeDate])
 
     static toadExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
