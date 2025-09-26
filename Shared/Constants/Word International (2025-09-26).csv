@@ -1,0 +1,11 @@
+Name|Value|Label|Description
+wd24HourClock|21|24 Hour Clock|Returns True if you are using 24-hour time; returns False if you are using 12-hour time.
+wdCurrencyCode|20|Currency Code|Returns the currency symbol ($ in U.S. English).
+wdDateSeparator|25|Date Separator|Returns the date separator (/ in U.S. English).
+wdDecimalSeparator|18|Decimal Separator|Returns the decimal separator (. in U.S. English).
+wdInternationalAM|22|International AM|Returns the string used to indicate morning hours (for example, 10 A.M).
+wdInternationalPM|23|International PM|Returns the string used to indicate afternoon and evening hours (for example, 2 P.M).
+wdListSeparator|17|List Separator|Returns the list separator (, in U.S. English).
+wdProductLanguageID|26|Product Language ID|Returns the language version of Word.
+wdThousandsSeparator|19|Thousands Separator|Returns the thousands separator (, in U.S. English).
+wdTimeSeparator|24|Time Separator|Returns the time separator (: in U.S. English).
