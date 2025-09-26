@@ -45,7 +45,7 @@ AbortExecution() {
 }
 
 DisplayErrorMessage(logValuesForConclusion, errorObject) {
-    windowTitle := "AutoHotkey v" . system["AutoHotkey Runtime Version"] . ": " . A_ScriptName
+    windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
     currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
 
     errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
@@ -60,7 +60,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
     fullErrorText := unset
     if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] !== "" {
         fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release Date"] . ")" . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . "`n" . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . "`n" . 
             "Arguments: " .    logValuesForConclusion["Arguments"] . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
@@ -68,7 +68,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
             "Error Output: " . errorMessage
     } else {
         fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release Date"] . ")" . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
             "Date Runtime: " . currentDateTime . "`n" . 
             "Error Output: " . errorMessage
@@ -135,36 +135,44 @@ LogEngine(status, fullErrorText := "") {
     if status = "Beginning" {
         global system
 
-        system["Project Name"]               := filenameWithoutExtension
-        system["Script File Hash"]           := Hash.File("SHA256", A_ScriptFullPath)
-        system["Library Release Date"]       := (RegExMatch(A_LineFile, "Libraries\s*\((\d{4}-\d{2}-\d{2})\)", &regularExpressionMatch), regularExpressionMatch[1])
-        system["AutoHotkey Runtime Version"] := A_AhkVersion
-        system["Computer Name"]              := A_ComputerName
-        system["Username"]                   := A_UserName
-        system["Operating System"]           := GetOperatingSystem()
-        system["Input Language"]             := GetInputLanguage()
-        system["Keyboard Layout"]            := GetActiveKeyboardLayout()
-        system["Region Format"]              := GetRegionFormat()
-        system["Display Resolution"]         := A_ScreenWidth . "x" . A_ScreenHeight
-        system["DPI Scaling"]                := Round(A_ScreenDPI / 96 * 100) . "%"
-        system["Memory Size and Type"]       := GetMemorySizeAndType()
-        system["Motherboard"]                := GetMotherboard()
+        system["Project Name"]         := filenameWithoutExtension
+        system["Script File Hash"]     := Hash.File("SHA256", A_ScriptFullPath)
+        system["Library Release"]      := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
+        system["AutoHotkey Version"]   := A_AhkVersion
+        system["Computer Name"]        := A_ComputerName
+        system["Username"]             := A_UserName
+        system["Operating System"]     := GetOperatingSystem()
+        system["Input Language"]       := GetInputLanguage()
+        system["Keyboard Layout"]      := GetActiveKeyboardLayout()
+        system["Region Format"]        := GetRegionFormat()
+        system["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
+        system["DPI Scaling"]          := Round(A_ScreenDPI / 96 * 100) . "%"
+        system["Color Mode"]           := GetWindowsColorMode()
+        system["Memory Size and Type"] := GetMemorySizeAndType()
+        system["Motherboard"]          := GetMotherboard()
+        system["CPU"]                  := GetCpu()
+        system["Display GPU"]          := GetActiveDisplayGpu()
+        system["System Disk"]          := GetSystemDisk()
 
         executionLogLines := [
-            system["Project Name"]               ,
-            system["Script File Hash"]           ,
-            system["Library Release Date"]       ,
-            system["AutoHotkey Runtime Version"] ,
-            system["Computer Name"]              ,
-            system["Username"]                   ,
-            system["Operating System"]           ,
-            system["Input Language"]             ,
-            system["Keyboard Layout"]            ,
-            system["Region Format"]              ,
-            system["Display Resolution"]         ,
-            system["DPI Scaling"]                ,
-            system["Memory Size and Type"]       ,
-            system["Motherboard"]                ,
+            system["Project Name"]         ,
+            system["Script File Hash"]     ,
+            system["Library Release"]      ,
+            system["AutoHotkey Version"]   ,
+            system["Computer Name"]        ,
+            system["Username"]             ,
+            system["Operating System"]     ,
+            system["Input Language"]       ,
+            system["Keyboard Layout"]      ,
+            system["Region Format"]        ,
+            system["Display Resolution"]   ,
+            system["DPI Scaling"]          ,
+            system["Color Mode"]           ,
+            system["Memory Size and Type"] ,
+            system["Motherboard"]          ,
+            system["CPU"]                  ,
+            system["Display GPU"]          ,
+            system["System Disk"]          ,
             "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
             "Tick After Change: " .                      timeAnchor["Tick After Change"],
             "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
@@ -1305,6 +1313,57 @@ GetActiveKeyboardLayout() {
     return keyboardLayout
 }
 
+GetActiveDisplayGpu() {
+    windowsManagementInstrumentation := ComObjGet("winmgmts:\\.\root\CIMV2")
+    activeModelName := ""
+    firstModelName := ""
+    for controller in windowsManagementInstrumentation.ExecQuery(
+        "SELECT Name, CurrentHorizontalResolution, CurrentVerticalResolution FROM Win32_VideoController"
+    ) {
+        if firstModelName = "" {
+            firstModelName := controller.Name
+        }
+
+        if controller.CurrentHorizontalResolution > 0 && controller.CurrentVerticalResolution > 0 {
+            activeModelName := controller.Name
+            break
+        }
+    }
+
+    resultModelName := "Unknown GPU"
+    if activeModelName != "" {
+        resultModelName := activeModelName
+    } else if firstModelName != "" {
+        resultModelName := firstModelName
+    }
+
+    return resultModelName
+}
+
+GetCpu() {
+    resultModelName := ""
+    defaultModelName := "Unknown CPU"
+    registryPath := "HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+    registryValueName := "ProcessorNameString"
+
+    rawName := ""
+    cleanedName := ""
+    try {
+        rawName := RegRead(registryPath, registryValueName)
+        cleanedName := Trim(RegExReplace(rawName, "\s+", " "))
+    }
+
+    if cleanedName != "" {
+        resultModelName := cleanedName
+    }
+
+    if resultModelName = "" {
+        resultModelName := defaultModelName
+    }
+
+    return resultModelName
+}
+
 GetInputLanguage() {
     inputLanguageLocaleName := ""
     try {
@@ -1475,7 +1534,6 @@ GetMotherboard() {
     return motherboard
 }
 
-
 GetOperatingSystem() {
     currentBuildNumber := ""
     try {
@@ -1587,6 +1645,128 @@ GetRemainingFreeDiskSpace() {
     result := freeMB . " MB (" . Format("{:.2f}", Floor((freeMB/1024/1024)*100) / 100) . " TB)"
 
     return result
+}
+
+GetSystemDisk() {
+    diskModelText := "Unknown Disk"
+    diskCapacityText := "Unknown"
+    systemPartitionCapacityText := "Unknown"
+
+    try {
+        windowsManagementLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementService := windowsManagementLocator.ConnectServer(".", "root\CIMV2")
+        windowsManagementService.Security_.ImpersonationLevel := 3
+
+        logicalDriveLetter := SubStr(A_WinDir, 1, 2)
+
+        systemPartitionByteCount := ""
+        for logicalDisk in windowsManagementService.ExecQuery(
+            "SELECT Size FROM Win32_LogicalDisk WHERE DeviceID='" . logicalDriveLetter . "'"
+        ) {
+            systemPartitionByteCount := logicalDisk.Size + 0
+            break
+        }
+
+        selectedPartitionDeviceId := ""
+        for partitionObject in windowsManagementService.ExecQuery(
+            "ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='" . logicalDriveLetter . "'} " .
+            "WHERE AssocClass=Win32_LogicalDiskToPartition"
+        ) {
+            selectedPartitionDeviceId := partitionObject.DeviceID
+            break
+        }
+
+        physicalDiskByteCount := ""
+        if selectedPartitionDeviceId != "" {
+            for diskDriveObject in windowsManagementService.ExecQuery(
+                "ASSOCIATORS OF {Win32_DiskPartition.DeviceID='" . selectedPartitionDeviceId . "'} " .
+                "WHERE AssocClass=Win32_DiskDriveToDiskPartition"
+            ) {
+                if Trim(diskDriveObject.Model) != "" {
+                    diskModelText := Trim(diskDriveObject.Model)
+                }
+
+                if diskDriveObject.Size != "" && diskDriveObject.Size >= 0 {
+                    physicalDiskByteCount := diskDriveObject.Size + 0
+                }
+
+                break
+            }
+        }
+
+        ; Use StrFormatByteSizeW to format exactly like Windows Explorer.
+        if physicalDiskByteCount != "" && physicalDiskByteCount >= 0 {
+            bufferDisk := Buffer(64, 0)
+            DllCall("shlwapi\StrFormatByteSizeW", "Int64", physicalDiskByteCount, "Ptr", bufferDisk, "UInt", 64)
+            diskCapacityText := StrGet(bufferDisk, "UTF-16")
+        }
+
+        if systemPartitionByteCount != "" && systemPartitionByteCount >= 0 {
+            bufferPartition := Buffer(64, 0)
+            DllCall("shlwapi\StrFormatByteSizeW", "Int64", systemPartitionByteCount, "Ptr", bufferPartition, "UInt", 64)
+            systemPartitionCapacityText := StrGet(bufferPartition, "UTF-16")
+        }
+    }
+
+    if diskCapacityText = systemPartitionCapacityText {
+        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . ")"
+    } else {
+        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . " / " . systemPartitionCapacityText . ")"
+    }
+
+    modelWithDiskCapacityAndSystemPartitionCapacity := diskModelText . diskCapacityAndSystemPartitionCapacity
+    
+    return modelWithDiskCapacityAndSystemPartitionCapacity
+}
+
+GetWindowsColorMode() {
+    registryPath := "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+
+    hasAppsUseLightTheme := false
+    hasSystemUsesLightTheme := false
+    appsUseLightThemeFlag := 0
+    systemUsesLightThemeFlag := 0
+
+    try {
+        value := RegRead(registryPath, "AppsUseLightTheme")
+        hasAppsUseLightTheme := true
+        appsUseLightThemeFlag := (value + 0) ? 1 : 0
+    }
+
+    try {
+        value := RegRead(registryPath, "SystemUsesLightTheme")
+        hasSystemUsesLightTheme := true
+        systemUsesLightThemeFlag := (value + 0) ? 1 : 0
+    }
+
+    presentFlagCount := (hasAppsUseLightTheme ? 1 : 0) + (hasSystemUsesLightTheme ? 1 : 0)
+    resultColorMode := ""
+
+    switch presentFlagCount
+    {
+        Case 2:
+            if appsUseLightThemeFlag = systemUsesLightThemeFlag {
+                if (appsUseLightThemeFlag = 1) {
+                    resultColorMode := "Light"
+                } else {
+                    resultColorMode := "Dark"
+                }
+            } else {
+                resultColorMode := "Custom"
+            }
+        Case 1:
+            onlyFlag := hasAppsUseLightTheme ? appsUseLightThemeFlag : systemUsesLightThemeFlag
+            if onlyFlag = 1 {
+                resultColorMode := "Light"
+            } else {
+                resultColorMode := "Dark"
+            }
+        Default:
+            ; Keys do not exist, treat as Light (closest equivalent).
+            resultColorMode := "Light"
+    }
+
+    return resultColorMode
 }
 
 ParseMethodDeclaration(declaration) {

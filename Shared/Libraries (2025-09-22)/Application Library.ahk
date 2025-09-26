@@ -247,7 +247,7 @@ ResolveFactsForApplication(applicationName) {
                 excelApplication.Workbooks.Open(personalMacroWorkbookPath)
             } else {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
-            }           
+            }
             
             excelWorkbook := excelApplication.Workbooks.Add()
             excelApplication.Visible := true
@@ -283,12 +283,34 @@ ResolveFactsForApplication(applicationName) {
                 applicationRegistry["Excel"]["Code Execution"] := "Failed"
             }
 
+
+            applicationRegistry["Excel"]["International"] := Map()
+
+            excelInternational := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Excel International (2025-09-26).csv")
+
+            for international in excelInternational {
+                applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
+            }
+
             excelWorkbook.Close(false)
             excelApplication.DisplayAlerts := false
             excelApplication.Quit()
 
             excelWorkbook := 0
             excelApplication := 0
+        case "Word":
+            wordApplication := ComObject("Word.Application")
+
+            applicationRegistry["Word"]["International"] := Map()
+
+            wordInternational := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Word International (2025-09-26).csv")
+
+            for international in wordInternational {
+                applicationRegistry["Word"]["International"][international["Label"]] := wordApplication.International[international["Value"]]
+            }
+
+            wordApplication.Quit()
+            wordApplication := 0
     }
 }
 
