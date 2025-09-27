@@ -227,9 +227,19 @@ ExecutablePathViaUninstall(executablePath, executableName) {
 ResolveFactsForApplication(applicationName) {
     global applicationRegistry
 
-    applicationRegistry[applicationName]["Executable Hash"]     := EncodeSha256HexToBase80(Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"]))
-    applicationRegistry[applicationName]["Executable Version"]  := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
-    applicationRegistry[applicationName]["Binary Type"]         := DetermineWindowsBinaryType(applicationName)
+    executableHash    := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
+    executableHash    := EncodeSha256HexToBase80(executableHash)
+
+    executableVersion := "N/A"
+    try {
+        executableVersion := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
+    }
+
+    binaryType        := DetermineWindowsBinaryType(applicationName)
+
+    applicationRegistry[applicationName]["Executable Hash"]     := executableHash
+    applicationRegistry[applicationName]["Executable Version"]  := executableVersion
+    applicationRegistry[applicationName]["Binary Type"]         := binaryType
 
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
