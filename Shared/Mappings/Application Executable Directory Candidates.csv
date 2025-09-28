@@ -1,49 +1,111 @@
 ﻿Name|Executable|Directory
 7-Zip|7zFM.exe|7-Zip
+Access|MSACCESS.EXE|Microsoft Office\root\Office16
 Acrobat Reader|Acrobat.exe|Adobe\Acrobat DC\Acrobat
+AIMP|AIMP.exe|AIMP
+AnyDesk|AnyDesk.exe|AnyDesk
+Audacity|audacity.exe|Audacity
+Bandizip|Bandizip.exe|Bandizip
+Base|sbase.exe|LibreOffice\program
+BasicMaker|BasicMaker.exe|SoftMaker Office NX
+Battle.net|Battle.net.exe|Battle.net
 Beyond Compare|BCompare.exe|Beyond Compare 5
+Blender|blender.exe|Blender Foundation\Blender 4.5
+Brave|brave.exe|BraveSoftware\Brave-Browser\Application
+Calc|scalc.exe|LibreOffice\program
 CherryTree|cherrytree.exe|CherryTree\ucrt64\bin
 Chrome|chrome.exe|Google\Chrome\Application
+CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
 CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
+DaVinci Resolve|Resolve.exe|Blackmagic Design\DaVinci Resolve
 DBeaver|dbeaver.exe|DBeaver
 DbSchema|DbSchema.exe|DbSchema
 DevToys|DevToys.exe|DevToys Preview
 Docker Desktop|Docker Desktop.exe|Docker\Docker
+Draw|sdraw.exe|LibreOffice\program
 Edge|msedge.exe|Microsoft\Edge\Application
 Everything|Everything.exe|Everything
 Excel|EXCEL.EXE|Microsoft Office\root\Office16
+FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
+FileOptimizer|FileOptimizer32.exe|FileOptimizer
 FileOptimizer|FileOptimizer64.exe|FileOptimizer
 FileZilla|filezilla.exe|FileZilla FTP Client
 Firefox|firefox.exe|Mozilla Firefox
+foobar2000|foobar2000.exe|foobar2000
 Foxit PDF Reader|FoxitPDFReader.exe|Foxit Software\Foxit PDF Reader
+FreeFileSync|FreeFileSync.exe|FreeFileSync
 GIMP|gimp-3.exe|GIMP 3\bin
 GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
+Google Earth Pro|googleearth.exe|Google\Google Earth Pro\client
+Gpg4win|kleopatra.exe|Gpg4win\bin
+Greenshot|Greenshot.exe|Greenshot
+GtkHash|org.gtkhash.gtkhash.exe|gtkhash-w64
+HandBrake|HandBrake.exe|HandBrake
+HWiNFO|HWiNFO32.EXE|HWiNFO32
 HWiNFO|HWiNFO64.EXE|HWiNFO64
+ImgBurn|ImgBurn.exe|ImgBurn
+Impress|simpress.exe|LibreOffice\program
 Inkscape|inkscape.exe|Inkscape\bin
 Internet Download Manager|IDMan.exe|Internet Download Manager
+IrfanView|i_view32.exe|IrfanView
 IrfanView|i_view64.exe|IrfanView
+iTubeGo|itubegow.exe|iTubeGo
 KeePass|KeePass.exe|KeePass Password Safe 2
+Keyboard Chatter Blocker|KeyboardChatterBlocker.exe|Keyboard Chatter Blocker
+Krita|krita.exe|Krita (x64)\bin
+Krita|krita.exe|Krita (x86)\bin
+Ledger Live|Ledger Live.exe|Ledger Live
+Math|smath.exe|LibreOffice\program
+MPC-BE|mpc-be.exe|MPC-BE
+MPC-BE|mpc-be64.exe|MPC-BE
 Notepad++|notepad++.exe|Notepad++
+OBS Studio|obs32.exe|obs-studio\bin\32bit
 OBS Studio|obs64.exe|obs-studio\bin\64bit
+OneNote|ONENOTE.EXE|Microsoft Office\root\Office16
+Opera|opera.exe|Opera
 Outlook|OUTLOOK.EXE|Microsoft Office\root\Office16
 Paint Shop Pro|Paint Shop Pro 9.exe|Jasc Software Inc\Paint Shop Pro 9
+Paint Shop Pro|Paint Shop Pro.exe|Jasc Software Inc\Paint Shop Pro 8
 Paint.NET|paintdotnet.exe|Paint.NET
+PeaZip|peazip.exe|PeaZip
+PlanMaker|PlanMaker.exe|SoftMaker Office NX
+Postman|Postman.exe|Postman
+Power BI Desktop|PBIDesktop.exe|Microsoft Power BI Desktop\bin
 PowerPoint|POWERPNT.EXE|Microsoft Office\root\Office16
 PowerToys|PowerToys.exe|PowerToys
+Presentations|Presentations.exe|SoftMaker Office NX
+Publisher|MSPUB.EXE|Microsoft Office\root\Office16
 Pulover's Macro Creator|MacroCreator.exe|MacroCreator
 PuTTY|putty.exe|PuTTY
 qBittorrent|qbittorrent.exe|qBittorrent
+RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
 ScreenToGif|ScreenToGif.exe|ScreenToGif
+Slack|slack.exe|slack
+Spotify|Spotify.exe|Spotify
 SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 21\Release\Common7\IDE
 StartAllBack|StartAllBackCfg.exe|StartAllBack
+Steam|steam.exe|Steam
+Stream Deck|StreamDeck.exe|Elgato\StreamDeck
+Tableau Desktop|tableau.exe|Tableau\Tableau 2025.2\bin
+TeraCopy|TeraCopy.exe|TeraCopy
+TextMaker|TextMaker.exe|SoftMaker Office NX
+TightVNC|tvnviewer.exe|TightVNC
 Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
+TreeSize|TreeSize.exe|JAM Software\TreeSize
+TreeSize|TreeSizeFree.exe|JAM Software\TreeSize Free
+Trezor Suite|Trezor Suite.exe|Trezor Suite
 TrueCrypt|TrueCrypt.exe|TrueCrypt
 VeraCrypt|VeraCrypt.exe|VeraCrypt
-Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
 Visual Studio Code|Code.exe|Microsoft VS Code
+Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
+VLC media player|vlc.exe|VideoLAN\VLC
+WinDirStat|WinDirStat.exe|WinDirStat
+WinMerge|WinMergeU.exe|WinMerge
 WinRAR|WinRAR.exe|WinRAR
 WinSCP|WinSCP.exe|WinSCP
+WizTree|WizTree.exe|WizTree
 WizTree|WizTree64.exe|WizTree
 Word|WINWORD.EXE|Microsoft Office\root\Office16
 Workstation Pro|vmware.exe|VMware\VMware Workstation
+Writer|swriter.exe|LibreOffice\program
 XnView MP|xnviewmp.exe|XnViewMP
