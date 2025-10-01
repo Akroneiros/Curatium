@@ -92,7 +92,7 @@ AssignHeroAliases() {
 }
 
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As String [Type: Screen Delta], verticalValue As String [Type: Screen Delta], coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")", methodName, [horizontalValue, verticalValue, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
@@ -102,8 +102,8 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     originalX := coordinates[1] + 0
     originalY := coordinates[2] + 0
 
-    newX := originalX + (horizontalValue + 0)
-    newY := originalY + (verticalValue + 0)
+    newX := originalX + horizontalValue
+    newY := originalY + verticalValue
     modifiedCoordinatePair := Format("{}x{}", newX, newY)
 
     try {
@@ -372,6 +372,9 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
 ; **************************** ;
 
 ConvertArrayIntoCsvString(array) {
+    static methodName := RegisterMethod("ConvertArrayIntoCsvString(array As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [array])
+
     static newLine := "`r`n"
 
     result := ""
@@ -387,6 +390,9 @@ ConvertArrayIntoCsvString(array) {
 }
 
 ExtractValuesFromArrayDimension(array, dimension) {
+    static methodName := RegisterMethod("ExtractValuesFromArrayDimension(array As Object, dimension As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [array, dimension])
+
     arrayDimension := []
 
     for outerIndex, innerArray in array {
@@ -397,6 +403,9 @@ ExtractValuesFromArrayDimension(array, dimension) {
 }
 
 ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
+    static methodName := RegisterMethod("ExtractUniqueValuesFromSubMaps(parentMapOfMaps As Object, subMapKeyName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [parentMapOfMaps, subMapKeyName])
+
     uniqueValues := []
 
     for outerMapKey, innerMap in parentMapOfMaps {
@@ -427,6 +436,9 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
 }
 
 IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
+    static methodName := RegisterMethod("IfStringIsNotEmptyReturnValue(stringValue As String [Optional], returnValue As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [stringValue, returnValue])
+
     If stringValue = "" {
         returnValue := ""
     }
@@ -435,6 +447,9 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
 }
 
 RemoveDuplicateFromArray(array) {
+    static methodName := RegisterMethod("RemoveDuplicateFromArray(array As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [array])
+
     seen := Map()
     index := array.Length
 

@@ -44,17 +44,21 @@ AbortExecution() {
     }    
 }
 
-DisplayErrorMessage(logValuesForConclusion, errorObject) {
+DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := unset) {
     windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
     currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
 
     errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
 
-    lineNumber := errorObject.Line
-    if logValuesForConclusion["Validation"] !== "" {
+    lineNumber := unset
+    if IsSet(customLineNumber) {
+        lineNumber := customLineNumber
+    } else if logValuesForConclusion["Validation"] !== "" {
         lineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
+    } else {
+        lineNumber := errorObject.Line
     }
-
+    
     declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
 
     fullErrorText := unset
@@ -62,7 +66,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
         fullErrorText :=
             "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . "`n" . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . "`n" . 
-            "Arguments: " .    logValuesForConclusion["Arguments"] . "`n" . 
+            "Arguments: " .    logValuesForConclusion["Arguments Full"] . "`n" . 
             "Line Number: " .  lineNumber . "`n" . 
             "Date Runtime: " . currentDateTime . "`n" . 
             "Error Output: " . errorMessage
@@ -103,59 +107,79 @@ DisplayErrorMessage(logValuesForConclusion, errorObject) {
 LogEngine(status, fullErrorText := "") {
     static lastIntermissionFlushTick := 0
     static intermissionBuffer        := []
-    static intermissionFlushInterval := 120 * 60 * 1000
-    static newLine := "`r`n"
-    executionLogLines := []
-    SplitPath(A_ScriptFullPath, , &projectFolderPath, , &filenameWithoutExtension)
-    timeAnchor := CaptureTimeAnchor()
-
-    if status = "Beginning" && logFilePath["Error Message"] = "" && logFilePath["Execution Log"] = "" && logFilePath["Operation Log"] = "" && logFilePath["Symbol Ledger"] = "" {
-        global logFilePath
-
-        if !DirExist(projectFolderPath . "\History") {
-            DirCreate(projectFolderPath . "\History")
-        }
-
-        if !DirExist(projectFolderPath . "\Log") {
-            DirCreate(projectFolderPath . "\Log")
-        }
-
-         if !DirExist(projectFolderPath . "\Projects") {
-            DirCreate(projectFolderPath . "\Projects")
-        }
-        
-        logFileDateOfToday := StrReplace(timeAnchor["Local Date Time ISO"], ":", ".") . "." . timeAnchor["Milliseconds Part"]
-        
-        logFilePath["Error Message"] := projectFolderPath . "\Log\" . filenameWithoutExtension . " - " . "Error Message" . " - " . logFileDateOfToday . ".csv"
-        logFilePath["Execution Log"] := projectFolderPath . "\Log\" . filenameWithoutExtension . " - " . "Execution Log" . " - " . logFileDateOfToday . ".csv"
-        logFilePath["Operation Log"] := projectFolderPath . "\Log\" . filenameWithoutExtension . " - " . "Operation Log" . " - " . logFileDateOfToday . ".csv"
-        logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . filenameWithoutExtension . " - " . "Symbol Ledger" . " - " . logFileDateOfToday . ".csv"
-    }
+    static intermissionFlushInterval := 7200000 ; 120 * 60 * 1000
 
     if status = "Beginning" {
-        global system
+        global logFilePath
 
-        system["Project Name"]         := filenameWithoutExtension
-        system["Script File Hash"]     := Hash.File("SHA256", A_ScriptFullPath)
+        SplitPath(A_ScriptFullPath, , &projectFolderPath, , &projectName)
+
+        dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
+        tickCount   := A_TickCount
+      
+        logFilePath["Error Message"] := projectFolderPath . "\Log\" . projectName . " - " . "Error Message" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Execution Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Execution Log" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Operation Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Operation Log" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . projectName . " - " . "Symbol Ledger" . " - " . dateOfToday . "." . tickCount . ".csv"
+
+        if !DirExist(projectFolderPath . "\Log\") {
+            DirCreate(projectFolderPath . "\Log\")
+        }
+
+        errorMessageFileHandle := FileOpen(logFilePath["Error Message"], "w", "UTF-8")
+        errorMessageFileHandle.Close()
+
+        executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
+        executionLogFileHandle.Close()
+
+        operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
+        operationLogFileHandle.Close()
+
+        symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
+        symbolLedgerFileHandle.Close()
+
+        global system
+    
+        system["Project Name"]         := projectName
+        system["Project Directory"]    := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
         system["Library Release"]      := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
         system["AutoHotkey Version"]   := A_AhkVersion
+        system["QPC Frequency"]        := GetQueryPerformanceCounterFrequency()
+
+        warmupUtcTimestamp        := GetUtcTimestamp()
+        warmupUtcTimestampPrecise := GetUtcTimestampPrecise()
+        warmupQpcCounter          := GetQueryPerformanceCounter()
+
+        system["QPC Counter Before"]   := GetQueryPerformanceCounter()
+        system["Script Run Timestamp"] := GetUtcTimestampPrecise()
+        system["QPC Counter After"]    := GetQueryPerformanceCounter()
+        system["QPC Counter Midpoint"] := system["QPC Counter Before"] + ((system["QPC Counter After"] - system["QPC Counter Before"] + 1) // 2)
+        system["Script Run Integer"]   := ConvertUtcTimestampToInteger(system["Script Run Timestamp"])
+        system["Script File Hash"]     := Hash.File("SHA256", A_ScriptFullPath)
         system["Computer Name"]        := A_ComputerName
         system["Username"]             := A_UserName
         system["Operating System"]     := GetOperatingSystem()
         system["Input Language"]       := GetInputLanguage()
         system["Keyboard Layout"]      := GetActiveKeyboardLayout()
         system["Region Format"]        := GetRegionFormat()
+        system["Time Zone Key Name"]   := GetTimeZoneKeyName()
+        
         system["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
-        system["DPI Scaling"]          := Round(A_ScreenDPI / 96 * 100) . "%"
+        system["DPI Scale"]            := Round(A_ScreenDPI / 96 * 100) . "%"
         system["Color Mode"]           := GetWindowsColorMode()
         system["Memory Size and Type"] := GetMemorySizeAndType()
         system["Motherboard"]          := GetMotherboard()
         system["CPU"]                  := GetCpu()
         system["Display GPU"]          := GetActiveDisplayGpu()
-        system["System Disk"]          := GetSystemDisk()
+        system["System Disk"]          := GetSystemDisk()      
+    }
 
+    executionLogLines := []
+
+    if status = "Beginning" {
         executionLogLines := [
             system["Project Name"]         ,
+            system["Project Directory"]    ,
             system["Script File Hash"]     ,
             system["Library Release"]      ,
             system["AutoHotkey Version"]   ,
@@ -165,44 +189,25 @@ LogEngine(status, fullErrorText := "") {
             system["Input Language"]       ,
             system["Keyboard Layout"]      ,
             system["Region Format"]        ,
+            system["Time Zone Key Name"]   ,
+            system["QPC Frequency"]        ,
             system["Display Resolution"]   ,
-            system["DPI Scaling"]          ,
+            system["DPI Scale"]            ,
             system["Color Mode"]           ,
             system["Memory Size and Type"] ,
             system["Motherboard"]          ,
             system["CPU"]                  ,
             system["Display GPU"]          ,
-            system["System Disk"]          ,
-            "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
-            "Tick After Change: " .                      timeAnchor["Tick After Change"],
-            "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
-            "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
-            "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
-            "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
-            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"]
+            system["System Disk"]
         ]
     } else if status !== "Intermission" {
         executionLogLines := [
-            "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
-            "Tick After Change: " .                      timeAnchor["Tick After Change"],
-            "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
-            "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
-            "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
-            "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
-            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
             "Remaining Free Disk Space: " .              GetRemainingFreeDiskSpace()
         ]
     } else {
         physicalRamSituation := GetPhysicalMemoryStatus()
 
         for line in [
-            "Tick Before Change: " .                     timeAnchor["Tick Before Change"],
-            "Tick After Change: " .                      timeAnchor["Tick After Change"],
-            "Precise UTC FileTime Midpoint: " .          timeAnchor["Precise UTC FileTime Midpoint"],
-            "UTC Date Time ISO: " .                      timeAnchor["UTC Date Time ISO"],
-            "Local Date Time ISO: " .                    timeAnchor["Local Date Time ISO"],
-            "Milliseconds Part: " .                      timeAnchor["Milliseconds Part"],
-            "QueryPerformanceCounter Ticks Midpoint: " . timeAnchor["QueryPerformanceCounter Ticks Midpoint"],
             "Physical RAM Situation: " .                 physicalRamSituation
         ] {
             intermissionBuffer.Push(line)
@@ -214,22 +219,8 @@ LogEngine(status, fullErrorText := "") {
 
     Switch status {
         Case "Beginning":
-            errorMessageFileHandle := FileOpen(logFilePath["Error Message"], "w", "UTF-8")
-            errorMessageFileHandle.Close()
-
-            executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
-            executionLogFileHandle.Close()
-
             ExecutionLogBatchAppend("Beginning", executionLogLines)
-
-            operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
-            operationLogFileHandle.Close()
-
             AppendCsvLineToLog(operationLogLine, "Operation Log")
-
-            symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
-            symbolLedgerFileHandle.Close()
-
             AppendCsvLineToLog(symbolLedgerLine, "Symbol Ledger")
         Case "Completed":
             if OverlayIsVisible() = true {
@@ -253,9 +244,8 @@ LogEngine(status, fullErrorText := "") {
             }
 
             ExecutionLogBatchAppend("Failed", executionLogLines)
-
             AppendCsvLineToLog(fullErrorText, "Error Message")
-
+            
             FinalizeLogs()
         Case "Intermission":
             currentTick := A_TickCount
@@ -264,11 +254,201 @@ LogEngine(status, fullErrorText := "") {
                 ExecutionLogBatchAppend("Intermission", intermissionBuffer)
                 intermissionBuffer.Length := 0
             }
-        default:
     }
 }
 
-LogFormatArgumentsAndValidate(methodName, arguments) {
+LogValidateMethodArguments(methodName, arguments) {
+    if methodName = "OverlayInsertSpacer" {
+        return ""
+    }
+
+    validation := ""
+
+    for index, argument in arguments {
+        parameter := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+        dataType  := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+        optional  := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+        pattern   := methodRegistry[methodName]["Parameter Contracts"][index]["Pattern"]
+        typeValue := methodRegistry[methodName]["Parameter Contracts"][index]["Type"]
+        whitelist := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+
+        parameterMissingValue := "Parameter " . Chr(34) . parameter . Chr(34) . " has no value passed into it."
+
+        switch dataType {
+            case "Boolean":
+                if optional = "" && argument = "" {
+                    validation := parameterMissingValue
+                } else if !(IsInteger(argument) && (argument = 0 || argument = 1)) {
+                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be Boolean (true/false) or Integer (0/1)."
+                }
+            case "Integer":
+                if optional = "" && argument = "" {
+                    validation := parameterMissingValue
+                } else if !IsInteger(argument) {
+                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be an Integer"
+                } else {
+                    switch typeValue {
+                        case "Byte":
+                            if argument < 0 || argument > 255 {
+                                validation := "Value out of byte range (0–255): " . argument
+                            }
+                        case "Year":
+                            if !RegExMatch(argument, "^\d+$") {
+                                validation := "Year value must be integer digits only: " . argument
+                            } else if argument < 1900 || argument > 2100 {
+                                validation := "Year value must be between 1900 and 2100: " . argument
+                            }
+                    }
+                }
+            case "Object":
+                ; Helper methods only, no handling.
+            case "String":
+                if optional = "" && argument = "" {
+                    validation := parameterMissingValue
+                } else if optional = "Optional" && argument = "" {
+                    ; Skip validation regardless of type as no value exists.
+                } else if pattern !== "" {
+                    if !RegExMatch(argument, pattern) {
+                        validation := "Argument pattern (" . pattern . ") does not validate against argument: " . argument
+                    }
+                } else if whitelist.Length != 0 {
+                    valueIsWhitelisted := false
+
+                    for index, whitelistEntry in whitelist {
+                        if argument = whitelistEntry {
+                            valueIsWhitelisted := true
+                            break
+                        }
+                    }
+
+                    if valueIsWhitelisted = false {
+                        validation := "Failed as whitelist did not match argument: " . argument
+                    }
+                } else if Type(argument) != "String" {
+                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be a String."
+                } else {
+                    switch typeValue {
+                        case "Absolute Path", "Absolute Save Path":
+                            isDrive := RegExMatch(argument, "^[A-Za-z]:\\")
+                            isUNC   := RegExMatch(argument, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+
+                            if !(isDrive || isUNC) {
+                                validation := "Path must start with drive (C:\) or UNC (\\server\share\): " . argument
+                            } else if !FileExist(argument) && typeValue = "Absolute Path" {
+                                validation := "File doesn't exist: " . argument
+                            }
+                        case "Base64":
+                            if !RegExMatch(argument, "^[A-Za-z0-9+/]*={0,2}$") {
+                                validation := "Invalid Base64 content. Only A–Z, a–z, 0–9, +, /, and = allowed."
+                            } else if Mod(StrLen(argument), 4) != 0 {
+                                validation := "Invalid Base64 length. mMust be multiple of 4."
+                            } else if RegExMatch(argument, "=[^=]") {
+                                validation := "Invalid Base64 padding. The character = can only appear at the end."
+                            }
+                        case "Code":
+                        case "Directory":
+                            isDrive := RegExMatch(argument, "^[A-Za-z]:\\")
+                            isUNC   := RegExMatch(argument, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+
+                            if !(isDrive || isUNC) {
+                                validation := "Path must start with drive (C:\) or UNC (\\server\share\): " . argument
+                            } else if !DirExist(argument) && methodName !== "EnsureDirectoryExists" {
+                                validation := "Directory doesn't exist: " . argument
+                            } else if SubStr(argument, -1) != "\" {
+                                validation := "Directory path must end with a backslash \: " . argument
+                            }
+                        case "Filename":
+                            pattern := "[\\/:*?" . Chr(34) . "<>|]"
+
+                            if RegExMatch(argument, pattern) {
+                                forbiddenList := "\ / : * ? " Chr(34) " < > |"
+                                validation := "Filename contains forbidden characters (" . forbiddenList . "): " . argument
+                            } else if argument = "." || argument = ".." {
+                                validation := "Filename reserved: " . argument
+                            }
+                        case "ISO Date Time":
+                            if !RegExMatch(argument, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
+                                validation := "Invalid ISO 8601 Date Time: " . argument . " (must be YYYY-MM-DD HH:MM:SS)."
+                            } else {
+                                dateTimeparts := StrSplit(argument, " ")
+                                dateParts     := StrSplit(dateTimeparts[1], "-")
+                                timeParts     := StrSplit(dateTimeparts[2], ":")
+
+                                year   := dateParts[1] + 0
+                                month  := dateParts[2] + 0
+                                day    := dateParts[3] + 0
+                                hour   := timeParts[1] + 0
+                                minute := timeParts[2] + 0
+                                second := timeParts[3] + 0
+
+                                if validation = "" {
+                                    validation := StrReplace(ValidateIsoDate(year, month, day, hour, minute, second), "ISO 8601 Date:", "ISO 8601 Date Time:")
+                                }
+                            }
+                        case "ISO Date":
+                            if !RegExMatch(argument, "^\d{4}-\d{2}-\d{2}$") {
+                                validation := "Invalid ISO 8601 Date: " . argument . " (must be YYYY-MM-DD)."
+                            } else {
+                                dateParts := StrSplit(argument, "-")
+                                year      := dateParts[1] + 0
+                                month     := dateParts[2] + 0
+                                day       := dateParts[3] + 0
+
+                                if validation = "" {
+                                    validation := ValidateIsoDate(year, month, day)
+                                }
+                            }
+                        case "Percent Range":
+                            if !RegExMatch(argument, "^\d{1,3}-\d{1,3}$") {
+                                validation := "Must be two integers separated by the character -: " . argument
+                            } else {
+                                parts  := StrSplit(argument, "-")
+                                first  := parts[1] + 0
+                                second := parts[2] + 0
+
+                                if first < 0 || first > 100 || second < 0 || second > 100 {
+                                    validation := "Values must be between 0 and 100: " . argument
+                                } else if first >= second {
+                                    validation := "First value must be lower than second: " . argument
+                                }
+                            }
+                        case "Raw Date Time":
+                            if !RegExMatch(argument, "^\d{14}$") {
+                                validation := "Must be in the format YYYYMMDDHHMMSS: " . argument
+                            } else {
+                                year   := SubStr(argument, 1, 4) + 0
+                                month  := SubStr(argument, 5, 2) + 0
+                                day    := SubStr(argument, 7, 2) + 0
+                                hour   := SubStr(argument, 9, 2) + 0
+                                minute := SubStr(argument, 11, 2) + 0
+                                second := SubStr(argument, 13, 2) + 0
+
+                                if validation = "" {
+                                    validation := ValidateIsoDate(year, month, day, hour, minute, second, true)
+                                }
+                            }
+                        case "Search", "Search Open":
+                            pattern := "[\\/:*?" . Chr(34) . "<>|]"
+
+                            if typeValue = "Search" && RegExMatch(argument, pattern) {
+                                forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
+                                validation := "Contains forbidden characters (" . forbiddenList . "): " . argument
+                            }
+                        case "SHA-256":
+                            if StrLen(argument) != 64 {
+                                validation := "Expected length of 64 but instead got: " . StrLen(argument)
+                            } else if !RegExMatch(argument, "^[0-9a-fA-F]{64}$") {
+                                validation := "Must be hex digits only."
+                            }
+                    }
+                }
+        }
+    }
+
+    return validation
+}
+
+LogFormatMethodArguments(methodName, arguments, validation := "") {
     global symbolLedger
 
     argumentValueFull := ""
@@ -280,11 +460,8 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
         "Parameter",      "",
         "Argument",       "",
         "Data Type",      "",
-        "Optional",       "",
-        "Pattern",        "",
         "Type",           "",
-        "Whitelist",      [],
-        "Validation",     ""
+        "Validation",     validation
     )
 
     argumentsAndValidation["Arguments Full"] := ""
@@ -294,285 +471,119 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
         return argumentsAndValidation
     }
 
-    for index, argumentValue in arguments {
+    for index, argument in arguments {
         argumentsAndValidation["Parameter"] := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        argumentsAndValidation["Argument"]  := argumentValue
+        argumentsAndValidation["Argument"]  := argument
         argumentsAndValidation["Data Type"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        argumentsAndValidation["Optional"]  := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-        argumentsAndValidation["Pattern"]   := methodRegistry[methodName]["Parameter Contracts"][index]["Pattern"]
         argumentsAndValidation["Type"]      := methodRegistry[methodName]["Parameter Contracts"][index]["Type"]
-        argumentsAndValidation["Whitelist"] := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
-        argumentValueFull := argumentValue
-        argumentValueLog  := argumentValue
+        argumentValueFull := argument
+        argumentValueLog  := argument
         switch argumentsAndValidation["Data Type"] {
             case "Boolean":
-                if argumentsAndValidation["Optional"] = "" && argumentValue = "" {
-                    argumentsAndValidation["Validation"] := "Parameter " . argumentsAndValidation["Parameter"] . " has no value passed into it."
-                } else if Type(argumentValue) = "Boolean" {
-                    argumentValueFull := (argumentValue ? "true" : "false")
-                    argumentValueLog  := argumentValueFull
-                } else if Type(argumentValue) = "Integer" && (argumentValue = 0 || argumentValue = 1) {
-                    argumentValueFull := (argumentValue ? "true" : "false")
-                    argumentValueLog  := argumentValueFull
-                } else {
-                    argumentsAndValidation["Validation"] := "Parameter " . argumentsAndValidation["Parameter"] . " must be Boolean (true/false) or Integer (0/1)."
-                }
             case "Integer":
-                if !(Type(argumentValue) = "Integer") {
-                    argumentsAndValidation["Validation"] := "Parameter " . argumentsAndValidation["Parameter"] . " must be an Integer"
-                } else {
-                    switch argumentsAndValidation["Type"] {
-                        case "Byte":
-                            if argumentValue < 0 || argumentValue > 255 {
-                                argumentsAndValidation["Validation"] := "Value out of byte range (0–255): " . argumentValue
-                            }
-                        case "Year":
-                            if !RegExMatch(argumentValue, "^\d+$") {
-                                argumentsAndValidation["Validation"] := "Invalid Year value: " . argumentValue . " (must be integer digits only)."
-                            } else if argumentValue < 1900 || argumentValue > 2100 {
-                                argumentsAndValidation["Validation"] := "Invalid Year value: " . argumentValue . " (must be between 1900 and 2100)."
-                            }
-                        default:
-                    }
+            case "Object":
+                argumentsAndValidation["Arguments Full"] .= "<Object>"
+                argumentsAndValidation["Arguments Log"]  .= "<Object>"
+
+                if index < arguments.Length {
+                    argumentsAndValidation["Arguments Full"] .= ", "
+                    argumentsAndValidation["Arguments Log"]  .= ", "
                 }
+
+                continue
             case "String":
-                if argumentsAndValidation["Optional"] = "" && argumentValue = "" {
-                    argumentsAndValidation["Validation"] := "Parameter " . argumentsAndValidation["Parameter"] . " has no value passed into it."
-                } else if argumentsAndValidation["Optional"] = "Optional" && argumentValue = "" {
-                    ; Skip validation regardless of type as no value exists.
-                }
-                else if argumentsAndValidation["Pattern"] !== "" {
-                    if !RegExMatch(argumentValue, argumentsAndValidation["Pattern"]) {
-                        argumentsAndValidation["Validation"] := "Argument does not qualify: " . argumentValue . " (Pattern: " . argumentsAndValidation["Pattern"] ")."
-                    }
-                } else if argumentsAndValidation["Whitelist"].Length != 0 {
-                    valueIsWhitelisted := false
+                switch argumentsAndValidation["Type"] {
+                    case "Absolute Path", "Absolute Save Path":
+                        SplitPath(argument, &filename, &directoryPath)
 
-                    for index, whitelistEntry in argumentsAndValidation["Whitelist"] {
-                        if StrLower(Trim(argumentValue)) = StrLower(Trim(whitelistEntry)) {
-                            valueIsWhitelisted := true
-                            break
+                        if !symbolLedger.Has(directoryPath . "|D") {
+                            symbolLedger[directoryPath . "|D"] := Map(
+                                "Symbol", NextSymbolLedgerAlias()
+                            )
+
+                            csvSymbolLedger :=
+                                directoryPath . "|" . 
+                                "D" . "|" . 
+                                symbolLedger[directoryPath . "|D"]["Symbol"]
+
+                            AppendCsvLineToLog(csvSymbolLedger, "Symbol Ledger")
                         }
-                    }
 
-                    if valueIsWhitelisted = false {
-                        argumentsAndValidation["Validation"] := "Failed as argument not in whitelist: " . argumentValue
-                    }
-                } else {
-                    switch argumentsAndValidation["Type"] {
-                        case "Absolute Path", "Absolute Save Path":
-                            isDrive := RegExMatch(argumentValue, "^[A-Za-z]:\\")
-                            isUNC   := RegExMatch(argumentValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+                        if !symbolLedger.Has(filename . "|F") {
+                            symbolLedger[filename . "|F"] := Map(
+                                "Symbol", NextSymbolLedgerAlias()
+                            )
 
-                            if !(isDrive || isUNC) {
-                                argumentsAndValidation["Validation"] := "Invalid Absolute Path: " . argumentValue . " (must start with drive (C:\) or UNC (\\server\share\)."
-                            } else if !FileExist(argumentValue) && argumentsAndValidation["Type"] = "Absolute Path" {
-                                argumentsAndValidation["Validation"] := "Invalid Absolute Path: " . argumentValue . " (file does not exist)."
-                            } else if InStr(FileExist(argumentValue), "D") {
-                                argumentsAndValidation["Validation"] := "Invalid Absolute Path: " . argumentValue . " (path is a directory, expected file)."
-                            }
+                            csvSymbolLedger :=
+                                filename . "|" . 
+                                "F" . "|" . 
+                                symbolLedger[filename . "|F"]["Symbol"]
 
-                            SplitPath(argumentValue, &filename, &directoryPath)
+                            AppendCsvLineToLog(csvSymbolLedger, "Symbol Ledger")
+                        }
 
-                            if !symbolLedger.Has(directoryPath . "|D") {
-                                symbolLedger[directoryPath . "|D"] := Map(
-                                    "Symbol", SymbolLedgerAlias()
-                                )
+                        argumentValueLog := symbolLedger[directoryPath . "|D"]["Symbol"] . "\" . symbolLedger[filename . "|F"]["Symbol"]
+                    case "Base64":
+                        base64Summary := "<Base64 (Length: " . StrLen(argument) . ")>"
 
-                                csvSymbolLedger :=
-                                    directoryPath . "|" . 
-                                    "D" . "|" . 
-                                    symbolLedger[directoryPath . "|D"]["Symbol"]
+                        if !symbolLedger.Has(base64Summary . "|B") {
+                            csvSymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                                AppendCsvLineToLog(csvSymbolLedger, "Symbol Ledger")
-                            }
+                        argumentValueFull := base64Summary
+                        argumentValueLog := symbolLedger[base64Summary . "|B"]["Symbol"]
+                    case "Code":
+                        codeSummary := "<Code (Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ")>"
 
-                            if !symbolLedger.Has(filename . "|F") {
-                                symbolLedger[filename . "|F"] := Map(
-                                    "Symbol", SymbolLedgerAlias()
-                                )
+                        if !symbolLedger.Has(codeSummary . "|C") {
+                            csvSymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                                csvSymbolLedger :=
-                                    filename . "|" . 
-                                    "F" . "|" . 
-                                    symbolLedger[filename . "|F"]["Symbol"]
+                        argumentValueFull := codeSummary
+                        argumentValueLog := symbolLedger[codeSummary . "|C"]["Symbol"]
+                    case "Directory":
+                        if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
+                            csvSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                                AppendCsvLineToLog(csvSymbolLedger, "Symbol Ledger")
-                            }
+                        argumentValueLog := symbolLedger[RTrim(argument, "\") . "|D"]["Symbol"]
+                    case "Filename":
+                        if !symbolLedger.Has(argument . "|F") {
+                            csvSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                            argumentValueLog := symbolLedger[directoryPath . "|D"]["Symbol"] . "\" . symbolLedger[filename . "|F"]["Symbol"]
-                        case "Base64":
-                            argumentValueClean := RegExReplace(argumentValue, "\s+")
+                        argumentValueLog := symbolLedger[argument . "|F"]["Symbol"]
+                    case "ISO Date Time":
+                        argumentValueLog := LocalIsoWithUtcTag(argument)
+                    case "Search", "Search Open":
+                        if !symbolLedger.Has(argument . "|S") {
+                            csvSymbolLedgerLine := RegisterSymbol(argument, "Search", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                            if !RegExMatch(argumentValueClean, "^[A-Za-z0-9+/]*={0,2}$") {
-                                argumentsAndValidation["Validation"] := "Invalid Base64 content: only A–Z, a–z, 0–9, +, /, and = allowed."
-                            } else if Mod(StrLen(argumentValueClean), 4) != 0 {
-                                argumentsAndValidation["Validation"] := "Invalid Base64 length: must be multiple of 4."
-                            } else if RegExMatch(argumentValueClean, "=[^=]") {
-                                argumentsAndValidation["Validation"] := "Invalid Base64 padding: '=' can only appear at the end."
-                            } else {
-                                base64Summary := "<Base64 (Length: " . StrLen(argumentValueClean) . ")>"
+                        argumentValueLog := symbolLedger[argument . "|S"]["Symbol"]
+                    case "SHA-256":
+                        encodedHash := EncodeSha256HexToBase(argument, 86)
+                        if !symbolLedger.Has(encodedHash . "|H") {
+                            csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
+                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        }
 
-                                if !symbolLedger.Has(base64Summary . "|B") {
-                                    csvSymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
-                                    AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                                }
-
-                                argumentValueFull := base64Summary
-                                argumentValueLog := symbolLedger[base64Summary . "|B"]["Symbol"]
-                            }
-                        case "Code":
-                            codeSummary := "<Code (Length: " . StrLen(argumentValue) . ", Rows: " . StrSplit(argumentValue, "`n").Length . ")>"
-
-                            if !symbolLedger.Has(codeSummary . "|C") {
-                                csvSymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueFull := codeSummary
-                            argumentValueLog := symbolLedger[codeSummary . "|C"]["Symbol"]
-                        case "Directory":
-                            isDrive := RegExMatch(argumentValue, "^[A-Za-z]:\\")
-                            isUNC   := RegExMatch(argumentValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
-                            if !(isDrive || isUNC) {
-                                argumentsAndValidation["Validation"] := "Invalid Directory: " . argumentValue . " (must start with drive (C:\) or UNC (\\server\share\))."
-                            } else if !FileExist(argumentValue) && methodName !== "EnsureDirectoryExists" {
-                                argumentsAndValidation["Validation"] := "Invalid Directory: " . argumentValue . " (path does not exist)."
-                            } else if !InStr(FileExist(argumentValue), "D") && methodName !== "EnsureDirectoryExists" {
-                                argumentsAndValidation["Validation"] := "Invalid Directory: " . argumentValue . " (path is a file, expected directory)."
-                            } else if SubStr(argumentValue, -1) != "\" {
-                                argumentsAndValidation["Validation"] := "Invalid Directory: " . argumentValue . " (must end with backslash \)."
-                            }
-
-                            if !symbolLedger.Has(RTrim(argumentValue, "\") . "|D") {
-                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Directory", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[RTrim(argumentValue, "\") . "|D"]["Symbol"]
-                        case "Filename":
-                            pattern := "[\\/:*?" Chr(34) "<>|]"
-
-                            if RegExMatch(argumentValue, pattern) {
-                                forbiddenList := "\ / : * ? " Chr(34) " < > |"
-                                argumentsAndValidation["Validation"] := "Invalid Filename: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
-                            } else if argumentValue = "." || argumentValue = ".." {
-                                argumentsAndValidation["Validation"] := "Invalid Filename: " . argumentValue . " (reserved)."
-                            }
-
-                            if !symbolLedger.Has(argumentValue . "|F") {
-                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Filename", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[argumentValue . "|F"]["Symbol"]
-                        case "ISO Date Time":
-                            if !RegExMatch(argumentValue, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
-                                argumentsAndValidation["Validation"] := "Invalid ISO 8601 Date Time: " . argumentValue . " (must be YYYY-MM-DD HH:MM:SS)."
-                            } else {
-                                dateTimeparts := StrSplit(argumentValue, " ")
-                                dateParts     := StrSplit(dateTimeparts[1], "-")
-                                timeParts     := StrSplit(dateTimeparts[2], ":")
-
-                                year   := dateParts[1] + 0
-                                month  := dateParts[2] + 0
-                                day    := dateParts[3] + 0
-                                hour   := timeParts[1] + 0
-                                minute := timeParts[2] + 0
-                                second := timeParts[3] + 0
-
-                                if argumentsAndValidation["Validation"] = "" {
-                                    argumentsAndValidation["Validation"] := StrReplace(ValidateIsoDate(year, month, day, hour, minute, second), "ISO 8601 Date:", "ISO 8601 Date Time:")
-                                }
-
-                                argumentValueLog  := LocalIsoWithUtcTag(argumentValue)
-                            }
-                        case "ISO Date":
-                            if !RegExMatch(argumentValue, "^\d{4}-\d{2}-\d{2}$") {
-                                argumentsAndValidation["Validation"] := "Invalid ISO 8601 Date: " . argumentValue . " (must be YYYY-MM-DD)."
-                            } else {
-                                dateParts := StrSplit(argumentValue, "-")
-                                year      := dateParts[1] + 0
-                                month     := dateParts[2] + 0
-                                day       := dateParts[3] + 0
-
-                                if argumentsAndValidation["Validation"] = "" {
-                                    argumentsAndValidation["Validation"] := ValidateIsoDate(year, month, day)
-                                }
-                            }
-                        case "Percent Range":
-                            if !RegExMatch(argumentValue, "^\d{1,3}-\d{1,3}$") {
-                                argumentsAndValidation["Validation"] := "Invalid Percent Range: " . argumentValue . " (must be two integers separated by '-')."
-                            } else {
-                                parts  := StrSplit(argumentValue, "-")
-                                first  := parts[1] + 0
-                                second := parts[2] + 0
-
-                                if first < 0 || first > 100 || second < 0 || second > 100 {
-                                    argumentsAndValidation["Validation"] := "Invalid Percent Range: " . argumentValue . " (values must be between 0 and 100)."
-                                } else if first >= second {
-                                    argumentsAndValidation["Validation"] := "Invalid Percent Range: " . argumentValue . " (first value must be lower than second)."
-                                }
-                            }
-                        case "Raw Date Time":
-                            if !RegExMatch(argumentValue, "^\d{14}$") {
-                                argumentsAndValidation["Validation"] := "Invalid Raw Date Time: " . argumentValue . " (must be YYYYMMDDHHMMSS)."
-                            } else {
-                                year   := SubStr(argumentValue, 1, 4) + 0
-                                month  := SubStr(argumentValue, 5, 2) + 0
-                                day    := SubStr(argumentValue, 7, 2) + 0
-                                hour   := SubStr(argumentValue, 9, 2) + 0
-                                minute := SubStr(argumentValue, 11, 2) + 0
-                                second := SubStr(argumentValue, 13, 2) + 0
-
-                                if argumentsAndValidation["Validation"] = "" {
-                                    argumentsAndValidation["Validation"] := ValidateIsoDate(year, month, day, hour, minute, second)
-                                }
-                            }
-                        case "Screen Delta":
-                            if !RegExMatch(argumentValue, "^(0|[1-9]\d*|-0|-[1-9]\d*)$") {
-                                argumentsAndValidation["Validation"] := "Invalid Screen Delta: " . argumentValue . " (must be 0 or integer without leading zeros, optional leading '-')."
-                            }
-                        case "Search", "Search Open":
-                            pattern := "[\\/:*?" Chr(34) "<>|]"
-
-                            if argumentsAndValidation["Type"] = "Search" && RegExMatch(argumentValue, pattern) {
-                                forbiddenList := "\ / : * ? " Chr(34) " < > |"
-                                argumentsAndValidation["Validation"] := "Invalid Search: " . argumentValue . " (contains forbidden characters " . forbiddenList . ")."
-                            }
-
-                            if !symbolLedger.Has(argumentValue . "|S") {
-                                csvSymbolLedgerLine := RegisterSymbol(argumentValue, "Search", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[argumentValue . "|S"]["Symbol"]
-                        case "SHA-256":
-                            if StrLen(argumentValue) != 64 {
-                                argumentsAndValidation["Validation"] := "Invalid SHA-256 hash length: " . StrLen(argumentValue) . "."
-                            } else if !RegExMatch(argumentValue, "^[0-9a-fA-F]{64}$") {
-                                argumentsAndValidation["Validation"] := "Invalid SHA-256 hash content: must be hex digits only."
-                            }
-
-                            encodedHash := EncodeSha256HexToBase80(argumentValue)
-                            if !symbolLedger.Has(encodedHash . "|H") {
-                                csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[encodedHash . "|H"]["Symbol"]
-                        default:
-                            if StrLen(argumentValue) > 192 {
-                                argumentValueFull := SubStr(argumentValue, 1, 224) . "…"
-                                argumentValueLog  := SubStr(argumentValue, 1, 192) . "…"
-                            }
-                    }
+                        argumentValueLog := symbolLedger[encodedHash . "|H"]["Symbol"]
+                    default:
+                        if StrLen(argument) > 192 {
+                            argumentValueFull := SubStr(argument, 1, 224) . "…"
+                            argumentValueLog  := SubStr(argument, 1, 192) . "…"
+                        }
                 }
                 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
                 argumentValueLog  := Format('"{1}"', argumentValueLog)
-            default:
         }
 
         argumentsAndValidation["Arguments Full"] .= argumentValueFull
@@ -587,8 +598,86 @@ LogFormatArgumentsAndValidate(methodName, arguments) {
     return argumentsAndValidation
 }
 
+LogHelperError(logValuesForConclusion, errorLineNumber, errorMessage) {
+    operationSequenceNumber        := NextOperationSequenceNumber()
+    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
+    encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
+
+    logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
+
+    csvConclusion := 
+        logValuesForConclusion["Operation Sequence Number"] . "|" . ; Operation Sequence Number
+        "F" .                                                 "|" . ; Status
+        encodedTickCount                                            ; Tick
+
+    if logValuesForConclusion["Context"] !== "" {
+        csvConclusion := csvConclusion . "|" . logValuesForConclusion["Context"]
+    }
+
+    AppendCsvLineToLog(csvConclusion, "Operation Log")
+
+    try {
+        throw Error(errorMessage)
+    } catch as customError {
+        DisplayErrorMessage(logValuesForConclusion, customError, errorLineNumber)
+    }
+}
+
+LogHelperValidation(methodName, arguments := unset) {
+    argumentsAndValidationStatus := unset
+    if IsSet(arguments) {
+        validation := LogValidateMethodArguments(methodName, arguments)
+        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, validation)
+    }
+
+    argumentsFull := ""
+    argumentsLog  := ""
+    validation    := ""
+    if IsSet(argumentsAndValidationStatus) {
+        argumentsFull := argumentsAndValidationStatus["Arguments Full"]
+        argumentsLog  := argumentsAndValidationStatus["Arguments Log"]
+    }
+
+    logValuesForConclusion := Map(
+        "Operation Sequence Number", 0,
+        "Method Name",               methodName,
+        "Arguments Full",            argumentsFull,
+        "Arguments Log",             argumentsLog,
+        "Overlay Key",               0,
+        "Validation",                validation,
+        "Context",                   ""
+    )
+
+    if validation !== "" {
+        operationSequenceNumber        := NextOperationSequenceNumber()
+        encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
+        encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
+
+        logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
+        
+        csvShared :=
+            encodedOperationSequenceNumber .     "|" . ; Operation Sequence Number
+            "B" .                                "|" . ; Status
+            encodedTickCount .                   "|" . ; Tick
+            methodRegistry[methodName]["Symbol"]       ; Symbol
+
+        if logValuesForConclusion["Arguments Full"] !== "" {
+            csvShared := csvShared . "|" . logValuesForConclusion["Arguments Log"] ; Arguments
+        }
+
+        AppendCsvLineToLog(csvShared, "Operation Log")
+
+        try {
+            throw Error(argumentsAndValidationStatus["Validation"])
+        } catch as validationError {
+            LogInformationConclusion("Failed", logValuesForConclusion, validationError)
+        }
+    }
+
+    return logValuesForConclusion
+}
+
 LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCustomKey := 0) {
-    static operationSequenceNumber := 0
     static lastIntermissionTick := 0
     intermissionInterval := 6 * 60 * 1000
     intermissionTick := A_TickCount
@@ -597,8 +686,10 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         lastIntermissionTick := intermissionTick
     }
 
-    encodedOperationSequenceNumber := EncodeIntegerToBase80(operationSequenceNumber)
-    encodedTickCount               := EncodeIntegerToBase80(A_TickCount)
+    operationSequenceNumber        := NextOperationSequenceNumber()
+    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
+    encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
+
     if overlayCustomKey = 0 {
         overlayKey                 := OverlayGenerateNextKey(methodName)
     } else {
@@ -613,9 +704,10 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         LogEngine("Intermission")
     }
 
-    argumentsLineAndValidationStatus := unset
+    argumentsAndValidationStatus := unset
     if IsSet(arguments) {
-        argumentsLineAndValidationStatus := LogFormatArgumentsAndValidate(methodName, arguments)
+        validation := LogValidateMethodArguments(methodName, arguments)
+        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, validation)
     }
 
     csvShared :=
@@ -624,10 +716,12 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         encodedTickCount .                   "|" . ; Tick
         methodRegistry[methodName]["Symbol"]       ; Symbol
 
-    argumentsLine := ""
-    if IsSet(argumentsLineAndValidationStatus) {
-        csvShared := csvShared . "|" . argumentsLineAndValidationStatus["Arguments Log"] ; Arguments
-        argumentsLine := argumentsLineAndValidationStatus["Arguments Full"]
+    argumentsFull := ""
+    argumentsLog  := ""
+    if IsSet(argumentsAndValidationStatus) {
+        csvShared := csvShared . "|" . argumentsAndValidationStatus["Arguments Log"] ; Arguments
+        argumentsFull := argumentsAndValidationStatus["Arguments Full"]
+        argumentsLog := argumentsAndValidationStatus["Arguments Log"]
     }
 
     if overlayKey !== 0 {
@@ -647,30 +741,30 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
     logValuesForConclusion := Map(
         "Operation Sequence Number", encodedOperationSequenceNumber,
         "Method Name",               methodName,
-        "Arguments",                 argumentsLine,
+        "Arguments Full",            argumentsFull,
+        "Arguments Log",             argumentsLog,
         "Overlay Key",               overlayKey,
         "Validation",                "",
         "Context",                   ""
     )
 
     try {
-        if IsSet(argumentsLineAndValidationStatus) {
-            logValuesForConclusion["Validation"] := argumentsLineAndValidationStatus["Validation"]
+        if IsSet(argumentsAndValidationStatus) {
+            logValuesForConclusion["Validation"] := argumentsAndValidationStatus["Validation"]
 
-            if argumentsLineAndValidationStatus["Validation"] !== "" {
-                throw Error(argumentsLineAndValidationStatus["Validation"])
+            if argumentsAndValidationStatus["Validation"] !== "" {
+                throw Error(argumentsAndValidationStatus["Validation"])
             }
         }
     } catch as validationError {
         LogInformationConclusion("Failed", logValuesForConclusion, validationError)
     }
 
-    operationSequenceNumber++
     return logValuesForConclusion
 }
 
 LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject := unset) {
-    encodedTickCount := EncodeIntegerToBase80(A_TickCount)
+    encodedTickCount := EncodeIntegerToBase(A_TickCount, 86)
 
     csvConclusion := 
         logValuesForConclusion["Operation Sequence Number"] . "|" . ; Operation Sequence Number
@@ -702,7 +796,7 @@ LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject :
                     OverlayUpdateStatus(logValuesForConclusion, "Failed")
                 }
 
-                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" {
+                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
                     OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
                 }
 
@@ -729,7 +823,7 @@ OverlayChangeVisibility() {
     static methodName := RegisterMethod("OverlayChangeVisibility()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Change Visibility", methodName)
 
-    if DllCall("user32\IsWindowVisible", "ptr", overlayGui.Hwnd) {
+    if DllCall("user32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
         overlayGui.Hide()
     } else {
         overlayGui.Show("NoActivate")
@@ -808,11 +902,11 @@ OverlayIsVisible() {
 
     windowHandle := overlayGui.Hwnd
 
-    if !DllCall("user32\IsWindow", "ptr", windowHandle) {
+    if !DllCall("user32\IsWindow", "Ptr", windowHandle) {
         return false
     }
 
-    if DllCall("user32\IsWindowVisible", "ptr", windowHandle) {
+    if DllCall("user32\IsWindowVisible", "Ptr", windowHandle) {
         return true
     } else {
         return false
@@ -833,12 +927,12 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
     measureVisualRectangle := () => (
         overlayGui.Show("Hide AutoSize"),
         rectBuffer := Buffer(16, 0),
-        DllCall("dwmapi\DwmGetWindowAttribute", "ptr", overlayGui.Hwnd, "int", 9, "ptr", rectBuffer, "int", 16),
+        DllCall("dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
         Map(
-            "left",   NumGet(rectBuffer,  0, "int"),
-            "top",    NumGet(rectBuffer,  4, "int"),
-            "right",  NumGet(rectBuffer,  8, "int"),
-            "bottom", NumGet(rectBuffer, 12, "int")
+            "left",   NumGet(rectBuffer,  0, "Int"),
+            "top",    NumGet(rectBuffer,  4, "Int"),
+            "right",  NumGet(rectBuffer,  8, "Int"),
+            "bottom", NumGet(rectBuffer, 12, "Int")
         )
     )
 
@@ -969,177 +1063,171 @@ FinalizeLogs() {
 }
 
 ; **************************** ;
-; Helper Methods               ;
+; Base Encoding & Decoding     ;
 ; **************************** ;
 
-AssignBase80CharacterSet() {
-    static cachedResult := Unset
+GetBaseCharacterSet(baseType) {
+    ; https://www.utf8-chartable.de
+    static cachedBase52Result := unset
+    static cachedBase66Result := unset
+    static cachedBase86Result := unset
+    static cachedBase94Result := unset
+
+    cachedResult := unset
+
+    switch baseType {
+        case 52:
+            if IsSet(cachedBase52Result) {
+                cachedResult := cachedBase52Result
+            }
+        case 66:
+            if IsSet(cachedBase66Result) {
+                cachedResult := cachedBase66Result
+            }
+        case 86:
+            if IsSet(cachedBase86Result) {
+                cachedResult := cachedBase86Result
+            }
+        case 94:
+            if IsSet(cachedBase94Result) {
+                cachedResult := cachedBase94Result
+            }
+    }
 
     if !IsSet(cachedResult) {
-        excludedAsciiCodePoints := Map(
-            0x20, true, ;   SPACE
-            0x22, true, ; " QUOTATION MARK
-            0x27, true, ; ' APOSTROPHE
-            0x2C, true, ; , COMMA
-            0x2F, true, ; / SOLIDUS
-            0x3A, true, ; : COLON
-            0x3B, true, ; ; SEMICOLON
-            0x3C, true, ; < LESS-THAN SIGN
-            0x3E, true, ; > GREATER-THAN SIGN
-            0x3F, true, ; ? QUESTION MARK
-            0x5B, true, ; [ LEFT SQUARE BRACKET
-            0x5C, true, ; \ REVERSE SOLIDUS
-            0x5D, true, ; ] RIGHT SQUARE BRACKET
-            0x60, true, ; ` GRAVE ACCENT
-            0x7C, true  ; | VERTICAL LINE
-        )
+        excludedAsciiCodePoints := Map()
 
-        base80Characters := ""
-        ; Build ASCII printable range U+0020..U+007E, skipping exclusions.
-        Loop (0x7E - 0x20 + 1) {
+       if baseType <= 94 {
+            excludedAsciiCodePoints[0x7C] := true ; | VERTICAL LINE
+       }
+
+       if baseType <= 86 {
+            excludedAsciiCodePoints[0x22] := true ; " QUOTATION MARK
+            excludedAsciiCodePoints[0x2A] := true ; * ASTERISK
+            excludedAsciiCodePoints[0x2F] := true ; / SOLIDUS
+            excludedAsciiCodePoints[0x3A] := true ; : COLON
+            excludedAsciiCodePoints[0x3C] := true ; < LESS-THAN SIGN
+            excludedAsciiCodePoints[0x3E] := true ; > GREATER-THAN SIGN
+            excludedAsciiCodePoints[0x3F] := true ; ? QUESTION MARK
+            excludedAsciiCodePoints[0x5C] := true ; \ REVERSE SOLIDUS
+       }
+
+       if baseType <= 66 {
+            excludedAsciiCodePoints[0x20] := true ;   SPACE
+            excludedAsciiCodePoints[0x21] := true ; ! EXCLAMATION MARK
+            excludedAsciiCodePoints[0x23] := true ; # NUMBER SIGN
+            excludedAsciiCodePoints[0x24] := true ; $ DOLLAR SIGN
+            excludedAsciiCodePoints[0x25] := true ; % PERCENT SIGN
+            excludedAsciiCodePoints[0x26] := true ; & AMPERSAND
+            excludedAsciiCodePoints[0x27] := true ; ' APOSTROPHE
+            excludedAsciiCodePoints[0x28] := true ; ( LEFT PARENTHESIS
+            excludedAsciiCodePoints[0x29] := true ; ) RIGHT PARENTHESIS
+            excludedAsciiCodePoints[0x2B] := true ; + PLUS SIGN
+            excludedAsciiCodePoints[0x2C] := true ; , COMMA
+            excludedAsciiCodePoints[0x3B] := true ; ; SEMICOLON
+            excludedAsciiCodePoints[0x3D] := true ; = EQUALS SIGN
+            excludedAsciiCodePoints[0x40] := true ; @ COMMERCIAL AT
+            excludedAsciiCodePoints[0x5B] := true ; [ LEFT SQUARE BRACKET
+            excludedAsciiCodePoints[0x5D] := true ; ] RIGHT SQUARE BRACKET
+            excludedAsciiCodePoints[0x5E] := true ; ^ CIRCUMFLEX ACCENT
+            excludedAsciiCodePoints[0x60] := true ; ` GRAVE ACCENT
+            excludedAsciiCodePoints[0x7B] := true ; { LEFT CURLY BRACKET
+            excludedAsciiCodePoints[0x7D] := true ; } RIGHT CURLY BRACKET
+       }
+
+       if baseType <= 52 {
+            excludedAsciiCodePoints[0x2D] := true ; - HYPHEN-MINUS
+            excludedAsciiCodePoints[0x2E] := true ; . FULL STOP
+            excludedAsciiCodePoints[0x30] := true ; 0 DIGIT ZERO
+            excludedAsciiCodePoints[0x31] := true ; 1 DIGIT ONE
+            excludedAsciiCodePoints[0x32] := true ; 2 DIGIT TWO
+            excludedAsciiCodePoints[0x33] := true ; 3 DIGIT THREE
+            excludedAsciiCodePoints[0x34] := true ; 4 DIGIT FOUR
+            excludedAsciiCodePoints[0x35] := true ; 5 DIGIT FIVE
+            excludedAsciiCodePoints[0x36] := true ; 6 DIGIT SIX
+            excludedAsciiCodePoints[0x37] := true ; 7 DIGIT SEVEN
+            excludedAsciiCodePoints[0x38] := true ; 8 DIGIT EIGHT
+            excludedAsciiCodePoints[0x39] := true ; 9 DIGIT NINE
+            excludedAsciiCodePoints[0x5F] := true ; _ LOW LINE
+            excludedAsciiCodePoints[0x7E] := true ; ~ TILDE
+       }
+
+        baseCharacters := ""
+        Loop 0x7E - 0x20 + 1 {
             codePoint := 0x20 + A_Index - 1
+
             if !excludedAsciiCodePoints.Has(codePoint) {
-                base80Characters .= Chr(codePoint)
+                baseCharacters .= Chr(codePoint)
             }
         }
 
-        ; Build character -> digit map (0..79).
-        base80DigitByCharacterMap := Map()
-        Loop StrLen(base80Characters) {
-            base80Character := SubStr(base80Characters, A_Index, 1)
-            base80DigitByCharacterMap[base80Character] := A_Index - 1
+        baseDigitByCharacterMap := Map()
+        Loop StrLen(baseCharacters) {
+            baseCharacter := SubStr(baseCharacters, A_Index, 1)
+            baseDigitByCharacterMap[baseCharacter] := A_Index - 1
         }
 
         cachedResult := Map(
-            "Characters", base80Characters,
-            "Base",       StrLen(base80Characters),
-            "DigitMap",   base80DigitByCharacterMap
+            "Characters", baseCharacters,
+            "Base",       StrLen(baseCharacters),
+            "Digit Map",  baseDigitByCharacterMap
         )
-    }
+
+        switch baseType {
+            case 52:
+                cachedBase52Result := cachedResult
+            case 66:
+                cachedBase66Result := cachedResult
+            case 86:
+                cachedBase86Result := cachedResult
+            case 94:
+                cachedBase94Result := cachedResult
+        }
+    }   
 
     return cachedResult
 }
 
-AppendCsvLineToLog(csvLine, logType) {
-    static newLine := "`r`n"
+EncodeIntegerToBase(integerValue, baseType) {
+    ; Maximum possible value: 9223372036854775807
+    characterSetInfo := GetBaseCharacterSet(baseType)
+    baseCharacters   := characterSetInfo["Characters"]
+    baseRadix        := characterSetInfo["Base"]
 
-    callerWasCritical := A_IsCritical
-    if !callerWasCritical {
-        Critical "On"
-    }
-
-    try {
-        FileAppend(csvLine . newLine, logFilePath[logType], "UTF-8-RAW")
-    } finally {
-        if !callerWasCritical {
-            Critical "Off"
+    baseText  := ""
+    if integerValue = 0 {
+        baseText := SubStr(baseCharacters, 1, 1)
+    } else {
+        while integerValue > 0 {
+            digitValue   := Mod(integerValue, baseRadix)
+            baseText     := SubStr(baseCharacters, digitValue + 1, 1) . baseText
+            integerValue := integerValue // baseRadix
         }
     }
+
+    return baseText
 }
 
-DecodeBase80ToInteger(base80Text) {
-    static base80Radix := 0, base80DigitByCharacterMap := ""
-
-    if base80Radix = 0 {
-        alphabetInfo              := AssignBase80CharacterSet()
-        base80Radix               := alphabetInfo["Base"]
-        base80DigitByCharacterMap := alphabetInfo["DigitMap"]
-    }
+DecodeBaseToInteger(baseText, baseType) {
+    characterSetInfo        := GetBaseCharacterSet(baseType)
+    baseRadix               := characterSetInfo["Base"]
+    baseDigitByCharacterMap := characterSetInfo["Digit Map"]
 
     integerValue := 0
-    Loop StrLen(base80Text) {
-        base80Character := SubStr(base80Text, A_Index, 1)
-        digitValue := base80DigitByCharacterMap[base80Character]
-        integerValue := integerValue * base80Radix + digitValue
+    Loop StrLen(baseText) {
+        baseCharacter := SubStr(baseText, A_Index, 1)
+        digitValue := baseDigitByCharacterMap[baseCharacter]
+        integerValue := integerValue * baseRadix + digitValue
     }
-    
+
     return integerValue
 }
 
-DecodeBase80ToSha256Hex(base80Text) {
-    characterSetInfo := AssignBase80CharacterSet()
-    base80Characters := characterSetInfo["Characters"]
-    base80Radix := characterSetInfo["Base"]
-    base80DigitByCharacterMap := characterSetInfo["DigitMap"]
+EncodeSha256HexToBase(hexSha256, baseType) {
+    characterSetInfo := GetBaseCharacterSet(baseType)
+    baseCharacters   := characterSetInfo["Characters"]
+    baseRadix        := characterSetInfo["Base"]
 
-    base80Text := Trim(base80Text)
-    if StrLen(base80Text) < 1 {
-        throw Error("DecodeAliasBase80ToSha256Hex: alias text must be non-empty.")
-    }
-
-    ; Initialize 32-byte big-endian integer to zero
-    sha256Bytes := Buffer(32, 0)
-
-    ; value = value * base80Radix + digit  (in place on the 32-byte buffer)
-    base80Length := StrLen(base80Text)
-    base80Position := 1
-    while base80Position <= base80Length {
-        base80Character := SubStr(base80Text, base80Position, 1)
-        if !base80DigitByCharacterMap.Has(base80Character) {
-            throw Error("DecodeAliasBase80ToSha256Hex: character not in Base80 set: " . base80Character)
-        }
-        digitValue := base80DigitByCharacterMap[base80Character]
-
-        carryValue := digitValue
-        byteIndex := 31
-        while byteIndex >= 0 {
-            currentByte := NumGet(sha256Bytes, byteIndex, "UChar")
-            productValue := currentByte * base80Radix + carryValue
-            NumPut("UChar", Mod(productValue, 256), sha256Bytes, byteIndex)
-            carryValue := Floor(productValue / 256)
-            byteIndex -= 1
-        }
-        if carryValue != 0 {
-            throw Error("DecodeAliasBase80ToSha256Hex: overflow beyond 32 bytes.")
-        }
-        base80Position += 1
-    }
-
-    ; 32 bytes → canonical 64-char lowercase hex string
-    hexOutput := ""
-    byteIndex := 0
-    while byteIndex < 32 {
-        hexOutput .= Format("{:02x}", NumGet(sha256Bytes, byteIndex, "UChar"))
-        byteIndex += 1
-    }
-    
-    return hexOutput
-}
-
-EncodeIntegerToBase80(identifier) {
-    static base80Characters := "", base80Radix := 0
-
-    if base80Radix = 0 {
-        alphabetInfo     := AssignBase80CharacterSet()
-        base80Characters := alphabetInfo["Characters"]
-        base80Radix        := alphabetInfo["Base"]
-    }
-
-    if identifier = 0 {
-        return SubStr(base80Characters, 1, 1)
-    }
-
-    base80Text  := ""
-    integerValue := identifier
-    while integerValue > 0 {
-        digitValue  := Mod(integerValue, base80Radix)
-        base80Text := SubStr(base80Characters, digitValue + 1, 1) . base80Text
-        integerValue := Floor(integerValue / base80Radix)
-    }
-
-    return base80Text
-}
-
-EncodeSha256HexToBase80(hexSha256) {
-    characterSetInfo := AssignBase80CharacterSet()
-    base80Characters := characterSetInfo["Characters"]
-    base80Radix := characterSetInfo["Base"]
-
-    ; Validate and parse hex → 32-byte big-endian buffer
-    hexSha256 := Trim(hexSha256)
-    if !RegExMatch(hexSha256, "^[0-9A-Fa-f]{64}$") {
-        return hexSha256
-    }
     hexSha256 := StrLower(hexSha256)
 
     sha256Bytes := Buffer(32, 0)
@@ -1158,56 +1246,118 @@ EncodeSha256HexToBase80(hexSha256) {
             isAllZero := false
             break
         }
+
         byteIndex += 1
     }
 
-    base80DigitsLeastSignificantFirst := []
+    baseDigitsLeastSignificantFirst := []
     if isAllZero {
-        base80DigitsLeastSignificantFirst.Push(0)
+        baseDigitsLeastSignificantFirst.Push(0)
     } else {
-        while true {
+        loop {
             remainderValue := 0
             hasNonZeroQuotientByte := false
             byteIndex := 0
             while byteIndex < 32 {
                 currentByte := NumGet(sha256Bytes, byteIndex, "UChar")
                 accumulator := remainderValue * 256 + currentByte
-                quotientByte := Floor(accumulator / base80Radix)
-                remainderValue := Mod(accumulator, base80Radix)
+                quotientByte := Floor(accumulator / baseRadix)
+                remainderValue := Mod(accumulator, baseRadix)
                 NumPut("UChar", quotientByte, sha256Bytes, byteIndex)
                 if quotientByte != 0 {
                     hasNonZeroQuotientByte := true
                 }
+
                 byteIndex += 1
             }
-            base80DigitsLeastSignificantFirst.Push(remainderValue)
+
+            baseDigitsLeastSignificantFirst.Push(remainderValue)
             if !hasNonZeroQuotientByte {
                 break
             }
         }
     }
 
-    base80Text := ""
-    digitIndex := base80DigitsLeastSignificantFirst.Length
+    baseText := ""
+    digitIndex := baseDigitsLeastSignificantFirst.Length
     while digitIndex >= 1 {
-        digitValue := base80DigitsLeastSignificantFirst[digitIndex]
-        base80Text .= SubStr(base80Characters, digitValue + 1, 1)
+        digitValue := baseDigitsLeastSignificantFirst[digitIndex]
+        baseText .= SubStr(baseCharacters, digitValue + 1, 1)
         digitIndex -= 1
     }
 
-    ; Left-pad with the zero digit to fixed length 41
-    if StrLen(base80Text) > 41 {
-        return hexSha256
-    }
-    base80ZeroDigit := SubStr(base80Characters, 1, 1)
-    while StrLen(base80Text) < 41 {
-        base80Text := base80ZeroDigit . base80Text
+    requiredLength := Ceil(256 * Log(2) / Log(baseRadix))
+
+    zeroDigit := SubStr(baseCharacters, 1, 1)
+    while StrLen(baseText) < requiredLength {
+        baseText := zeroDigit . baseText
     }
 
-    return base80Text
+    return baseText
+}
+
+DecodeBaseToSha256Hex(baseText, baseType) {
+    characterSetInfo          := GetBaseCharacterSet(baseType)
+    baseRadix                 := characterSetInfo["Base"]
+    baseDigitByCharacterMap   := characterSetInfo["Digit Map"]
+
+    static sha256BytesBuffer := Buffer(32, 0)
+    baseLength := StrLen(baseText)
+    basePosition := 1
+    while basePosition <= baseLength {
+        baseCharacter := SubStr(baseText, basePosition, 1)
+        digitValue    := baseDigitByCharacterMap[baseCharacter]
+
+        carryValue := digitValue
+        byteIndex := 31
+        while byteIndex >= 0 {
+            currentByte := NumGet(sha256BytesBuffer, byteIndex, "UChar")
+            productValue := currentByte * baseRadix + carryValue
+            NumPut("UChar", Mod(productValue, 256), sha256BytesBuffer, byteIndex)
+            carryValue := Floor(productValue / 256)
+
+            byteIndex -= 1
+        }
+
+        basePosition += 1
+    }
+
+    hexOutput := ""
+    byteIndex := 0
+    while byteIndex < 32 {
+        hexOutput .= Format("{:02x}", NumGet(sha256BytesBuffer, byteIndex, "UChar"))
+
+        byteIndex += 1
+    }
+    
+    return hexOutput
+}
+
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
+
+AppendCsvLineToLog(csvLine, logType) {
+    static newLine := "`r`n"
+
+    callerWasCritical := A_IsCritical
+    if !callerWasCritical {
+        Critical "On"
+    }
+
+    try {
+        FileAppend(csvLine . newLine, logFilePath[logType], "UTF-8-RAW")
+    } finally {
+        if !callerWasCritical {
+            Critical "Off"
+        }
+    }
 }
 
 ExecutionLogBatchAppend(executionType, array) {
+    static methodName := RegisterMethod("ExecutionLogBatchAppend(executionType As String, array as Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [executionType, array])
+
     static newLine := "`r`n"
 
     switch StrLower(executionType) {
@@ -1242,11 +1392,14 @@ ExecutionLogBatchAppend(executionType, array) {
 }
 
 GetActiveKeyboardLayout() {
+    static methodName := RegisterMethod("GetActiveKeyboardLayout()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     ; Returns: "en-US - US-International (00020409)"
     keyboardLayoutKlid := ""
     try {
         buf := Buffer(9*2, 0)
-        if DllCall("user32\GetKeyboardLayoutNameW", "ptr", buf) {
+        if DllCall("user32\GetKeyboardLayoutNameW", "Ptr", buf) {
             keyboardLayoutKlid := StrGet(buf)
         }
     }
@@ -1254,7 +1407,7 @@ GetActiveKeyboardLayout() {
     if keyboardLayoutKlid = "" {
         ; Fallback: build KLID from HKL if needed
         try {
-            hkl := DllCall("user32\GetKeyboardLayout", "uint", 0, "ptr")
+            hkl := DllCall("user32\GetKeyboardLayout", "UInt", 0, "Ptr")
             if hkl {
                 keyboardLayoutKlid := Format("{:08X}", hkl & 0xFFFFFFFF)
             }
@@ -1267,7 +1420,7 @@ GetActiveKeyboardLayout() {
     if keyboardLayoutLanguageId != "" {
         try {
             buf2 := Buffer(85*2, 0)
-            if DllCall("kernel32\LCIDToLocaleName", "uint", ("0x" . keyboardLayoutLanguageId) + 0, "ptr", buf2, "int", 85, "uint", 0) {
+            if DllCall("kernel32\LCIDToLocaleName", "UInt", ("0x" . keyboardLayoutLanguageId) + 0, "Ptr", buf2, "Int", 85, "UInt", 0) {
                 keyboardLayoutLocaleName := StrGet(buf2)
             }
         }
@@ -1292,7 +1445,7 @@ GetActiveKeyboardLayout() {
             if keyboardLayoutLayoutText != "" && SubStr(keyboardLayoutLayoutText, 1, 1) = "@" {
                 try {
                     buf3 := Buffer(260*2, 0)
-                    if DllCall("shlwapi\SHLoadIndirectString", "wstr", keyboardLayoutLayoutText, "ptr", buf3, "int", 260, "ptr", 0) = 0 {
+                    if DllCall("shlwapi\SHLoadIndirectString", "WStr", keyboardLayoutLayoutText, "Ptr", buf3, "Int", 260, "Ptr", 0) = 0 {
                         keyboardLayoutLayoutText := StrGet(buf3)
                     }
                 }
@@ -1314,6 +1467,9 @@ GetActiveKeyboardLayout() {
 }
 
 GetActiveDisplayGpu() {
+    static methodName := RegisterMethod("GetActiveDisplayGpu()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     windowsManagementInstrumentation := ComObjGet("winmgmts:\\.\root\CIMV2")
     activeModelName := ""
     firstModelName := ""
@@ -1341,6 +1497,9 @@ GetActiveDisplayGpu() {
 }
 
 GetCpu() {
+    static methodName := RegisterMethod("GetCpu()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     resultModelName := ""
     defaultModelName := "Unknown CPU"
     registryPath := "HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0"
@@ -1365,12 +1524,15 @@ GetCpu() {
 }
 
 GetInputLanguage() {
+    static methodName := RegisterMethod("GetInputLanguage()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     inputLanguageLocaleName := ""
     try {
-        hkl := DllCall("user32\GetKeyboardLayout", "uint", 0, "ptr")
+        hkl := DllCall("user32\GetKeyboardLayout", "UInt", 0, "Ptr")
         langId := hkl & 0xFFFF
         buf := Buffer(85*2, 0)
-        if DllCall("kernel32\LCIDToLocaleName", "uint", langId, "ptr", buf, "int", 85, "uint", 0) {
+        if DllCall("kernel32\LCIDToLocaleName", "UInt", langId, "Ptr", buf, "Int", 85, "UInt", 0) {
             inputLanguageLocaleName := StrGet(buf)
         }
     }
@@ -1382,6 +1544,9 @@ GetInputLanguage() {
 }
 
 GetMemorySizeAndType() {
+    static methodName := RegisterMethod("GetMemorySizeAndType()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
     memoryModuleRecords := windowsManagementInstrumentationService.ExecQuery(
         "SELECT Capacity, SMBIOSMemoryType, PartNumber FROM Win32_PhysicalMemory"
@@ -1490,6 +1655,9 @@ GetMemorySizeAndType() {
 }
 
 GetMotherboard() {
+    static methodName := RegisterMethod("GetMotherboard()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
     baseboardRecords := windowsManagementInstrumentationService.ExecQuery(
         "SELECT Manufacturer, Product FROM Win32_BaseBoard"
@@ -1535,6 +1703,9 @@ GetMotherboard() {
 }
 
 GetOperatingSystem() {
+    static methodName := RegisterMethod("GetOperatingSystem()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     currentBuildNumber := ""
     try {
         currentBuildNumber := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")
@@ -1603,11 +1774,14 @@ GetOperatingSystem() {
 }
 
 GetPhysicalMemoryStatus() {
+    static methodName := RegisterMethod("GetPhysicalMemoryStatus()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     memoryStatusExSize := 64
     memoryBuffer := Buffer(memoryStatusExSize, 0)
     NumPut("UInt", memoryStatusExSize, memoryBuffer, 0)
 
-    if !DllCall("Kernel32.dll\GlobalMemoryStatusEx", "ptr", memoryBuffer.Ptr, "int") {
+    if !DllCall("Kernel32.dll\GlobalMemoryStatusEx", "Ptr", memoryBuffer.Ptr, "Int") {
         physicalRamSituation := "GlobalMemoryStatusEx failed."
 
         return physicalRamSituation
@@ -1628,7 +1802,25 @@ GetPhysicalMemoryStatus() {
     }
 }
 
+GetQueryPerformanceCounterFrequency() {
+    static methodName := RegisterMethod("GetQueryPerformanceCounterFrequency()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    static queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
+    queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
+    if queryPerformanceCounterFrequencyRetrievedSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
+
+    return queryPerformanceCounterFrequency
+}
+
 GetRegionFormat() {
+    static methodName := RegisterMethod("GetRegionFormat()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     regionFormat := ""
     try {
         regionFormat  := RegRead("HKEY_CURRENT_USER\Control Panel\International", "LocaleName")
@@ -1641,6 +1833,9 @@ GetRegionFormat() {
 }
 
 GetRemainingFreeDiskSpace() {
+    static methodName := RegisterMethod("GetRemainingFreeDiskSpace()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     freeMB := DriveGetSpaceFree(A_MyDocuments)
     result := freeMB . " MB (" . Format("{:.2f}", Floor((freeMB/1024/1024)*100) / 100) . " TB)"
 
@@ -1648,6 +1843,9 @@ GetRemainingFreeDiskSpace() {
 }
 
 GetSystemDisk() {
+    static methodName := RegisterMethod("GetSystemDisk()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     diskModelText := "Unknown Disk"
     diskCapacityText := "Unknown"
     systemPartitionCapacityText := "Unknown"
@@ -1719,7 +1917,29 @@ GetSystemDisk() {
     return modelWithDiskCapacityAndSystemPartitionCapacity
 }
 
+GetTimeZoneKeyName() {
+    static methodName := RegisterMethod("GetTimeZoneKeyName()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    timeZoneKeyName := "Unknown"
+
+    dynamicTimeZoneInformationBuffer := Buffer(432, 0)
+    callResult := DllCall("kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
+    if callResult != 0xFFFFFFFF {
+        extractedKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
+
+        if extractedKey != "" {
+            timeZoneKeyName := extractedKey
+        }
+    }
+
+    return timeZoneKeyName
+}
+
 GetWindowsColorMode() {
+    static methodName := RegisterMethod("GetWindowsColorMode()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
     registryPath := "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
     hasAppsUseLightTheme := false
@@ -1767,6 +1987,23 @@ GetWindowsColorMode() {
     }
 
     return resultColorMode
+}
+
+NextOperationSequenceNumber() {
+    static operationSequenceNumber := -1
+
+    operationSequenceNumber++
+
+    return operationSequenceNumber
+}
+
+NextSymbolLedgerAlias() {
+    static symbolLedgerIdentifier := -1
+
+    symbolLedgerIdentifier++
+    symbolLedgerAlias := EncodeIntegerToBase(symbolLedgerIdentifier, 86)
+
+    return symbolLedgerAlias
 }
 
 ParseMethodDeclaration(declaration) {
@@ -2010,7 +2247,7 @@ RegisterSymbol(value, type, addNewLine := true) {
 
     if !symbolLedger.Has(value . "|" . type) {
         symbolLedger[value . "|" . type] := Map(
-            "Symbol", SymbolLedgerAlias()
+            "Symbol", NextSymbolLedgerAlias()
         )
 
         symbolLine :=
@@ -2026,16 +2263,10 @@ RegisterSymbol(value, type, addNewLine := true) {
     return symbolLine
 }
 
-SymbolLedgerAlias() {
-    static symbolLedgerIdentifier := -1
-    symbolLedgerIdentifier++
-
-    symbolLedgerAlias := EncodeIntegerToBase80(symbolLedgerIdentifier)
-
-    return symbolLedgerAlias
-}
-
 SymbolLedgerBatchAppend(symbolType, array) {
+    static methodName := RegisterMethod("SymbolLedgerBatchAppend(symbolType As String, array As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [symbolType, array])
+
     static newLine := "`r`n"
 
     switch StrLower(symbolType) {
@@ -2070,7 +2301,7 @@ SymbolLedgerBatchAppend(symbolType, array) {
         } else if symbolType = "C" {
             value := "<Code (Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ")>"
         } else if symbolType = "H" {
-            value := EncodeSha256HexToBase80(value)
+            value := EncodeSha256HexToBase(value, 86)
         }
 
         if !symbolLedger.Has(value . "|" . symbolType) {

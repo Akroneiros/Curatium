@@ -17,7 +17,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
         default:
     }
 
-    fileHandle := DllCall("Kernel32\CreateFileW", "wstr", filePath, "uint", 0x80000000, "uint", 0x1, "ptr", 0, "uint", 3, "uint", 0x02000000, "ptr", 0, "ptr")
+    fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", 0x80000000, "UInt", 0x1, "Ptr", 0, "UInt", 3, "UInt", 0x02000000, "Ptr", 0, "Ptr")
 
     try {
         if fileHandle = -1 {
@@ -29,7 +29,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
 
     fileTimeBuffer := Buffer(24, 0)
     try {
-        if !DllCall("Kernel32\GetFileTime", "ptr", fileHandle, "ptr", fileTimeBuffer.Ptr, "ptr", fileTimeBuffer.Ptr + 8, "ptr", fileTimeBuffer.Ptr + 16, "int")
+        if !DllCall("Kernel32\GetFileTime", "Ptr", fileHandle, "Ptr", fileTimeBuffer.Ptr, "Ptr", fileTimeBuffer.Ptr + 8, "Ptr", fileTimeBuffer.Ptr + 16, "Int")
         {
             throw Error("GetFileTime failed for: " . filePath)
         }
@@ -38,11 +38,11 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
     }
 
     utcFileTime := Buffer(8, 0)
-    DllCall("RtlMoveMemory", "ptr", utcFileTime.Ptr, "ptr", fileTimeBuffer.Ptr + offset, "uptr", 8)
+    DllCall("RtlMoveMemory", "Ptr", utcFileTime.Ptr, "Ptr", fileTimeBuffer.Ptr + offset, "UPtr", 8)
 
     systemTime := Buffer(16, 0)
     try {
-        if !DllCall("Kernel32\FileTimeToSystemTime", "ptr", utcFileTime.Ptr, "ptr", systemTime.Ptr, "int") {
+        if !DllCall("Kernel32\FileTimeToSystemTime", "Ptr", utcFileTime.Ptr, "Ptr", systemTime.Ptr, "Int") {
             throw Error("FileTimeToSystemTime failed")
         }
     } catch as fileTimeToSystemTimeFailedError {
@@ -51,7 +51,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
 
     localTime := Buffer(16, 0)
     try {
-        if !DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "ptr", 0, "ptr", systemTime.Ptr, "ptr", localTime.Ptr, "int") {
+        if !DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "Ptr", 0, "Ptr", systemTime.Ptr, "Ptr", localTime.Ptr, "Int") {
             throw Error("SystemTimeToTzSpecificLocalTime failed")
         }
     } catch as systemTimeToTzSpecificLocalTimeFailedError {
@@ -67,7 +67,7 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
 
     try {
         if IsSet(fileHandle) && fileHandle != -1 {
-            DllCall("Kernel32\CloseHandle", "ptr", fileHandle)
+            DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
         }
     } catch as fileHandleError {
         LogInformationConclusion("Failed", logValuesForConclusion, fileHandleError)
@@ -281,18 +281,18 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
 
     numericString := RegExReplace(localIsoDateTime, "[^0-9]")
     localSystemTime := Buffer(16, 0)
-    NumPut "UShort", SubStr(numericString, 1, 4),  localSystemTime,  0
-    NumPut "UShort", SubStr(numericString, 5, 2),  localSystemTime,  2
-    NumPut "UShort", 0,                            localSystemTime,  4
-    NumPut "UShort", SubStr(numericString, 7, 2),  localSystemTime,  6
-    NumPut "UShort", SubStr(numericString, 9, 2),  localSystemTime,  8
-    NumPut "UShort", SubStr(numericString,11, 2),  localSystemTime, 10
-    NumPut "UShort", SubStr(numericString,13, 2),  localSystemTime, 12
-    NumPut "UShort", 0,                            localSystemTime, 14
+    NumPut("UShort", SubStr(numericString, 1, 4), localSystemTime,  0)
+    NumPut("UShort", SubStr(numericString, 5, 2), localSystemTime,  2)
+    NumPut("UShort", 0,                           localSystemTime,  4)
+    NumPut("UShort", SubStr(numericString, 7, 2), localSystemTime,  6)
+    NumPut("UShort", SubStr(numericString, 9, 2), localSystemTime,  8)
+    NumPut("UShort", SubStr(numericString,11, 2), localSystemTime, 10)
+    NumPut("UShort", SubStr(numericString,13, 2), localSystemTime, 12)
+    NumPut("UShort", 0,                           localSystemTime, 14)
 
     utcSystemTime := Buffer(16, 0)
     try {
-        if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "ptr", 0, "ptr", localSystemTime, "ptr", utcSystemTime, "int") {
+        if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int") {
             throw Error("TzSpecificLocalTimeToSystemTime failed (input may not exist in current time zone)")
         }
     } catch as tzSpecificLocalTimeToSystemTimeError {
@@ -301,7 +301,7 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
 
     utcFileTime := Buffer(8, 0)
     try {
-        if !DllCall("Kernel32\SystemTimeToFileTime", "ptr", utcSystemTime, "ptr", utcFileTime, "int") {
+        if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTime, "Ptr", utcFileTime, "Int") {
             throw Error("SystemTimeToFileTime failed")
         }
     } catch as systemTimeToFileTimeError {
@@ -311,7 +311,7 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
     accessMode := 0x100
     shareMode  := 0x7
     flags      := 0x80 | 0x02000000
-    handle     := DllCall("Kernel32\CreateFileW", "wstr", directoryPath, "uint", accessMode, "uint", shareMode, "ptr", 0, "uint", 3, "uint", flags, "ptr", 0, "ptr")
+    handle     := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
 
     try {
         if handle = -1 {
@@ -334,14 +334,9 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
         default:
     }
 
-    success := DllCall("Kernel32\SetFileTime"
-        , "ptr", handle
-        , "ptr", pointerCreation
-        , "ptr", pointerAccessed
-        , "ptr", pointerModified
-        , "int")
+    success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
 
-    DllCall("Kernel32\CloseHandle", "ptr", handle)
+    DllCall("Kernel32\CloseHandle", "Ptr", handle)
 
     try { 
         if !success {
@@ -364,18 +359,18 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
     } else {
         numericString := RegExReplace(localIsoDateTime, "[^0-9]")
         localSystemTime := Buffer(16, 0)
-        NumPut "UShort", SubStr(numericString, 1, 4),  localSystemTime,  0
-        NumPut "UShort", SubStr(numericString, 5, 2),  localSystemTime,  2
-        NumPut "UShort", 0,                            localSystemTime,  4
-        NumPut "UShort", SubStr(numericString, 7, 2),  localSystemTime,  6
-        NumPut "UShort", SubStr(numericString, 9, 2),  localSystemTime,  8
-        NumPut "UShort", SubStr(numericString,11, 2),  localSystemTime, 10
-        NumPut "UShort", SubStr(numericString,13, 2),  localSystemTime, 12
-        NumPut "UShort", 0,                            localSystemTime, 14
+        NumPut("UShort", SubStr(numericString, 1, 4),  localSystemTime,  0)
+        NumPut("UShort", SubStr(numericString, 5, 2),  localSystemTime,  2)
+        NumPut("UShort", 0,                            localSystemTime,  4)
+        NumPut("UShort", SubStr(numericString, 7, 2),  localSystemTime,  6)
+        NumPut("UShort", SubStr(numericString, 9, 2),  localSystemTime,  8)
+        NumPut("UShort", SubStr(numericString,11, 2),  localSystemTime, 10)
+        NumPut("UShort", SubStr(numericString,13, 2),  localSystemTime, 12)
+        NumPut("UShort", 0,                            localSystemTime, 14)
 
         utcSystemTime := Buffer(16, 0)
         try {
-            if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "ptr", 0, "ptr", localSystemTime, "ptr", utcSystemTime, "int") {
+            if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int") {
                 throw Error("TzSpecificLocalTimeToSystemTime failed (input may not exist in current time zone)")
             }
         } catch as tzSpecificLocalTimeToSystemTimeError {
@@ -384,7 +379,7 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
 
         utcFileTime := Buffer(8, 0)
         try {
-            if !DllCall("Kernel32\SystemTimeToFileTime", "ptr", utcSystemTime, "ptr", utcFileTime, "int") {
+            if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTime, "Ptr", utcFileTime, "Int") {
                 throw Error("SystemTimeToFileTime failed")
             }
         } catch as systemTimeToFileTimeError {
@@ -394,7 +389,7 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
         accessMode := 0x100
         shareMode  := 0x7
         flags      := 0x80 | 0x02000000
-        handle     := DllCall("Kernel32\CreateFileW", "wstr", filePath, "uint", accessMode, "uint", shareMode, "ptr", 0, "uint", 3, "uint", flags, "ptr", 0, "ptr")
+        handle     := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
 
         try {
             if handle = -1 {
@@ -417,9 +412,9 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
             default:
         }
 
-        success := DllCall("Kernel32\SetFileTime", "ptr", handle, "ptr", pointerCreation, "ptr", pointerAccessed, "ptr", pointerModified, "int")
+        success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
 
-        DllCall("Kernel32\CloseHandle", "ptr", handle)
+        DllCall("Kernel32\CloseHandle", "Ptr", handle)
 
         try { 
             if !success {
@@ -494,117 +489,178 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Helper Methods               ;
 ; **************************** ;
 
-CaptureTimeAnchor() {
-    maximumSpinIterations := 2000000
-    yieldEveryNSpins      := 50000
-    timeoutMilliseconds   := 100
+ConvertIntegerToUtcTimestamp(integerValue) {
+    static methodName := RegisterMethod("ConvertIntegerToUtcTimestamp(integerValue As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [integerValue])
 
-    ; Initial samples before the next coarse tick boundary
-    tickBeforeChange                      := A_TickCount
-    preciseUtcFileTimeBefore              := GetSystemTimePreciseAsFileTime64()
-    queryPerformanceCounterTicksBefore    := QueryPerformanceCounterNow()
-    queryPerformanceCounterTicksPerSecond := QueryPerformanceCounterFrequency()
-    timeoutStartTickCount                 := A_TickCount
-
-    spinIterations := 0
-
-    loop maximumSpinIterations {
-        spinIterations += 1
-
-        currentTick := A_TickCount
-        if currentTick != tickBeforeChange {
-            tickAfterChange                 := currentTick
-            preciseUtcFileTimeAfter         := GetSystemTimePreciseAsFileTime64()
-            queryPerformanceCounterTicksAfter := QueryPerformanceCounterNow()
-
-            preciseUtcFileTimeMidpoint := (preciseUtcFileTimeBefore + preciseUtcFileTimeAfter) // 2
-            queryPerformanceCounterTicksMidpoint := (queryPerformanceCounterTicksBefore + queryPerformanceCounterTicksAfter) // 2
-
-            ; Human-readable snapshots (for sanity checks)
-            utcDateTimeIso   := FormatTime(A_NowUTC, "yyyy-MM-dd HH:mm:ss")
-            localDateTimeIso := FormatTime(A_Now,    "yyyy-MM-dd HH:mm:ss")
-            millisecondsPart := Format("{:03}", A_MSec)
-
-            return Map(
-                ; Coarse monotonic (ticks)
-                "Tick Before Change",                       tickBeforeChange,
-                "Tick After Change",                        tickAfterChange,
-                "Tick Delta",                               tickAfterChange - tickBeforeChange,
-
-                ; Precise wall-clock (UTC FILETIME, 100-ns)
-                "Precise UTC FileTime Before",              preciseUtcFileTimeBefore,
-                "Precise UTC FileTime After",               preciseUtcFileTimeAfter,
-                "Precise UTC FileTime Midpoint",            preciseUtcFileTimeMidpoint,
-
-                ; High-resolution monotonic (QueryPerformanceCounter)
-                "QueryPerformanceCounter Ticks Before",     queryPerformanceCounterTicksBefore,
-                "QueryPerformanceCounter Ticks After",      queryPerformanceCounterTicksAfter,
-                "QueryPerformanceCounter Ticks Midpoint",   queryPerformanceCounterTicksMidpoint,
-                "QueryPerformanceCounter Ticks Per Second", queryPerformanceCounterTicksPerSecond,
-
-                ; Human-readable checks
-                "UTC Date Time ISO",                        utcDateTimeIso,
-                "Local Date Time ISO",                      localDateTimeIso,
-                "Milliseconds Part",                        millisecondsPart,
-
-                ; Diagnostics
-                "Spin Iterations",                          spinIterations,
-                "Timed Out",                                false
-            )
-        }
-
-        ; Refresh "before" anchors while spinning toward the boundary
-        preciseUtcFileTimeBefore           := GetSystemTimePreciseAsFileTime64()
-        queryPerformanceCounterTicksBefore := QueryPerformanceCounterNow()
-
-        ; Yield periodically so we do not hog the scheduler
-        if Mod(spinIterations, yieldEveryNSpins) = 0 {
-            Sleep(0)
-        }
-
-        ; Hard timeout guard: Best-effort snapshot without observing a boundary
-        if A_TickCount - timeoutStartTickCount > timeoutMilliseconds {
-            return Map(
-                "Tick Before Change",                       tickBeforeChange,
-                "Tick After Change",                        tickBeforeChange,
-                "Tick Delta",                               0,
-
-                "Precise UTC FileTime Before",              preciseUtcFileTimeBefore,
-                "Precise UTC FileTime After",               preciseUtcFileTimeBefore,
-                "Precise UTC FileTime Midpoint",            preciseUtcFileTimeBefore,
-
-                "QueryPerformanceCounter Ticks Before",     queryPerformanceCounterTicksBefore,
-                "QueryPerformanceCounter Ticks After",      queryPerformanceCounterTicksBefore,
-                "QueryPerformanceCounter Ticks Midpoint",   queryPerformanceCounterTicksBefore,
-                "QueryPerformanceCounter Ticks Per Second", queryPerformanceCounterTicksPerSecond,
-
-                "UTC Date Time ISO",                        FormatTime(A_NowUTC, "yyyy-MM-dd HH:mm:ss"),
-                "Local Date Time ISO",                      FormatTime(A_Now,    "yyyy-MM-dd HH:mm:ss"),
-                "Milliseconds Part",                        Format("{:03}", A_MSec),
-
-                "Spin Iterations",                          spinIterations,
-                "Timed Out",                                true
-            )
-        }
+    digitText := integerValue . ""
+    if !RegExMatch(digitText, "^\d+$") {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Input must contain only digits. Got: " . digitText)
     }
+
+    digitTextLength := StrLen(digitText)
+    if digitTextLength != 14 && digitTextLength != 17 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Expected 14 digits (no fractional) or 17 digits. Got length: " . digitTextLength)
+    }
+
+    year        := SubStr(digitText,  1, 4)
+    month       := SubStr(digitText,  5, 2)
+    day         := SubStr(digitText,  7, 2)
+    hour        := SubStr(digitText,  9, 2)
+    minute      := SubStr(digitText, 11, 2)
+    second      := SubStr(digitText, 13, 2)
+    millisecond := unset
+
+    yearNumber        := year + 0
+    monthNumber       := month + 0
+    dayNumber         := day + 0
+    hourNumber        := hour + 0
+    minuteNumber      := minute + 0
+    secondNumber      := second + 0
+    millisecondNumber := unset
+
+    if digitTextLength = 17 {
+        millisecond := SubStr(digitText, 15)
+        millisecondNumber := millisecond + 0
+    }
+
+    dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+
+    if dateValidationResults !== "" {
+        LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
+    }
+
+    utcTimestamp := unset
+    if digitTextLength = 14 {
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+    } else if digitTextLength = 17 {
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber, millisecondNumber)
+    }
+
+    return utcTimestamp
 }
 
-ConvertIsoToRawDateTime(isoDateTime) {
-    isoDateTime := RegExReplace(isoDateTime, "[-: ]", "")
 
-    return isoDateTime
+ConvertUtcTimestampToInteger(utcTimestamp) {
+    static methodName := RegisterMethod("ConvertUtcTimestampToInteger(utcTimestamp As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [utcTimestamp])
+    
+    utcTimestampLength := StrLen(utcTimestamp)
+    if utcTimestampLength != 19 && utcTimestampLength != 23 && utcTimestampLength != 26 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Expected length of 19, 23 or 26 but got: " . utcTimestampLength)
+    }
+
+    year        := SubStr(utcTimestamp,  1, 4)
+    month       := SubStr(utcTimestamp,  6, 2)
+    day         := SubStr(utcTimestamp,  9, 2)
+    hour        := SubStr(utcTimestamp, 12, 2)
+    minute      := SubStr(utcTimestamp, 15, 2)
+    second      := SubStr(utcTimestamp, 18, 2)
+    millisecond := unset
+
+    yearNumber   := year + 0
+    monthNumber  := month + 0
+    dayNumber    := day + 0
+    hourNumber   := hour + 0
+    minuteNumber := minute + 0
+    secondNumber := second + 0
+
+    if utcTimestampLength >= 23 {
+        millisecond := SubStr(utcTimestamp, 21, 3)
+    }
+
+    dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+
+    if dateValidationResults !== "" {
+        LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
+    }
+
+    if utcTimestampLength = 19 {
+        utcTimestampCombinedDigits := year . month . day . hour . minute . second
+    } else {
+        utcTimestampCombinedDigits := year . month . day . hour . minute . second . millisecond
+    }
+    
+    utcTimestampInteger := utcTimestampCombinedDigits + 0
+
+    return utcTimestampInteger
 }
 
-GetSystemTimePreciseAsFileTime64() {
-    fileTimeBuffer := Buffer(8, 0)
-    DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "ptr", fileTimeBuffer.Ptr)
-    lowPart  := NumGet(fileTimeBuffer, 0, "UInt")
-    highPart := NumGet(fileTimeBuffer, 4, "UInt")
+GetQueryPerformanceCounter() {
+    static methodName := RegisterMethod("GetQueryPerformanceCounter()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
 
-    return (highPart << 32) | lowPart
+    static queryPerformanceCounterBuffer := Buffer(8, 0)
+    queryPerformanceCounterRetrievedSuccessfully := DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
+    if queryPerformanceCounterRetrievedSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current value of the performance counter which is a high resolution time stamp that can be used for time-interval measurements. [Kernel32\QueryPerformanceCounter" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    queryPerformanceCounter := NumGet(queryPerformanceCounterBuffer, 0, "Int64")
+
+    return queryPerformanceCounter
+}
+
+GetUtcTimestamp() {
+    static methodName := RegisterMethod("GetUtcTimestamp()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    static systemTime := Buffer(16, 0)
+
+    DllCall("kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+
+    year        := NumGet(systemTime,  0, "UShort")
+    month       := NumGet(systemTime,  2, "UShort")
+    day         := NumGet(systemTime,  6, "UShort")
+    hour        := NumGet(systemTime,  8, "UShort")
+    minute      := NumGet(systemTime, 10, "UShort")
+    second      := NumGet(systemTime, 12, "UShort")
+    millisecond := NumGet(systemTime, 14, "UShort")
+
+    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+
+    return utcTimestamp
+}
+
+GetUtcTimestampPrecise() {
+    static methodName := RegisterMethod("GetUtcTimestampPrecise()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    static fileTimeBuffer := Buffer(8, 0)
+
+    try {
+        DllCall("kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+    } catch {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current system date and time with the highest possible level of precision. [kernel32\GetSystemTimePreciseAsFileTime]")
+    }
+
+    fileTimeTicks := NumGet(fileTimeBuffer, 0, "Int64")
+
+    static systemTimeBuffer := Buffer(16, 0)
+    convertedFileTimeToSystemTimeSuccessfully := DllCall("kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    if convertedFileTimeToSystemTimeSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    year       := NumGet(systemTimeBuffer,  0, "UShort")
+    month      := NumGet(systemTimeBuffer,  2, "UShort")
+    dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
+    hour       := NumGet(systemTimeBuffer,  8, "UShort")
+    minute     := NumGet(systemTimeBuffer, 10, "UShort")
+    second     := NumGet(systemTimeBuffer, 12, "UShort")
+
+    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+    microsecond       := ticksWithinSecond // 10
+
+    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
+
+    return utcTimestampPrecise
 }
 
 IsValidGregorianDay(year, month, day) {
+    static methodName := RegisterMethod("IsValidGregorianDay(year As Integer, month As Integer, day As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [year, month, day])
+
     isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
     daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -616,6 +672,9 @@ IsValidGregorianDay(year, month, day) {
 }
 
 LocalIsoWithUtcTag(localIsoString) {
+    static methodName := RegisterMethod("LocalIsoWithUtcTag(localIsoString As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [localIsoString])
+
     if !RegExMatch(localIsoString, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
         return localIsoString
     }
@@ -632,17 +691,17 @@ LocalIsoWithUtcTag(localIsoString) {
     second := timeParts[3] + 0
 
     localSystemTime := Buffer(16, 0)
-    NumPut "UShort", year,   localSystemTime, 0
-    NumPut "UShort", month,  localSystemTime, 2
-    NumPut "UShort", 0,      localSystemTime, 4
-    NumPut "UShort", day,    localSystemTime, 6
-    NumPut "UShort", hour,   localSystemTime, 8
-    NumPut "UShort", minute, localSystemTime, 10
-    NumPut "UShort", second, localSystemTime, 12
-    NumPut "UShort", 0,      localSystemTime, 14
+    NumPut("UShort", year,   localSystemTime, 0)
+    NumPut("UShort", month,  localSystemTime, 2)
+    NumPut("UShort", 0,      localSystemTime, 4)
+    NumPut("UShort", day,    localSystemTime, 6)
+    NumPut("UShort", hour,   localSystemTime, 8)
+    NumPut("UShort", minute, localSystemTime, 10)
+    NumPut("UShort", second, localSystemTime, 12)
+    NumPut("UShort", 0,      localSystemTime, 14)
 
     utcSystemTime := Buffer(16, 0)
-    utcSuccess := DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "ptr", 0, "ptr", localSystemTime, "ptr", utcSystemTime, "int")
+    utcSuccess := DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int")
 
     if !utcSuccess {
         return localIsoString
@@ -659,38 +718,30 @@ LocalIsoWithUtcTag(localIsoString) {
     return localIsoString " <UTC " utcIso ">"
 }
 
-QueryPerformanceCounterFrequency() {
-    static cachedFrequency := 0
-    if cachedFrequency = 0 {
-        localBuffer := Buffer(8, 0)
-        if !DllCall("Kernel32\QueryPerformanceFrequency", "ptr", localBuffer.Ptr, "int") {
-            throw Error("QueryPerformanceFrequency failed.")
+ValidateIsoDate(year, month, day, hour := unset, minute := unset, second := unset, checkLocalTime := unset) {
+    static methodName := RegisterMethod("ValidateIsoDate(year As Integer, month As Integer, day As Integer, hour As Integer [Optional], minute As Integer [Optional], second As Integer [Optional], checkLocalTime As Boolean [Optional])", A_LineFile, A_LineNumber + 10)
+    arrayValidation := [year, month, day]
+    timeIsSet := IsSet(hour) && IsSet(minute) && IsSet(second)
+    if timeIsSet {
+        if !IsSet(checkLocalTime) {
+            checkLocalTime := false
         }
 
-        cachedFrequency := NumGet(localBuffer, 0, "Int64")
+        arrayValidation.Push(hour, minute, second, checkLocalTime)
     }
+    logValuesForConclusion := LogHelperValidation(methodName, arrayValidation)
 
-    return cachedFrequency
-}
-
-QueryPerformanceCounterNow() {
-    localBuffer := Buffer(8, 0)
-    if !DllCall("Kernel32\QueryPerformanceCounter", "ptr", localBuffer.Ptr, "int") {
-        throw Error("QueryPerformanceCounter failed.")
-    }
-
-    return NumGet(localBuffer, 0, "Int64")
-}
-
-ValidateIsoDate(year, month, day, hour := 0, minute := 0, second := 0) {
     validationResults := ""
 
     year   := Number(year)
     month  := Number(month)
     day    := Number(day)
-    hour   := Number(hour)
-    minute := Number(minute)
-    second := Number(second)
+
+    if timeIsSet {
+        hour   := Number(hour)
+        minute := Number(minute)
+        second := Number(second)
+    }
 
     if year < 0 || year > 9999 {
         validationResults := "Invalid ISO 8601 Date: " . year . " (year out of range 0000–9999)."
@@ -702,7 +753,7 @@ ValidateIsoDate(year, month, day, hour := 0, minute := 0, second := 0) {
         validationResults := "Invalid ISO 8601 Date: " . day . " (day out of range for month)."
     }
     
-    if validationResults = "" && !(hour = 0 && minute = 0 && second = 0) {
+    if validationResults = "" && timeIsSet {
         if hour < 0 || hour > 23 {
             validationResults := "Invalid ISO 8601 Date Time: " . hour . " (hour must be 00–23)."
         } else if minute < 0 || minute > 59 {
@@ -710,30 +761,32 @@ ValidateIsoDate(year, month, day, hour := 0, minute := 0, second := 0) {
         } else if second < 0 || second > 59 {
             validationResults := "Invalid ISO 8601 Date Time: " . second . " (second must be 00–59)."
         } else {
-            localSystemTime := Buffer(16, 0)
-            NumPut "UShort", year,   localSystemTime, 0
-            NumPut "UShort", month,  localSystemTime, 2
-            NumPut "UShort", 0,      localSystemTime, 4
-            NumPut "UShort", day,    localSystemTime, 6
-            NumPut "UShort", hour,   localSystemTime, 8
-            NumPut "UShort", minute, localSystemTime, 10
-            NumPut "UShort", second, localSystemTime, 12
-            NumPut "UShort", 0,      localSystemTime, 14
+            if checkLocalTime = true {
+                static localSystemTimeBuffer := Buffer(16, 0)
+                NumPut("UShort", year,   localSystemTimeBuffer, 0)
+                NumPut("UShort", month,  localSystemTimeBuffer, 2)
+                NumPut("UShort", 0,      localSystemTimeBuffer, 4)
+                NumPut("UShort", day,    localSystemTimeBuffer, 6)
+                NumPut("UShort", hour,   localSystemTimeBuffer, 8)
+                NumPut("UShort", minute, localSystemTimeBuffer, 10)
+                NumPut("UShort", second, localSystemTimeBuffer, 12)
+                NumPut("UShort", 0,      localSystemTimeBuffer, 14)
 
-            utcSystemTime := Buffer(16, 0)
-            if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "ptr", 0, "ptr", localSystemTime, "ptr", utcSystemTime, "int") {
-                validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time, DST gap or system restriction).", year, month, day, hour, minute, second)
-            } else {
-                systemTimeLocal := Buffer(16, 0)
-                DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "ptr", 0, "ptr", utcSystemTime, "ptr", systemTimeLocal, "int")
-                roundTripYear   := NumGet(systemTimeLocal, 0, "UShort")
-                roundTripMonth  := NumGet(systemTimeLocal, 2, "UShort")
-                roundTripDay    := NumGet(systemTimeLocal, 6, "UShort")
-                roundTripHour   := NumGet(systemTimeLocal, 8, "UShort")
-                roundTripMinute := NumGet(systemTimeLocal, 10, "UShort")
-                roundTripSecond := NumGet(systemTimeLocal, 12, "UShort")
-                if roundTripYear != year || roundTripMonth != month || roundTripDay != day || roundTripHour != hour || roundTripMinute != minute || roundTripSecond != second {
-                    validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time after round-trip, DST gap).", year, month, day, hour, minute, second)
+                static utcSystemTimeBuffer := Buffer(16, 0)
+                if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTimeBuffer, "Ptr", utcSystemTimeBuffer, "Int") {
+                    validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time, DST gap or system restriction).", year, month, day, hour, minute, second)
+                } else {
+                    systemTimeLocal := Buffer(16, 0)
+                    DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "Ptr", 0, "Ptr", utcSystemTimeBuffer, "Ptr", systemTimeLocal, "Int")
+                    roundTripYear   := NumGet(systemTimeLocal, 0, "UShort")
+                    roundTripMonth  := NumGet(systemTimeLocal, 2, "UShort")
+                    roundTripDay    := NumGet(systemTimeLocal, 6, "UShort")
+                    roundTripHour   := NumGet(systemTimeLocal, 8, "UShort")
+                    roundTripMinute := NumGet(systemTimeLocal, 10, "UShort")
+                    roundTripSecond := NumGet(systemTimeLocal, 12, "UShort")
+                    if roundTripYear != year || roundTripMonth != month || roundTripDay != day || roundTripHour != hour || roundTripMinute != minute || roundTripSecond != second {
+                        validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time after round-trip, DST gap).", year, month, day, hour, minute, second)
+                    }
                 }
             }
         }

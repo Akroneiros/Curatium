@@ -115,7 +115,7 @@ GetBase64FromFile(filePath) {
     static base64Flags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
 
     requiredCharacters := 0
-    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "ptr",  fileContentBuffer.Ptr, "uint", fileContentBuffer.Size, "uint", base64Flags, "ptr", 0, "uint*", &requiredCharacters, "int")
+    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
 
     try {
         if !successFlag {
@@ -126,7 +126,7 @@ GetBase64FromFile(filePath) {
     }
 
     outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
-    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "ptr",  fileContentBuffer.Ptr, "uint", fileContentBuffer.Size, "uint", base64Flags, "ptr", outputUtf16Buffer.Ptr, "uint*", &requiredCharacters, "int")
+    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
 
     try {
         if !successFlag {

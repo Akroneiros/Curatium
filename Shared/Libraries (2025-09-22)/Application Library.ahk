@@ -228,7 +228,7 @@ ResolveFactsForApplication(applicationName) {
     global applicationRegistry
 
     executableHash    := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
-    executableHash    := EncodeSha256HexToBase80(executableHash)
+    executableHash    := EncodeSha256HexToBase(executableHash, 86)
 
     executableVersion := "N/A"
     try {
@@ -336,7 +336,7 @@ DetermineWindowsBinaryType(applicationName) {
     classificationResult := "N/A"
     scsCode := 0
 
-    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "str", applicationRegistry[applicationName]["Executable Path"], "uint*", &scsCode, "int")
+    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "Str", applicationRegistry[applicationName]["Executable Path"], "UInt*", &scsCode, "Int")
 
     if callSucceeded != 0 {
         switch scsCode {
@@ -378,6 +378,29 @@ ValidateApplicationFact(applicationName, factName, factValue) {
         }
     } catch as factValueMissingError {
         LogInformationConclusion("Failed", logValuesForConclusion, factValueMissingError)
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
+ValidateApplicationInstalled(applicationName) {
+    static methodName := RegisterMethod("ValidateApplicationInstalled(applicationName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Validate Application Installed (" . applicationName . ")", methodName, [applicationName])
+
+    try {
+        if !applicationRegistry.Has(applicationName) {
+            throw Error("Application doesn't exist: " . applicationName)
+        }
+    } catch as applicationMissingError {
+        LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
+    }
+
+    try {
+        if applicationRegistry[applicationName]["Installed"] = false {
+            throw Error("Application not installed: " . applicationName)
+        }
+    } catch as applicationNotInstalledError {
+        LogInformationConclusion("Failed", logValuesForConclusion, applicationNotInstalledError)
     }
 
     LogInformationConclusion("Completed", logValuesForConclusion)
@@ -941,7 +964,10 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 ; Helper Methods               ;
 ; **************************** ;
 
-CombineExcelCode(introCode, mainCode, outroCode := "") {
+CombineCode(introCode, mainCode, outroCode := "") {
+    static methodName := RegisterMethod("CombineCode(introCode As String, mainCode As String, outroCode As String [Optional])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [introCode, mainCode, outroCode])
+
     combinedCode := introCode . "`r`n`r`n" . mainCode
 
     if outroCode !== "" {
