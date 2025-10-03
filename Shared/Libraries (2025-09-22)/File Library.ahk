@@ -445,7 +445,7 @@ WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
 ; **************************** ;
 
 ExtractDirectory(filePath) {
-    static methodName := RegisterMethod("ExtractDirectory(filePath As String [Type: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExtractDirectory(filePath As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [filePath])
 
     SplitPath(filePath, , &directoryPath)
@@ -472,7 +472,7 @@ ExtractFilename(filePath, removeFileExtension := false) {
 }
 
 ExtractParentDirectory(filePath) {
-    static methodName := RegisterMethod("ExtractParentDirectory(filePath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExtractParentDirectory(filePath As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [filePath])
 
     SplitPath(filePath, , &directoryPath)

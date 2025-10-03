@@ -5,9 +5,9 @@
 #Include Image Library.ahk
 
 global logFilePath := Map(
-    "Error Message", "",
     "Execution Log", "",
     "Operation Log", "",
+    "Runtime Trace", "",
     "Symbol Ledger", ""
 )
 global methodRegistry := Map()
@@ -25,7 +25,7 @@ global system := Map()
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
-    if logFilePath["Error Message"] !== "" && logFilePath["Execution Log"] !== "" && logFilePath["Operation Log"] !== "" && logFilePath["Symbol Ledger"] !== "" {
+    if logFilePath["Execution Log"] !== "" && logFilePath["Operation Log"] !== "" && logFilePath["Runtime Trace"] !== "" && logFilePath["Symbol Ledger"] !== "" {
         Critical "On"
         AbortExecution()
     } else {
@@ -105,29 +105,26 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
 }
 
 LogEngine(status, fullErrorText := "") {
-    static lastIntermissionFlushTick := 0
-    static intermissionBuffer        := []
-    static intermissionFlushInterval := 7200000 ; 120 * 60 * 1000
+    static lastRuntimeTraceFlushTick := 0
+    static runtimeTraceBuffer        := []
+    static runtimeTraceFlushInterval := 7200000 ; 120 * 60 * 1000
 
     if status = "Beginning" {
         global logFilePath
 
         SplitPath(A_ScriptFullPath, , &projectFolderPath, , &projectName)
 
-        dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-        tickCount   := A_TickCount
-      
-        logFilePath["Error Message"] := projectFolderPath . "\Log\" . projectName . " - " . "Error Message" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Execution Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Execution Log" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Operation Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Operation Log" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . projectName . " - " . "Symbol Ledger" . " - " . dateOfToday . "." . tickCount . ".csv"
-
         if !DirExist(projectFolderPath . "\Log\") {
             DirCreate(projectFolderPath . "\Log\")
         }
 
-        errorMessageFileHandle := FileOpen(logFilePath["Error Message"], "w", "UTF-8")
-        errorMessageFileHandle.Close()
+        dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
+        tickCount   := A_TickCount
+      
+        logFilePath["Execution Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Execution Log" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Operation Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Operation Log" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Runtime Trace"] := projectFolderPath . "\Log\" . projectName . " - " . "Runtime Trace" . " - " . dateOfToday . "." . tickCount . ".csv"
+        logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . projectName . " - " . "Symbol Ledger" . " - " . dateOfToday . "." . tickCount . ".csv"
 
         executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
         executionLogFileHandle.Close()
@@ -135,91 +132,103 @@ LogEngine(status, fullErrorText := "") {
         operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
         operationLogFileHandle.Close()
 
+        runtimeTraceFileHandle := FileOpen(logFilePath["Runtime Trace"], "w", "UTF-8")
+        runtimeTraceFileHandle.Close()
+
         symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
         symbolLedgerFileHandle.Close()
 
         global system
     
-        system["Project Name"]         := projectName
-        system["Project Directory"]    := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
-        system["Library Release"]      := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
-        system["AutoHotkey Version"]   := A_AhkVersion
-        system["QPC Frequency"]        := GetQueryPerformanceCounterFrequency()
+        system["Project Name"]          := projectName
+        system["Project Directory"]     := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
+        system["Library Release"]       := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
+        system["AutoHotkey Version"]    := A_AhkVersion
 
-        warmupUtcTimestamp        := GetUtcTimestamp()
-        warmupUtcTimestampPrecise := GetUtcTimestampPrecise()
-        warmupQpcCounter          := GetQueryPerformanceCounter()
+        warmupUtcTimestampPrecise       := GetUtcTimestampPrecise()
+        warmupQpcCounter                := GetQueryPerformanceCounter()
 
-        system["QPC Counter Before"]   := GetQueryPerformanceCounter()
-        system["Script Run Timestamp"] := GetUtcTimestampPrecise()
-        system["QPC Counter After"]    := GetQueryPerformanceCounter()
-        system["QPC Counter Midpoint"] := system["QPC Counter Before"] + ((system["QPC Counter After"] - system["QPC Counter Before"] + 1) // 2)
-        system["Script Run Integer"]   := ConvertUtcTimestampToInteger(system["Script Run Timestamp"])
-        system["Script File Hash"]     := Hash.File("SHA256", A_ScriptFullPath)
-        system["Computer Name"]        := A_ComputerName
-        system["Username"]             := A_UserName
-        system["Operating System"]     := GetOperatingSystem()
-        system["Input Language"]       := GetInputLanguage()
-        system["Keyboard Layout"]      := GetActiveKeyboardLayout()
-        system["Region Format"]        := GetRegionFormat()
-        system["Time Zone Key Name"]   := GetTimeZoneKeyName()
-        
-        system["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
-        system["DPI Scale"]            := Round(A_ScreenDPI / 96 * 100) . "%"
-        system["Color Mode"]           := GetWindowsColorMode()
-        system["Memory Size and Type"] := GetMemorySizeAndType()
-        system["Motherboard"]          := GetMotherboard()
-        system["CPU"]                  := GetCpu()
-        system["Display GPU"]          := GetActiveDisplayGpu()
-        system["System Disk"]          := GetSystemDisk()      
-    }
+        system["QPC Before Timestamp"]  := GetQueryPerformanceCounter()
+        system["UTC Timestamp Precise"] := GetUtcTimestampPrecise()
+        system["QPC After Timestamp"]   := GetQueryPerformanceCounter()
+        system["QPC Measurement Delta"] := system["QPC After Timestamp"] - system["QPC Before Timestamp"]
+        system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
+        system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
 
-    executionLogLines := []
+        warmupUtcTimestamp              := GetUtcTimestamp()
+        warmupUtcTimestampInteger       := GetUtcTimestampInteger()
 
-    if status = "Beginning" {
-        executionLogLines := [
-            system["Project Name"]         ,
-            system["Project Directory"]    ,
-            system["Script File Hash"]     ,
-            system["Library Release"]      ,
-            system["AutoHotkey Version"]   ,
-            system["Computer Name"]        ,
-            system["Username"]             ,
-            system["Operating System"]     ,
-            system["Input Language"]       ,
-            system["Keyboard Layout"]      ,
-            system["Region Format"]        ,
-            system["Time Zone Key Name"]   ,
-            system["QPC Frequency"]        ,
-            system["Display Resolution"]   ,
-            system["DPI Scale"]            ,
-            system["Color Mode"]           ,
-            system["Memory Size and Type"] ,
-            system["Motherboard"]          ,
-            system["CPU"]                  ,
-            system["Display GPU"]          ,
-            system["System Disk"]
+        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
+        system["Script File Hash"]      := Hash.File("SHA256", A_ScriptFullPath)
+        system["Computer Name"]         := A_ComputerName
+        system["Username"]              := A_UserName
+        system["Operating System"]      := GetOperatingSystem()
+        system["Input Language"]        := GetInputLanguage()
+        system["Keyboard Layout"]       := GetActiveKeyboardLayout()
+        system["Region Format"]         := GetRegionFormat()
+        system["Time Zone Key Name"]    := GetTimeZoneKeyName()
+        system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
+        system["Display Resolution"]    := A_ScreenWidth . "x" . A_ScreenHeight
+        system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
+        system["Color Mode"]            := GetWindowsColorMode()
+        system["Memory Size and Type"]  := GetMemorySizeAndType()
+        system["Motherboard"]           := GetMotherboard()
+        system["CPU"]                   := GetCpu()
+        system["Display GPU"]           := GetActiveDisplayGpu()
+        system["System Disk"]           := GetSystemDisk()
+
+        runtimeTraceLines := [
+            system["QPC Before Timestamp"],
+            system["UTC Timestamp Precise"],
+            system["QPC After Timestamp"],
+            system["QPC Measurement Delta"],
+            system["QPC Midpoint Tick"],
+            system["UTC Timestamp Integer"],
+            GetPhysicalMemoryStatus(),
+            GetRemainingFreeDiskSpace()
         ]
-    } else if status !== "Intermission" {
-        executionLogLines := [
-            "Remaining Free Disk Space: " .              GetRemainingFreeDiskSpace()
-        ]
+
+        BatchAppendRuntimeTrace("Beginning", runtimeTraceLines)
     } else {
-        physicalRamSituation := GetPhysicalMemoryStatus()
-
         for line in [
-            "Physical RAM Situation: " .                 physicalRamSituation
+            GetPhysicalMemoryStatus(),
+            GetRemainingFreeDiskSpace()
         ] {
-            intermissionBuffer.Push(line)
+            runtimeTraceBuffer.Push(line)
         }
     }
 
-    static operationLogLine := "Operation Sequence Number|Status|Tick|Symbol|Arguments|Overlay Key|Overlay Value"
+    static operationLogLine := "Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value"
     static symbolLedgerLine := "Reference|Type|Symbol"
 
     Switch status {
         Case "Beginning":
-            ExecutionLogBatchAppend("Beginning", executionLogLines)
+            executionLogLines := [
+                system["Project Name"],
+                system["Project Directory"],
+                system["Library Release"],
+                system["Script File Hash"],
+                system["AutoHotkey Version"],
+                system["Operating System"],
+                system["OS Installation Date"],
+                system["Computer Name"],
+                system["Username"],
+                system["Time Zone Key Name"],
+                system["Region Format"],
+                system["Input Language"],
+                system["Keyboard Layout"],
+                system["QPC Frequency"],
+                system["Motherboard"],
+                system["CPU"],
+                system["Memory Size and Type"],
+                system["Display GPU"],
+                system["System Disk"],
+                system["Display Resolution"],
+                system["DPI Scale"],
+                system["Color Mode"]
+            ]
+
+            BatchAppendExecutionLog("Beginning", executionLogLines)
             AppendCsvLineToLog(operationLogLine, "Operation Log")
             AppendCsvLineToLog(symbolLedgerLine, "Symbol Ledger")
         Case "Completed":
@@ -227,32 +236,27 @@ LogEngine(status, fullErrorText := "") {
                 OverlayChangeTransparency(255)
             }
 
-            if intermissionBuffer.Length !== 0 {
-                ExecutionLogBatchAppend("Intermission", intermissionBuffer)
-                intermissionBuffer.Length := 0
+            if runtimeTraceBuffer.Length !== 0 {
+                BatchAppendRuntimeTrace("Completed", runtimeTraceBuffer)
+                runtimeTraceBuffer.Length := 0
             }
-
-            ExecutionLogBatchAppend("Completed", executionLogLines)
-
-            FileSetTime(A_Now, logFilePath["Error Message"], "M")
 
             FinalizeLogs()
         Case "Failed":
-            if intermissionBuffer.Length !== 0 {
-                ExecutionLogBatchAppend("Intermission", intermissionBuffer)
-                intermissionBuffer.Length := 0
+            if runtimeTraceBuffer.Length !== 0 {
+                BatchAppendRuntimeTrace("Failed", runtimeTraceBuffer)
+                runtimeTraceBuffer.Length := 0
             }
 
-            ExecutionLogBatchAppend("Failed", executionLogLines)
-            AppendCsvLineToLog(fullErrorText, "Error Message")
+            AppendCsvLineToLog(fullErrorText, "Runtime Trace")
             
             FinalizeLogs()
         Case "Intermission":
             currentTick := A_TickCount
-            if currentTick - lastIntermissionFlushTick >= intermissionFlushInterval {
-                lastIntermissionFlushTick := currentTick
-                ExecutionLogBatchAppend("Intermission", intermissionBuffer)
-                intermissionBuffer.Length := 0
+            if currentTick - lastRuntimeTraceFlushTick >= runtimeTraceFlushInterval {
+                lastRuntimeTraceFlushTick := currentTick
+                BatchAppendRuntimeTrace("Intermission", runtimeTraceBuffer)
+                runtimeTraceBuffer.Length := 0
             }
     }
 }
@@ -276,15 +280,11 @@ LogValidateMethodArguments(methodName, arguments) {
 
         switch dataType {
             case "Boolean":
-                if optional = "" && argument = "" {
-                    validation := parameterMissingValue
-                } else if !(IsInteger(argument) && (argument = 0 || argument = 1)) {
+                if !(Type(argument) = "Integer" && (argument = 0 || argument = 1)) {
                     validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be Boolean (true/false) or Integer (0/1)."
                 }
             case "Integer":
-                if optional = "" && argument = "" {
-                    validation := parameterMissingValue
-                } else if !IsInteger(argument) {
+                if Type(argument) != "Integer" {
                     validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be an Integer"
                 } else {
                     switch typeValue {
@@ -293,10 +293,8 @@ LogValidateMethodArguments(methodName, arguments) {
                                 validation := "Value out of byte range (0–255): " . argument
                             }
                         case "Year":
-                            if !RegExMatch(argument, "^\d+$") {
-                                validation := "Year value must be integer digits only: " . argument
-                            } else if argument < 1900 || argument > 2100 {
-                                validation := "Year value must be between 1900 and 2100: " . argument
+                            if argument < 1601 || argument > 30827 {
+                                validation := "Year value must be between 1601 and 30827: " . argument
                             }
                     }
                 }
@@ -599,19 +597,25 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
 }
 
 LogHelperError(logValuesForConclusion, errorLineNumber, errorMessage) {
+    timestamp := LogTimestamp()
+
+    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
+    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 96)
+    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 96)
+
     operationSequenceNumber        := NextOperationSequenceNumber()
     encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
-    encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
-
     logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
 
     csvConclusion := 
-        logValuesForConclusion["Operation Sequence Number"] . "|" . ; Operation Sequence Number
-        "F" .                                                 "|" . ; Status
-        encodedTickCount                                            ; Tick
+        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
+        "F" .                            "|" . ; Status
+        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
+        encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
     if logValuesForConclusion["Context"] !== "" {
-        csvConclusion := csvConclusion . "|" . logValuesForConclusion["Context"]
+        csvConclusion := csvConclusion . "|" . 
+            logValuesForConclusion["Context"]  ; Context
     }
 
     AppendCsvLineToLog(csvConclusion, "Operation Log")
@@ -624,53 +628,53 @@ LogHelperError(logValuesForConclusion, errorLineNumber, errorMessage) {
 }
 
 LogHelperValidation(methodName, arguments := unset) {
-    argumentsAndValidationStatus := unset
-    if IsSet(arguments) {
-        validation := LogValidateMethodArguments(methodName, arguments)
-        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, validation)
-    }
-
-    argumentsFull := ""
-    argumentsLog  := ""
-    validation    := ""
-    if IsSet(argumentsAndValidationStatus) {
-        argumentsFull := argumentsAndValidationStatus["Arguments Full"]
-        argumentsLog  := argumentsAndValidationStatus["Arguments Log"]
-    }
-
     logValuesForConclusion := Map(
         "Operation Sequence Number", 0,
         "Method Name",               methodName,
-        "Arguments Full",            argumentsFull,
-        "Arguments Log",             argumentsLog,
+        "Arguments Full",            "",
+        "Arguments Log",             "",
         "Overlay Key",               0,
-        "Validation",                validation,
+        "Validation",                "",
         "Context",                   ""
     )
 
-    if validation !== "" {
-        operationSequenceNumber        := NextOperationSequenceNumber()
-        encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
-        encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
+    argumentsAndValidationStatus := unset
+    if IsSet(arguments) {
+        logValuesForConclusion["Validation"] := LogValidateMethodArguments(methodName, arguments)
+        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, logValuesForConclusion["Validation"])
 
-        logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
-        
-        csvShared :=
-            encodedOperationSequenceNumber .     "|" . ; Operation Sequence Number
-            "B" .                                "|" . ; Status
-            encodedTickCount .                   "|" . ; Tick
-            methodRegistry[methodName]["Symbol"]       ; Symbol
+        logValuesForConclusion["Arguments Full"] := argumentsAndValidationStatus["Arguments Full"]
+        logValuesForConclusion["Arguments Log"]  := argumentsAndValidationStatus["Arguments Log"]
 
-        if logValuesForConclusion["Arguments Full"] !== "" {
-            csvShared := csvShared . "|" . logValuesForConclusion["Arguments Log"] ; Arguments
-        }
+        if logValuesForConclusion["Validation"] !== "" {
+            timestamp := LogTimestamp()
 
-        AppendCsvLineToLog(csvShared, "Operation Log")
+            operationSequenceNumber        := NextOperationSequenceNumber()
+            encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 96)
+            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 96)
+            encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 96)
 
-        try {
-            throw Error(argumentsAndValidationStatus["Validation"])
-        } catch as validationError {
-            LogInformationConclusion("Failed", logValuesForConclusion, validationError)
+            logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
+            
+            csvShared :=
+                encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
+                "B" .                                  "|" . ; Status
+                encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
+                encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
+                methodRegistry[methodName]["Symbol"]         ; Method
+
+            if logValuesForConclusion["Arguments Full"] !== "" {
+                csvShared := csvShared . "|" . 
+                    logValuesForConclusion["Arguments Log"] ; Arguments
+            }
+
+            AppendCsvLineToLog(csvShared, "Operation Log")
+
+            try {
+                throw Error(logValuesForConclusion["Validation"])
+            } catch as validationError {
+                LogInformationConclusion("Failed", logValuesForConclusion, validationError)
+            }
         }
     }
 
@@ -678,20 +682,32 @@ LogHelperValidation(methodName, arguments := unset) {
 }
 
 LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCustomKey := 0) {
-    static lastIntermissionTick := 0
-    intermissionInterval := 6 * 60 * 1000
-    intermissionTick := A_TickCount
+    static lastRuntimeTraceTick := 0
 
-    if lastIntermissionTick = 0 {
-        lastIntermissionTick := intermissionTick
+    timestamp := LogTimestamp()
+
+    runtimeTraceInterval := 6 * 60 * 1000
+    runtimeTraceTick := A_TickCount
+
+    if lastRuntimeTraceTick = 0 {
+        lastRuntimeTraceTick := runtimeTraceTick
     }
 
     operationSequenceNumber        := NextOperationSequenceNumber()
-    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
-    encodedTickCount               := EncodeIntegerToBase(A_TickCount, 86)
+    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 96)
+    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 96)
+    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 96)
 
+    csvShared :=
+        encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
+        "B" .                                  "|" . ; Status
+        encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
+        encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
+        methodRegistry[methodName]["Symbol"]         ; Method
+
+    overlayKey := unset
     if overlayCustomKey = 0 {
-        overlayKey                 := OverlayGenerateNextKey(methodName)
+        overlayKey := OverlayGenerateNextKey(methodName)
     } else {
         overlayKey := overlayCustomKey
         if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
@@ -699,35 +715,38 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         }
     }
 
-    if intermissionTick - lastIntermissionTick >= intermissionInterval {
-        lastIntermissionTick := intermissionTick
-        LogEngine("Intermission")
-    }
+    logValuesForConclusion := Map(
+        "Operation Sequence Number", encodedOperationSequenceNumber,
+        "Method Name",               methodName,
+        "Arguments Full",            "",
+        "Arguments Log",             "",
+        "Overlay Key",               overlayKey,
+        "Validation",                "",
+        "Context",                   ""
+    )
 
     argumentsAndValidationStatus := unset
     if IsSet(arguments) {
-        validation := LogValidateMethodArguments(methodName, arguments)
-        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, validation)
-    }
+        logValuesForConclusion["Validation"]     := LogValidateMethodArguments(methodName, arguments)
+        argumentsAndValidationStatus             := LogFormatMethodArguments(methodName, arguments, logValuesForConclusion["Validation"])
+        logValuesForConclusion["Arguments Full"] := argumentsAndValidationStatus["Arguments Full"]
+        logValuesForConclusion["Arguments Log"]  := argumentsAndValidationStatus["Arguments Log"]
 
-    csvShared :=
-        encodedOperationSequenceNumber .     "|" . ; Operation Sequence Number
-        "B" .                                "|" . ; Status
-        encodedTickCount .                   "|" . ; Tick
-        methodRegistry[methodName]["Symbol"]       ; Symbol
-
-    argumentsFull := ""
-    argumentsLog  := ""
-    if IsSet(argumentsAndValidationStatus) {
-        csvShared := csvShared . "|" . argumentsAndValidationStatus["Arguments Log"] ; Arguments
-        argumentsFull := argumentsAndValidationStatus["Arguments Full"]
-        argumentsLog := argumentsAndValidationStatus["Arguments Log"]
+        csvShared := csvShared . "|" . 
+            argumentsAndValidationStatus["Arguments Log"] ; Arguments
     }
 
     if overlayKey !== 0 {
-        csvShared := csvShared . "|" . ; Shared
-        overlayKey . "|" .             ; Overlay Key
-        overlayValue                   ; Overlay Value
+        if !symbolLedger.Has(overlayValue . "|O") {
+            csvOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
+            AppendCsvLineToLog(csvOverlaySymbolLedgerLine, "Symbol Ledger")
+        }
+
+        encodedOverlayKey := EncodeIntegerToBase(overlayKey, 96)
+
+        csvShared := csvShared . "|" . 
+            encodedOverlayKey . "|" .                   ; Overlay Key
+            symbolLedger[overlayValue . "|O"]["Symbol"] ; Overlay Value
 
         if overlayCustomKey = 0 {
             OverlayUpdateLine(overlayKey, overlayValue . overlayStatus["Beginning"])
@@ -737,16 +756,6 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
     }
 
     AppendCsvLineToLog(csvShared, "Operation Log")
-
-    logValuesForConclusion := Map(
-        "Operation Sequence Number", encodedOperationSequenceNumber,
-        "Method Name",               methodName,
-        "Arguments Full",            argumentsFull,
-        "Arguments Log",             argumentsLog,
-        "Overlay Key",               overlayKey,
-        "Validation",                "",
-        "Context",                   ""
-    )
 
     try {
         if IsSet(argumentsAndValidationStatus) {
@@ -760,19 +769,30 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         LogInformationConclusion("Failed", logValuesForConclusion, validationError)
     }
 
+    if runtimeTraceTick - lastRuntimeTraceTick >= runtimeTraceInterval {
+        lastRuntimeTraceTick := runtimeTraceTick
+        LogEngine("Intermission")
+    }
+
     return logValuesForConclusion
 }
 
 LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject := unset) {
-    encodedTickCount := EncodeIntegerToBase(A_TickCount, 86)
+    timestamp := LogTimestamp()
+
+    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
+    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 96)
+    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 96)
 
     csvConclusion := 
-        logValuesForConclusion["Operation Sequence Number"] . "|" . ; Operation Sequence Number
-        "[[Status]]" .                                        "|" . ; Status
-        encodedTickCount                                            ; Tick
+        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
+        "[[Status]]" .                   "|" . ; Status
+        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
+        encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
     if logValuesForConclusion["Context"] !== "" {
-        csvConclusion := csvConclusion . "|" . logValuesForConclusion["Context"]
+        csvConclusion := csvConclusion . "|" . 
+            logValuesForConclusion["Context"]  ; Context
     }
 
     conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
@@ -808,6 +828,23 @@ LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject :
                     DisplayErrorMessage(logValuesForConclusion, unsupportedOverlayStatusError)
                 }
         }
+}
+
+LogTimestamp() {
+    queryPerformanceCounterBefore           := GetQueryPerformanceCounter()
+    utcTimestampInteger                     := GetUtcTimestampInteger()
+    queryPerformanceCounterAfter            := GetQueryPerformanceCounter()
+
+    utcTimestampInteger                     := utcTimestampInteger - system["UTC Timestamp Integer"]
+    queryPerformanceCounterMeasurementDelta := queryPerformanceCounterAfter - queryPerformanceCounterBefore
+    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["QPC Midpoint Tick"]
+
+    logTimestamp := Map(
+        "Query Performance Counter Midpoint Tick", queryPerformanceCounterMidpointTick,
+        "UTC Timestamp Integer",                   utcTimestampInteger
+    )
+
+    return logTimestamp
 }
 
 OverlayChangeTransparency(transparencyValue) {
@@ -1056,9 +1093,15 @@ FinalizeLogs() {
         filePath := ""
     }
 
-    logFilePath["Error Message"] := ""
+    timestampNow := A_Now
+    FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
+    FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
+    FileSetTime(timestampNow, logFilePath["Runtime Trace"], "M")
+    FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+
     logFilePath["Execution Log"] := ""
     logFilePath["Operation Log"] := ""
+    logFilePath["Runtime Trace"] := ""
     logFilePath["Symbol Ledger"] := ""
 }
 
@@ -1161,16 +1204,43 @@ GetBaseCharacterSet(baseType) {
             }
         }
 
+        baseRadix := StrLen(baseCharacters)
+
         baseDigitByCharacterMap := Map()
         Loop StrLen(baseCharacters) {
             baseCharacter := SubStr(baseCharacters, A_Index, 1)
             baseDigitByCharacterMap[baseCharacter] := A_Index - 1
         }
 
+        baseCharacterArray := []
+        currentIndex := 1
+        while currentIndex <= baseRadix {
+            baseCharacterArray.Push(SubStr(baseCharacters, currentIndex, 1))
+            currentIndex += 1
+        }
+
+        digitBytesBuffer := Buffer(baseRadix, 0)
+        digitValueIndex := 0
+        while digitValueIndex < baseRadix {
+            NumPut("UChar", Ord(baseCharacterArray[digitValueIndex + 1]), digitBytesBuffer, digitValueIndex)
+            digitValueIndex += 1
+        }
+
+        digitMapBytesBuffer := Buffer(256, 0xFF)
+        digitValueIndex := 0
+        while digitValueIndex < baseRadix {
+            byteValue := Ord(baseCharacterArray[digitValueIndex + 1])
+            NumPut("UChar", digitValueIndex, digitMapBytesBuffer, byteValue)
+            digitValueIndex += 1
+        }
+
         cachedResult := Map(
-            "Characters", baseCharacters,
-            "Base",       StrLen(baseCharacters),
-            "Digit Map",  baseDigitByCharacterMap
+            "Characters",      baseCharacters,
+            "Base Radix",      baseRadix,
+            "Digit Map",       baseDigitByCharacterMap,
+            "Char Array",      baseCharacterArray,
+            "Digit Bytes",     digitBytesBuffer,
+            "Digit Map Bytes", digitMapBytesBuffer
         )
 
         switch baseType {
@@ -1189,60 +1259,63 @@ GetBaseCharacterSet(baseType) {
 }
 
 EncodeIntegerToBase(integerValue, baseType) {
-    ; Maximum possible value: 9223372036854775807
-    characterSetInfo := GetBaseCharacterSet(baseType)
-    baseCharacters   := characterSetInfo["Characters"]
-    baseRadix        := characterSetInfo["Base"]
+    baseCharacterSet := GetBaseCharacterSet(baseType)
+    baseRadix        := baseCharacterSet["Base Radix"]
+    charArray        := baseCharacterSet["Char Array"]
 
-    baseText  := ""
+    baseText := ""
     if integerValue = 0 {
-        baseText := SubStr(baseCharacters, 1, 1)
+        baseText := charArray[1]
     } else {
-        while integerValue > 0 {
+        while integerValue >= baseRadix {
             digitValue   := Mod(integerValue, baseRadix)
-            baseText     := SubStr(baseCharacters, digitValue + 1, 1) . baseText
+            baseText     := charArray[digitValue + 1] . baseText
             integerValue := integerValue // baseRadix
         }
+
+        baseText := charArray[integerValue + 1] . baseText
     }
 
     return baseText
 }
 
 DecodeBaseToInteger(baseText, baseType) {
-    characterSetInfo        := GetBaseCharacterSet(baseType)
-    baseRadix               := characterSetInfo["Base"]
-    baseDigitByCharacterMap := characterSetInfo["Digit Map"]
+    baseCharacterSet := GetBaseCharacterSet(baseType)
+    baseRadix        := baseCharacterSet["Base Radix"]
+    digitMap         := baseCharacterSet["Digit Map"]
 
     integerValue := 0
-    Loop StrLen(baseText) {
-        baseCharacter := SubStr(baseText, A_Index, 1)
-        digitValue := baseDigitByCharacterMap[baseCharacter]
-        integerValue := integerValue * baseRadix + digitValue
+    Loop Parse, baseText {
+        integerValue := integerValue * baseRadix + digitMap[A_LoopField]
     }
 
     return integerValue
 }
 
 EncodeSha256HexToBase(hexSha256, baseType) {
-    characterSetInfo := GetBaseCharacterSet(baseType)
-    baseCharacters   := characterSetInfo["Characters"]
-    baseRadix        := characterSetInfo["Base"]
+    baseCharacterSet  := GetBaseCharacterSet(baseType)
+    characters        := baseCharacterSet["Characters"]
+    baseRadix         := baseCharacterSet["Base Radix"]
+    charArray         := baseCharacterSet["Char Array"]
+
+    static requiredLengthByBaseMap := Map(52, 45, 66, 43, 86, 40, 94, 40)
 
     hexSha256 := StrLower(hexSha256)
 
-    sha256Bytes := Buffer(32, 0)
+    sha256BytesBuffer := Buffer(32, 0)
     writeOffset := 0
     Loop 32 {
         twoHexDigits := SubStr(hexSha256, (A_Index - 1) * 2 + 1, 2)
         byteValue := ("0x" . twoHexDigits) + 0
-        NumPut("UChar", byteValue, sha256Bytes, writeOffset)
+        NumPut("UChar", byteValue, sha256BytesBuffer, writeOffset)
         writeOffset += 1
     }
 
+    baseDigitsLeastSignificantFirst := []
     isAllZero := true
     byteIndex := 0
     while byteIndex < 32 {
-        if NumGet(sha256Bytes, byteIndex, "UChar") {
+        if NumGet(sha256BytesBuffer, byteIndex, "UChar") {
             isAllZero := false
             break
         }
@@ -1250,7 +1323,6 @@ EncodeSha256HexToBase(hexSha256, baseType) {
         byteIndex += 1
     }
 
-    baseDigitsLeastSignificantFirst := []
     if isAllZero {
         baseDigitsLeastSignificantFirst.Push(0)
     } else {
@@ -1259,18 +1331,16 @@ EncodeSha256HexToBase(hexSha256, baseType) {
             hasNonZeroQuotientByte := false
             byteIndex := 0
             while byteIndex < 32 {
-                currentByte := NumGet(sha256Bytes, byteIndex, "UChar")
+                currentByte := NumGet(sha256BytesBuffer, byteIndex, "UChar")
                 accumulator := remainderValue * 256 + currentByte
-                quotientByte := Floor(accumulator / baseRadix)
-                remainderValue := Mod(accumulator, baseRadix)
-                NumPut("UChar", quotientByte, sha256Bytes, byteIndex)
+                quotientByte := accumulator // baseRadix
+                remainderValue := accumulator - quotientByte * baseRadix
+                NumPut("UChar", quotientByte, sha256BytesBuffer, byteIndex)
                 if quotientByte != 0 {
                     hasNonZeroQuotientByte := true
                 }
-
                 byteIndex += 1
             }
-
             baseDigitsLeastSignificantFirst.Push(remainderValue)
             if !hasNonZeroQuotientByte {
                 break
@@ -1282,13 +1352,13 @@ EncodeSha256HexToBase(hexSha256, baseType) {
     digitIndex := baseDigitsLeastSignificantFirst.Length
     while digitIndex >= 1 {
         digitValue := baseDigitsLeastSignificantFirst[digitIndex]
-        baseText .= SubStr(baseCharacters, digitValue + 1, 1)
+        baseText   .= charArray[digitValue + 1]
         digitIndex -= 1
     }
 
-    requiredLength := Ceil(256 * Log(2) / Log(baseRadix))
+    requiredLength := requiredLengthByBaseMap.Has(baseType) ? requiredLengthByBaseMap[baseType] : Ceil(256 * Log(2) / Log(baseRadix))
 
-    zeroDigit := SubStr(baseCharacters, 1, 1)
+    zeroDigit := charArray[1]
     while StrLen(baseText) < requiredLength {
         baseText := zeroDigit . baseText
     }
@@ -1297,39 +1367,52 @@ EncodeSha256HexToBase(hexSha256, baseType) {
 }
 
 DecodeBaseToSha256Hex(baseText, baseType) {
-    characterSetInfo          := GetBaseCharacterSet(baseType)
-    baseRadix                 := characterSetInfo["Base"]
-    baseDigitByCharacterMap   := characterSetInfo["Digit Map"]
+    baseCharacterSet := GetBaseCharacterSet(baseType)
+    baseRadix        := baseCharacterSet["Base Radix"]
+    digitMap         := baseCharacterSet["Digit Map"]
 
     static sha256BytesBuffer := Buffer(32, 0)
-    baseLength := StrLen(baseText)
-    basePosition := 1
-    while basePosition <= baseLength {
-        baseCharacter := SubStr(baseText, basePosition, 1)
-        digitValue    := baseDigitByCharacterMap[baseCharacter]
+    resetIndex := 0
+    while resetIndex < 32 {
+        NumPut("UChar", 0, sha256BytesBuffer, resetIndex)
+        resetIndex += 1
+    }
+
+    Loop Parse, baseText {
+        baseCharacter := A_LoopField
+        digitValue    := digitMap[baseCharacter]
 
         carryValue := digitValue
         byteIndex := 31
         while byteIndex >= 0 {
-            currentByte := NumGet(sha256BytesBuffer, byteIndex, "UChar")
+            currentByte  := NumGet(sha256BytesBuffer, byteIndex, "UChar")
             productValue := currentByte * baseRadix + carryValue
-            NumPut("UChar", Mod(productValue, 256), sha256BytesBuffer, byteIndex)
-            carryValue := Floor(productValue / 256)
-
+            NumPut("UChar", productValue & 0xFF, sha256BytesBuffer, byteIndex)
+            carryValue := productValue // 256
             byteIndex -= 1
         }
+    }
 
-        basePosition += 1
+    static lowercaseHexStringByByteArray := ""
+    if Type(lowercaseHexStringByByteArray) != "Array" {
+        temporary := []
+        temporary.Capacity := 256
+        index := 0
+        while index < 256 {
+            temporary.Push(Format("{:02x}", index))
+            index += 1
+        }
+        lowercaseHexStringByByteArray := temporary
     }
 
     hexOutput := ""
     byteIndex := 0
     while byteIndex < 32 {
-        hexOutput .= Format("{:02x}", NumGet(sha256BytesBuffer, byteIndex, "UChar"))
-
-        byteIndex += 1
+        currentByte := NumGet(sha256BytesBuffer, byteIndex, "UChar")
+        hexOutput   .= lowercaseHexStringByByteArray[currentByte + 1]
+        byteIndex   += 1
     }
-    
+
     return hexOutput
 }
 
@@ -1354,23 +1437,18 @@ AppendCsvLineToLog(csvLine, logType) {
     }
 }
 
-ExecutionLogBatchAppend(executionType, array) {
-    static methodName := RegisterMethod("ExecutionLogBatchAppend(executionType As String, array as Object)", A_LineFile, A_LineNumber + 1)
+BatchAppendExecutionLog(executionType, array) {
+    static executionTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Application", "A", "Beginning", "B")
+    static methodName := RegisterMethod("BatchAppendExecutionLog(executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [executionType, array])
 
     static newLine := "`r`n"
 
     switch StrLower(executionType) {
-        case "beginning":
-            executionType  := "Beginning"
-        case "completed":
-            executionType  := "Completed"
-        case "failed":
-            executionType  := "Failed"
-        case "intermission":
-            executionType  := "Intermission"
-        default:
-            return
+        case "application", "a":
+            executionType  := "A"
+        case "beginning", "b":
+            executionType  := "B"
     }
 
     consolidatedExecutionLog := ""
@@ -1389,6 +1467,101 @@ ExecutionLogBatchAppend(executionType, array) {
     }
 
     AppendCsvLineToLog(consolidatedExecutionLog, "Execution Log")
+}
+
+BatchAppendRuntimeTrace(appendType, array) {
+    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Beginning", "B", "Completed", "C", "Failed", "F", "Intermission", "I")
+    static methodName := RegisterMethod("BatchAppendRuntimeTrace(appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [appendType, array])
+
+    static newLine := "`r`n"
+
+    switch StrLower(appendType) {
+        case "beginning", "b":
+            appendType  := "B"
+        case "completed", "c":
+            appendType  := "C"
+        case "failed", "f":
+            appendType  := "F"
+        case "intermission", "i":
+            appendType  := "I"
+    }
+
+    consolidatedRuntimeTrace := ""
+
+    arrayLength := array.Length
+    for index, value in array {
+        if value = "" {
+            continue
+        }
+
+        if arrayLength !== index {
+            consolidatedRuntimeTrace := consolidatedRuntimeTrace . value . "|" . appendType . newLine
+        } else {
+            consolidatedRuntimeTrace := consolidatedRuntimeTrace . value . "|" . appendType
+        }
+    }
+
+    AppendCsvLineToLog(consolidatedRuntimeTrace, "Runtime Trace")
+}
+
+BatchAppendSymbolLedger(symbolType, array) {
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}"', "Base64", "B", "Code", "C", "Directory", "D", "File", "F", "Hash", "H", "Overlay", "O", "Search", "S")
+    static methodName := RegisterMethod("BatchAppendSymbolLedger(symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [symbolType, array])
+
+    static newLine := "`r`n"
+
+    switch StrLower(symbolType) {
+        case "base64", "b":
+            symbolType := "B"
+        case "code", "c":
+            symbolType := "C"
+        case "directory", "d":
+            symbolType := "D"
+        case "file", "f":
+            symbolType := "F"
+        case "hash", "h":
+            symbolType := "H"
+        case "overlay", "o":
+            symbolType := "O"
+        case "search", "s":
+            symbolType := "S"
+    }
+
+    consolidatedSymbolLedger := ""
+
+    symbolLedgerArray := []
+    for index, value in array {
+        if value = "" {
+            continue
+        }
+
+        if symbolType = "B" {
+            value := "<Base64 (Length: " . StrLen(value) . ")>"
+        } else if symbolType = "C" {
+            value := "<Code (Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ")>"
+        } else if symbolType = "H" {
+            value := EncodeSha256HexToBase(value, 86)
+        }
+
+        if !symbolLedger.Has(value . "|" . symbolType) {
+            symbolLedgerArray.Push(value)
+        }
+    }
+  
+    arrayLength := symbolLedgerArray.Length
+    if arrayLength !== 0 {
+        for index, value in symbolLedgerArray {
+            if arrayLength !== index {
+                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType)
+            } else {
+                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType, false)
+            }
+        }
+
+        AppendCsvLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+    }
 }
 
 GetActiveKeyboardLayout() {
@@ -1989,6 +2162,65 @@ GetWindowsColorMode() {
     return resultColorMode
 }
 
+GetWindowsInstallationDateUtcTimestamp() {
+    static methodName := RegisterMethod("GetWindowsInstallationDateUtcTimestamp()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    static registryKeySystemSetup               := "HKLM\SYSTEM\Setup"
+    static registryKeyCurrentVersionNonWow      := "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    static registryKeyCurrentVersionWow6432Node := "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
+
+    installDateSeconds := unset
+
+    ; Prefer the oldest DWORD InstallDate under SYSTEM\Setup\Source OS (...)
+    oldestSeconds := unset
+    Loop Reg, registryKeySystemSetup, "K" {
+        subKeyName := A_LoopRegName
+        if !RegExMatch(subKeyName, "^Source OS") {
+            continue
+        }
+
+        fullKey := registryKeySystemSetup . "\" . subKeyName
+        try {
+            candidate := RegRead(fullKey, "InstallDate")
+            candidate := candidate & 0xFFFFFFFF  ; treat as unsigned DWORD
+            if candidate > 0 && (!IsSet(oldestSeconds) || candidate < oldestSeconds) {
+                oldestSeconds := candidate
+            }
+        }
+    }
+
+    if IsSet(oldestSeconds) {
+        installDateSeconds := oldestSeconds
+    }
+
+    ; Fallback: CurrentVersion DWORD InstallDate (prefer non-WOW, then WOW6432Node).
+    if !IsSet(installDateSeconds) {
+        try {
+            installDateSeconds := RegRead(registryKeyCurrentVersionNonWow, "InstallDate")
+        }
+    }
+
+    if !IsSet(installDateSeconds) {
+        try {
+            installDateSeconds := RegRead(registryKeyCurrentVersionWow6432Node, "InstallDate")
+        }
+    }
+
+    if !IsSet(installDateSeconds) {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
+    }
+
+    installDateSeconds := installDateSeconds & 0xFFFFFFFF
+    if installDateSeconds <= 0 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
+    }
+
+    utcTimestamp := ConvertUnixTimeToUtcTimestamp(installDateSeconds)
+
+    return utcTimestamp
+}
+
 NextOperationSequenceNumber() {
     static operationSequenceNumber := -1
 
@@ -2224,8 +2456,6 @@ RegisterSymbol(value, type, addNewLine := true) {
     symbolLine     := ""
 
     switch StrLower(type) {
-        case "application", "a":
-            type := "A"
         case "base64", "b":
             type := "B"
         case "code", "c":
@@ -2239,10 +2469,10 @@ RegisterSymbol(value, type, addNewLine := true) {
             type := "H"
         case "method", "m":
             type := "M"
+        case "overlay", "o":
+            type := "O"
         case "search", "s":
             type := "S"
-        default:
-            type := "[[Invalid]]"
     }
 
     if !symbolLedger.Has(value . "|" . type) {
@@ -2256,69 +2486,9 @@ RegisterSymbol(value, type, addNewLine := true) {
             symbolLedger[value . "|" . type]["Symbol"]
     }
 
-    if type !== "[[Invalid]]" && addNewLine = true {
+    if addNewLine = true {
         symbolLine := symbolLine . newLine
     }
 
     return symbolLine
-}
-
-SymbolLedgerBatchAppend(symbolType, array) {
-    static methodName := RegisterMethod("SymbolLedgerBatchAppend(symbolType As String, array As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [symbolType, array])
-
-    static newLine := "`r`n"
-
-    switch StrLower(symbolType) {
-        case "application", "a":
-            symbolType := "A"
-        case "base64", "b":
-            symbolType := "B"
-        case "code", "c":
-            symbolType := "C"
-        case "directory", "d":
-            symbolType := "D"
-        case "file", "f":
-            symbolType := "F"
-        case "hash", "h":
-            symbolType := "H"
-        case "search", "s":
-            symbolType := "S"
-        default:
-            return
-    }
-
-    consolidatedSymbolLedger := ""
-
-    symbolLedgerArray := []
-    for index, value in array {
-        if value = "" {
-            continue
-        }
-
-        if symbolType = "B" {
-            value := "<Base64 (Length: " . StrLen(value) . ")>"
-        } else if symbolType = "C" {
-            value := "<Code (Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ")>"
-        } else if symbolType = "H" {
-            value := EncodeSha256HexToBase(value, 86)
-        }
-
-        if !symbolLedger.Has(value . "|" . symbolType) {
-            symbolLedgerArray.Push(value)
-        }
-    }
-  
-    arrayLength := symbolLedgerArray.Length
-    if arrayLength !== 0 {
-        for index, value in symbolLedgerArray {
-            if arrayLength !== index {
-                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType)
-            } else {
-                consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType, false)
-            }
-        }
-
-        AppendCsvLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
-    }
 }

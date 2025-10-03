@@ -88,14 +88,14 @@ CreateSharedImages(imageCatalogName) {
         filenameValues.Push(image["Name"] . " (" . image["Variation"] . ")." . image["Extension"])
     }
 
-    SymbolLedgerBatchAppend("F", filenameValues)
+    BatchAppendSymbolLedger("F", filenameValues)
 
     hashValues := []
     for index, image in sharedImages {
         hashValues.Push(image["SHA-256"])
     }
 
-    SymbolLedgerBatchAppend("H", hashValues)
+    BatchAppendSymbolLedger("H", hashValues)
 
     for image in sharedImages {
         WriteBase64IntoImageFileWithHash(image["Base64"], imageDirectory . image["Name"] . " (" . image["Variation"] . ")." . image["Extension"], image["SHA-256"])

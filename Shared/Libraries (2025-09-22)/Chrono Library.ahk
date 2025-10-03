@@ -540,6 +540,37 @@ ConvertIntegerToUtcTimestamp(integerValue) {
     return utcTimestamp
 }
 
+ConvertUnixTimeToUtcTimestamp(unixSeconds) {
+    static methodName := RegisterMethod("ConvertUnixTimeToUtcTimestamp(unixSeconds As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [unixSeconds])
+
+    if unixSeconds < -11644473600 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "unixSeconds predates 1601-01-01 UTC and cannot be represented as FILETIME: " . unixSeconds)
+    }
+
+    ; Unix seconds (1970; negatives allowed) → FILETIME ticks (since 1601, 100 ns): (unixSeconds + 11644473600) * 10000000
+    fileTimeTicks := (unixSeconds + 11644473600) * 10000000
+
+    static fileTimeBuffer := Buffer(8, 0)
+    NumPut("UInt64", fileTimeTicks, fileTimeBuffer)
+
+    static systemTimeBuffer := Buffer(16, 0)
+    convertedSuccessfully := DllCall("kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    if convertedSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    year   := NumGet(systemTimeBuffer,  0, "UShort")
+    month  := NumGet(systemTimeBuffer,  2, "UShort")
+    day    := NumGet(systemTimeBuffer,  6, "UShort")
+    hour   := NumGet(systemTimeBuffer,  8, "UShort")
+    minute := NumGet(systemTimeBuffer, 10, "UShort")
+    second := NumGet(systemTimeBuffer, 12, "UShort")
+
+    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+
+    return utcTimestamp
+}
 
 ConvertUtcTimestampToInteger(utcTimestamp) {
     static methodName := RegisterMethod("ConvertUtcTimestampToInteger(utcTimestamp As String)", A_LineFile, A_LineNumber + 1)
@@ -622,16 +653,42 @@ GetUtcTimestamp() {
     return utcTimestamp
 }
 
+GetUtcTimestampInteger() {
+    static methodName := RegisterMethod("GetUtcTimestampInteger()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    static systemTime := Buffer(16, 0)
+
+    DllCall("kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+
+    year        := NumGet(systemTime,  0, "UShort")
+    month       := NumGet(systemTime,  2, "UShort")
+    day         := NumGet(systemTime,  6, "UShort")
+    hour        := NumGet(systemTime,  8, "UShort")
+    minute      := NumGet(systemTime, 10, "UShort")
+    second      := NumGet(systemTime, 12, "UShort")
+    millisecond := NumGet(systemTime, 14, "UShort")
+
+    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+
+    return utcTimestampInteger
+}
+
 GetUtcTimestampPrecise() {
     static methodName := RegisterMethod("GetUtcTimestampPrecise()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
     static fileTimeBuffer := Buffer(8, 0)
 
-    try {
-        DllCall("kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-    } catch {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current system date and time with the highest possible level of precision. [kernel32\GetSystemTimePreciseAsFileTime]")
+    static dllIsSupported := unset
+
+    if !IsSet(dllIsSupported) {
+        try {
+            DllCall("kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+            dllIsSupported := true
+        } catch {
+            LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current system date and time with the highest possible level of precision. [kernel32\GetSystemTimePreciseAsFileTime]")
+        }
     }
 
     fileTimeTicks := NumGet(fileTimeBuffer, 0, "Int64")

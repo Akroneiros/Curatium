@@ -41,17 +41,10 @@ RegisterApplications() {
             }
 
             installedApplications.Push(configuration)
-            innerMap["Symbol Ledger Lookup"] := configuration . "|" . "A"
         }
     }
 
-    SymbolLedgerBatchAppend("A", installedApplications)
-
-    for outerKey, innerMap in applicationRegistry {
-        if innermap["Installed"] = true {
-            innerMap["Symbol"] := symbolLedger[innerMap["Symbol Ledger Lookup"]]["Symbol"]
-        }
-    }
+    BatchAppendExecutionLog("Application", installedApplications)
 }
 
 ExecutablePathResolve(applicationName) {
