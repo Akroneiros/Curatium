@@ -56,7 +56,15 @@ CreateSharedImages(imageCatalogName) {
         LogInformationConclusion("Failed", logValuesForConclusion, imageCatalogMissingError)
     }
 
-    variations := AssignHeroAliases()
+    static heroes := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Heroes (2025-09-20).csv")
+    static variations := Map()
+    for hero in heroes {
+        heroName       := hero["Name"]
+        firstCharacter := StrLower(SubStr(heroName, 1, 1))
+
+        variations[firstCharacter] := heroName
+    }
+
     sharedImages := []
 
     for line in StrSplit(FileRead(imageCatalogFilePath, "UTF-8"), "`n") {

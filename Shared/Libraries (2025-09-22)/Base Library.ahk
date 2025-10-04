@@ -64,35 +64,8 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     return templateCombined
 }
 
-AssignHeroAliases() {
-    static methodName := RegisterMethod("AssignHeroAliases()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Assign Variations", methodName)
-
-    static variations := Map(
-        "a", "Adelaide",  ; Castle,     Cleric
-        "b", "Bron",      ; Fortress,   Beastmaster
-        "c", "Christian", ; Castle,     Knight
-        "d", "Darkstorn", ; Dungeon,    Warlock
-        "e", "Elleshar",  ; Rampart,    Druid
-        "f", "Fafner",    ; Tower,      Alchemist
-        "g", "Gundula",   ; Stronghold, Battle Mage
-        "h", "Halon",     ; Tower,      Wizard
-        "i", "Isra",      ; Necropolis, Death Knight
-        "j", "Jabarkas",  ; Stronghold, Barbarian
-        "k", "Kyrre",     ; Rampart,    Ranger
-        "l", "Lorelei",   ; Dungeon,    Overlord
-        "m", "Mirlanda",  ; Fortress,   Witch
-        "n", "Nagash",    ; Necropolis, Necromancer
-        "o", "Olema",     ; Inferno,    Heretic
-        "p", "Pyre"       ; Inferno,    Demoniac
-    )
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-    return variations
-}
-
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")", methodName, [horizontalValue, verticalValue, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
@@ -307,34 +280,16 @@ PasteSearch(searchValue) {
 }
 
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
-    static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Double", "Left", "Middle", "Move", "Right")
-    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Pattern: ^\d+x\d+$])", A_LineFile, A_LineNumber + 1)
+    static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Double", "Left", "Middle", "Move", "Move Smooth", "Right", "Wheel Down", "Wheel Up")
+    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")", methodName, [mouseAction, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
     heightDisplayResolution := A_ScreenHeight
 
-    coordinates := StrSplit(Trim(coordinatePair), "x")
+    coordinates := StrSplit(coordinatePair, "x")
     x := coordinates[1] + 0
     y := coordinates[2] + 0
-
-    try {
-        if x < 0 || x > widthDisplayResolution - 1 {
-            throw Error("X out of bounds. Tried " . x . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
-        }
-    } catch as xOutOfBoundsError {
-        LogInformationConclusion("Failed", logValuesForConclusion, xOutOfBoundsError)
-    }
-
-    try {
-        if y < 0 || y > heightDisplayResolution - 1 {
-            throw Error("Y out of bounds. Tried " . y . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
-        }
-    } catch as yOutOfBoundsError {
-        LogInformationConclusion("Failed", logValuesForConclusion, yOutOfBoundsError)
-    }
-
-    mouseAction := StrLower(Trim(mouseAction))
 
     overlayVisibility := OverLayIsVisible()
     if overlayVisibility = True {
@@ -344,7 +299,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     modeBeforeAction := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
     
-    switch mouseAction {
+    switch StrLower(mouseAction) {
         case "double":
             Click("left", x, y, 2)
         case "left":
@@ -352,10 +307,19 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
         case "middle":
             Click("middle", x, y)
         case "move":
-            MouseMove(x, y)
+            MouseMove(x, y, 0)
+        case "move smooth":
+            originalSendMode := A_SendMode
+            SendMode("Event")
+            MouseGetPos(&currentMouseX, &currentMouseY)
+            MouseMove(x, y, ComputeMouseSpeed(currentMouseX . "x" . currentMouseY, coordinatePair))
+            SendMode(originalSendMode)
         case "right":
             Click("right", x, y)
-        default:
+        case "wheel down":
+            Click("WheelDown", x, y)
+        case "wheel up":
+            Click("WheelUp", x, y)
     }
 
     CoordMode("Mouse", modeBeforeAction)
@@ -367,9 +331,147 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
+PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouseButton := "Left", modifierKeys := "") {
+    static mouseActionWhitelist := Format('"{1}", "{2}"', "Left", "Right")
+    static methodName := RegisterMethod("PerformMouseDragBetweenCoordinates(startCoordinatePair As String [Type: Coordinate Pair], endCoordinatePair As String [Type: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")", methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys])
+
+    modeBeforeAction := A_CoordModeMouse
+    CoordMode("Mouse", "Screen")
+
+    widthDisplayResolution  := A_ScreenWidth
+    heightDisplayResolution := A_ScreenHeight
+
+    startCoordinates := StrSplit(startCoordinatePair, "x")
+    startX := startCoordinates[1] + 0
+    startY := startCoordinates[2] + 0
+
+    endCoordinates := StrSplit(endCoordinatePair, "x")
+    endX := endCoordinates[1] + 0
+    endY := endCoordinates[2] + 0
+
+    ; Parse modifiers robustly (supports + , space, tab as separators).
+    normalizedModifierList := []
+    seenModifierMap := Map()
+
+    if modifierKeys != "" {
+        ; Tokenize on any of: + , space, tab.
+        Loop Parse modifierKeys, "+, " . "`t" {
+            rawToken := A_LoopField
+            if rawToken = "" {
+                continue
+            }
+
+            tokenLowercase := StrLower(Trim(rawToken))
+
+            ; Map synonyms to canonical AHK Send key names.
+            if tokenLowercase = "shift" {
+                canonical := "Shift"
+            } else if tokenLowercase = "lshift" || tokenLowercase = "leftshift" {
+                canonical := "LShift"
+            } else if tokenLowercase = "rshift" || tokenLowercase = "rightshift" {
+                canonical := "RShift"
+            } else if tokenLowercase = "ctrl" || tokenLowercase = "control" || tokenLowercase = "ctl" {
+                canonical := "Ctrl"
+            } else if tokenLowercase = "lctrl" || tokenLowercase = "lcontrol" || tokenLowercase = "leftctrl" {
+                canonical := "LCtrl"
+            } else if tokenLowercase = "rctrl" || tokenLowercase = "rcontrol" || tokenLowercase = "rightctrl" {
+                canonical := "RCtrl"
+            } else if tokenLowercase = "alt" {
+                canonical := "Alt"
+            } else if tokenLowercase = "lalt" || tokenLowercase = "leftalt" {
+                canonical := "LAlt"
+            } else if tokenLowercase = "ralt" || tokenLowercase = "rightalt" || tokenLowercase = "altgr" {
+                canonical := "RAlt"
+            } else if tokenLowercase = "win" || tokenLowercase = "windows" || tokenLowercase = "meta" || tokenLowercase = "super" {
+                canonical := "LWin"
+            } else if tokenLowercase = "lwin" || tokenLowercase = "leftwin" || tokenLowercase = "winleft" {
+                canonical := "LWin"
+            } else if tokenLowercase = "rwin" || tokenLowercase = "rightwin" || tokenLowercase = "winright" {
+                canonical := "RWin"
+            } else {
+                try {
+                    Throw Error("Unsupported modifier: " . rawToken)
+                } catch as unsupportedModifierError {
+                    LogInformationConclusion("Failed", logValuesForConclusion, unsupportedModifierError)
+                }
+            }
+
+            if !seenModifierMap.Has(canonical) {
+                normalizedModifierList.Push(canonical)
+                seenModifierMap[canonical] := true
+            }
+        }
+    }
+
+    ; Press modifiers down.
+    for index, modifierName in normalizedModifierList {
+        Send "{" modifierName " down}"
+    }
+
+    originalSendMode := A_SendMode
+    SendMode("Event")
+    MouseMove(startX, startY, 0)
+    Sleep(16)
+    MouseClickDrag(StrLower(mouseButton), startX, startY, endX, endY, ComputeMouseSpeed(startCoordinatePair, endCoordinatePair))
+    SendMode(originalSendMode)
+
+    ; Release modifiers in reverse order.
+    Loop normalizedModifierList.Length {
+        reverseIndex := normalizedModifierList.Length - A_Index + 1
+        Send "{" normalizedModifierList[reverseIndex] " up}"
+    }
+
+    CoordMode("Mouse", modeBeforeAction)
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 ; **************************** ;
 ; Helper Methods               ;
 ; **************************** ;
+
+ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
+    static methodName := RegisterMethod("ComputeMouseSpeed(startCoordinatePair As String [Type: Coordinate Pair], endCoordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [startCoordinatePair, endCoordinatePair])
+
+    startCoordinates := StrSplit(startCoordinatePair, "x")
+    startX := startCoordinates[1] + 0
+    startY := startCoordinates[2] + 0
+
+    endCoordinates := StrSplit(endCoordinatePair, "x")
+    endX := endCoordinates[1] + 0
+    endY := endCoordinates[2] + 0
+
+    deltaX := endX - startX
+    deltaY := endY - startY
+    movementDistancePixels := Sqrt(deltaX*deltaX + deltaY*deltaY)
+
+    screenWidthPixels  := A_ScreenWidth
+    screenHeightPixels := A_ScreenHeight
+    screenDiagonalPixels := Sqrt(screenWidthPixels*screenWidthPixels + screenHeightPixels*screenHeightPixels)
+
+    nearDistanceThresholdPixels := 100
+    farDistanceThresholdPixels  := Round(screenDiagonalPixels * 0.60)
+    if farDistanceThresholdPixels <= nearDistanceThresholdPixels {
+        farDistanceThresholdPixels := nearDistanceThresholdPixels + 1
+    }
+
+    nearSpeed := 80
+    farSpeed  := 20
+    computedMouseSpeed := unset
+    if movementDistancePixels <= nearDistanceThresholdPixels {
+        computedMouseSpeed := nearSpeed
+    } else if movementDistancePixels >= farDistanceThresholdPixels {
+        computedMouseSpeed := farSpeed
+    } else {
+        ratio := (movementDistancePixels - nearDistanceThresholdPixels)  / (farDistanceThresholdPixels - nearDistanceThresholdPixels)
+        ratio := ratio ** 1.5
+        computedMouseSpeed := Round(nearSpeed + (farSpeed - nearSpeed) * ratio)
+    }
+
+    return computedMouseSpeed
+}
 
 ConvertArrayIntoCsvString(array) {
     static methodName := RegisterMethod("ConvertArrayIntoCsvString(array As Object)", A_LineFile, A_LineNumber + 1)

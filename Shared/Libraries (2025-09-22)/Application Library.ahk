@@ -10,12 +10,16 @@ global applicationRegistry := Map()
 ; **************************** ;
 
 RegisterApplications() {
+    static methodName := RegisterMethod("RegisterApplications()", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Register Applications", methodName)
+
     global applicationRegistry
    
     applications := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Applications.csv")
 
     for application in applications {
         applicationName := application["Name"]
+        counter         := application["Counter"] + 0
 
         applicationRegistry[applicationName] := Map()
 
@@ -25,14 +29,14 @@ RegisterApplications() {
             applicationRegistry[applicationName]["Installed"] := false
         } else {
             applicationRegistry[applicationName]["Installed"] := true
-            ResolveFactsForApplication(applicationName)
+            ResolveFactsForApplication(applicationName, counter)
         }
     }
 
     installedApplications := []
     for outerKey, innerMap in applicationRegistry {
         if innermap["Installed"] = true {
-            configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
+            configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"] . "|" . innerMap["Counter"]
 
             switch outerKey
             {
@@ -45,9 +49,14 @@ RegisterApplications() {
     }
 
     BatchAppendExecutionLog("Application", installedApplications)
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
 ExecutablePathResolve(applicationName) {
+    static methodName := RegisterMethod("ExecutablePathResolve(applicationName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName])
+
     executablePath      := ""
     executableName      := ""
     executableDirectory := ""
@@ -83,6 +92,9 @@ ExecutablePathResolve(applicationName) {
 }
 
 ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
+    static methodName := RegisterMethod("ExecutablePathViaDirectory(executablePath As String [Optional], executableName As String, directoryName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, directoryName])
+
     if executablePath !== "" {
         return executablePath
     }
@@ -127,6 +139,9 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
 }
 
 ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
+    static methodName := RegisterMethod("ExecutablePathViaRegistry(executablePath As String [Optional], executableName As String, registryKeyPaths As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, registryKeyPaths])
+
     if executablePath !== "" {
         return executablePath
     }
@@ -167,6 +182,9 @@ ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
 }
 
 ExecutablePathViaUninstall(executablePath, executableName) {
+    static methodName := RegisterMethod("ExecutablePathViaUninstall(executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName])
+
     if executablePath !== "" {
         return executablePath
     }
@@ -217,7 +235,10 @@ ExecutablePathViaUninstall(executablePath, executableName) {
     return executablePath
 }
 
-ResolveFactsForApplication(applicationName) {
+ResolveFactsForApplication(applicationName, counter) {
+    static methodName := RegisterMethod("ResolveFactsForApplication(applicationName As String, counter As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, counter])
+
     global applicationRegistry
 
     executableHash    := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
@@ -233,6 +254,7 @@ ResolveFactsForApplication(applicationName) {
     applicationRegistry[applicationName]["Executable Hash"]     := executableHash
     applicationRegistry[applicationName]["Executable Version"]  := executableVersion
     applicationRegistry[applicationName]["Binary Type"]         := binaryType
+    applicationRegistry[applicationName]["Counter"]             := counter
 
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
@@ -318,6 +340,9 @@ ResolveFactsForApplication(applicationName) {
 }
 
 DetermineWindowsBinaryType(applicationName) {
+    static methodName := RegisterMethod("DetermineWindowsBinaryType(applicationName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName])
+
     static SCS_32BIT_BINARY := 0
     static SCS_DOS_BINARY   := 1
     static SCS_WOW_BINARY   := 2
@@ -329,9 +354,9 @@ DetermineWindowsBinaryType(applicationName) {
     classificationResult := "N/A"
     scsCode := 0
 
-    callSucceeded := DllCall("Kernel32\GetBinaryTypeW", "Str", applicationRegistry[applicationName]["Executable Path"], "UInt*", &scsCode, "Int")
+    executableSubsystemRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", applicationRegistry[applicationName]["Executable Path"], "UInt*", &scsCode, "Int")
 
-    if callSucceeded != 0 {
+    if executableSubsystemRetrievedSuccessfully = true {
         switch scsCode {
             case SCS_32BIT_BINARY:
                 classificationResult := "32-bit"
@@ -409,7 +434,7 @@ CloseApplication(applicationName) {
 
     try {
         if !applicationRegistry.Has(applicationName) {
-            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " invalid.")
+            throw Error("Application not found: " . applicationName)
         }
     } catch as missingApplicationError {
         LogInformationConclusion("Failed", logValuesForConclusion, missingApplicationError)
@@ -554,6 +579,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 } else {
                     builtPrefix := builtPrefix ", " currentPart
                 }
+
                 candidateValue := builtPrefix "."
                 if aboutValues[aboutRange] = candidateValue {
                     matchedIndex := index
@@ -932,10 +958,10 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(1200)
     SendEvent("{Enter}") ; ENTER (Goto Item)
     Sleep(1200)
-    toadForOraclePlayCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
+    toadForOracleRunSelectedAppsCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
 
     if runtimeDate !== "" {
-        PerformMouseActionAtCoordinates("Move", toadForOraclePlayCoordinates)
+        PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsCoordinates)
 
         while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
             Sleep(240)
@@ -946,7 +972,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         }
     }
 
-    PerformMouseActionAtCoordinates("Left", toadForOraclePlayCoordinates)
+    PerformMouseActionAtCoordinates("Left", toadForOracleRunSelectedAppsCoordinates)
     Sleep(16)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 

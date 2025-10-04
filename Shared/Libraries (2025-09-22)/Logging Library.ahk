@@ -41,7 +41,7 @@ AbortExecution() {
         throw Error("Execution aborted early by pressing escape.")
     } catch as executionAbortedError {
         LogInformationConclusion("Failed", logValuesForConclusion, executionAbortedError)
-    }    
+    }
 }
 
 DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := unset) {
@@ -343,7 +343,21 @@ LogValidateMethodArguments(methodName, arguments) {
                             } else if RegExMatch(argument, "=[^=]") {
                                 validation := "Invalid Base64 padding. The character = can only appear at the end."
                             }
-                        case "Code":
+                        case "Coordinate Pair":
+                            widthDisplayResolution  := A_ScreenWidth
+                            heightDisplayResolution := A_ScreenHeight
+
+                            if !RegExMatch(argument, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
+                                validation := "Coordinate pair not formatted correctly: " . argument
+                            } else if (
+                                (x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)
+                            ) {
+                                if x < 0 || x >= widthDisplayResolution {
+                                    validation := "X out of bounds. Tried " . x . " (valid 0 to " . (widthDisplayResolution - 1) . ")."
+                                } else {
+                                    validation := "Y out of bounds. Tried " . y . " (valid 0 to " . (heightDisplayResolution - 1) . ")."
+                                }
+                            }
                         case "Directory":
                             isDrive := RegExMatch(argument, "^[A-Za-z]:\\")
                             isUNC   := RegExMatch(argument, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
