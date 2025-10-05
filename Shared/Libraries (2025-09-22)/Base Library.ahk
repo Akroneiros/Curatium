@@ -491,6 +491,66 @@ ConvertArrayIntoCsvString(array) {
     return result
 }
 
+ConvertHexStringToBase64(hexString, removePadding := true) {
+    static methodName := RegisterMethod("ConvertHexStringToBase64(hexString As String [Type: Hexadecimal String], removePadding As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [hexString])
+
+    byteCount := StrLen(hexString) // 2
+    binaryBuffer := Buffer(byteCount)
+    Loop byteCount {
+        characterIndex := (A_Index - 1) * 2 + 1
+        byteHexadecimalPair := SubStr(hexString, characterIndex, 2)
+        computedByteValue := ("0x" . byteHexadecimalPair) + 0
+        NumPut("UChar", computedByteValue, binaryBuffer, A_Index - 1)
+    }
+
+    static CRYPT_STRING_BASE64 := 0x1
+    static CRYPT_STRING_NOCRLF := 0x40000000
+    static encodingFlags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
+
+    requiredCharacterCount := 0
+    sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", 0, "UInt*", &requiredCharacterCount, "Int")
+    if sizeProbeRetrievedSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    outputUtf16Buffer := Buffer(requiredCharacterCount * 2)
+    encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacterCount, "Int")
+    if encodingSuccessful = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    base64 := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
+    if removePadding = true {
+        base64 := RegExReplace(base64, "=+$")
+    }   
+        
+    return base64
+}
+
+ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) {
+    static methodName := RegisterMethod("ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps As Object, headerName As String, targetValue As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [rowsAsMaps, headerName, targetValue])
+
+    foundRow := unset
+    for rowMap in rowsAsMaps {
+        if !rowMap.Has(headerName) {
+            continue
+        }
+
+        if rowMap[headerName] = targetValue {
+            foundRow := rowMap
+            break
+        }
+    }
+
+    if !IsSet(foundRow) {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "No row found where '" . headerName . "' = '" . targetValue . "'.")
+    }
+
+    return foundRow
+}
+
 ExtractValuesFromArrayDimension(array, dimension) {
     static methodName := RegisterMethod("ExtractValuesFromArrayDimension(array As Object, dimension As Integer)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [array, dimension])
@@ -535,6 +595,33 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     }
 
     return uniqueValues
+}
+
+GetBase64FromFile(filePath) {
+    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [filePath])
+
+    fileContentBuffer := FileRead(filePath, "RAW")
+
+    static CRYPT_STRING_BASE64 := 0x1
+    static CRYPT_STRING_NOCRLF := 0x40000000
+    static base64Flags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
+
+    requiredCharacters := 0
+    sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
+    if sizeProbeRetrievedSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
+    encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
+    if encodingSuccessful = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    base64Output := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
+
+    return base64Output
 }
 
 IfStringIsNotEmptyReturnValue(stringValue, returnValue) {

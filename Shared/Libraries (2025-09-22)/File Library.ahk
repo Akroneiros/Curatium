@@ -35,7 +35,7 @@ CleanOfficeLocksInFolder(directoryPath) {
 }
 
 ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
-    static methodName := RegisterMethod("ConvertCsvToObject(filePath As String [Type: Absolute Path], delimiter As String [Optional: |])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ConvertCsvToArrayOfMaps(filePath As String [Type: Absolute Path], delimiter As String [Optional: |])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")", methodName, [filePath])
 
     hashValue := Hash.File("SHA256", filePath)
@@ -60,7 +60,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
 
         try { 
             if currentLine = "" {
-                throw Error("Found an empty line on line #" . A_Index + 1 . ".")
+                throw Error("Found an empty line on line #" . (A_Index + 1) . ".")
             }
         } catch as emptyLineError {
             LogInformationConclusion("Failed", logValuesForConclusion, emptyLineError)

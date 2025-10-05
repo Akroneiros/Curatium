@@ -635,7 +635,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelScriptExecution(code, insertModule := false) {
-    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional]", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional: false]", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Excel Script Execution (Length: " . StrLen(code) . ")", methodName, [code, insertModule])
    
     SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)

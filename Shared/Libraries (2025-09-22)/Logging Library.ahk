@@ -378,6 +378,30 @@ LogValidateMethodArguments(methodName, arguments) {
                             } else if argument = "." || argument = ".." {
                                 validation := "Filename reserved: " . argument
                             }
+                        case "Hexadecimal String":
+                            minimumByteCount := 0
+                            maximumByteCount := 0
+                            totalByteCount := StrLen(argument) // 2
+
+                            if (Mod(StrLen(argument), 2) != 0) {
+                                validation := "The hexadecimal string must contain an even number of characters (two characters per byte)."
+                            } else if minimumByteCount > 0 && totalByteCount < minimumByteCount {
+                                validation := "The hexadecimal string is too short. It must contain at least " . minimumByteCount . " bytes (" . (minimumByteCount * 2) . " characters)."
+                            } else if maximumByteCount > 0 && totalByteCount > maximumByteCount {
+                                validation := "The hexadecimal string is too long. It must contain no more than " . maximumByteCount . " bytes (" . (maximumByteCount * 2) . " characters)."
+                            } else {
+                                totalCharacterCount := StrLen(argument)
+                                loop totalCharacterCount {
+                                    currentCharacter := SubStr(argument, A_Index, 1)
+                                    currentCharacterCode := Ord(currentCharacter)
+
+                                    isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
+
+                                    if !isHexadecimalDigit {
+                                        validation := "The hexadecimal string contains an invalid character '" . currentCharacter . "' at position " . A_Index . "."
+                                    }
+                                }
+                            }
                         case "ISO Date Time":
                             if !RegExMatch(argument, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
                                 validation := "Invalid ISO 8601 Date Time: " . argument . " (must be YYYY-MM-DD HH:MM:SS)."
@@ -410,20 +434,22 @@ LogValidateMethodArguments(methodName, arguments) {
                                     validation := ValidateIsoDate(year, month, day)
                                 }
                             }
-                        case "Percent Range":
-                            if !RegExMatch(argument, "^\d{1,3}-\d{1,3}$") {
-                                validation := "Must be two integers separated by the character -: " . argument
-                            } else {
-                                parts  := StrSplit(argument, "-")
-                                first  := parts[1] + 0
-                                second := parts[2] + 0
+                                case "Percent Range":
+                                    argument := StrReplace(argument, ",", ".")
 
-                                if first < 0 || first > 100 || second < 0 || second > 100 {
-                                    validation := "Values must be between 0 and 100: " . argument
-                                } else if first >= second {
-                                    validation := "First value must be lower than second: " . argument
-                                }
-                            }
+                                    if !RegExMatch(argument, "^\d{1,3}(?:\.\d)?-\d{1,3}(?:\.\d)?$") {
+                                        validation := "Must be two numbers (0–100) with up to one decimal, separated by -: " . argument
+                                    } else {
+                                        parts  := StrSplit(argument, "-")
+                                        first  := parts[1] + 0
+                                        second := parts[2] + 0
+
+                                        if first < 0 || first > 100 || second < 0 || second > 100 {
+                                            validation := "Values must be between 0 and 100: " . argument
+                                        } else if first >= second {
+                                            validation := "First value must be lower than second: " . argument
+                                        }
+                                    }
                         case "Raw Date Time":
                             if !RegExMatch(argument, "^\d{14}$") {
                                 validation := "Must be in the format YYYYMMDDHHMMSS: " . argument
@@ -2118,6 +2144,19 @@ GetTimeZoneKeyName() {
         if extractedKey != "" {
             timeZoneKeyName := extractedKey
         }
+    }
+
+    if timeZoneKeyName = "Unknown" {
+        try {
+            regValue := RegRead("HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
+            if regValue != "" {
+                timeZoneKeyName := regValue
+            }
+        }
+    }
+
+    if timeZoneKeyName = "Unknown" {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve time zone information.")
     }
 
     return timeZoneKeyName

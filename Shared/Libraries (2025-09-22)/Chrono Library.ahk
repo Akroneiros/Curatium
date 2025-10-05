@@ -617,6 +617,64 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
     return utcTimestampInteger
 }
 
+ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName) {
+    static methodName := RegisterMethod("ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp As String, timeZoneKeyName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [utcTimestamp, timeZoneKeyName])
+
+    parts := StrSplit(utcTimestamp, " ")
+    dateParts := StrSplit(parts[1], "-")
+
+    timeAndFractionParts := StrSplit(parts[2], ".")
+    timeParts := StrSplit(timeAndFractionParts[1], ":")
+
+    hasMilliseconds := timeAndFractionParts.Length = 2
+    milliseconds := 0
+    if hasMilliseconds {
+        fraction := timeAndFractionParts[2]
+        if StrLen(fraction) > 3 {
+            fraction := SubStr(fraction, 1, 3)
+        } else if StrLen(fraction) < 3 {
+            fraction := fraction . SubStr("000", 1, 3 - StrLen(fraction))
+        }
+        milliseconds := fraction + 0
+    }
+
+    utcSystemTime := Buffer(16, 0)
+    NumPut("UShort", dateParts[1] + 0, utcSystemTime, 0)
+    NumPut("UShort", dateParts[2] + 0, utcSystemTime, 2)
+    NumPut("UShort", dateParts[3] + 0, utcSystemTime, 6)
+    NumPut("UShort", timeParts[1] + 0, utcSystemTime, 8)
+    NumPut("UShort", timeParts[2] + 0, utcSystemTime, 10)
+    NumPut("UShort", timeParts[3] + 0, utcSystemTime, 12)
+    NumPut("UShort", milliseconds,         utcSystemTime, 14)
+
+    static dynamicTimeZoneInformationBuffer := Buffer(432, 0)
+    StrPut(timeZoneKeyName, dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
+
+    static localSystemTime := Buffer(16, 0)
+    convertedUtcToLocalSuccessfully := DllCall("kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTime.Ptr, "Ptr", localSystemTime.Ptr, "Int")
+    if convertedUtcToLocalSuccessfully = false {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [kernel32\SystemTimeToTzSpecificLocalTimeEx" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    year        := NumGet(localSystemTime, 0,  "UShort")
+    month       := NumGet(localSystemTime, 2,  "UShort")
+    day         := NumGet(localSystemTime, 6,  "UShort")
+    hour        := NumGet(localSystemTime, 8,  "UShort")
+    minute      := NumGet(localSystemTime, 10, "UShort")
+    second      := NumGet(localSystemTime, 12, "UShort")
+    millisecond := NumGet(localSystemTime, 14, "UShort")
+
+    localTimeText := ""
+    if hasMilliseconds {
+        localTimeText := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+    } else {
+        localTimeText := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+    }
+
+    return localTimeText
+}
+
 GetQueryPerformanceCounter() {
     static methodName := RegisterMethod("GetQueryPerformanceCounter()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)

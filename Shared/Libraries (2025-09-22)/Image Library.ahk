@@ -112,57 +112,20 @@ CreateSharedImages(imageCatalogName) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
-GetBase64FromFile(filePath) {
-    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Get Base64 from File (" . ExtractFilename(filePath) . ")", methodName, [filePath])
-
-    fileContentBuffer := FileRead(filePath, "RAW")
-
-    static CRYPT_STRING_BASE64 := 0x1
-    static CRYPT_STRING_NOCRLF := 0x40000000
-    static base64Flags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
-
-    requiredCharacters := 0
-    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
-
-    try {
-        if !successFlag {
-            throw OSError("CryptBinaryToStringW (size probe) failed.")
-        }
-    } catch as sizeProbeFailed {
-        LogInformationConclusion("Failed", logValuesForConclusion, sizeProbeFailed)
-    }
-
-    outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
-    successFlag := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
-
-    try {
-        if !successFlag {
-            throw OSError("CryptBinaryToStringW (encode) failed.")
-        }
-    } catch as encodeFailedError {
-        LogInformationConclusion("Failed", logValuesForConclusion, encodeFailedError)
-    }
-
-    base64Output := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-    return base64Output
-}
-
 GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure := 60) {
     static methodName := RegisterMethod("GetImageCoordinatesFromSegment(imageAlias As String, horizontalPercentRange As String [Type: Percent Range], verticalPercentRange As String [Type: Percent Range], secondsOfWaitingBeforeFailure As Integer [Optional: 60])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Get Image Coordinates from Segment", methodName, [imageAlias, horizontalPercentRange, verticalPercentRange, secondsOfWaitingBeforeFailure])
 
     coordinatePair := ""
 
-    horizontalParts := StrSplit(Trim(horizontalPercentRange), "-")
+    horizontalPercentRange := StrReplace(horizontalPercentRange, ",", ".")
+    horizontalParts        := StrSplit(horizontalPercentRange, "-")
     horizontalPercentStart := horizontalParts[1] + 0
     horizontalPercentEnd   := horizontalParts[2] + 0
 
     try {
-        if horizontalPercentStart > horizontalPercentEnd {
-            throw Error("Wrong order horizontally. " . "End value of " . horizontalPercentEnd . " is smaller than start value of " . horizontalPercentStart . ".")
+        if horizontalPercentStart >= horizontalPercentEnd {
+            throw Error("Wrong order horizontally. " . "End value of " . horizontalPercentEnd . " is smaller than or equal to than start value of " . horizontalPercentStart . ".")
         }
     } catch as horizontalWrongOrderError {
         LogInformationConclusion("Failed", logValuesForConclusion, horizontalWrongOrderError)
@@ -170,19 +133,20 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
 
     try {
         if horizontalPercentStart >= 100 {
-            throw Error("Horizontal start value of " . horizontalPercentStart . " is invalid. Maximum allowed is 99.")
+            throw Error("Horizontal start value of " . horizontalPercentStart . " is invalid. Maximum allowed is 99.9.")
         }
     } catch as invalidHorizontalValueError {
         LogInformationConclusion("Failed", logValuesForConclusion, invalidHorizontalValueError)
     }
 
-    verticalParts := StrSplit(Trim(verticalPercentRange), "-")
+    verticalPercentRange := StrReplace(verticalPercentRange, ",", ".")
+    verticalParts        := StrSplit(verticalPercentRange, "-")
     verticalPercentStart := verticalParts[1] + 0
     verticalPercentEnd   := verticalParts[2] + 0
 
     try {
-        if verticalPercentStart > verticalPercentEnd {
-            throw Error("Wrong order vertically. " . "End value of " . verticalPercentEnd . " is smaller than start value of " . verticalPercentStart . ".")
+        if verticalPercentStart >= verticalPercentEnd {
+            throw Error("Wrong order vertically. " . "End value of " . verticalPercentEnd . " is smaller than or equal to than start value of " . verticalPercentStart . ".")
         }
     } catch as verticalWrongOrderError {
         LogInformationConclusion("Failed", logValuesForConclusion, verticalWrongOrderError)
@@ -190,7 +154,7 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
 
     try {
         if verticalPercentStart >= 100 {
-            throw Error("Vertical start value of " . verticalPercentStart . " is invalid. Maximum allowed is 99.")
+            throw Error("Vertical start value of " . verticalPercentStart . " is invalid. Maximum allowed is 99.9.")
         }
     } catch as invalidVerticalValueError {
         LogInformationConclusion("Failed", logValuesForConclusion, invalidVerticalValueError)
@@ -200,29 +164,10 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
     screenWidth  := A_ScreenWidth
     screenHeight := A_ScreenHeight
 
-    if horizontalPercentStart = 0 {
-        regionLeftPixel := 0
-    } else {
-        regionLeftPixel := Round(screenWidth  * horizontalPercentStart / 100)
-    }
-
-    if horizontalPercentEnd = 100 {
-        regionRightPixel := screenWidth - 1
-    } else {
-       regionRightPixel := Round(screenWidth  * horizontalPercentEnd / 100) - 1
-    }
-    
-    if verticalPercentStart = 0 {
-        regionTopPixel := 0
-    } else {
-        regionTopPixel := Round(screenHeight * verticalPercentStart / 100)
-    }
-    
-    if verticalPercentEnd = 100 {
-        regionBottomPixel := screenHeight - 1
-    } else {
-        regionBottomPixel := Round(screenHeight * verticalPercentEnd / 100) - 1
-    }
+    regionLeftPixel := Floor(screenWidth * horizontalPercentStart / 100)
+    regionRightPixel := Ceil(screenWidth * horizontalPercentEnd / 100) - 1
+    regionTopPixel := Floor(screenHeight * verticalPercentStart / 100)
+    regionBottomPixel := Ceil(screenHeight * verticalPercentEnd / 100) - 1
 
     sharedImages := AssignSharedImages()
     chosenImages := Map()
@@ -243,9 +188,9 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
         LogInformationConclusion("Failed", logValuesForConclusion, noImageVariantsFoundForAliasError)
     }
 
-    startTime    := A_Now
-    endTime      := DateAdd(startTime, secondsOfWaitingBeforeFailure, "Seconds")
-    headerBuffer := Buffer(24, 0)
+    startTime            := A_Now
+    endTime              := DateAdd(startTime, secondsOfWaitingBeforeFailure, "Seconds")
+    static headerBuffer  := Buffer(24, 0)
     imageDimensionsCache := Map()
 
     overlayVisibility := OverLayIsVisible()
