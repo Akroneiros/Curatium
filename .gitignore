@@ -20,11 +20,11 @@
 # History: Keep only files whose FILENAME contains the phrase (any depth).
 !/History/**/*Framework Demonstration*
 
-# Projects: Re-open the directory so Git can look inside (root had /*).
-!/Projects/
-
 # Projects: Ignore everything by default.
 /Projects/**
+
+# Projects: Re-open the directory so Git can look inside (root had /*).
+!/Projects/
 
 # Projects: Whitelist the specific subfolder and all its contents.
 !/Projects/Framework Demonstration/
@@ -39,3 +39,4 @@
 !/Shared/Images/
 !/Shared/Images/**/
 !/Shared/Images/**/*Image Library Catalog*
+!/Shared/Images/**/*Image Library Data*
