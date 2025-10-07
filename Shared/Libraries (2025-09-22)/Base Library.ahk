@@ -481,7 +481,7 @@ ConvertArrayIntoCsvString(array) {
 
     result := ""
     for index, value in array {
-        if (index > 1) {
+        if index > 1 {
             result .= newLine
         }
 

@@ -371,7 +371,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         fileText := StrGet(fileBuffer.Ptr, totalSize, "UTF-8")
     }
 
-    if (SubStr(fileText, 1, 1) = Chr(0xFEFF)) {
+    if SubStr(fileText, 1, 1) = Chr(0xFEFF) {
         fileText := SubStr(fileText, 2)
     }
 
