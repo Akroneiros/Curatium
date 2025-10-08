@@ -143,10 +143,32 @@ LogEngine(status, fullErrorText := "") {
         system["Project Name"]          := projectName
         system["Project Directory"]     := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
         system["Library Release"]       := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
+        system["Script File Hash"]      := Hash.File("SHA256", A_ScriptFullPath)
         system["AutoHotkey Version"]    := A_AhkVersion
+        system["Operating System"]      := GetOperatingSystem()
+        system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
+        system["Computer Name"]         := A_ComputerName
+        system["Username"]              := A_UserName
+        system["Time Zone Key Name"]    := GetTimeZoneKeyName()
+        system["Region Format"]         := GetRegionFormat()
+        system["Input Language"]        := GetInputLanguage()
+        system["Keyboard Layout"]       := GetActiveKeyboardLayout()
+        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
+        system["Motherboard"]           := GetMotherboard()
+        system["CPU"]                   := GetCpu()
+        system["Memory Size and Type"]  := GetMemorySizeAndType()
+        system["System Disk"]           := GetSystemDisk()
+        system["Display GPU"]           := GetActiveDisplayGpu()
+        system["Monitor"]               := GetActiveMonitor()
+        system["Display Resolution"]    := A_ScreenWidth . "x" . A_ScreenHeight
+        system["Refresh Rate"]          := GetActiveMonitorRefreshRateHz()
+        system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
+        system["Color Mode"]            := GetWindowsColorMode()
 
         warmupUtcTimestampPrecise       := GetUtcTimestampPrecise()
         warmupQpcCounter                := GetQueryPerformanceCounter()
+        warmupUtcTimestamp              := GetUtcTimestamp()
+        warmupUtcTimestampInteger       := GetUtcTimestampInteger()
 
         system["QPC Before Timestamp"]  := GetQueryPerformanceCounter()
         system["UTC Timestamp Precise"] := GetUtcTimestampPrecise()
@@ -154,30 +176,6 @@ LogEngine(status, fullErrorText := "") {
         system["QPC Measurement Delta"] := system["QPC After Timestamp"] - system["QPC Before Timestamp"]
         system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
         system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
-
-        warmupUtcTimestamp              := GetUtcTimestamp()
-        warmupUtcTimestampInteger       := GetUtcTimestampInteger()
-
-        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
-        system["Script File Hash"]      := Hash.File("SHA256", A_ScriptFullPath)
-        system["Computer Name"]         := A_ComputerName
-        system["Username"]              := A_UserName
-        system["Operating System"]      := GetOperatingSystem()
-        system["Input Language"]        := GetInputLanguage()
-        system["Keyboard Layout"]       := GetActiveKeyboardLayout()
-        system["Region Format"]         := GetRegionFormat()
-        system["Time Zone Key Name"]    := GetTimeZoneKeyName()
-        system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
-        system["Display Resolution"]    := A_ScreenWidth . "x" . A_ScreenHeight
-        system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
-        system["Color Mode"]            := GetWindowsColorMode()
-        system["Memory Size and Type"]  := GetMemorySizeAndType()
-        system["Motherboard"]           := GetMotherboard()
-        system["CPU"]                   := GetCpu()
-        system["System Disk"]           := GetSystemDisk()
-        system["Display GPU"]           := GetActiveDisplayGpu()
-        system["Monitor"]               := GetActiveMonitor()
-        system["Refresh Rate"]          := GetActiveMonitorRefreshRateHz()
 
         runtimeTraceLines := [
             system["QPC Before Timestamp"],
@@ -2597,11 +2595,13 @@ GetSystemDisk() {
 
         partitionObjectQuery := "
         (
-        ASSOCIATORS OF {Win32_LogicalDisk.DeviceID='
+        ASSOCIATORS OF
+            {Win32_LogicalDisk.DeviceID='
         )" . logicalDriveLetter . "
         (
         '}
-            WHERE AssocClass=Win32_LogicalDiskToPartition
+        WHERE
+            AssocClass=Win32_LogicalDiskToPartition
         )"
 
         selectedPartitionDeviceId := ""
@@ -2612,11 +2612,13 @@ GetSystemDisk() {
 
         diskDriveObjectQuery := "
         (
-        ASSOCIATORS OF {Win32_DiskPartition.DeviceID='
+        ASSOCIATORS OF
+            {Win32_DiskPartition.DeviceID='
         )" . selectedPartitionDeviceId . "
         (
         '}
-            WHERE AssocClass=Win32_DiskDriveToDiskPartition
+        WHERE
+            AssocClass=Win32_DiskDriveToDiskPartition
         )"
 
         physicalDiskByteCount := ""

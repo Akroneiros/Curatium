@@ -635,8 +635,8 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
     return returnValue
 }
 
-RemoveDuplicateFromArray(array) {
-    static methodName := RegisterMethod("RemoveDuplicateFromArray(array As Object)", A_LineFile, A_LineNumber + 1)
+RemoveDuplicatesFromArray(array) {
+    static methodName := RegisterMethod("RemoveDuplicatesFromArray(array As Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [array])
 
     seen := Map()

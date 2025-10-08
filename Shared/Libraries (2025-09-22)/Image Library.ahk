@@ -275,3 +275,122 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
         LogInformationConclusion("Failed", logValuesForConclusion, imageNotFoundError)
     }
 }
+
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
+
+ConvertImagesToBase64ImageLibraries(directoryPath) {
+    static methodName := RegisterMethod("ConvertImagesToBase64ImageLibraries(directoryPath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [directoryPath])
+
+    static applications   := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Applications.csv")
+    static fileSignatures := unset
+    static resolutions    := unset
+    static scales         := unset
+
+    if !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) {
+        fileSignatures := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\File Signatures.csv")
+        for index, rowMap in fileSignatures {
+            rowMap["Maximum Base64 Signature"] := ConvertHexStringToBase64(rowMap["Maximum Hex Signature"])
+        }
+
+        resolutions := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Resolutions (2025-09-20).csv")
+        for index, rowMap in resolutions {
+            rowMap["Counter"] := index
+        }
+
+        scales := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Scales (2025-09-20).csv")
+        for index, rowMap in scales {
+            rowMap["Counter"] := index
+        }
+    }
+
+    static newLine       := "`r`n"
+    static headerCatalog := "Image Library Data Reference|Counter Reference|Display Resolution|DPI Scale|Horizontal Range|Vertical Range" . newLine
+    static headerData    := "Name|Variant|Counter|SHA-256|Extension|Base64" . newLine
+
+    referenceDirectories := GetFolderListFromDirectory(directoryPath)
+    for index, referenceFolderPath in referenceDirectories {
+        SplitPath(RTrim(referenceFolderPath, "\/"), &lastReferenceDirectoryName)
+
+        referenceIsApplication := false
+        for index, application in applications {
+            if application["Name"] = lastReferenceDirectoryName {
+                referenceIsApplication := true
+                break
+            }
+        }
+
+        catalogEntries := []
+        dataEntries    := []
+        imageLibraryCatalogFilePath       := directoryPath . "Image Library Catalog (" . lastReferenceDirectoryName . ")" . ".csv"
+        imageLibraryDataReferenceFilePath := directoryPath . "Image Library Data (" . lastReferenceDirectoryName . ")" . ".csv"
+
+        imageLibraryDataReference := unset
+        if referenceIsApplication = true {
+            imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Name", lastReferenceDirectoryName)["Counter"] + 0
+        } else {
+            imageLibraryDataReference := lastReferenceDirectoryName
+        }
+
+        hashToCounter := Map()
+        counter := 1
+
+        actionImageDirectories := GetFolderListFromDirectory(referenceFolderPath)
+        for index, actionFolderPath in actionImageDirectories {
+            SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
+
+            if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
+                LogHelperError(logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
+            }
+
+            actionName   := Trim(matchResults[1])
+            actionLetter := matchResults[2]
+
+            Loop Files, actionFolderPath . "*", "F" {
+                SplitPath(A_LoopFileName, , , , &fileNameWithoutExtension)
+                lastOpenParenthesisIndex := InStr(fileNameWithoutExtension, "(", "On", -1)
+                baseTextWithoutRanges    := RTrim(SubStr(fileNameWithoutExtension, 1, lastOpenParenthesisIndex - 1))
+                rangeContent             := SubStr(fileNameWithoutExtension, lastOpenParenthesisIndex + 1, InStr(fileNameWithoutExtension, ")", "On", -1) - lastOpenParenthesisIndex - 1)
+
+                rangeParts := StrSplit(rangeContent, ",", " `t")
+                horizontalPercentRange := rangeParts[1]
+                verticalPercentRange   := rangeParts[2]
+
+                parts      := StrSplit(baseTextWithoutRanges, "@", " `t")
+                resolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", parts[1])["Counter"]
+                scale      := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", parts[2])["Counter"]
+
+                fileHash    := Hash.File("SHA256", A_LoopFileFullPath)
+                encodedHash := EncodeSha256HexToBase(fileHash, 86)
+                base64Data  := GetBase64FromFile(A_LoopFileFullPath)
+
+                extension := ""
+                for index, rowMap in fileSignatures {
+                    maximumBase64Signature := rowMap["Maximum Base64 Signature"]
+                    if SubStr(base64Data, 1, StrLen(maximumBase64Signature)) = maximumBase64Signature {
+                        extension  := rowMap["Extension"]
+                        base64Data := SubStr(base64Data, StrLen(maximumBase64Signature) + 1)
+                        break
+                    }
+                }               
+
+                if !hashToCounter.Has(fileHash) {
+                    hashToCounter[fileHash] := counter
+                    counter := counter + 1
+
+                    dataEntries.Push(actionName . "|" . actionLetter . "|" . hashToCounter[fileHash] . "|" . encodedHash . "|" . extension . "|" . base64Data)
+                }
+                
+                catalogEntries.Push(imageLibraryDataReference . "|" . hashToCounter[fileHash] . "|" . resolution . "|" . scale . "|" . horizontalPercentRange . "|" . verticalPercentRange)
+            }
+        }
+
+        csvDataString := headerData . ConvertArrayIntoCsvString(dataEntries)
+        FileAppend(csvDataString, imageLibraryDataReferenceFilePath, "UTF-8")
+
+        csvCatalogString := headerCatalog . ConvertArrayIntoCsvString(catalogEntries)
+        FileAppend(csvCatalogString, imageLibraryCatalogFilePath, "UTF-8")
+    }
+}
