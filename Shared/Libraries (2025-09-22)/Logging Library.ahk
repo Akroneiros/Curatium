@@ -16,7 +16,7 @@ global overlayLines := Map()
 global overlayOrder := []
 global overlayStatus := Map(
     "Beginning", "... Beginning 🔰",
-    "Skipped",   "... Skipped ⏭️",
+    "Skipped",   "... Skipped ⏩",
     "Completed", "... Completed ✔️",
     "Failed",    "... Failed 😞"
 )
@@ -47,6 +47,7 @@ AbortExecution() {
 DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := unset) {
     windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
     currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
+    newLine := "`r`n"
 
     errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
 
@@ -64,23 +65,23 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
     fullErrorText := unset
     if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] !== "" {
         fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . "`n" . 
-            "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . "`n" . 
-            "Arguments: " .    logValuesForConclusion["Arguments Full"] . "`n" . 
-            "Line Number: " .  lineNumber . "`n" . 
-            "Date Runtime: " . currentDateTime . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
+            "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
+            "Arguments: " .    logValuesForConclusion["Arguments Full"] . newLine . 
+            "Line Number: " .  lineNumber . newLine . 
+            "Date Runtime: " . currentDateTime . newLine . 
             "Error Output: " . errorMessage
     } else {
         fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . "`n" . 
-            "Line Number: " .  lineNumber . "`n" . 
-            "Date Runtime: " . currentDateTime . "`n" . 
+            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
+            "Line Number: " .  lineNumber . newLine . 
+            "Date Runtime: " . currentDateTime . newLine . 
             "Error Output: " . errorMessage
     }
 
     LogEngine("Failed", fullErrorText)
 
-    if OverlayIsVisible() = true {
+    if OverlayIsVisible() {
         WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
     }
 
@@ -234,7 +235,7 @@ LogEngine(status, fullErrorText := "") {
             AppendCsvLineToLog(operationLogLine, "Operation Log")
             AppendCsvLineToLog(symbolLedgerLine, "Symbol Ledger")
         Case "Completed":
-            if OverlayIsVisible() = true {
+            if OverlayIsVisible() {
                 OverlayChangeTransparency(255)
             }
 
@@ -321,7 +322,7 @@ LogValidateMethodArguments(methodName, arguments) {
                         }
                     }
 
-                    if valueIsWhitelisted = false {
+                    if !valueIsWhitelisted {
                         validation := "Failed as whitelist did not match argument: " . argument
                     }
                 } else if Type(argument) != "String" {
@@ -375,7 +376,7 @@ LogValidateMethodArguments(methodName, arguments) {
                             pattern := "[\\/:*?" . Chr(34) . "<>|]"
 
                             if RegExMatch(argument, pattern) {
-                                forbiddenList := "\ / : * ? " Chr(34) " < > |"
+                                forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
                                 validation := "Filename contains forbidden characters (" . forbiddenList . "): " . argument
                             } else if argument = "." || argument = ".." {
                                 validation := "Filename reserved: " . argument
@@ -707,7 +708,7 @@ LogHelperValidation(methodName, arguments := unset) {
 
             if logValuesForConclusion["Arguments Full"] !== "" {
                 csvShared := csvShared . "|" . 
-                    logValuesForConclusion["Arguments Log"] ; Arguments
+                    logValuesForConclusion["Arguments Log"]  ; Arguments
             }
 
             AppendCsvLineToLog(csvShared, "Operation Log")
@@ -902,7 +903,7 @@ OverlayChangeVisibility() {
     static methodName := RegisterMethod("OverlayChangeVisibility()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Change Visibility", methodName)
 
-    if DllCall("user32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
+    if DllCall("User32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
         overlayGui.Hide()
     } else {
         overlayGui.Show("NoActivate")
@@ -967,7 +968,7 @@ OverlayGenerateNextKey(methodName := "") {
         return 0
     }
 
-    if methodRegistry[methodName]["Overlay Log"] = true {
+    if methodRegistry[methodName]["Overlay Log"] {
         return counter++
     } else {
         return 0
@@ -981,11 +982,11 @@ OverlayIsVisible() {
 
     windowHandle := overlayGui.Hwnd
 
-    if !DllCall("user32\IsWindow", "Ptr", windowHandle) {
+    if !DllCall("User32\IsWindow", "Ptr", windowHandle) {
         return false
     }
 
-    if DllCall("user32\IsWindowVisible", "Ptr", windowHandle) {
+    if DllCall("User32\IsWindowVisible", "Ptr", windowHandle) {
         return true
     } else {
         return false
@@ -1006,7 +1007,7 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
     measureVisualRectangle := () => (
         overlayGui.Show("Hide AutoSize"),
         rectBuffer := Buffer(16, 0),
-        DllCall("dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
+        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
         Map(
             "left",   NumGet(rectBuffer,  0, "Int"),
             "top",    NumGet(rectBuffer,  4, "Int"),
@@ -1488,9 +1489,9 @@ BatchAppendExecutionLog(executionType, array) {
 
     switch StrLower(executionType) {
         case "application", "a":
-            executionType  := "A"
+            executionType := "A"
         case "beginning", "b":
-            executionType  := "B"
+            executionType := "B"
     }
 
     consolidatedExecutionLog := ""
@@ -1520,13 +1521,13 @@ BatchAppendRuntimeTrace(appendType, array) {
 
     switch StrLower(appendType) {
         case "beginning", "b":
-            appendType  := "B"
+            appendType := "B"
         case "completed", "c":
-            appendType  := "C"
+            appendType := "C"
         case "failed", "f":
-            appendType  := "F"
+            appendType := "F"
         case "intermission", "i":
-            appendType  := "I"
+            appendType := "I"
     }
 
     consolidatedRuntimeTrace := ""
@@ -1620,12 +1621,12 @@ GetActiveKeyboardLayout() {
     static indirectNameBuffer := Buffer(MAX_PATH_CHARS * BYTES_PER_WIDE_CHAR, 0)
     static immDescBuffer      := Buffer(MAX_PATH_CHARS * BYTES_PER_WIDE_CHAR, 0)
 
-    resultLocaleName  := "Unknown Language"
-    resultLayoutText  := "Unknown Layout"
-    resultKlid        := "????????"
+    resultLocaleName := "Unknown Language"
+    resultLayoutText := "Unknown Layout"
+    resultKlid       := "????????"
 
     ; KLID (preferred): GetKeyboardLayoutNameW -> "00020409". Fallback: derive a plausible KLID from current HKL's LANGID
-    wasKlidResolved := DllCall("user32\GetKeyboardLayoutNameW", "Ptr", klidBuffer.Ptr, "Int")
+    wasKlidResolved := DllCall("User32\GetKeyboardLayoutNameW", "Ptr", klidBuffer.Ptr, "Int")
     if wasKlidResolved {
         resolvedKlid := StrGet(klidBuffer)
 
@@ -1635,7 +1636,7 @@ GetActiveKeyboardLayout() {
     }
 
     if resultKlid = "????????" {
-        currentHkl := DllCall("user32\GetKeyboardLayout", "UInt", 0, "Ptr")
+        currentHkl := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
 
         if currentHkl {
             derivedKlid := Format("{:08X}", currentHkl & 0xFFFFFFFF)
@@ -1651,7 +1652,7 @@ GetActiveKeyboardLayout() {
         langIdHex := SubStr(resultKlid, -3)
         if langIdHex != "" {
             langId := ("0x" . langIdHex) + 0
-            wasLocaleNameResolved := DllCall("kernel32\LCIDToLocaleName", "UInt", langId, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
+            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", langId, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
             if wasLocaleNameResolved {
                 resolvedLocaleName := StrGet(localeNameBuffer)
 
@@ -1681,7 +1682,7 @@ GetActiveKeyboardLayout() {
             }
 
             if layoutText != "" && SubStr(layoutText, 1, 1) = "@" {
-                wasIndirectLoaded := (DllCall("shlwapi\SHLoadIndirectString", "WStr", layoutText, "Ptr", indirectNameBuffer.Ptr, "Int", MAX_PATH_CHARS, "Ptr", 0, "Int") = 0)
+                wasIndirectLoaded := (DllCall("Shlwapi\SHLoadIndirectString", "WStr", layoutText, "Ptr", indirectNameBuffer.Ptr, "Int", MAX_PATH_CHARS, "Ptr", 0, "Int") = 0)
 
                 if wasIndirectLoaded {
                     maybeResolved := StrGet(indirectNameBuffer)
@@ -1693,10 +1694,10 @@ GetActiveKeyboardLayout() {
         }
 
         if layoutText = "" {
-            currentHkl := DllCall("user32\GetKeyboardLayout", "UInt", 0, "Ptr")
+            currentHkl := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
 
             if currentHkl {
-                descLen := DllCall("imm32\ImmGetDescriptionW", "Ptr", currentHkl, "Ptr", immDescBuffer.Ptr, "UInt", MAX_PATH_CHARS, "UInt")
+                descLen := DllCall("Imm32\ImmGetDescriptionW", "Ptr", currentHkl, "Ptr", immDescBuffer.Ptr, "UInt", MAX_PATH_CHARS, "UInt")
                 if descLen > 0 {
                     maybeImmName := StrGet(immDescBuffer)
 
@@ -1733,10 +1734,10 @@ GetActiveDisplayGpu() {
     displayDeviceIndex  := 0
     loop {
         ; Reinitialize the struct for this iteration and set cb (size).
-        DllCall("msvcrt\memset", "ptr", displayDeviceBuffer.Ptr, "int", 0, "uptr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "int")
+        DllCall("Msvcrt\memset", "Ptr", displayDeviceBuffer.Ptr, "Int", 0, "UPtr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "Int")
         NumPut("UInt", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, displayDeviceBuffer, 0)
 
-        enumerationSuccessful := DllCall("User32.dll\EnumDisplayDevicesW", "Ptr", 0, "UInt", displayDeviceIndex, "Ptr", displayDeviceBuffer.Ptr, "UInt", 0, "Int")
+        enumerationSuccessful := DllCall("User32\EnumDisplayDevicesW", "Ptr", 0, "UInt", displayDeviceIndex, "Ptr", displayDeviceBuffer.Ptr, "UInt", 0, "Int")
         if enumerationSuccessful = 0 {
             break
         }
@@ -1867,7 +1868,7 @@ GetActiveMonitor() {
         displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
         loop {
             NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
-            enumerationCallSucceeded := DllCall("user32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr",  displayDeviceBuffer, "UInt", 0, "Int")
+            enumerationCallSucceeded := DllCall("User32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr", displayDeviceBuffer, "UInt", 0, "Int")
             if enumerationCallSucceeded = 0 {
                 break
             }
@@ -2063,7 +2064,7 @@ GetActiveMonitorRefreshRateHz() {
         NumPut("UShort", DEVMODEW_BYTES, deviceModeBuffer, OFFSET_dmSize)
         NumPut("UShort", 0, deviceModeBuffer, 70)
 
-        enumCallSucceeded := DllCall("user32\EnumDisplaySettingsW", "WStr", primaryDisplayDeviceName, "Int", ENUM_CURRENT_SETTINGS, "Ptr", deviceModeBuffer, "Int")
+        enumCallSucceeded := DllCall("User32\EnumDisplaySettingsW", "WStr", primaryDisplayDeviceName, "Int", ENUM_CURRENT_SETTINGS, "Ptr", deviceModeBuffer, "Int")
 
         if enumCallSucceeded {
             deviceModeFields := NumGet(deviceModeBuffer, OFFSET_dmFields, "UInt")
@@ -2078,11 +2079,11 @@ GetActiveMonitorRefreshRateHz() {
 
     ; Fallback: GDI CreateDCW("DISPLAY") + GetDeviceCaps(VREFRESH) for the primary monitor.
     if refreshRateHertzResult = 0 {
-        primaryDisplayDeviceContextHandle := DllCall("gdi32\CreateDCW", "WStr", "DISPLAY", "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr")
+        primaryDisplayDeviceContextHandle := DllCall("Gdi32\CreateDCW", "WStr", "DISPLAY", "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr")
 
         if primaryDisplayDeviceContextHandle {
-            candidateFrequencyFromGdi := DllCall("gdi32\GetDeviceCaps", "Ptr", primaryDisplayDeviceContextHandle, "Int", GDI_VREFRESH_INDEX, "Int")
-            DllCall("gdi32\DeleteDC", "Ptr", primaryDisplayDeviceContextHandle)
+            candidateFrequencyFromGdi := DllCall("Gdi32\GetDeviceCaps", "Ptr", primaryDisplayDeviceContextHandle, "Int", GDI_VREFRESH_INDEX, "Int")
+            DllCall("Gdi32\DeleteDC", "Ptr", primaryDisplayDeviceContextHandle)
 
             if candidateFrequencyFromGdi >= 20 && candidateFrequencyFromGdi <= 1000 {
                 refreshRateHertzResult := candidateFrequencyFromGdi
@@ -2130,12 +2131,12 @@ GetInputLanguage() {
 
     inputLanguageName := "Unknown Language"
 
-    keyboardLayoutHandle := DllCall("user32\GetKeyboardLayout", "UInt", 0, "Ptr")
+    keyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
     if keyboardLayoutHandle {
         languageIdentifier := keyboardLayoutHandle & 0xFFFF
         localeIdentifier   := languageIdentifier
 
-        wasLcidToLocaleNameSuccessful := DllCall("kernel32\LCIDToLocaleName", "UInt", localeIdentifier, "Ptr",  localeNameUtf16Buffer.Ptr, "Int",  LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
+        wasLcidToLocaleNameSuccessful := DllCall("Kernel32\LCIDToLocaleName", "UInt", localeIdentifier, "Ptr", localeNameUtf16Buffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
 
         if wasLcidToLocaleNameSuccessful {
             resolvedLocaleName := StrGet(localeNameUtf16Buffer)
@@ -2328,69 +2329,71 @@ GetOperatingSystem() {
     static methodName := RegisterMethod("GetOperatingSystem()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    currentBuildNumber := ""
-    try {
-        currentBuildNumber := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")
-    }
-
-    currentBuildNumberNumeric := currentBuildNumber + 0
+    static currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
 
     family := "Unknown Windows"
+    edition := "Unknown Edition"
+    architectureTag := A_Is64bitOS ? "x64" : "x86"
+    currentBuildNumber := ""
+    version := "Unknown Version"
+    updateBuildRevisionNumber := ""
+    releaseDisplay := ""
+
+    try {
+        currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
+        version := "Build " . currentBuildNumber
+    }
+        
     switch true {
-        case currentBuildNumberNumeric >= 22000:
+        case currentBuildNumber >= 22000:
             family := "Windows 11"
-        case currentBuildNumberNumeric >= 10240:
+        case currentBuildNumber >= 10240:
             family := "Windows 10"
-        case currentBuildNumberNumeric >= 9600:
+        case currentBuildNumber >= 9600:
             family := "Windows 8.1"
-        case currentBuildNumberNumeric >= 9200:
+        case currentBuildNumber >= 9200:
             family := "Windows 8"
-        case currentBuildNumberNumeric >= 7600:
+        case currentBuildNumber >= 7600:
             family := "Windows 7"
     }
-
-    edition := "Unknown Edition"
+   
     try {
-        edition := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "EditionID")
+        edition := RegRead(currentVersionRegistryKey, "EditionID")
     }
 
-    architectureTag := A_Is64bitOS ? "x64" : "x86"
-
-    version := "Build "
-    switch true {
-        case currentBuildNumberNumeric >= 10240:
-            version := version . SubStr(A_OSVersion, 6) ; Remove "10.0." for Windows 10 and upward.
-        case currentBuildNumberNumeric >= 7600:
-            version := version . A_OSVersion
-        default:
-            version := "Unknown Version"
-    }
-
-    updateBuildRevisionNumber := ""
     try {
-        updateBuildRevisionNumber := RegRead("HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR")
-    }
+        updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
 
-    if updateBuildRevisionNumber !== "" {
-        updateBuildRevisionNumber := "." . updateBuildRevisionNumber
-    }
-
-    releaseDisplay := ""
-    try {
-        releaseDisplay := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "DisplayVersion")
-    }
-
-    if releaseDisplay = "" {
-        try {
-            releaseDisplay := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseId")
+        if updateBuildRevisionNumber !== "" && currentBuildNumber >= 9200 {
+            version := version . "." . updateBuildRevisionNumber
         }
     }
 
-    if releaseDisplay !== "" {
-        releaseDisplay := " (" . releaseDisplay . ")"
+    if family = "Windows 7" {
+        servicePackVersion := ""
+
+        try {
+            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
+        }
+
+        releaseDisplay := (servicePackVersion != "" ? " (" . servicePackVersion . ")" : "")
+    } else {
+        try {
+            releaseDisplay := RegRead(currentVersionRegistryKey, "DisplayVersion")
+        }
+
+        if releaseDisplay = "" {
+            try {
+                releaseDisplay := RegRead(currentVersionRegistryKey, "ReleaseId")
+            }
+        }
+
+        if releaseDisplay != "" {
+            releaseDisplay := " (" . releaseDisplay . ")"
+        }
     }
 
-    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . updateBuildRevisionNumber . releaseDisplay
+    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . releaseDisplay
 
     return operatingSystem
 }
@@ -2409,13 +2412,13 @@ GetPhysicalMemoryStatus() {
 
     resultText := ""
 
-    DllCall("msvcrt\memset", "Ptr", performanceInformationBuffer.Ptr, "Int", 0, "UPtr", structureSizeInBytes, "Int")
+    DllCall("Msvcrt\memset", "Ptr", performanceInformationBuffer.Ptr, "Int", 0, "UPtr", structureSizeInBytes, "Int")
     NumPut("UInt", structureSizeInBytes, performanceInformationBuffer, 0)
 
-    getPerformanceInfoSucceeded := DllCall("Psapi.dll\GetPerformanceInfo", "Ptr", performanceInformationBuffer.Ptr, "UInt", structureSizeInBytes, "Int")
+    getPerformanceInfoSucceeded := DllCall("Psapi\GetPerformanceInfo", "Ptr", performanceInformationBuffer.Ptr, "UInt", structureSizeInBytes, "Int")
 
-    if getPerformanceInfoSucceeded = false {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve performance values for memory. [Psapi.dll\GetPerformanceInfo" . ", System Error Code: " . A_LastError . "]")
+    if !getPerformanceInfoSucceeded {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve performance values for memory. [Psapi\GetPerformanceInfo" . ", System Error Code: " . A_LastError . "]")
     }
 
     offsetInBytes := 4
@@ -2472,7 +2475,7 @@ GetQueryPerformanceCounterFrequency() {
 
     static queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
     queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
-    if queryPerformanceCounterFrequencyRetrievedSuccessfully = false {
+    if !queryPerformanceCounterFrequencyRetrievedSuccessfully {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
     }
 
@@ -2499,7 +2502,7 @@ GetRegionFormat() {
     if regionFormatFromRegistry != "" {
         regionFormat := regionFormatFromRegistry
     } else {
-        wasLocaleResolved := DllCall("kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
+        wasLocaleResolved := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
         if wasLocaleResolved {
             resolvedLocaleName := StrGet(localeNameBuffer)
 
@@ -2522,15 +2525,14 @@ GetRemainingFreeDiskSpace() {
     totalNumberOfBytes := 0
     totalNumberOfFreeBytes := 0
 
-    getDiskFreeSpaceSucceeded := DllCall("Kernel32.dll\GetDiskFreeSpaceExW", "Str", systemDrive, "Int64*", &freeBytesAvailableToCaller, "Int64*", &totalNumberOfBytes, "Int64*", &totalNumberOfFreeBytes, "Int")
+    getDiskFreeSpaceSucceeded := DllCall("Kernel32\GetDiskFreeSpaceExW", "Str", systemDrive, "Int64*", &freeBytesAvailableToCaller, "Int64*", &totalNumberOfBytes, "Int64*", &totalNumberOfFreeBytes, "Int")
 
     bytesPerGibiByte := 1 << 30
     bytesPerTebiByte := 1 << 40
     resultText := ""
 
-    if getDiskFreeSpaceSucceeded = false {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve information about the amount of space that is available on system disk volume. [Kernel32.dll\GetDiskFreeSpaceExW" . ", System Error Code: " . A_LastError . "]"
-        )
+    if !getDiskFreeSpaceSucceeded {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve information about the amount of space that is available on system disk volume. [Kernel32\GetDiskFreeSpaceExW" . ", System Error Code: " . A_LastError . "]")
     }
 
     freeGibiBytes  := freeBytesAvailableToCaller / bytesPerGibiByte
@@ -2542,8 +2544,8 @@ GetRemainingFreeDiskSpace() {
     usedPercentHundredths := (totalNumberOfBytes > 0) ? (((totalNumberOfBytes - freeBytesAvailableToCaller) * 10000 + (totalNumberOfBytes // 2)) // totalNumberOfBytes) : 0
     usedPercentPrecise := usedPercentHundredths / 100.0
 
-    windowsFormattedFreeSizeBuffer := Buffer(64 * 2, 0)
-    DllCall("Shlwapi.dll\StrFormatByteSizeW", "Int64", freeBytesAvailableToCaller, "Ptr", windowsFormattedFreeSizeBuffer.Ptr, "Int", 64, "Ptr")
+    static windowsFormattedFreeSizeBuffer := Buffer(64 * 2, 0)
+    DllCall("Shlwapi\StrFormatByteSizeW", "Int64", freeBytesAvailableToCaller, "Ptr", windowsFormattedFreeSizeBuffer.Ptr, "Int", 64, "Ptr")
     windowsFormattedFreeSize := StrGet(windowsFormattedFreeSizeBuffer, "UTF-16")
 
     separator  := " - "
@@ -2637,12 +2639,12 @@ GetSystemDisk() {
         }
 
         if physicalDiskByteCount != "" && physicalDiskByteCount >= 0 {
-            DllCall("shlwapi\StrFormatByteSizeW", "Int64", physicalDiskByteCount, "Ptr", diskCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
+            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", physicalDiskByteCount, "Ptr", diskCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
             diskCapacityText := StrGet(diskCapacityUtf16Buffer)
         }
 
         if systemPartitionByteCount != "" && systemPartitionByteCount >= 0 {
-            DllCall("shlwapi\StrFormatByteSizeW", "Int64", systemPartitionByteCount, "Ptr", systemPartitionCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
+            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", systemPartitionByteCount, "Ptr", systemPartitionCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
             systemPartitionCapacityText := StrGet(systemPartitionCapacityUtf16Buffer)
         }
     }
@@ -2665,7 +2667,7 @@ GetTimeZoneKeyName() {
     timeZoneKeyName := "Unknown"
 
     dynamicTimeZoneInformationBuffer := Buffer(432, 0)
-    callResult := DllCall("kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
+    callResult := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
     if callResult != 0xFFFFFFFF {
         extractedKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
 
@@ -2925,12 +2927,12 @@ ParseMethodDeclaration(declaration) {
                         if conceptValue = "" {
                            optionalValue := conceptName
                         } else {
-                            optionalValue  := conceptValue
+                            optionalValue := conceptValue
                         }
                     case "pattern":
-                        patternValue   := conceptValue
+                        patternValue := conceptValue
                     case "type":
-                        typeValue      := conceptValue
+                        typeValue := conceptValue
                     case "whitelist":
                         for index, piece in StrSplit(conceptValue, '", "')
                         {
@@ -3069,7 +3071,7 @@ RegisterSymbol(value, type, addNewLine := true) {
             symbolLedger[value . "|" . type]["Symbol"]
     }
 
-    if addNewLine = true {
+    if addNewLine {
         symbolLine := symbolLine . newLine
     }
 

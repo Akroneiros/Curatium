@@ -35,7 +35,7 @@ RegisterApplications() {
 
     installedApplications := []
     for outerKey, innerMap in applicationRegistry {
-        if innermap["Installed"] = true {
+        if innermap["Installed"] {
             configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"] . "|" . innerMap["Counter"]
 
             switch outerKey
@@ -356,7 +356,7 @@ DetermineWindowsBinaryType(applicationName) {
 
     executableSubsystemRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", applicationRegistry[applicationName]["Executable Path"], "UInt*", &scsCode, "Int")
 
-    if executableSubsystemRetrievedSuccessfully = true {
+    if executableSubsystemRetrievedSuccessfully {
         switch scsCode {
             case SCS_32BIT_BINARY:
                 classificationResult := "32-bit"
@@ -414,7 +414,7 @@ ValidateApplicationInstalled(applicationName) {
     }
 
     try {
-        if applicationRegistry[applicationName]["Installed"] = false {
+        if !applicationRegistry[applicationName]["Installed"] {
             throw Error("Application not installed: " . applicationName)
         }
     } catch as applicationNotInstalledError {
@@ -517,7 +517,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         sheet := 0
     }
 
-    if (aboutRange !== "" || aboutCondition !== "") && aboutWorksheetFound = false {
+    if (aboutRange !== "" || aboutCondition !== "") && !aboutWorksheetFound {
         try {
             throw Error("Worksheet About not found with arguments passed in.")
         } catch as worksheetAboutMissingError {
@@ -643,7 +643,7 @@ ExcelScriptExecution(code, insertModule := false) {
     WinActivate("ahk_class wndclass_desked_gsk")
     WinWaitActive("ahk_class wndclass_desked_gsk", , 2)
 
-    if insertModule = true {
+    if insertModule {
         SendEvent("!i") ; ALT+I (Insert)
         Sleep(280)
         SendEvent("m") ; M (Module)
@@ -737,7 +737,7 @@ WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveInte
     }
 
     try {
-        if sawProcessExit = false {
+        if !sawProcessExit {
             throw Error("Excel did not close within " . maxWaitMinutes . " minutes.")
         }
     } catch as excelCloseError {
@@ -812,13 +812,13 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     fileExistsAlready := !!FileExist(savePath)
 
-    if fileExistsAlready = false {
+    if !fileExistsAlready {
         while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
             Sleep(pollIntervalMilliseconds)
         }
     }
 
-    if fileExistsAlready = true {
+    if fileExistsAlready {
         previousModifiedTime := FileGetTime(savePath, "M")
 
         Sleep(480)
@@ -889,7 +889,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     while true {
         dialogExists := WinExist("ahk_exe " . toadExecutableFilename . " ahk_class TReconnectForm")
 
-        if dialogHasAppeared = false {
+        if !dialogHasAppeared {
             ; Phase 1: waiting for the dialog to appear
             if dialogExists != false {
                 dialogHasAppeared := true
@@ -900,7 +900,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             }
         } else {
             ; Phase 2: dialog has appeared; wait until it closes (disappears)
-            if dialogExists = false {
+            if !dialogExists {
                 ; Closed = reconnect finished
                 break
             }

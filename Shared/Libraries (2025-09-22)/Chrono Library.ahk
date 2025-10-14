@@ -203,7 +203,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     
     counter := 0
 
-    if randomizePixelMovement = false {
+    if !randomizePixelMovement {
         while DateDiff(runtimeDate, A_Now, "Seconds") > 60 {
             counter += 1
             if counter >= 48 {
@@ -555,9 +555,9 @@ ConvertUnixTimeToUtcTimestamp(unixSeconds) {
     NumPut("UInt64", fileTimeTicks, fileTimeBuffer)
 
     static systemTimeBuffer := Buffer(16, 0)
-    convertedSuccessfully := DllCall("kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-    if convertedSuccessfully = false {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+    convertedSuccessfully := DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    if !convertedSuccessfully {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [Kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
     }
 
     year   := NumGet(systemTimeBuffer,  0, "UShort")
@@ -652,9 +652,9 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
     StrPut(timeZoneKeyName, dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
 
     static localSystemTime := Buffer(16, 0)
-    convertedUtcToLocalSuccessfully := DllCall("kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTime.Ptr, "Ptr", localSystemTime.Ptr, "Int")
-    if convertedUtcToLocalSuccessfully = false {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [kernel32\SystemTimeToTzSpecificLocalTimeEx" . ", System Error Code: " . A_LastError . "]")
+    convertedUtcToLocalSuccessfully := DllCall("Kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTime.Ptr, "Ptr", localSystemTime.Ptr, "Int")
+    if !convertedUtcToLocalSuccessfully {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [Kernel32\SystemTimeToTzSpecificLocalTimeEx" . ", System Error Code: " . A_LastError . "]")
     }
 
     year        := NumGet(localSystemTime, 0,  "UShort")
@@ -681,7 +681,7 @@ GetQueryPerformanceCounter() {
 
     static queryPerformanceCounterBuffer := Buffer(8, 0)
     queryPerformanceCounterRetrievedSuccessfully := DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
-    if queryPerformanceCounterRetrievedSuccessfully = false {
+    if !queryPerformanceCounterRetrievedSuccessfully {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current value of the performance counter which is a high resolution time stamp that can be used for time-interval measurements. [Kernel32\QueryPerformanceCounter" . ", System Error Code: " . A_LastError . "]")
     }
 
@@ -696,7 +696,7 @@ GetUtcTimestamp() {
 
     static systemTime := Buffer(16, 0)
 
-    DllCall("kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
 
     year        := NumGet(systemTime,  0, "UShort")
     month       := NumGet(systemTime,  2, "UShort")
@@ -717,7 +717,7 @@ GetUtcTimestampInteger() {
 
     static systemTime := Buffer(16, 0)
 
-    DllCall("kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
 
     year        := NumGet(systemTime,  0, "UShort")
     month       := NumGet(systemTime,  2, "UShort")
@@ -736,38 +736,45 @@ GetUtcTimestampPrecise() {
     static methodName := RegisterMethod("GetUtcTimestampPrecise()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    static fileTimeBuffer := Buffer(8, 0)
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
 
-    static dllIsSupported := unset
+    static usePreciseSystemTimeFunction := unset
 
-    if !IsSet(dllIsSupported) {
-        try {
-            DllCall("kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-            dllIsSupported := true
-        } catch {
-            LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the current system date and time with the highest possible level of precision. [kernel32\GetSystemTimePreciseAsFileTime]")
+    if !IsSet(usePreciseSystemTimeFunction) {
+        kernel32ModuleHandle := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
+        preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
+
+        if preciseFunctionAddress != 0 {
+            usePreciseSystemTimeFunction := true
+        } else {
+            usePreciseSystemTimeFunction := false
         }
     }
 
-    fileTimeTicks := NumGet(fileTimeBuffer, 0, "Int64")
+    if usePreciseSystemTimeFunction {
+        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+        fileTimeTicks := NumGet(fileTimeBuffer, 0, "Int64")
+        
+        convertedFileTimeToSystemTimeSuccessfully := DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+        if !convertedFileTimeToSystemTimeSuccessfully {
+            LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [Kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+        }
 
-    static systemTimeBuffer := Buffer(16, 0)
-    convertedFileTimeToSystemTimeSuccessfully := DllCall("kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-    if convertedFileTimeToSystemTimeSuccessfully = false {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+        year       := NumGet(systemTimeBuffer,  0, "UShort")
+        month      := NumGet(systemTimeBuffer,  2, "UShort")
+        dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
+        hour       := NumGet(systemTimeBuffer,  8, "UShort")
+        minute     := NumGet(systemTimeBuffer, 10, "UShort")
+        second     := NumGet(systemTimeBuffer, 12, "UShort")
+
+        ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+        microsecond       := ticksWithinSecond // 10
+
+        utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
+    } else {
+        utcTimestampPrecise := GetUtcTimestamp()
     }
-
-    year       := NumGet(systemTimeBuffer,  0, "UShort")
-    month      := NumGet(systemTimeBuffer,  2, "UShort")
-    dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
-    hour       := NumGet(systemTimeBuffer,  8, "UShort")
-    minute     := NumGet(systemTimeBuffer, 10, "UShort")
-    second     := NumGet(systemTimeBuffer, 12, "UShort")
-
-    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
-    microsecond       := ticksWithinSecond // 10
-
-    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
 
     return utcTimestampPrecise
 }
@@ -876,7 +883,7 @@ ValidateIsoDate(year, month, day, hour := unset, minute := unset, second := unse
         } else if second < 0 || second > 59 {
             validationResults := "Invalid ISO 8601 Date Time: " . second . " (second must be 00–59)."
         } else {
-            if checkLocalTime = true {
+            if checkLocalTime {
                 static localSystemTimeBuffer := Buffer(16, 0)
                 NumPut("UShort", year,   localSystemTimeBuffer, 0)
                 NumPut("UShort", month,  localSystemTimeBuffer, 2)

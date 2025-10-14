@@ -273,7 +273,7 @@ MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
         LogInformationConclusion("Failed", logValuesForConclusion, destinationDirectoryDoesNotExistError)
     }
 
-    if overwrite = false {
+    if !overwrite {
         if !FileExist(targetPath) || InStr(FileExist(targetPath), "D") {
             try {
                 FileMove(filePath, targetPath, overwrite)
@@ -395,7 +395,7 @@ WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
         }
     }
 
-    if needsWrite = true {
+    if needsWrite {
         ; Decode Base64 via MSXML (single failure point)
         try {
             xmlDocument   := ComObject("MSXML2.DOMDocument.6.0")
@@ -464,7 +464,7 @@ ExtractFilename(filePath, removeFileExtension := false) {
     SplitPath(filePath, &filenameWithExtension, , , &filenameWithoutExtension)
 
     filename := filenameWithExtension
-    if removeFileExtension = true {
+    if removeFileExtension {
         filename := filenameWithoutExtension
     }
 

@@ -194,7 +194,7 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
     imageDimensionsCache := Map()
 
     overlayVisibility := OverLayIsVisible()
-    if overlayVisibility = True {
+    if overlayVisibility {
         OverlayChangeVisibility()
     }
 
@@ -253,7 +253,7 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
                 centerVerticalCoordinate   := foundTopPixel  + Floor(imageHeightPixels / 2)
                 coordinatePair             := centerHorizontalCoordinate "x" centerVerticalCoordinate
 
-                if overlayVisibility = True {
+                if overlayVisibility {
                     OverlayChangeVisibility()
                 }
 
@@ -265,7 +265,7 @@ GetImageCoordinatesFromSegment(imageAlias, horizontalPercentRange, verticalPerce
         Sleep(800)
     }
 
-    if overlayVisibility = True {
+    if overlayVisibility {
         OverlayChangeVisibility()
     }
 
@@ -328,7 +328,7 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
         imageLibraryDataReferenceFilePath := directoryPath . "Image Library Data (" . lastReferenceDirectoryName . ")" . ".csv"
 
         imageLibraryDataReference := unset
-        if referenceIsApplication = true {
+        if referenceIsApplication {
             imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Name", lastReferenceDirectoryName)["Counter"] + 0
         } else {
             imageLibraryDataReference := lastReferenceDirectoryName

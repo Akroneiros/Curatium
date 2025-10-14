@@ -156,7 +156,7 @@ PasteCode(code, commentPrefix) {
         break
     }
 
-    if success = false {
+    if !success {
         try {
             throw Error("Paste of code failed.")
         } catch as pasteOfCodeFailedError {
@@ -212,7 +212,7 @@ PastePath(savePath) {
         break
     }
 
-    if success = false {
+    if !success {
         try {
             throw Error("Paste of path failed.")
         } catch as pasteOfPathFailedError {
@@ -268,7 +268,7 @@ PasteSearch(searchValue) {
         break
     }
 
-    if success = false {
+    if !success {
         try {
             throw Error("Paste of search failed.")
         } catch as pasteOfPathFailedError {
@@ -292,7 +292,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     y := coordinates[2] + 0
 
     overlayVisibility := OverLayIsVisible()
-    if overlayVisibility = True {
+    if overlayVisibility {
         OverlayChangeVisibility()
     }
 
@@ -324,7 +324,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
 
     CoordMode("Mouse", modeBeforeAction)
 
-    if overlayVisibility = True {
+    if overlayVisibility {
         OverlayChangeVisibility()
     }
 
@@ -510,18 +510,18 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
 
     requiredCharacterCount := 0
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", 0, "UInt*", &requiredCharacterCount, "Int")
-    if sizeProbeRetrievedSuccessfully = false {
+    if !sizeProbeRetrievedSuccessfully {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacterCount * 2)
     encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacterCount, "Int")
-    if encodingSuccessful = false {
+    if !encodingSuccessful {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     base64 := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
-    if removePadding = true {
+    if removePadding {
         base64 := RegExReplace(base64, "=+$")
     }   
         
@@ -608,14 +608,14 @@ GetBase64FromFile(filePath) {
     static base64Flags := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
 
     requiredCharacters := 0
-    sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
-    if sizeProbeRetrievedSuccessfully = false {
+    sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
+    if !sizeProbeRetrievedSuccessfully {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
-    encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr",  fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
-    if encodingSuccessful = false {
+    encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
+    if !encodingSuccessful {
         LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
