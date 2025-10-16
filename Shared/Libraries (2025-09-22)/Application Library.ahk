@@ -151,15 +151,15 @@ ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
         registryKeyPaths := []
 
         for registryKeyPath in originalRegistryKeyPaths {
-            registryKeyPaths.Push("HKCU\Software\" . registryKeyPath)
-            registryKeyPaths.Push("HKLM\Software\" . registryKeyPath)
-            registryKeyPaths.Push("HKLM\Software\WOW6432Node\" . registryKeyPath)
+            registryKeyPaths.Push("HKEY_CURRENT_USER\Software\" . registryKeyPath)
+            registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\" . registryKeyPath)
+            registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\WOW6432Node\" . registryKeyPath)
         }
     }
 
-    registryKeyPaths.Push("HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths")
-    registryKeyPaths.Push("HKLM\Software\Microsoft\Windows\CurrentVersion\App Paths")
-    registryKeyPaths.Push("HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths")
+    registryKeyPaths.Push("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths")
+    registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths")
+    registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths")
 
     for registryKeyPath in registryKeyPaths {
         installFolder := ""
@@ -190,9 +190,9 @@ ExecutablePathViaUninstall(executablePath, executableName) {
     }
 
     for uninstallBaseKeyPath in [
-        "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ] {
         Loop Reg, uninstallBaseKeyPath, "K" {
             uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName

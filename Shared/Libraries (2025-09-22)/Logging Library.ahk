@@ -149,18 +149,20 @@ LogEngine(status, fullErrorText := "") {
         system["Operating System"]      := GetOperatingSystem()
         system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
         system["Computer Name"]         := A_ComputerName
+        system["Computer Identifier"]   := Hash.String("SHA256", GetComputerIdentifier())
         system["Username"]              := A_UserName
         system["Time Zone Key Name"]    := GetTimeZoneKeyName()
         system["Region Format"]         := GetRegionFormat()
         system["Input Language"]        := GetInputLanguage()
         system["Keyboard Layout"]       := GetActiveKeyboardLayout()
-        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
         system["Motherboard"]           := GetMotherboard()
         system["CPU"]                   := GetCpu()
         system["Memory Size and Type"]  := GetMemorySizeAndType()
         system["System Disk"]           := GetSystemDisk()
         system["Display GPU"]           := GetActiveDisplayGpu()
         system["Monitor"]               := GetActiveMonitor()
+        system["BIOS"]                  := GetBios()
+        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
         system["Display Resolution"]    := A_ScreenWidth . "x" . A_ScreenHeight
         system["Refresh Rate"]          := GetActiveMonitorRefreshRateHz()
         system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
@@ -213,18 +215,20 @@ LogEngine(status, fullErrorText := "") {
                 system["Operating System"],
                 system["OS Installation Date"],
                 system["Computer Name"],
+                system["Computer Identifier"],
                 system["Username"],
                 system["Time Zone Key Name"],
                 system["Region Format"],
                 system["Input Language"],
                 system["Keyboard Layout"],
-                system["QPC Frequency"],
                 system["Motherboard"],
                 system["CPU"],
                 system["Memory Size and Type"],
                 system["System Disk"],
                 system["Display GPU"],
                 system["Monitor"],
+                system["BIOS"],
+                system["QPC Frequency"],
                 system["Display Resolution"],
                 system["Refresh Rate"],
                 system["DPI Scale"],
@@ -1667,9 +1671,9 @@ GetActiveKeyboardLayout() {
         }
     }
 
-    ; Layout text (e.g., "US-International"). Primary: HKLM\...\Keyboard Layouts\<KLID>\Layout Text. Secondary: Layout Display Name (resolve "@..."), then ImmGetDescriptionW.
+    ; Layout text (e.g., "US-International"). Primary: HKEY_LOCAL_MACHINE\...\Keyboard Layouts\<KLID>\Layout Text. Secondary: Layout Display Name (resolve "@..."), then ImmGetDescriptionW.
     if resultKlid != "????????" {
-        baseRegKey := "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layouts\" . resultKlid
+        baseRegKey := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Keyboard Layouts\" . resultKlid
 
         layoutText := ""
         try {
@@ -1769,37 +1773,41 @@ GetActiveDisplayGpu() {
     firstModelNameFromWmi := ""
 
     if primaryAdapterFriendlyName = "" && firstActiveAdapterFriendlyName = "" {
-        windowsManagementInstrumentation := ComObjGet("winmgmts:\\.\root\CIMV2")
+        try {
+            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-        videoControllersQuery := "
-        (
-            SELECT
-                Name,
-                ConfigManagerErrorCode,
-                CurrentHorizontalResolution,
-                CurrentVerticalResolution
-            FROM
-                Win32_VideoController
-            WHERE
-                ConfigManagerErrorCode = 0
-        )"
+            win32VideoControllerQuery := "
+            (
+                SELECT
+                    Name,
+                    ConfigManagerErrorCode,
+                    CurrentHorizontalResolution,
+                    CurrentVerticalResolution
+                FROM
+                    Win32_VideoController
+                WHERE
+                    ConfigManagerErrorCode = 0
+            )"
 
-        videoControllers := windowsManagementInstrumentation.ExecQuery(videoControllersQuery)
-        for videoController in videoControllers {
-            controllerName := videoController.Name
+            queryResults := windowsManagementInstrumentationService.ExecQuery(win32VideoControllerQuery)
+            for record in queryResults {
+                controllerName := record.Name
 
-            if firstModelNameFromWmi = "" {
-                firstModelNameFromWmi := controllerName
-            }
+                if firstModelNameFromWmi = "" {
+                    firstModelNameFromWmi := controllerName
+                }
 
-            ; Ignore virtual or placeholder adapters here as well.
-            if InStr(controllerName, "Microsoft Basic Display") || InStr(controllerName, "Remote Display") || InStr(controllerName, "RDP") {
-                continue
-            }
+                ; Ignore virtual or placeholder adapters here as well.
+                if InStr(controllerName, "Microsoft Basic Display") || InStr(controllerName, "Remote Display") || InStr(controllerName, "RDP") {
+                    continue
+                }
 
-            if videoController.CurrentHorizontalResolution > 0 && videoController.CurrentVerticalResolution > 0 {
-                activeModelNameFromWmi := controllerName
-                break
+                if record.CurrentHorizontalResolution > 0 && record.CurrentVerticalResolution > 0 {
+                    activeModelNameFromWmi := controllerName
+                    break
+                }
             }
         }
     }
@@ -1896,9 +1904,11 @@ GetActiveMonitor() {
         bestIsPrimaryMatch := false
 
         try {
-            wmiService := ComObjGet("winmgmts:\\.\root\wmi")
+            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
+            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-            monitorQuery := "
+            wmiMonitorIDQuery := "
             (
                 SELECT
                     InstanceName,
@@ -1911,10 +1921,10 @@ GetActiveMonitor() {
                     Active=True
             )"
 
-            wmiQueryResults := wmiService.ExecQuery(monitorQuery)
-            for wmiItem in wmiQueryResults {
-                instanceName := wmiItem.InstanceName
-                manufacturerArray := wmiItem.ManufacturerName
+            queryResults := windowsManagementInstrumentationService.ExecQuery(wmiMonitorIDQuery)
+            for record in queryResults {
+                instanceName := record.InstanceName
+                manufacturerArray := record.ManufacturerName
                 candidateBrandCode := ""
                 for codePoint in manufacturerArray {
                     if codePoint = 0 {
@@ -1925,7 +1935,7 @@ GetActiveMonitor() {
                 candidateBrandCode := StrUpper(Trim(candidateBrandCode))
                 candidateBrand := vendorCodeToBrand.Has(candidateBrandCode) ? vendorCodeToBrand[candidateBrandCode] : candidateBrandCode
 
-                userFriendlyArray := wmiItem.UserFriendlyName
+                userFriendlyArray := record.UserFriendlyName
                 candidateModel := ""
                 for codePoint in userFriendlyArray {
                     if codePoint = 0 {
@@ -1963,7 +1973,7 @@ GetActiveMonitor() {
 
     if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
         for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
+            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
                 Loop Reg, registryBasePath, "K" {
                     instanceKeyName := A_LoopRegName
@@ -1983,7 +1993,7 @@ GetActiveMonitor() {
 
     if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
         for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
+            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
                 Loop Reg, registryBasePath, "K" {
                     instanceKeyName := A_LoopRegName
@@ -2094,13 +2104,200 @@ GetActiveMonitorRefreshRateHz() {
     return refreshRateHertzResult
 }
 
+GetBios() {
+    static methodName := RegisterMethod("GetBios()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    biosVersion := ""
+    biosDateIso := ""
+    uefiIsEnabled := false
+
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        win32BiosQuery := "
+        (
+            SELECT
+                SMBIOSBIOSVersion,
+                Version,
+                BIOSVersion,
+                ReleaseDate,
+                BiosCharacteristics
+            FROM
+                Win32_BIOS
+        )"
+
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BiosQuery)
+        for record in queryResults {
+            biosVersionCandidate := Trim(record.SMBIOSBIOSVersion . "")
+            if biosVersionCandidate = "" {
+                biosVersionCandidate := Trim(record.Version . "")
+            }
+            if biosVersionCandidate = "" {
+                biosVersionField := record.BIOSVersion
+                if IsObject(biosVersionField) {
+                    for index, versionEntry in biosVersionField {
+                        if Trim(versionEntry . "") != "" {
+                            biosVersionCandidate := Trim(versionEntry . "")
+                            break
+                        }
+                    }
+                } else {
+                    candidateString := Trim(biosVersionField . "")
+                    if candidateString != "" {
+                        biosVersionCandidate := candidateString
+                    }
+                }
+            }
+            biosVersion := biosVersionCandidate
+
+            ; UEFI-capable via WMI: 75 = "UEFI specification supported".
+            biosCharacteristics := record.BiosCharacteristics
+            if IsObject(biosCharacteristics) {
+                for index, characteristicCode in biosCharacteristics {
+                    if characteristicCode + 0 = 75 {
+                        uefiIsEnabled := true
+                        break
+                    }
+                }
+            }
+
+            ; BIOS release date (CIM_DATETIME to YYYY-MM-DD).
+            rawBiosReleaseDate := Trim(record.ReleaseDate . "")
+            if StrLen(rawBiosReleaseDate) >= 8 {
+                biosReleaseDateYear  := SubStr(rawBiosReleaseDate, 1, 4)
+                biosReleaseDateMonth := SubStr(rawBiosReleaseDate, 5, 2)
+                biosReleaseDateDay   := SubStr(rawBiosReleaseDate, 7, 2)
+                biosDateIso := biosReleaseDateYear . "-" . biosReleaseDateMonth . "-" . biosReleaseDateDay
+            }
+
+            break
+        }
+    }
+
+    ; Fallback UEFI-capable via RAW SMBIOS. Type 0 (BIOS Information) → Extension Byte 2 at offset 0x13, bit 3 (0x08).
+    if !uefiIsEnabled {
+        try {
+            rawSystemManagementBiosSignature := 0x52534D42
+
+            requiredBufferSize := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", 0, "UInt", 0, "UInt")
+
+            if requiredBufferSize > 0 {
+                systemManagementBiosBuffer := Buffer(requiredBufferSize, 0)
+
+                bytesReturned := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", systemManagementBiosBuffer.Ptr, "UInt", requiredBufferSize, "UInt")
+
+                if bytesReturned >= 8 {
+                    smbiosDataLength  := NumGet(systemManagementBiosBuffer, 4, "UInt")
+                    smbiosDataPointer := systemManagementBiosBuffer.Ptr + 8
+                    smbiosEndPointer  := smbiosDataPointer + smbiosDataLength
+
+                    currentStructurePointer := smbiosDataPointer
+                    while currentStructurePointer + 4 <= smbiosEndPointer {
+                        structureType   := NumGet(currentStructurePointer, 0, "UChar")
+                        structureLength := NumGet(currentStructurePointer, 1, "UChar")
+                        if structureLength < 4 || currentStructurePointer + structureLength > smbiosEndPointer {
+                            break
+                        }
+
+                        if structureType = 0 { ; BIOS Information.
+                            ; Extension Byte 2 is at offset 0x13 (19) when present. Bit 3 (0x08) == "UEFI specification supported".
+                            if structureLength >= 0x14 {
+                                biosCharacteristicsExtensionByte2 := NumGet(currentStructurePointer, 0x13, "UChar")
+                                if biosCharacteristicsExtensionByte2 & 0x08 {
+                                    uefiIsEnabled := true
+                                }
+                            }
+                        }
+
+                        ; Advance to next structure (formatted area + string-set until double NUL).
+                        nextPointer := currentStructurePointer + structureLength
+                        while nextPointer < smbiosEndPointer {
+                            if NumGet(nextPointer, 0, "UChar") = 0 {
+                                if nextPointer + 1 <= smbiosEndPointer && NumGet(nextPointer + 1, 0, "UChar") = 0 {
+                                    nextPointer += 2
+                                    break
+                                }
+                            }
+                            nextPointer += 1
+                        }
+                        currentStructurePointer := nextPointer
+                        if (structureType = 127) { ; End-of-table.
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if biosVersion = "" {
+        biosVersion := "Unknown"
+    }
+
+    if biosDateIso = "" {
+        biosDateIso := "Unknown"
+    }
+
+    uefiOrBios := uefiIsEnabled ? "UEFI" : "BIOS"
+
+    biosSummary := biosVersion . " (" . biosDateIso . ") " . uefiOrBios
+
+    return biosSummary
+}
+
+GetComputerIdentifier() {
+    static methodName := RegisterMethod("GetComputerIdentifier()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    computerIdentifier := "N/A"
+
+    machineGuid := ""
+    try {
+        machineGuid := RegRead("HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography", "MachineGuid")
+    }
+
+    systemUniversallyUniqueIdentifier := ""
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        win32ComputerSystemProductQuery := "
+        (
+            SELECT
+                UUID
+            FROM
+                Win32_ComputerSystemProduct
+        )"
+
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32ComputerSystemProductQuery)
+        for record in queryResults {
+            systemUniversallyUniqueIdentifier := record.UUID
+            break
+        }
+    }
+
+    if machineGuid = "" && systemUniversallyUniqueIdentifier != "" {
+        computerIdentifier := systemUniversallyUniqueIdentifier
+    } else if systemUniversallyUniqueIdentifier = "" && machineGuid != "" {
+        computerIdentifier := machineGuid
+    } else if machineGuid != "" && systemUniversallyUniqueIdentifier != "" {
+        computerIdentifier := machineGuid . " + " . systemUniversallyUniqueIdentifier
+    }
+
+    return computerIdentifier
+}
+
 GetCpu() {
     static methodName := RegisterMethod("GetCpu()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
     modelName := ""
     defaultModelName := "Unknown CPU"
-    registryPath := "HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+    registryPath := "HKEY_LOCAL_MACHINE\Hardware\Description\System\CentralProcessor\0"
     registryValueName := "ProcessorNameString"
 
     rawName := ""
@@ -2154,67 +2351,102 @@ GetMemorySizeAndType() {
     static methodName := RegisterMethod("GetMemorySizeAndType()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
-
-    memoryModuleRecordsQuery := "
-    (
-        SELECT
-            Capacity,
-            SMBIOSMemoryType,
-            PartNumber
-        FROM
-            Win32_PhysicalMemory
-    )"
-
-    memoryModuleRecords := windowsManagementInstrumentationService.ExecQuery(memoryModuleRecordsQuery)
-
-    totalInstalledMemoryBytes := 0
+    smbiosDisplayByCode := Map(
+        0, "Unknown",
+        1, "Other",
+        2, "Unknown",
+        3, "DRAM",
+        4, "EDRAM",
+        5, "VRAM",
+        6, "SRAM",
+        7, "RAM",
+        8, "ROM",
+        9, "Flash",
+        10, "EEPROM",
+        11, "FEPROM",
+        12, "EPROM",
+        13, "CDRAM",
+        14, "3DRAM",
+        15, "SDRAM",
+        16, "SGRAM",
+        17, "RDRAM",
+        18, "DDR",
+        19, "DDR2",
+        20, "DDR2 FB-DIMM",
+        24, "DDR3",
+        25, "FBD2",
+        26, "DDR4",
+        27, "LPDDR",
+        28, "LPDDR2",
+        29, "LPDDR3",
+        30, "LPDDR4",
+        31, "Logical non-volatile device",
+        32, "HBM (High Bandwidth Memory)",
+        33, "HBM2",
+        34, "DDR5",
+        35, "LPDDR5",
+        36, "HBM3",
+        37, "MRDIMM"
+    )
+    memoryTypeDetailFlagCounts := Map()
+    totalPhysicalBytes := 0
     memoryTypeCodeCounts := Map()
     partNumberStrings := []
+    installedMemoryTypeDisplay := ""
+    resolvedLegacySubtype := ""
+    resolvedLegacyCount := -1
 
-    for memoryModuleRecord in memoryModuleRecords {
-        try {
-            totalInstalledMemoryBytes += memoryModuleRecord.Capacity + 0
+    try {
+        memoryStatusExBuffer := Buffer(64, 0)
+        NumPut("UInt", memoryStatusExBuffer.Size, memoryStatusExBuffer, 0)
+        informationAboutSystemPhysicalAndVirtualMemoryRetrievedSuccessfully := DllCall("Kernel32\GlobalMemoryStatusEx", "Ptr", memoryStatusExBuffer, "Int")
+        if informationAboutSystemPhysicalAndVirtualMemoryRetrievedSuccessfully {
+            totalPhysicalBytes := NumGet(memoryStatusExBuffer, 8, "UInt64")
         }
+    }
+    installedMemorySizeInGigabytes := (totalPhysicalBytes > 0) ? Round(totalPhysicalBytes / 1024 / 1024 / 1024) : 0
+    installedMemorySizeDisplay := (installedMemorySizeInGigabytes > 0) ? (installedMemorySizeInGigabytes . " GB") : "Unknown Size"
 
-        systemManagementBiosMemoryTypeCode := ""
-        try {
-            systemManagementBiosMemoryTypeCode := memoryModuleRecord.SMBIOSMemoryType + 0
-        }
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-        if systemManagementBiosMemoryTypeCode != "" {
-            if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCode) {
-                memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] := 0
+        win32PhysicalMemoryQuery := "
+        (
+            SELECT
+                SMBIOSMemoryType,
+                PartNumber
+            FROM
+                Win32_PhysicalMemory
+        )"
+
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32PhysicalMemoryQuery)
+        for record in queryResults {
+            systemManagementBiosMemoryTypeCode := ""
+            try {
+                systemManagementBiosMemoryTypeCode := record.SMBIOSMemoryType + 0
             }
 
-            memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] += 1
-        }
+            if systemManagementBiosMemoryTypeCode >= 3 {
+                if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCode) {
+                    memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] := 0
+                }
 
-        partNumberValue := ""
-        try {
-            partNumberValue := Trim(memoryModuleRecord.PartNumber . "")
-        }
+                memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] += 1
+            }
 
-        if partNumberValue != "" {
-            partNumberStrings.Push(partNumberValue)
+            partNumberValue := ""
+            try {
+                partNumberValue := Trim(record.PartNumber . "")
+            }
+
+            if partNumberValue != "" {
+                partNumberStrings.Push(partNumberValue)
+            }
         }
     }
 
-    installedMemorySizeInGigabytes := (totalInstalledMemoryBytes > 0) ? Round(totalInstalledMemoryBytes / 1024 / 1024 / 1024) : 0
-    installedMemorySizeDisplay := (installedMemorySizeInGigabytes > 0) ? (installedMemorySizeInGigabytes . " GB") : "Unknown Size"
-
-    memoryTypeDisplayByCode := Map(
-        14, "SDRAM",
-        17, "SGRAM",
-        20, "DDR SDRAM",
-        21, "DDR2 SDRAM",
-        22, "DDR2 FB-DIMM",
-        24, "DDR3 SDRAM",
-        26, "DDR4 SDRAM",
-        34, "DDR5 SDRAM"
-    )
-
-    installedMemoryTypeDisplay := ""
     if memoryTypeCodeCounts.Count > 0 {
         mostCommonMemoryTypeCode := ""
         mostCommonMemoryTypeCount := -1
@@ -2225,14 +2457,134 @@ GetMemorySizeAndType() {
             }
         }
 
-        if memoryTypeDisplayByCode.Has(mostCommonMemoryTypeCode) {
-            installedMemoryTypeDisplay := memoryTypeDisplayByCode[mostCommonMemoryTypeCode]
+        if smbiosDisplayByCode.Has(mostCommonMemoryTypeCode) {
+            installedMemoryTypeDisplay := smbiosDisplayByCode[mostCommonMemoryTypeCode]
         } else {
             installedMemoryTypeDisplay := "Unknown Type (code " . mostCommonMemoryTypeCode . ")"
         }
+    } else {
+        ; No usable rows from Win32_PhysicalMemory. Parse raw SMBIOS (Type 17) to obtain MemoryType.
+        try {
+            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
+
+            mssmBiosRawSMBiosTablesQuery := "
+            (
+                SELECT
+                    SMBiosData
+                FROM
+                    MSSMBios_RawSMBiosTables
+            )"
+
+            rawTablesResults := windowsManagementInstrumentationService.ExecQuery(mssmBiosRawSMBiosTablesQuery)
+
+            rawSmbiosByteArray := ""
+            for rawTablesRecord in rawTablesResults {
+                rawSmbiosByteArray := rawTablesRecord.SMBiosData
+                break
+            }
+
+            if IsSet(rawSmbiosByteArray) && rawSmbiosByteArray != "" {
+                totalByteCount := rawSmbiosByteArray.MaxIndex() + 1
+                if totalByteCount > 0 {
+                    rawSmbiosBuffer := Buffer(totalByteCount, 0)
+                    copyIndex := 0
+                    while copyIndex < totalByteCount {
+                        NumPut("UChar", rawSmbiosByteArray[copyIndex], rawSmbiosBuffer, copyIndex)
+                        copyIndex += 1
+                    }
+
+                    parseOffset := 0
+                    while parseOffset + 4 <= totalByteCount {
+                        structureType   := NumGet(rawSmbiosBuffer, parseOffset + 0, "UChar")
+                        structureLength := NumGet(rawSmbiosBuffer, parseOffset + 1, "UChar")
+                        if structureLength < 4 {
+                            break
+                        }
+
+                        nextStructureOffset := parseOffset + structureLength
+                        while nextStructureOffset + 1 < totalByteCount {
+                            byteA := NumGet(rawSmbiosBuffer, nextStructureOffset + 0, "UChar")
+                            byteB := NumGet(rawSmbiosBuffer, nextStructureOffset + 1, "UChar")
+                            nextStructureOffset += 1
+                            if byteA = 0 && byteB = 0 {
+                                nextStructureOffset += 1
+                                break
+                            }
+                        }
+
+                        if structureType = 17 { ; Memory Device.
+                            if structureLength >= 0x13 {
+                                systemManagementBiosMemoryTypeCodeFromRaw := NumGet(rawSmbiosBuffer, parseOffset + 0x12, "UChar")
+                                if systemManagementBiosMemoryTypeCodeFromRaw >= 3 {
+                                    if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCodeFromRaw) {
+                                        memoryTypeCodeCounts[systemManagementBiosMemoryTypeCodeFromRaw] := 0
+                                    }
+                                    memoryTypeCodeCounts[systemManagementBiosMemoryTypeCodeFromRaw] += 1
+                                }
+                            }
+
+                            ; Always read TypeDetail if present (even when MemoryType is Unknown/Other/DRAM).
+                            if structureLength >= 0x15 {
+                                memoryTypeDetailWordFromRaw := NumGet(rawSmbiosBuffer, parseOffset + 0x13, "UShort")
+
+                                if memoryTypeDetailWordFromRaw & 0x0100 {
+                                    if !memoryTypeDetailFlagCounts.Has("EDO") {
+                                        memoryTypeDetailFlagCounts["EDO"] := 0
+                                    }
+                                    memoryTypeDetailFlagCounts["EDO"] += 1
+                                }
+                                if memoryTypeDetailWordFromRaw & 0x0004 {
+                                    if !memoryTypeDetailFlagCounts.Has("Fast-paged") {
+                                        memoryTypeDetailFlagCounts["Fast-paged"] := 0
+                                    }
+                                    memoryTypeDetailFlagCounts["Fast-paged"] += 1
+                                }
+                                if memoryTypeDetailWordFromRaw & 0x0040 {
+                                    if !memoryTypeDetailFlagCounts.Has("Synchronous DRAM") {
+                                        memoryTypeDetailFlagCounts["Synchronous DRAM"] := 0
+                                    }
+                                    memoryTypeDetailFlagCounts["Synchronous DRAM"] += 1
+                                }
+                            }
+                        }
+
+                        parseOffset := nextStructureOffset
+                    }
+                }
+            }
+        }
+
+        ; If raw parsing populated counts, resolve the display now.
+        if memoryTypeCodeCounts.Count > 0 {
+            mostCommonMemoryTypeCode := ""
+            mostCommonMemoryTypeCount := -1
+            for memoryTypeCode, memoryTypeCount in memoryTypeCodeCounts {
+                if memoryTypeCount > mostCommonMemoryTypeCount {
+                    mostCommonMemoryTypeCount := memoryTypeCount
+                    mostCommonMemoryTypeCode := memoryTypeCode
+                }
+            }
+
+            if smbiosDisplayByCode.Has(mostCommonMemoryTypeCode) {
+                installedMemoryTypeDisplay := smbiosDisplayByCode[mostCommonMemoryTypeCode]
+            } else {
+                installedMemoryTypeDisplay := "Unknown Type (code " . mostCommonMemoryTypeCode . ")"
+            }
+        }
     }
 
-    if installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") {
+    ; Resolve the most common legacy subtype from TypeDetail counts (EDO vs Fast-paged vs Synchronous DRAM).
+    for legacyLabel, legacyCount in memoryTypeDetailFlagCounts {
+        ; Only consider the three legacy subtypes we actually surface as base types.
+        if legacyLabel = "EDO" || legacyLabel = "Fast-paged" || legacyLabel = "Synchronous DRAM" {
+            if legacyCount > resolvedLegacyCount {
+                resolvedLegacyCount := legacyCount
+                resolvedLegacySubtype := legacyLabel
+            }
+        }
+    }
+
+    if installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") || installedMemoryTypeDisplay = "DRAM" || installedMemoryTypeDisplay = "Other" {
         combinedPartNumbers := ""
         for partNumberItem in partNumberStrings {
             combinedPartNumbers .= partNumberItem . " "
@@ -2240,6 +2592,8 @@ GetMemorySizeAndType() {
         combinedPartNumbersLower := StrLower(combinedPartNumbers)
 
         switch true {
+            case (installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") || installedMemoryTypeDisplay = "DRAM" || installedMemoryTypeDisplay = "Other") && (resolvedLegacySubtype != ""):
+                installedMemoryTypeDisplay := resolvedLegacySubtype
             case InStr(combinedPartNumbersLower, "lpddr5x"):
                 installedMemoryTypeDisplay := "LPDDR5X"
             case InStr(combinedPartNumbersLower, "lpddr5"):
@@ -2274,30 +2628,35 @@ GetMotherboard() {
     static methodName := RegisterMethod("GetMotherboard()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    baseboardRecordsQuery := "
-    (
-        SELECT
-            Manufacturer,
-            Product
-        FROM
-            Win32_BaseBoard
-    )"
-
-    windowsManagementInstrumentationService := ComObjGet("winmgmts:root\cimv2")
-    baseboardRecords := windowsManagementInstrumentationService.ExecQuery(baseboardRecordsQuery)
-
     rawManufacturer := ""
     rawProduct := ""
-    for baseboardRecord in baseboardRecords {
-        try {
-            rawManufacturer := Trim(baseboardRecord.Manufacturer . "")
-        }
 
-        try {
-            rawProduct := Trim(baseboardRecord.Product . "")
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        win32BaseBoardQuery := "
+        (
+            SELECT
+                Manufacturer,
+                Product
+            FROM
+                Win32_BaseBoard
+        )"
+
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BaseBoardQuery)
+        for record in queryResults {
+            try {
+                rawManufacturer := Trim(record.Manufacturer . "")
+            }
+
+            try {
+                rawProduct := Trim(record.Product . "")
+            }
+            
+            break
         }
-        
-        break
     }
 
     if rawManufacturer = "" {
@@ -2329,7 +2688,7 @@ GetOperatingSystem() {
     static methodName := RegisterMethod("GetOperatingSystem()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    static currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    static currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
 
     family := "Unknown Windows"
     edition := "Unknown Edition"
@@ -2569,15 +2928,14 @@ GetSystemDisk() {
     systemPartitionCapacityText := "Unknown"
 
     try {
-        windowsManagementLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementService := windowsManagementLocator.ConnectServer(".", "root\CIMV2")
-        windowsManagementService.Security_.ImpersonationLevel := 3
-
         logicalDriveLetter := SubStr(A_WinDir, 1, 2)
-
         systemPartitionByteCount := ""
 
-        logicalDiskQuery := "
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        win32LogicalDiskQuery := "
         (
         SELECT
             Size
@@ -2590,7 +2948,7 @@ GetSystemDisk() {
         '
         )"
 
-        for logicalDisk in windowsManagementService.ExecQuery(logicalDiskQuery) {
+        for logicalDisk in windowsManagementInstrumentationService.ExecQuery(win32LogicalDiskQuery) {
             systemPartitionByteCount := logicalDisk.Size + 0
             break
         }
@@ -2607,7 +2965,7 @@ GetSystemDisk() {
         )"
 
         selectedPartitionDeviceId := ""
-        for partitionObject in windowsManagementService.ExecQuery(partitionObjectQuery) {
+        for partitionObject in windowsManagementInstrumentationService.ExecQuery(partitionObjectQuery) {
             selectedPartitionDeviceId := partitionObject.DeviceID
             break
         }
@@ -2625,7 +2983,7 @@ GetSystemDisk() {
 
         physicalDiskByteCount := ""
         if selectedPartitionDeviceId != "" {
-            for diskDriveObject in windowsManagementService.ExecQuery(diskDriveObjectQuery) {
+            for diskDriveObject in windowsManagementInstrumentationService.ExecQuery(diskDriveObjectQuery) {
                 if Trim(diskDriveObject.Model) != "" {
                     diskModelText := Trim(diskDriveObject.Model)
                 }
@@ -2678,7 +3036,7 @@ GetTimeZoneKeyName() {
 
     if timeZoneKeyName = "Unknown" {
         try {
-            regValue := RegRead("HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
+            regValue := RegRead("HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
         }
 
         if regValue != "" {
@@ -2697,7 +3055,7 @@ GetWindowsColorMode() {
     static methodName := RegisterMethod("GetWindowsColorMode()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    registryPath := "HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    registryPath := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
     hasAppsUseLightTheme := false
     hasSystemUsesLightTheme := false
@@ -2750,9 +3108,9 @@ GetWindowsInstallationDateUtcTimestamp() {
     static methodName := RegisterMethod("GetWindowsInstallationDateUtcTimestamp()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    static registryKeySystemSetup               := "HKLM\SYSTEM\Setup"
-    static registryKeyCurrentVersionNonWow      := "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-    static registryKeyCurrentVersionWow6432Node := "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
+    static registryKeySystemSetup               := "HKEY_LOCAL_MACHINE\System\Setup"
+    static registryKeyCurrentVersionNonWow      := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
+    static registryKeyCurrentVersionWow6432Node := "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
 
     installDateSeconds := unset
 
