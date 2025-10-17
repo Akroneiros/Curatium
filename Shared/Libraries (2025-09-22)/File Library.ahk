@@ -87,7 +87,7 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
     logValuesForConclusion := LogInformationBeginning("Copy File to Target (" . ExtractFilename(filePath) . ")", methodName, [filePath, targetDirectory, findValue, replaceValue])
 
     try {
-        if ((findValue = "" && replaceValue !== "") || (findValue !== "" && replaceValue = "")) {
+        if ((findValue = "" && replaceValue != "") || (findValue != "" && replaceValue = "")) {
             throw Error("Invalid find/replace combo.")
         }
     } catch as invalidArgumentCombinationError {

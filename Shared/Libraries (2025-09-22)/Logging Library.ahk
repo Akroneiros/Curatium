@@ -15,17 +15,17 @@ global overlayGui := ""
 global overlayLines := Map()
 global overlayOrder := []
 global overlayStatus := Map(
-    "Beginning", "... Beginning 🔰",
-    "Skipped",   "... Skipped ⏩",
+    "Beginning", "... Beginning ▶️",
+    "Skipped",   "... Skipped ➡️",
     "Completed", "... Completed ✔️",
-    "Failed",    "... Failed 😞"
+    "Failed",    "... Failed ✖️"
 )
 global symbolLedger := Map()
 global system := Map()
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
-    if logFilePath["Execution Log"] !== "" && logFilePath["Operation Log"] !== "" && logFilePath["Runtime Trace"] !== "" && logFilePath["Symbol Ledger"] !== "" {
+    if logFilePath["Execution Log"] != "" && logFilePath["Operation Log"] != "" && logFilePath["Runtime Trace"] != "" && logFilePath["Symbol Ledger"] != "" {
         Critical "On"
         AbortExecution()
     } else {
@@ -54,7 +54,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
     lineNumber := unset
     if IsSet(customLineNumber) {
         lineNumber := customLineNumber
-    } else if logValuesForConclusion["Validation"] !== "" {
+    } else if logValuesForConclusion["Validation"] != "" {
         lineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
     } else {
         lineNumber := errorObject.Line
@@ -63,7 +63,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
     declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
 
     fullErrorText := unset
-    if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] !== "" {
+    if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
         fullErrorText :=
             "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
@@ -312,7 +312,7 @@ LogValidateMethodArguments(methodName, arguments) {
                     validation := parameterMissingValue
                 } else if optional = "Optional" && argument = "" {
                     ; Skip validation regardless of type as no value exists.
-                } else if pattern !== "" {
+                } else if pattern != "" {
                     if !RegExMatch(argument, pattern) {
                         validation := "Argument pattern (" . pattern . ") does not validate against argument: " . argument
                     }
@@ -660,7 +660,7 @@ LogHelperError(logValuesForConclusion, errorLineNumber, errorMessage) {
         encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
         encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
-    if logValuesForConclusion["Context"] !== "" {
+    if logValuesForConclusion["Context"] != "" {
         csvConclusion := csvConclusion . "|" . 
             logValuesForConclusion["Context"]  ; Context
     }
@@ -693,7 +693,7 @@ LogHelperValidation(methodName, arguments := unset) {
         logValuesForConclusion["Arguments Full"] := argumentsAndValidationStatus["Arguments Full"]
         logValuesForConclusion["Arguments Log"]  := argumentsAndValidationStatus["Arguments Log"]
 
-        if logValuesForConclusion["Validation"] !== "" {
+        if logValuesForConclusion["Validation"] != "" {
             timestamp := LogTimestamp()
 
             operationSequenceNumber        := NextOperationSequenceNumber()
@@ -710,7 +710,7 @@ LogHelperValidation(methodName, arguments := unset) {
                 encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
                 methodRegistry[methodName]["Symbol"]         ; Method
 
-            if logValuesForConclusion["Arguments Full"] !== "" {
+            if logValuesForConclusion["Arguments Full"] != "" {
                 csvShared := csvShared . "|" . 
                     logValuesForConclusion["Arguments Log"]  ; Arguments
             }
@@ -808,7 +808,7 @@ LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCus
         if IsSet(argumentsAndValidationStatus) {
             logValuesForConclusion["Validation"] := argumentsAndValidationStatus["Validation"]
 
-            if argumentsAndValidationStatus["Validation"] !== "" {
+            if argumentsAndValidationStatus["Validation"] != "" {
                 throw Error(argumentsAndValidationStatus["Validation"])
             }
         }
@@ -837,7 +837,7 @@ LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject :
         encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
         encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
-    if logValuesForConclusion["Context"] !== "" {
+    if logValuesForConclusion["Context"] != "" {
         csvConclusion := csvConclusion . "|" . 
             logValuesForConclusion["Context"]  ; Context
     }
@@ -2723,7 +2723,7 @@ GetOperatingSystem() {
     try {
         updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
 
-        if updateBuildRevisionNumber !== "" && currentBuildNumber >= 9200 {
+        if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
             version := version . "." . updateBuildRevisionNumber
         }
     }
@@ -3200,7 +3200,7 @@ ParseMethodDeclaration(declaration) {
     parameterParts := []
     currentParameterText := ""
 
-    if contract !== "" {
+    if contract != "" {
         squareBracketDepth := 0               ; Tracks how many [ … ] levels we are inside
         inQuotedString := false               ; True while inside " … "
         removeLeadingSpaceAfterComma := false ; True right after a delimiter comma has been processed
@@ -3341,7 +3341,7 @@ ParseMethodDeclaration(declaration) {
 }
 
 RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
-    if sourceFilePath !== "" && validationLineNumber !== 0 {
+    if sourceFilePath != "" && validationLineNumber !== 0 {
         SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
         libraryTag := " @ " . filenameWithoutExtension
         validationLineNumber := " " . "<" . validationLineNumber . ">"

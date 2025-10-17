@@ -82,7 +82,7 @@ ExecutablePathResolve(applicationName) {
             executablePath := ExecutablePathViaUninstall(executablePath, executableName)
             executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
 
-            if executablePath !== "" {
+            if executablePath != "" {
                 break
             }
         }
@@ -95,7 +95,7 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
     static methodName := RegisterMethod("ExecutablePathViaDirectory(executablePath As String [Optional], executableName As String, directoryName As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, directoryName])
 
-    if executablePath !== "" {
+    if executablePath != "" {
         return executablePath
     }
 
@@ -142,7 +142,7 @@ ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
     static methodName := RegisterMethod("ExecutablePathViaRegistry(executablePath As String [Optional], executableName As String, registryKeyPaths As Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, registryKeyPaths])
 
-    if executablePath !== "" {
+    if executablePath != "" {
         return executablePath
     }
 
@@ -185,7 +185,7 @@ ExecutablePathViaUninstall(executablePath, executableName) {
     static methodName := RegisterMethod("ExecutablePathViaUninstall(executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName])
 
-    if executablePath !== "" {
+    if executablePath != "" {
         return executablePath
     }
 
@@ -264,9 +264,18 @@ ResolveFactsForApplication(applicationName, counter) {
         case "Excel":
             CloseApplication("Excel")
 
+            applicationRegistry["Excel"]["Code Execution"] := "Failed"
+            excelMacroCode := 'Sub Run(): Range("A1").Value = "Cell": End Sub'
             excelApplication := ComObject("Excel.Application")
-            personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+            excelWorkbook := excelApplication.Workbooks.Add()
+            excelApplication.Visible := true
 
+            excelWindowHandle := excelApplication.Hwnd
+            while !excelWindowHandle := excelApplication.Hwnd {
+                Sleep(16)
+            }
+
+            personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
             if FileExist(personalMacroWorkbookPath) {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Enabled"
                 excelApplication.Workbooks.Open(personalMacroWorkbookPath)
@@ -274,45 +283,45 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
             }
             
-            excelWorkbook := excelApplication.Workbooks.Add()
-            excelApplication.Visible := true
-            excelWindowHandle := excelApplication.Hwnd
-
-            while !excelWindowHandle := excelApplication.Hwnd {
-                Sleep(16)
-            }
-
             excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
             WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
             WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
-
-            excelMacroTestCode := 'Sub CellPing(): Range("A1").Value = "Cell": End Sub'
-
-            ExcelScriptExecution(excelMacroTestCode, true)
-            Sleep(160)
-            SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
-            Sleep(160)
+            ExcelActivateEditorAndPasteCode(excelMacroCode)
+            SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+            Sleep(200)
 
             if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                 applicationRegistry["Excel"]["Code Execution"] := "Basic"
-
                 excelApplication.ActiveSheet.Range("A1").Value := ""
+            }
 
-                ExcelScriptExecution(excelMacroTestCode)
-                Sleep(160)
+            if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" && applicationRegistry["Excel"]["Code Execution"] = "Basic" {
+                applicationRegistry["Excel"]["Code Execution"] := "Partial"
+
+                SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
+                Sleep(200)
+                SendEvent("^a") ; CTRL+A (Select All)
+                Sleep(200)
+                SendEvent("^a") ; CTRL+A (Select All)
+                Sleep(200)
+                SendEvent("{Delete}") ; Delete (Delete)
+                A_Clipboard := excelMacroCode
+                ClipWait(2)
+                SendEvent("^v") ; CTRL+V (Paste)
+                Sleep(200)
+                SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+                Sleep(200)
+                SendEvent("{Esc}") ; Escape (Close Window Macros)
+                Sleep(32)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                     applicationRegistry["Excel"]["Code Execution"] := "Full"
                 }
-            } else {
-                applicationRegistry["Excel"]["Code Execution"] := "Failed"
             }
-
 
             applicationRegistry["Excel"]["International"] := Map()
 
             excelInternational := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Excel International (2025-09-26).csv")
-
             for international in excelInternational {
                 applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
             }
@@ -323,6 +332,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             excelWorkbook := 0
             excelApplication := 0
+            ProcessWaitClose(excelProcessIdentifier, 2)
         case "Word":
             wordApplication := ComObject("Word.Application")
 
@@ -476,20 +486,18 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     }
 
     excelApplication := ComObject("Excel.Application")
-    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-
-    if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
-        excelApplication.Workbooks.Open(personalMacroWorkbookPath)
-    }
-
-    excelApplication.Visible := true
-    ; https://learn.microsoft.com/en-us/office/vba/api/excel.workbooks.open
     excelApplication.Workbooks.Open(excelFilePath, 0)
-    excelWorkbook := excelApplication.ActiveWorkbook
-    excelWindowHandle := excelApplication.Hwnd
+    excelWorkbook := excelApplication.ActiveWorkbook 
+    excelApplication.Visible := true
 
+    excelWindowHandle := excelApplication.Hwnd
     while !excelWindowHandle := excelApplication.Hwnd {
         Sleep(32)
+    }
+
+    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+    if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
+        excelApplication.Workbooks.Open(personalMacroWorkbookPath)
     }
 
     excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
@@ -497,8 +505,6 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
 
     excelApplication.CalculateUntilAsyncQueriesDone()
-
-    ; https://learn.microsoft.com/en-us/office/vba/api/excel.xlcalculationstate
     while excelApplication.CalculationState != 0 {
         Sleep(64)
     }
@@ -517,7 +523,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         sheet := 0
     }
 
-    if (aboutRange !== "" || aboutCondition !== "") && !aboutWorksheetFound {
+    if (aboutRange != "" || aboutCondition != "") && !aboutWorksheetFound {
         try {
             throw Error("Worksheet About not found with arguments passed in.")
         } catch as worksheetAboutMissingError {
@@ -541,7 +547,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         aboutRange := "RetrievedDate"
     } 
 
-    if aboutWorksheetFound && (aboutRange !== "" || aboutCondition !== "") {
+    if aboutWorksheetFound && (aboutRange != "" || aboutCondition != "") {
         aboutValues := Map(
             "ProgressionStatus",   "A3",
             "AugmentationModules", "A4",
@@ -559,12 +565,13 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
 
         if aboutValues[aboutRange] = aboutCondition {
+            ExcelActivateEditorAndPasteCode(code)
+            SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+            WaitForExcelToClose(excelProcessIdentifier)
             aboutWorksheet   := 0
             excelWorkbook    := 0
             excelApplication := 0
-
-            ExcelScriptExecution(code)
-            WaitForExcelToClose(excelProcessIdentifier)
+            ProcessWaitClose(excelProcessIdentifier, 2)
 
             LogInformationConclusion("Completed", logValuesForConclusion)
         } else if aboutRange = "ProgressionStatus" {
@@ -588,12 +595,13 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             }
 
             if matchedIndex > 0 {
+                ExcelActivateEditorAndPasteCode(code)
+                SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+                WaitForExcelToClose(excelProcessIdentifier)
                 aboutWorksheet   := 0
                 excelWorkbook    := 0
                 excelApplication := 0
-
-                ExcelScriptExecution(code)
-                WaitForExcelToClose(excelProcessIdentifier)
+                ProcessWaitClose(excelProcessIdentifier, 2)
 
                 LogInformationConclusion("Completed", logValuesForConclusion)
             } else {
@@ -606,6 +614,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 activeWorkbook   := 0
                 excelWorkbook    := 0
                 excelApplication := 0
+                ProcessWaitClose(excelProcessIdentifier, 2)
 
                 LogInformationConclusion("Skipped", logValuesForConclusion)
             }
@@ -619,39 +628,40 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             activeWorkbook   := 0
             excelWorkbook    := 0
             excelApplication := 0
+            ProcessWaitClose(excelProcessIdentifier, 2)
 
             LogInformationConclusion("Skipped", logValuesForConclusion)
         }
     } else {
+        ExcelActivateEditorAndPasteCode(code)
+        SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+        WaitForExcelToClose(excelProcessIdentifier)
         aboutWorksheet   := 0
         excelWorkbook    := 0
         excelApplication := 0
-
-        ExcelScriptExecution(code)
-        WaitForExcelToClose(excelProcessIdentifier)
+        ProcessWaitClose(excelProcessIdentifier, 2)
 
         LogInformationConclusion("Completed", logValuesForConclusion)
     }
 }
 
-ExcelScriptExecution(code, insertModule := false) {
-    static methodName := RegisterMethod("ExcelScriptExecution(code As String [Type: Code], insertModule As Boolean [Optional: false]", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Excel Script Execution (Length: " . StrLen(code) . ")", methodName, [code, insertModule])
+ExcelActivateEditorAndPasteCode(code) {
+    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Type: Code])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Excel Activate Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code])
    
     SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)
     WinWait("ahk_class wndclass_desked_gsk", , 10)
     WinActivate("ahk_class wndclass_desked_gsk")
     WinWaitActive("ahk_class wndclass_desked_gsk", , 2)
 
-    if insertModule {
+    if applicationRegistry["Excel"]["Code Execution"] != "Full" {
         SendEvent("!i") ; ALT+I (Insert)
-        Sleep(280)
+        Sleep(560)
         SendEvent("m") ; M (Module)
+        Sleep(440)
     }
 
     PasteCode(code, "'")
-
-    SendEvent("{F5}") ; F5 (Run Sub/UserForm)
 
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
@@ -669,12 +679,12 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
 
-    if txtPath !== "" && xlsxPath !== "" {
+    if txtPath != "" && xlsxPath != "" {
         DeleteFile(txtPath)
         DeleteFile(xlsxPath)
         xlsxPath := ""
     } else {
-        if txtPath !== "" {
+        if txtPath != "" {
             DeleteFile(txtPath)
         }
     }
@@ -684,27 +694,28 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         FileAppend("", sidecarPath, "UTF-8-RAW")
 
         excelApplication := ComObject("Excel.Application")
-        static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-
-        if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
-            excelApplication.Workbooks.Open(personalMacroWorkbookPath)
-        }
-
         excelWorkbook := excelApplication.Workbooks.Add()
         excelApplication.Visible := true
-        excelWindowHandle := excelApplication.Hwnd
 
+        excelWindowHandle := excelApplication.Hwnd
         while !excelWindowHandle := excelApplication.Hwnd {
             Sleep(32)
+        }
+
+        static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+        if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
+            excelApplication.Workbooks.Open(personalMacroWorkbookPath)
         }
 
         excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
         WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
         WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
+        ExcelActivateEditorAndPasteCode(code)
+        SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+        WaitForExcelToClose(excelProcessIdentifier)
         excelWorkbook    := 0
         excelApplication := 0
-        ExcelScriptExecution(code)
-        WaitForExcelToClose(excelProcessIdentifier)
+        ProcessWaitClose(excelProcessIdentifier, 2)
 
         DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
         LogInformationConclusion("Completed", logValuesForConclusion)
@@ -713,32 +724,36 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     }
 }
 
-WaitForExcelToClose(excelProcessIdentifier, maxWaitMinutes := 240, mouseMoveIntervalSec := 120) {
-    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer, maxWaitMinutes As Integer [Optional: 240], mouseMoveIntervalSec As Integer [Optional: 120])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close", methodName, [excelProcessIdentifier, maxWaitMinutes, mouseMoveIntervalSec])
+WaitForExcelToClose(excelProcessIdentifier) {
+    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close (PID: " . excelProcessIdentifier . ")", methodName, [excelProcessIdentifier])
 
-    totalSecondsToWait := maxWaitMinutes * 60
+    totalSecondsToWait := 240 * 60
+    mouseMoveIntervalSec := 120
     secondsSinceLastMouseMove := 0
 
-    sawProcessExit := false
+    userInterfaceIsGone := false
     Loop totalSecondsToWait {
-        if ProcessWaitClose(excelProcessIdentifier, 1) = 0 {
-            sawProcessExit := true
+        windowCount := WinGetList("ahk_pid " excelProcessIdentifier).Length
+        if windowCount = 0 {
+            Sleep(1000)
+            userInterfaceIsGone := true
             break
         }
 
         secondsSinceLastMouseMove += 1
         if secondsSinceLastMouseMove >= mouseMoveIntervalSec {
-            ; Generate real input (0,0 is a no-op): nudge out and back.
             MouseMove 1, 0, 0, "R"
             MouseMove -1, 0, 0, "R"
             secondsSinceLastMouseMove := 0
         }
+
+        Sleep(1000)
     }
 
     try {
-        if !sawProcessExit {
-            throw Error("Excel did not close within " . maxWaitMinutes . " minutes.")
+        if !userInterfaceIsGone {
+            throw Error("Excel did not close within 240 minutes.")
         }
     } catch as excelCloseError {
         LogInformationConclusion("Failed", logValuesForConclusion, excelCloseError)
@@ -756,14 +771,12 @@ StartSqlServerManagementStudioAndConnect() {
     logValuesForConclusion := LogInformationBeginning("Start SQL Server Management Studio and Connect", methodName)
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
-
-    WinWait("Connect to Server",, 20)
-    Sleep(2000)
-
-    SendEvent("{Enter}")
+    sqlServerManagementStudioExecutableFilename := applicationRegistry["SQL Server Management Studio"]["Executable Filename"]
+    WinWaitActive("Connect to Server ahk_exe " . sqlServerManagementStudioExecutableFilename,, 20)
+    SendInput("{Enter}")
 
     try {
-        if WinWaitClose("Connect to Server",, 40) {
+        if WinWaitClose("Connect to Server ahk_exe " . sqlServerManagementStudioExecutableFilename,, 40) {
         } else {
             throw Error("Connection failed.")
         }
@@ -787,11 +800,9 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     savePath := saveDirectory . filename . ".csv"
 
     SendInput("^n") ; CTRL+N (Query with Current Connection)
-    Sleep(2000)
-
+    Sleep(800)
     PasteCode(code, "--")
-
-    SendInput("!x") ; ALT+X (Execute)
+    SendInput("{F5}") ; F5 (Run the selected portion of the query editor or the entire query editor if nothing is selected)
     sqlQuerySuccessfulCoordinates := GetImageCoordinatesFromSegment("SQL Server Management Studio Query executed successfully", "6-26", "88-96", 360)
     sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
@@ -799,12 +810,11 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindow)
     Sleep(480)
     SendEvent("v") ; V (Save Results As...)
-    Sleep(2000)
+    WinWaitActive("ahk_class #32770",, 2)
     SendEvent("!n") ; ALT+N (File name)
-
+    Sleep(80)
     PastePath(savePath)
-
-    SendEvent("{Enter}") ; ENTER (Save)
+    SendInput("{Enter}") ; ENTER (Save)
 
     maximumWaitMilliseconds := 10000
     pollIntervalMilliseconds := 100
@@ -820,11 +830,8 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     if fileExistsAlready {
         previousModifiedTime := FileGetTime(savePath, "M")
-
-        Sleep(480)
-
+        Sleep(1000)
         SendEvent("y") ; Y (Yes)
-
         startTickCount := A_TickCount
         Sleep(1000)
         while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
@@ -851,14 +858,14 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
     static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Verify Toad for Oracle Works", methodName, [appName, runtimeDate])
+    logValuesForConclusion := LogInformationBeginning("Execute Automation App (" . appName . ")", methodName, [appName, runtimeDate])
 
-    static toadExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
+    static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
-    windowCriteria := "ahk_exe " . toadExecutableFilename . " ahk_class TfrmMain"
+    windowCriteria := "ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain"
 
     try {
-        if !ProcessExist(toadExecutableFilename) {
+        if !ProcessExist(toadForOracleExecutableFilename) {
             throw Error("Toad for Oracle process is not running.")
         }
     } catch as processNotRunningError {
@@ -866,7 +873,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
 
     try {
-        if WinExist("ahk_exe " . toadExecutableFilename . " ahk_class TfrmLogin") {
+        if WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin") {
             throw Error("No server connection is active in Toad for Oracle (login dialog is open).")
         }
     } catch as noActiveConnectionError {
@@ -887,21 +894,17 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     dialogHasAppeared := false
 
     while true {
-        dialogExists := WinExist("ahk_exe " . toadExecutableFilename . " ahk_class TReconnectForm")
+        dialogExists := WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TReconnectForm")
 
         if !dialogHasAppeared {
-            ; Phase 1: waiting for the dialog to appear
             if dialogExists != false {
                 dialogHasAppeared := true
                 firstSeenTickCount := A_TickCount
             } else if A_TickCount - overallStartTickCount >= 2000 {
-                ; No dialog ever appeared -> likely instant/local reconnect
                 break
             }
         } else {
-            ; Phase 2: dialog has appeared; wait until it closes (disappears)
             if !dialogExists {
-                ; Closed = reconnect finished
                 break
             }
             try {
@@ -920,7 +923,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     try {
         SendEvent("!u") ; ALT+U (Utilities)
-        submenuWindowHandle := WinWait("ahk_exe " toadExecutableFilename " ahk_class TdxBarSubMenuControl", , 1000)
+        submenuWindowHandle := WinWait("ahk_exe " toadForOracleExecutableFilename " ahk_class TdxBarSubMenuControl", , 1000)
         if !submenuWindowHandle {
             throw Error("Failed to open the Utilities menu (submenu was not detected).")
         }
@@ -960,7 +963,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(1200)
     toadForOracleRunSelectedAppsCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
 
-    if runtimeDate !== "" {
+    if runtimeDate != "" {
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsCoordinates)
 
         while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
@@ -989,7 +992,7 @@ CombineCode(introCode, mainCode, outroCode := "") {
 
     combinedCode := introCode . "`r`n`r`n" . mainCode
 
-    if outroCode !== "" {
+    if outroCode != "" {
         combinedCode := combinedCode . "`r`n`r`n" . outroCode
     } 
 

@@ -185,7 +185,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
             day       := dateParts[3] + 0
 
             validation := ValidateIsoDate(year, month, day)
-            if validation !== "" {
+            if validation != "" {
                 throw Error(validation)
             }
         } catch as validationError {
@@ -526,7 +526,7 @@ ConvertIntegerToUtcTimestamp(integerValue) {
 
     dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
 
-    if dateValidationResults !== "" {
+    if dateValidationResults != "" {
         LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
     }
 
@@ -602,7 +602,7 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
 
     dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
 
-    if dateValidationResults !== "" {
+    if dateValidationResults != "" {
         LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
     }
 
