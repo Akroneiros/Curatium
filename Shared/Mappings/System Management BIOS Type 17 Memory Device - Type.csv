@@ -1,0 +1,39 @@
+﻿Value|Hex|Byte Value|Meaning
+0|0x00|00h|Undefined
+1|0x01|01h|Other
+2|0x02|02h|Unknown
+3|0x03|03h|DRAM
+4|0x04|04h|EDRAM
+5|0x05|05h|VRAM
+6|0x06|06h|SRAM
+7|0x07|07h|RAM
+8|0x08|08h|ROM
+9|0x09|09h|FLASH
+10|0x0A|0Ah|EEPROM
+11|0x0B|0Bh|FEPROM
+12|0x0C|0Ch|EPROM
+13|0x0D|0Dh|CDRAM
+14|0x0E|0Eh|3DRAM
+15|0x0F|0Fh|SDRAM
+16|0x10|10h|SGRAM
+17|0x11|11h|RDRAM
+18|0x12|12h|DDR
+19|0x13|13h|DDR2
+20|0x14|14h|DDR2 FB-DIMM
+21|0x15|15h|Reserved
+22|0x16|16h|Reserved
+23|0x17|17h|Reserved
+24|0x18|18h|DDR3
+25|0x19|19h|FBD2
+26|0x1A|1Ah|DDR4
+27|0x1B|1Bh|LPDDR
+28|0x1C|1Ch|LPDDR2
+29|0x1D|1Dh|LPDDR3
+30|0x1E|1Eh|LPDDR4
+31|0x1F|1Fh|Logical non-volatile device
+32|0x20|20h|HBM (High Bandwidth Memory)
+33|0x21|21h|HBM2 (High Bandwidth Memory Gen 2)
+34|0x22|22h|DDR5
+35|0x23|23h|LPDDR5
+36|0x24|24h|HBM3 (High Bandwidth Memory Gen 3)
+37|0x25|25h|MRDIMM
