@@ -14,7 +14,6 @@ AssignFileTimeAsLocalIso(filePath, timeType) {
             offset := 8
         case "modified", "m":
             offset := 16
-        default:
     }
 
     fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", 0x80000000, "UInt", 0x1, "Ptr", 0, "UInt", 3, "UInt", 0x02000000, "Ptr", 0, "Ptr")
@@ -331,7 +330,6 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
             pointerCreation := utcFileTime.Ptr
         case "modified", "m":
             pointerModified := utcFileTime.Ptr
-        default:
     }
 
     success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
