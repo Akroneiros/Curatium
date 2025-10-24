@@ -1,10 +1,19 @@
 ﻿Name|Executable|Directory
+4K Capture Utility|4KCaptureUtility.exe|Elgato\4KCaptureUtility
 7-Zip|7zFM.exe|7-Zip
 Access|MSACCESS.EXE|Microsoft Office\root\Office16
 Acrobat Reader|Acrobat.exe|Adobe\Acrobat DC\Acrobat
+After Effects|AfterFX.exe|Adobe\Adobe After Effects 2025\Support Files
+After Effects|AfterFX.exe|Adobe\Adobe After Effects CS6\Support Files
 AIMP|AIMP.exe|AIMP
+Animate|Animate.exe|Adobe\Adobe Animate 2024
 AnyDesk|AnyDesk.exe|AnyDesk
 Audacity|audacity.exe|Audacity
+Audition|Adobe Audition CS6.exe|Adobe\Adobe Audition CS6
+Audition|Adobe Audition.exe|Adobe\Adobe Audition 2025
+AutoCAD|acad.exe|Autodesk\AutoCAD 2024
+AutoCAD|acad.exe|Autodesk\AutoCAD 2025
+AutoCAD|acad.exe|Autodesk\AutoCAD 2026
 Bandizip|Bandizip.exe|Bandizip
 Base|sbase.exe|LibreOffice\program
 BasicMaker|BasicMaker.exe|SoftMaker Office NX
@@ -12,55 +21,84 @@ Battle.net|Battle.net.exe|Battle.net
 Beyond Compare|BCompare.exe|Beyond Compare 5
 Blender|blender.exe|Blender Foundation\Blender 4.5
 Brave|brave.exe|BraveSoftware\Brave-Browser\Application
+Bridge|Adobe Bridge.exe|Adobe\Adobe Bridge 2025
+Bridge|Bridge.exe|Adobe\Adobe Bridge CS6
+Bridge|Bridge.exe|Adobe\Adobe Bridge CS6 (64 Bit)
 Calc|scalc.exe|LibreOffice\program
+CapCut|CapCut.exe|CapCut\Apps
+Character Animator|Character Animator.exe|Adobe\Adobe Character Animator 2025\Support Files
 CherryTree|cherrytree.exe|CherryTree\ucrt64\bin
 Chrome|chrome.exe|Google\Chrome\Application
 CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
 CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
+CyberGhost|Dashboard.exe|CyberGhost 8
 DaVinci Resolve|Resolve.exe|Blackmagic Design\DaVinci Resolve
 DBeaver|dbeaver.exe|DBeaver
 DbSchema|DbSchema.exe|DbSchema
 DevToys|DevToys.exe|DevToys Preview
 Docker Desktop|Docker Desktop.exe|Docker\Docker
 Draw|sdraw.exe|LibreOffice\program
+Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver 2021
+Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver CS6
 Edge|msedge.exe|Microsoft\Edge\Application
+Epic Games Launcher|EpicGamesLauncher.exe|Epic Games\Launcher\Portal\Binaries\Win32
 Everything|Everything.exe|Everything
 Excel|EXCEL.EXE|Microsoft Office\root\Office16
+ExpressVPN|ExpressVPN.exe|ExpressVPN\expressvpn-ui
 FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
 FileOptimizer|FileOptimizer32.exe|FileOptimizer
 FileOptimizer|FileOptimizer64.exe|FileOptimizer
 FileZilla|filezilla.exe|FileZilla FTP Client
 Firefox|firefox.exe|Mozilla Firefox
+Fireworks|Fireworks.exe|Adobe\Adobe Fireworks CS6
+Flash Professional|Flash.exe|Adobe\Adobe Flash CS6
 foobar2000|foobar2000.exe|foobar2000
 Foxit PDF Reader|FoxitPDFReader.exe|Foxit Software\Foxit PDF Reader
 FreeFileSync|FreeFileSync.exe|FreeFileSync
 GIMP|gimp-3.exe|GIMP 3\bin
 GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
 Google Earth Pro|googleearth.exe|Google\Google Earth Pro\client
+GoXLR App|GoXLR App.exe|TC-Helicon\GOXLR
 Gpg4win|kleopatra.exe|Gpg4win\bin
 Greenshot|Greenshot.exe|Greenshot
 GtkHash|org.gtkhash.gtkhash.exe|gtkhash-w64
 HandBrake|HandBrake.exe|HandBrake
 HWiNFO|HWiNFO32.EXE|HWiNFO32
 HWiNFO|HWiNFO64.EXE|HWiNFO64
+Illustrator|Illustrator.exe|Adobe\Adobe Illustrator 2025\Support Files\Contents\Windows
+Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6 (64 Bit)\Support Files\Contents\Windows
+Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6\Support Files\Contents\Windows
 ImgBurn|ImgBurn.exe|ImgBurn
 Impress|simpress.exe|LibreOffice\program
+InCopy|InCopy.exe|Adobe\Adobe InCopy 2025
+InDesign|InDesign.exe|Adobe\Adobe InDesign 2025
+InDesign|InDesign.exe|Adobe\Adobe InDesign CS6
 Inkscape|inkscape.exe|Inkscape\bin
 Internet Download Manager|IDMan.exe|Internet Download Manager
 IrfanView|i_view32.exe|IrfanView
 IrfanView|i_view64.exe|IrfanView
 iTubeGo|itubegow.exe|iTubeGo
+IVPN Client|IVPN Client.exe|IVPN Client\ui
 KeePass|KeePass.exe|KeePass Password Safe 2
 Keyboard Chatter Blocker|KeyboardChatterBlocker.exe|Keyboard Chatter Blocker
 Krita|krita.exe|Krita (x64)\bin
 Krita|krita.exe|Krita (x86)\bin
 Ledger Live|Ledger Live.exe|Ledger Live
+Lightroom Classic|Lightroom.exe|Adobe\Adobe Lightroom Classic
+Lightroom|lightroom.exe|Adobe\Adobe Lightroom CC
+Lightworks|lightworks.exe|Lightworks
 Math|smath.exe|LibreOffice\program
+Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder 2025
+Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder CS6
 MPC-BE|mpc-be.exe|MPC-BE
 MPC-BE|mpc-be64.exe|MPC-BE
+Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
+Mullvad VPN|Mullvad VPN.exe|Mullvad VPN
+NordVPN|NordVPN.exe|NordVPN
 Notepad++|notepad++.exe|Notepad++
 OBS Studio|obs32.exe|obs-studio\bin\32bit
 OBS Studio|obs64.exe|obs-studio\bin\64bit
+Obsidian|Obsidian.exe|Obsidian
 OneNote|ONENOTE.EXE|Microsoft Office\root\Office16
 Opera|opera.exe|Opera
 Outlook|OUTLOOK.EXE|Microsoft Office\root\Office16
@@ -68,38 +106,63 @@ Paint Shop Pro|Paint Shop Pro 9.exe|Jasc Software Inc\Paint Shop Pro 9
 Paint Shop Pro|Paint Shop Pro.exe|Jasc Software Inc\Paint Shop Pro 8
 Paint.NET|paintdotnet.exe|Paint.NET
 PeaZip|peazip.exe|PeaZip
+Photoshop|Photoshop.exe|Adobe\Adobe Photoshop 2025
+Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6
+Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6 (64 Bit)
 PlanMaker|PlanMaker.exe|SoftMaker Office NX
 Postman|Postman.exe|Postman
 Power BI Desktop|PBIDesktop.exe|Microsoft Power BI Desktop\bin
 PowerPoint|POWERPNT.EXE|Microsoft Office\root\Office16
 PowerToys|PowerToys.exe|PowerToys
+Prelude|Adobe Prelude.exe|Adobe\Adobe Prelude CS6
+Premiere Pro|Adobe Premiere Pro.exe|Adobe\Adobe Premiere Pro 2025
+Premiere Pro|Adobe Premiere Pro.exe|Adobe\Adobe Premiere Pro CS6
+Premiere Rush|Adobe Premiere Rush.exe|Adobe\Adobe Premiere Rush 2.0
 Presentations|Presentations.exe|SoftMaker Office NX
+Private Internet Access|pia-client.exe|Private Internet Access
+Proton VPN|ProtonVPN.Launcher.exe|Proton\VPN
 Publisher|MSPUB.EXE|Microsoft Office\root\Office16
 Pulover's Macro Creator|MacroCreator.exe|MacroCreator
 PuTTY|putty.exe|PuTTY
 qBittorrent|qbittorrent.exe|qBittorrent
 RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
+RegexBuddy|RegexBuddy5.exe|Just Great Software\RegexBuddy 5
 ScreenToGif|ScreenToGif.exe|ScreenToGif
+Shotcut|shotcut.exe|Shotcut
 Slack|slack.exe|slack
 Spotify|Spotify.exe|Spotify
 SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 21\Release\Common7\IDE
 StartAllBack|StartAllBackCfg.exe|StartAllBack
 Steam|steam.exe|Steam
 Stream Deck|StreamDeck.exe|Elgato\StreamDeck
+Streamlabs Desktop|Streamlabs OBS.exe|Streamlabs OBS
+Substance 3D Designer|Adobe Substance 3D Designer.exe|Adobe\Adobe Substance 3D Designer
+Substance 3D Modeler|Adobe Substance 3D Modeler.exe|Adobe\Adobe Substance 3D Modeler
+Substance 3D Painter|Adobe Substance 3D Painter.exe|Adobe\Adobe Substance 3D Painter
+Substance 3D Sampler|Adobe Substance 3D Sampler.exe|Adobe\Adobe Substance 3D Sampler
+Substance 3D Stager|Adobe Substance 3D Stager.exe|Adobe\Adobe Substance 3D Stager
+Surfshark|Surfshark.exe|Surfshark
 Tableau Desktop|tableau.exe|Tableau\Tableau 2025.2\bin
 TeraCopy|TeraCopy.exe|TeraCopy
 TextMaker|TextMaker.exe|SoftMaker Office NX
+Thunderbird|thunderbird.exe|Mozilla Thunderbird
 TightVNC|tvnviewer.exe|TightVNC
 Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
 TreeSize|TreeSize.exe|JAM Software\TreeSize
 TreeSize|TreeSizeFree.exe|JAM Software\TreeSize Free
 Trezor Suite|Trezor Suite.exe|Trezor Suite
 TrueCrypt|TrueCrypt.exe|TrueCrypt
+UNIFY|RODE UNIFY.exe|RØDE Microphones\RØDE UNIFY
 VeraCrypt|VeraCrypt.exe|VeraCrypt
-Visual Studio Code|Code.exe|Microsoft VS Code
+VirtualBox|VirtualBox.exe|Oracle\VirtualBox
 Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
+Visual Studio Code|Code.exe|Microsoft VS Code
 VLC media player|vlc.exe|VideoLAN\VLC
+vMix|vMix64.exe|vMix
+VyprVPN|VyprVPN.exe|VyprVPN
+Waterfox|waterfox.exe|Waterfox
 WinDirStat|WinDirStat.exe|WinDirStat
+Windscribe|Windscribe.exe|Windscribe
 WinMerge|WinMergeU.exe|WinMerge
 WinRAR|WinRAR.exe|WinRAR
 WinSCP|WinSCP.exe|WinSCP
