@@ -21,7 +21,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         latestDate    := ""
 
         sectionList := IniRead(manifestFilePath)
-        Loop Parse sectionList, "`n", "`r" {
+        loop parse sectionList, "`n", "`r" {
             candidateVersion := A_LoopField
             if candidateVersion = "" {
                 continue
@@ -356,7 +356,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
 
     if modifierKeys != "" {
         ; Tokenize on any of: + , space, tab.
-        Loop Parse modifierKeys, "+, " . "`t" {
+        loop parse modifierKeys, "+, " . "`t" {
             rawToken := A_LoopField
             if rawToken = "" {
                 continue
@@ -417,7 +417,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     SendMode(originalSendMode)
 
     ; Release modifiers in reverse order.
-    Loop normalizedModifierList.Length {
+    loop normalizedModifierList.Length {
         reverseIndex := normalizedModifierList.Length - A_Index + 1
         Send "{" normalizedModifierList[reverseIndex] " up}"
     }
@@ -497,7 +497,7 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
 
     byteCount := StrLen(hexString) // 2
     binaryBuffer := Buffer(byteCount)
-    Loop byteCount {
+    loop byteCount {
         characterIndex := (A_Index - 1) * 2 + 1
         byteHexadecimalPair := SubStr(hexString, characterIndex, 2)
         computedByteValue := ("0x" . byteHexadecimalPair) + 0

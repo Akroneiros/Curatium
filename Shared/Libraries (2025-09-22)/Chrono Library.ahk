@@ -463,7 +463,7 @@ WaitUntilFileIsModifiedToday(filePath) {
     maxLoops := (maxWaitMinutes * 60000) // checkInterval
     timeSinceLastMouse := 0
 
-    Loop maxLoops {
+    loop maxLoops {
         fileModifiedDate := FileGetTime(filePath, "M") ; Get modified date for file.
         fileModifiedDate := FormatTime(fileModifiedDate, "yyyy-MM-dd")
 

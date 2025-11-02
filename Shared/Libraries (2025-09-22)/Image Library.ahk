@@ -56,7 +56,7 @@ CreateSharedImages(imageCatalogName) {
         LogInformationConclusion("Failed", logValuesForConclusion, imageCatalogMissingError)
     }
 
-    static heroes := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Heroes (2025-09-20).csv")
+    static heroes := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Heroes (2025-09-20).csv")
     static variations := Map()
     for hero in heroes {
         heroName       := hero["Name"]
@@ -284,23 +284,23 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
     static methodName := RegisterMethod("ConvertImagesToBase64ImageLibraries(directoryPath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [directoryPath])
 
-    static applications   := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Applications.csv")
+    static applications   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
     static fileSignatures := unset
     static resolutions    := unset
     static scales         := unset
 
     if !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) {
-        fileSignatures := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\File Signatures.csv")
+        fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
         for index, rowMap in fileSignatures {
             rowMap["Maximum Base64 Signature"] := ConvertHexStringToBase64(rowMap["Maximum Hex Signature"])
         }
 
-        resolutions := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Resolutions (2025-09-20).csv")
+        resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
         for index, rowMap in resolutions {
             rowMap["Counter"] := index
         }
 
-        scales := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Scales (2025-09-20).csv")
+        scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
         for index, rowMap in scales {
             rowMap["Counter"] := index
         }
@@ -348,7 +348,7 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
             actionName   := Trim(matchResults[1])
             actionLetter := matchResults[2]
 
-            Loop Files, actionFolderPath . "*", "F" {
+            loop files, actionFolderPath . "*", "F" {
                 SplitPath(A_LoopFileName, , , , &fileNameWithoutExtension)
                 lastOpenParenthesisIndex := InStr(fileNameWithoutExtension, "(", "On", -1)
                 baseTextWithoutRanges    := RTrim(SubStr(fileNameWithoutExtension, 1, lastOpenParenthesisIndex - 1))

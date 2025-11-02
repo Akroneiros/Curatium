@@ -1,4 +1,5 @@
 #Requires AutoHotkey v2.0
+#Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include Base Library.ahk
 #Include Image Library.ahk
 #Include Logging Library.ahk
@@ -15,21 +16,59 @@ RegisterApplications() {
 
     global applicationRegistry
    
-    applications := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Applications.csv")
-
-    for application in applications {
+    mappingApplications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
+    for application in mappingApplications {
         applicationName := application["Name"]
-        counter         := application["Counter"] + 0
 
         applicationRegistry[applicationName] := Map()
 
-        applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
+        applicationRegistry[applicationName]["Counter"] := application["Counter"] + 0
+    }
 
-        if applicationRegistry[applicationName]["Executable Path"] = "" {
-            applicationRegistry[applicationName]["Installed"] := false
-        } else {
-            applicationRegistry[applicationName]["Installed"] := true
-            ResolveFactsForApplication(applicationName, counter)
+    projectApplicationsFilePath := FileExistsInDirectory("Applications", system["Project Directory"], "csv")
+
+    projectApplications := unset
+    if projectApplicationsFilePath != "" {
+        projectApplications := ConvertCsvToArrayOfMaps(projectApplicationsFilePath)
+
+        for application in projectApplications {
+            applicationName := application["Name"]
+
+            try {
+                if !applicationRegistry.Has(applicationName) {
+                    throw Error("Application " . Chr(34) . applicationName . Chr(34) . " does not exist.")
+                }
+            } catch as applicationMissingError {
+                LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
+            }
+
+            applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
+
+            if applicationRegistry[applicationName]["Executable Path"] = "" {
+                applicationRegistry[applicationName]["Installed"] := false
+            } else {
+                applicationRegistry[applicationName]["Installed"] := true
+                ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
+            }
+        }
+
+        for application in mappingApplications {
+            if !applicationRegistry[application["Name"]].Has("Installed") {
+                applicationRegistry[application["Name"]]["Installed"] := false
+            }
+        }
+    } else {
+        for application in mappingApplications {
+            applicationName := application["Name"]
+
+            applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
+
+            if applicationRegistry[applicationName]["Executable Path"] = "" {
+                applicationRegistry[applicationName]["Installed"] := false
+            } else {
+                applicationRegistry[applicationName]["Installed"] := true
+                ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
+            }
         }
     }
 
@@ -38,8 +77,7 @@ RegisterApplications() {
         if innermap["Installed"] {
             configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"] . "|" . innerMap["Counter"]
 
-            switch outerKey
-            {
+            switch outerKey {
                 case "Excel":
                     configuration := configuration . "|" . "Personal Macro Workbook: " . innerMap["Personal Macro Workbook"] . "|" . "Code Execution: " . innerMap["Code Execution"]
             }
@@ -62,25 +100,26 @@ ExecutablePathResolve(applicationName) {
     executableDirectory := ""
     registryKeyPaths    := []
 
-    static applicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Application Executable Directory Candidates.csv")
-    static applicationRegistryPathCandidates        := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Application Registry Path Candidates.csv")
+    static projectApplicationExecutableDirectoryCandidates := unset
+    static sharedApplicationExecutableDirectoryCandidates  := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Executable Directory Candidates.csv")
+    static sharedApplicationRegistryPathCandidates         := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Registry Path Candidates.csv")
 
-    for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+    if !IsSet(projectApplicationExecutableDirectoryCandidates) {
+        projectApplicationExecutableDirectoryCandidatesFilePath := FileExistsInDirectory("Application Executable Directory Candidates", system["Project Directory"], "csv")
+
+        if projectApplicationExecutableDirectoryCandidatesFilePath != "" {
+            projectApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(projectApplicationExecutableDirectoryCandidatesFilePath)
+        } else {
+            projectApplicationExecutableDirectoryCandidates := ""
+        }
+    }
+
+    for applicationExecutableDirectoryCandidate in projectApplicationExecutableDirectoryCandidates {
         if applicationExecutableDirectoryCandidate["Name"] = applicationName {
             executableName      := applicationExecutableDirectoryCandidate["Executable"]
             executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
 
-            for applicationRegistryPathCandidate in applicationRegistryPathCandidates {
-                if applicationRegistryPathCandidate["Name"] = applicationName {
-                    registryPath := applicationRegistryPathCandidate["Registry Path"]
-
-                    registryKeyPaths.Push(registryPath)
-                }
-            }
-
-            executablePath := ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths)
-            executablePath := ExecutablePathViaUninstall(executablePath, executableName)
-            executablePath := ExecutablePathViaDirectory(executablePath, executableName, executableDirectory)
+            executablePath := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
 
             if executablePath != "" {
                 break
@@ -88,12 +127,37 @@ ExecutablePathResolve(applicationName) {
         }
     }
 
+    if executablePath = "" {
+        for applicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
+            if applicationExecutableDirectoryCandidate["Name"] = applicationName {
+                executableName      := applicationExecutableDirectoryCandidate["Executable"]
+                executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
+
+                for applicationRegistryPathCandidate in sharedApplicationRegistryPathCandidates {
+                    if applicationRegistryPathCandidate["Name"] = applicationName {
+                        registryPath := applicationRegistryPathCandidate["Registry Path"]
+
+                        registryKeyPaths.Push(registryPath)
+                    }
+                }
+
+                executablePath := ExecutablePathViaRegistry(applicationName, executablePath, executableName, registryKeyPaths)
+                executablePath := ExecutablePathViaUninstall(applicationName, executablePath, executableName)
+                executablePath := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
+
+                if executablePath != "" {
+                    break
+                }
+            }
+        }
+    }
+
     return executablePath
 }
 
-ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
-    static methodName := RegisterMethod("ExecutablePathViaDirectory(executablePath As String [Optional], executableName As String, directoryName As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, directoryName])
+ExecutablePathViaDirectory(applicationName, executablePath, executableName, directoryName) {
+    static methodName := RegisterMethod("ExecutablePathViaDirectory(applicationName As String, executablePath As String [Optional], executableName As String, directoryName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName, directoryName])
 
     if executablePath != "" {
         return executablePath
@@ -103,6 +167,17 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
 
     if !IsSet(candidateBaseDirectories) {
         candidateBaseDirectories := []
+
+        portableFilesDirectory        := ExtractDirectory(A_WinDir) . "Portable Files"
+        programFilesPortableDirectory := ExtractDirectory(A_WinDir) . "Program Files (Portable)"
+
+        if DirExist(portableFilesDirectory) {
+            candidateBaseDirectories.Push(portableFilesDirectory)
+        }
+
+        if DirExist(programFilesPortableDirectory) {
+            candidateBaseDirectories.Push(programFilesPortableDirectory)
+        }
 
         programFilesDirectory := EnvGet("ProgramFiles")
         if programFilesDirectory {
@@ -126,8 +201,11 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
         }
     }
 
+    baseDirectoriesWithDirectoryNames := []
     for baseDirectory in candidateBaseDirectories {
         candidatePath := baseDirectory . "\" . directoryName . "\" . executableName
+
+        baseDirectoriesWithDirectoryNames.Push(baseDirectory . "\" . directoryName . "\")
 
         if FileExist(candidatePath) {
             executablePath := candidatePath
@@ -135,12 +213,135 @@ ExecutablePathViaDirectory(executablePath, executableName, directoryName) {
         }
     }
 
+    switch applicationName {
+        case "CyberChef":
+            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
+                if executablePath != "" {
+                    break
+                }
+
+                if DirExist(baseDirectoryWithName) {
+                    applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
+
+                    if applicationDirectoryFileList.Length = 0 {
+                        break
+                    } else {
+                        for filePath in applicationDirectoryFileList {
+                            filename := ExtractFilename(filePath)
+
+                            if InStr(filename, "CyberChef") = 1 && SubStr(filename, -5) = ".html" {
+                                executablePath := filePath
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        case "Discord":
+            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
+                if executablePath != "" {
+                    break
+                }
+
+                applicationParentDirectory := ExtractParentDirectory(baseDirectoryWithName)
+
+                if DirExist(applicationParentDirectory) && FileExist(applicationParentDirectory . "Update.exe") {
+                    highestVersionKey := ""
+
+                    loop files, applicationParentDirectory . "app-*", "D" {
+                        folderName := A_LoopFileName
+                        if SubStr(folderName, 1, 4) != "app-" {
+                            continue
+                        }
+
+                        versionText := SubStr(folderName, 5)
+                        if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
+                            continue
+                        }
+
+                        candidatePath := A_LoopFileFullPath . "\" . executableName
+                        if !FileExist(candidatePath) {
+                            continue
+                        }
+
+                        versionKey := ""
+                        for versionIndex, versionPart in StrSplit(versionText, ".") {
+                            versionKey .= Format("{:06}", Number(versionPart))
+                        }
+
+                        if StrCompare(versionKey, highestVersionKey) > 0 {
+                            highestVersionKey := versionKey
+                            executablePath := candidatePath
+                        }
+                    }
+                }
+            }
+        case "Rufus":
+            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
+                if executablePath != "" {
+                    break
+                }
+
+                if DirExist(baseDirectoryWithName) {
+                    applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
+
+                    if applicationDirectoryFileList.Length = 0 {
+                        break
+                    } else {
+                        for filePath in applicationDirectoryFileList {
+                            filename := ExtractFilename(filePath)
+
+                            if InStr(filename, "Rufus") = 1 && SubStr(filename, -4) = ".exe" {
+                                executablePath := filePath
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        case "WPS Office":
+            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
+                if executablePath != "" {
+                    break
+                }
+
+                applicationParentDirectory := ExtractParentDirectory(baseDirectoryWithName)
+                applicationParentDirectory := ExtractParentDirectory(applicationParentDirectory)
+
+                if DirExist(applicationParentDirectory) && FileExist(applicationParentDirectory . "ksolaunch.exe") {
+                    highestVersionKey := ""
+
+                    loop files, applicationParentDirectory . "*", "D" {
+                        versionText := A_LoopFileName
+                        if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
+                            continue
+                        }
+
+                        candidatePath := A_LoopFileFullPath . "\office6\" . executableName
+                        if !FileExist(candidatePath) {
+                            continue
+                        }
+
+                        versionKey := ""
+                        for versionIndex, versionPart in StrSplit(versionText, ".") {
+                            versionKey .= Format("{:06}", Number(versionPart))
+                        }
+
+                        if StrCompare(versionKey, highestVersionKey) > 0 {
+                            highestVersionKey := versionKey
+                            executablePath := candidatePath
+                        }
+                    }
+                }
+            }
+    }
+
     return executablePath
 }
 
-ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
-    static methodName := RegisterMethod("ExecutablePathViaRegistry(executablePath As String [Optional], executableName As String, registryKeyPaths As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName, registryKeyPaths])
+ExecutablePathViaRegistry(applicationName, executablePath, executableName, registryKeyPaths) {
+    static methodName := RegisterMethod("ExecutablePathViaRegistry(applicationName As String, executablePath As String [Optional], executableName As String, registryKeyPaths As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName, registryKeyPaths])
 
     if executablePath != "" {
         return executablePath
@@ -181,12 +382,17 @@ ExecutablePathViaRegistry(executablePath, executableName, registryKeyPaths) {
     return executablePath
 }
 
-ExecutablePathViaUninstall(executablePath, executableName) {
-    static methodName := RegisterMethod("ExecutablePathViaUninstall(executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [executablePath, executableName])
+ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
+    static methodName := RegisterMethod("ExecutablePathViaUninstall(applicationName As String, executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName])
 
     if executablePath != "" {
         return executablePath
+    }
+
+    switch executableName {
+        case "chat.exe", "Code.exe", "Dashboard.exe", "devenv.exe", "i_view32.exe", "i_view64.exe", "IDMan.exe", "ipscan.exe", "NLClientApp.exe", "vmware.exe":
+            return executablePath
     }
 
     for uninstallBaseKeyPath in [
@@ -194,7 +400,7 @@ ExecutablePathViaUninstall(executablePath, executableName) {
         "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
         "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ] {
-        Loop Reg, uninstallBaseKeyPath, "K" {
+        loop reg, uninstallBaseKeyPath, "K" {
             uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
 
             displayName := ""
@@ -254,13 +460,18 @@ ResolveFactsForApplication(applicationName, counter) {
     applicationRegistry[applicationName]["Executable Hash"]     := executableHash
     applicationRegistry[applicationName]["Executable Version"]  := executableVersion
     applicationRegistry[applicationName]["Binary Type"]         := binaryType
-    applicationRegistry[applicationName]["Counter"]             := counter
 
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
-    switch applicationName
-    {
+    switch applicationName {
+        case "CyberChef":
+            cyberChefHtml := ReadFileOnHashMatch(applicationRegistry[applicationName]["Executable Path"], DecodeBaseToSha256Hex(applicationRegistry[applicationName]["Executable Hash"], 86))
+
+            versionPattern := "i)CyberChef\s+version:\s*(\d+(?:\.\d+)*)"
+            if RegExMatch(cyberChefHtml, versionPattern, &versionMatch) {
+                applicationRegistry[applicationName]["Executable Version"] := versionMatch[1]
+            }
         case "Excel":
             CloseApplication("Excel")
 
@@ -321,7 +532,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Excel"]["International"] := Map()
 
-            excelInternational := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Excel International (2025-09-26).csv")
+            excelInternational := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Excel International (2025-09-26).csv")
             for international in excelInternational {
                 applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
             }
@@ -338,7 +549,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Word"]["International"] := Map()
 
-            wordInternational := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Constants\Word International (2025-09-26).csv")
+            wordInternational := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Word International (2025-09-26).csv")
 
             for international in wordInternational {
                 applicationRegistry["Word"]["International"][international["Label"]] := wordApplication.International[international["Value"]]
@@ -431,7 +642,10 @@ ValidateApplicationInstalled(applicationName) {
         LogInformationConclusion("Failed", logValuesForConclusion, applicationNotInstalledError)
     }
 
+    applicationIsInstalled := true
+
     LogInformationConclusion("Completed", logValuesForConclusion)
+    return applicationIsInstalled
 }
 
 ; **************************** ;
@@ -475,6 +689,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         overlayValue := displayName . " Excel Extension Run"
     }
     logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition])
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     try {
@@ -648,7 +864,9 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 ExcelActivateEditorAndPasteCode(code) {
     static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Type: Code])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Excel Activate Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code])
-   
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
     SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)
     WinWait("ahk_class wndclass_desked_gsk", , 10)
     WinActivate("ahk_class wndclass_desked_gsk")
@@ -675,6 +893,8 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         overlayValue := displayName . " Excel Starting Run"
     }
     logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [documentName, saveDirectory, code, displayName])
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -728,12 +948,14 @@ WaitForExcelToClose(excelProcessIdentifier) {
     static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close (PID: " . excelProcessIdentifier . ")", methodName, [excelProcessIdentifier])
 
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
     totalSecondsToWait := 240 * 60
     mouseMoveIntervalSec := 120
     secondsSinceLastMouseMove := 0
 
     userInterfaceIsGone := false
-    Loop totalSecondsToWait {
+    loop totalSecondsToWait {
         windowCount := WinGetList("ahk_pid " excelProcessIdentifier).Length
         if windowCount = 0 {
             Sleep(1000)
@@ -770,6 +992,8 @@ StartSqlServerManagementStudioAndConnect() {
     static methodName := RegisterMethod("StartSqlServerManagementStudioAndConnect()", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Start SQL Server Management Studio and Connect", methodName)
 
+    static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
+
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
     sqlServerManagementStudioExecutableFilename := applicationRegistry["SQL Server Management Studio"]["Executable Filename"]
     WinWaitActive("Connect to Server ahk_exe " . sqlServerManagementStudioExecutableFilename,, 20)
@@ -796,6 +1020,8 @@ StartSqlServerManagementStudioAndConnect() {
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
+
+    static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
     savePath := saveDirectory . filename . ".csv"
 
@@ -859,6 +1085,8 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ExecuteAutomationApp(appName, runtimeDate := "") {
     static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute Automation App (" . appName . ")", methodName, [appName, runtimeDate])
+
+    static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
 
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 

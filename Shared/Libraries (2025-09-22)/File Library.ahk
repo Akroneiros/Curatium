@@ -55,7 +55,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
     headerNames := StrSplit(Trim(allLines[1], " `t"), delimiter)
 
     rowsAsMaps := []
-    Loop allLines.Length - 1 {
+    loop allLines.Length - 1 {
         currentLine := Trim(allLines[1 + A_Index], " `t")
 
         try { 
@@ -69,7 +69,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
         fieldValues := StrSplit(currentLine, delimiter)
         rowMap := Map()
 
-        Loop headerNames.Length {
+        loop headerNames.Length {
             headerName := Trim(headerNames[A_Index], " `t")
             valueText := (A_Index <= fieldValues.Length) ? Trim(fieldValues[A_Index], " `t") : ""
             rowMap[headerName] := valueText
@@ -217,8 +217,7 @@ GetFileListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
     files := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
-    Loop Files, pattern, "F"
-    {
+    loop files, pattern, "F" {
         files.Push(A_LoopFileFullPath)
     }
 
@@ -241,8 +240,7 @@ GetFolderListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
     folders := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
-    Loop Files, pattern, "D"
-    {
+    loop files, pattern, "D" {
         folders.Push(A_LoopFileFullPath . "\")
     }
 
@@ -355,7 +353,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         swapped := Buffer(beSize)
         sourcePtr := fileBuffer.Ptr + 2
 
-        Loop beSize // 2 {
+        loop beSize // 2 {
             offset := (A_Index - 1) * 2
             NumPut("UChar", NumGet(sourcePtr + offset, 1, "UChar"), swapped.Ptr + offset, 0)
             NumPut("UChar", NumGet(sourcePtr + offset, 0, "UChar"), swapped.Ptr + offset, 1)
@@ -415,7 +413,7 @@ WriteBase64IntoImageFileWithHash(base64Text, filePath, expectedHash) {
         temporaryFilePath := filePath ".part"
         try {
             fileHandle := FileOpen(temporaryFilePath, "w")
-            Loop byteCount {
+            loop byteCount {
                 fileHandle.WriteUChar(byteArray[A_Index - 1])
             }
             fileHandle.Close()

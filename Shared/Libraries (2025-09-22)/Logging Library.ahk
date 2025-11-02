@@ -141,10 +141,14 @@ LogEngine(status, fullErrorText := "") {
 
         global system
     
-        system["Project Name"]          := projectName
         system["Project Directory"]     := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
+        system["Shared Directory"]      := ExtractParentDirectory(A_LineFile)
+        system["Constants Directory"]   := system["Shared Directory"] . "Constants\"
+        system["Images Directory"]      := system["Shared Directory"] . "Images\"
+        system["Mappings Directory"]    := system["Shared Directory"] . "Mappings\"
+
+        system["Project Name"]          := projectName
         system["Library Release"]       := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
-        system["Script File Hash"]      := Hash.File("SHA256", A_ScriptFullPath)
         system["AutoHotkey Version"]    := A_AhkVersion
 
         warmupUtcTimestampPrecise       := GetUtcTimestampPrecise()
@@ -209,9 +213,7 @@ LogEngine(status, fullErrorText := "") {
         case "Beginning":
             executionLogLines := [
                 system["Project Name"],
-                system["Project Directory"],
                 system["Library Release"],
-                system["Script File Hash"],
                 system["AutoHotkey Version"],
                 system["Operating System"],
                 system["OS Installation Date"],
@@ -1243,7 +1245,7 @@ GetBaseCharacterSet(baseType) {
        }
 
         baseCharacters := ""
-        Loop 0x7E - 0x20 + 1 {
+        loop 0x7E - 0x20 + 1 {
             codePoint := 0x20 + A_Index - 1
 
             if !excludedAsciiCodePoints.Has(codePoint) {
@@ -1254,7 +1256,7 @@ GetBaseCharacterSet(baseType) {
         baseRadix := StrLen(baseCharacters)
 
         baseDigitByCharacterMap := Map()
-        Loop StrLen(baseCharacters) {
+        loop StrLen(baseCharacters) {
             baseCharacter := SubStr(baseCharacters, A_Index, 1)
             baseDigitByCharacterMap[baseCharacter] := A_Index - 1
         }
@@ -1332,7 +1334,7 @@ DecodeBaseToInteger(baseText, baseType) {
     digitMap         := baseCharacterSet["Digit Map"]
 
     integerValue := 0
-    Loop Parse, baseText {
+    loop parse, baseText {
         integerValue := integerValue * baseRadix + digitMap[A_LoopField]
     }
 
@@ -1351,7 +1353,7 @@ EncodeSha256HexToBase(hexSha256, baseType) {
 
     sha256BytesBuffer := Buffer(32, 0)
     writeOffset := 0
-    Loop 32 {
+    loop 32 {
         twoHexDigits := SubStr(hexSha256, (A_Index - 1) * 2 + 1, 2)
         byteValue := ("0x" . twoHexDigits) + 0
         NumPut("UChar", byteValue, sha256BytesBuffer, writeOffset)
@@ -1425,7 +1427,7 @@ DecodeBaseToSha256Hex(baseText, baseType) {
         resetIndex += 1
     }
 
-    Loop Parse, baseText {
+    loop parse, baseText {
         baseCharacter := A_LoopField
         digitValue    := digitMap[baseCharacter]
 
@@ -1760,8 +1762,7 @@ ParseMethodDeclaration(declaration) {
         inQuotedString := false               ; True while inside " … "
         removeLeadingSpaceAfterComma := false ; True right after a delimiter comma has been processed
 
-        Loop Parse contract
-        {
+        loop parse contract {
             currentCharacter := A_LoopField
 
             ; Toggle quoted-string mode on a double quote (").
@@ -2080,7 +2081,7 @@ GetWindowsInstallationDateUtcTimestamp() {
 
     ; Prefer the oldest DWORD InstallDate under SYSTEM\Setup\Source OS (...).
     oldestSeconds := unset
-    Loop Reg, registryKeySystemSetup, "K" {
+    loop reg, registryKeySystemSetup, "K" {
         subKeyName := A_LoopRegName
         if !RegExMatch(subKeyName, "^Source OS") {
             continue
@@ -2454,7 +2455,7 @@ GetMemorySizeAndType() {
     static methodName := RegisterMethod("GetMemorySizeAndType()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\System Management BIOS Type 17 Memory Device - Type.csv")
+    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "System Management BIOS Type 17 Memory Device - Type.csv")
 
     ramValues := Map()
     for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypes {
@@ -2915,8 +2916,8 @@ GetActiveMonitor() {
     DISPLAY_DEVICE_ACTIVE := 0x00000001
 
 
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(ExtractParentDirectory(A_LineFile) . "Mappings\Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
 
     plugAndPlayManufacturers := Map()
     for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {
@@ -3041,7 +3042,7 @@ GetActiveMonitor() {
         for registryClass in ["DISPLAY", "MONITOR"] {
             registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
-                Loop Reg, registryBasePath, "K" {
+                loop reg, registryBasePath, "K" {
                     instanceKeyName := A_LoopRegName
                     parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
                     friendlyNameCandidate := ""
@@ -3061,7 +3062,7 @@ GetActiveMonitor() {
         for registryClass in ["DISPLAY", "MONITOR"] {
             registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
-                Loop Reg, registryBasePath, "K" {
+                loop reg, registryBasePath, "K" {
                     instanceKeyName := A_LoopRegName
                     parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
                     edidBuffer := ""
@@ -3071,14 +3072,14 @@ GetActiveMonitor() {
                     if IsObject(edidBuffer) && edidBuffer.Size >= 128 {
                         descriptorStart := 54
                         descriptorLength := 18
-                        Loop 4 {
+                        loop 4 {
                             descriptorOffset := descriptorStart + (A_Index - 1) * descriptorLength
                             byte0 := NumGet(edidBuffer, descriptorOffset + 0, "UChar")
                             byte1 := NumGet(edidBuffer, descriptorOffset + 1, "UChar")
                             tag   := NumGet(edidBuffer, descriptorOffset + 3, "UChar")
                             if byte0 = 0x00 && byte1 = 0x00 && tag = 0xFC {
                                 modelFromEdid := ""
-                                Loop 13 {
+                                loop 13 {
                                     edidNameAsciiByte := NumGet(edidBuffer, descriptorOffset + 5 + (A_Index - 1), "UChar")
                                     if edidNameAsciiByte = 0x00 || edidNameAsciiByte = 0x0A {
                                         break
