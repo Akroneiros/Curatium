@@ -4,7 +4,7 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-global applicationRegistry := Map()
+global applicationRegistry := unset
 
 ; **************************** ;
 ; Application Registry         ;
@@ -15,6 +15,7 @@ RegisterApplications() {
     logValuesForConclusion := LogInformationBeginning("Register Applications", methodName)
 
     global applicationRegistry
+    applicationRegistry := Map()
    
     mappingApplications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
     for application in mappingApplications {
@@ -110,7 +111,7 @@ ExecutablePathResolve(applicationName) {
         if projectApplicationExecutableDirectoryCandidatesFilePath != "" {
             projectApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(projectApplicationExecutableDirectoryCandidatesFilePath)
         } else {
-            projectApplicationExecutableDirectoryCandidates := ""
+            projectApplicationExecutableDirectoryCandidates := []
         }
     }
 
@@ -386,13 +387,38 @@ ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
     static methodName := RegisterMethod("ExecutablePathViaUninstall(applicationName As String, executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName])
 
-    if executablePath != "" {
+    if executablePath != "" || StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
         return executablePath
-    }
+    } else {
+        requiredLength := 4
+        hasCommonSubstring := false
+        
+        executableNameWithoutExtension := ExtractFilename(executableName, true)
+        shorterText := StrLower(applicationName)
+        longerText  := StrLower(executableNameWithoutExtension)
+        shorterLength := StrLen(shorterText)
+        longerLength  := StrLen(longerText)
+        if shorterLength > longerLength {
+            temporarySwapHolder := shorterText
+            shorterText := longerText
+            longerText  := temporarySwapHolder
+            shorterLength := StrLen(shorterText)
+            longerLength  := StrLen(longerText)
+        }
 
-    switch executableName {
-        case "chat.exe", "Code.exe", "Dashboard.exe", "devenv.exe", "i_view32.exe", "i_view64.exe", "IDMan.exe", "ipscan.exe", "NLClientApp.exe", "vmware.exe":
+        maximumStartIndex := shorterLength - requiredLength + 1
+        loop maximumStartIndex {
+            currentStartIndex := A_Index
+            substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
+            if InStr(longerText, substringToSearch) {
+                hasCommonSubstring := true
+                break
+            }
+        }
+
+        if !hasCommonSubstring {
             return executablePath
+        }
     }
 
     for uninstallBaseKeyPath in [
@@ -408,7 +434,7 @@ ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
                 displayName := RegRead(uninstallSubKeyPath, "DisplayName")
             }
 
-            if !(displayName && InStr(StrLower(displayName), StrLower(StrReplace(executableName, ".exe", "")))) {
+            if !(displayName && InStr(StrLower(displayName), StrLower(executableNameWithoutExtension))) {
                 continue
             }
 
@@ -421,6 +447,7 @@ ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
                 pathToExecutable := Trim(StrSplit(displayIcon, ",")[1], ' "')
                 if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -StrLen(executableName)) = StrLower(executableName)) {
                     executablePath := pathToExecutable
+                    break 2
                 }
             }
 
@@ -433,6 +460,7 @@ ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
                 pathToExecutable := RTrim(installLocation, "\/") . "\" . executableName
                 if FileExist(pathToExecutable) {
                     executablePath := pathToExecutable
+                    break 2
                 }
             }
         }
@@ -666,13 +694,13 @@ CloseApplication(applicationName) {
 
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
-    if ProcessExist(executableName) {
+    if !ProcessExist(executableName) {
+        LogInformationConclusion("Skipped", logValuesForConclusion)
+    } else {
         ProcessClose(executableName)
         ProcessWaitClose(executableName, 4)
 
         LogInformationConclusion("Completed", logValuesForConclusion)
-    } else {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
     }
 }
 
@@ -909,7 +937,9 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         }
     }
 
-    if xlsxPath = "" {
+    if xlsxPath != "" {
+        LogInformationConclusion("Skipped", logValuesForConclusion)
+    } else {
         sidecarPath := saveDirectory . documentName . ".txt"
         FileAppend("", sidecarPath, "UTF-8-RAW")
 
@@ -939,8 +969,6 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
         DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
         LogInformationConclusion("Completed", logValuesForConclusion)
-    } else {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
     }
 }
 
@@ -1029,11 +1057,12 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     Sleep(800)
     PasteCode(code, "--")
     SendInput("{F5}") ; F5 (Run the selected portion of the query editor or the entire query editor if nothing is selected)
-    sqlQuerySuccessfulCoordinates := GetImageCoordinatesFromSegment("SQL Server Management Studio Query executed successfully", "6-26", "88-96", 360)
-    sqlQueryResultsWindow := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
-    PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindow)
+    sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
+    sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
+    sqlQueryResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
+    PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindowCoordinates)
     Sleep(480)
-    PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindow)
+    PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindowCoordinates)
     Sleep(480)
     SendEvent("v") ; V (Save Results As...)
     WinWaitActive("ahk_class #32770",, 2)
@@ -1169,7 +1198,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         LogInformationConclusion("Failed", logValuesForConclusion, selectAutomationDesignerError)
     }
 
-    toadForOracleSearchCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Search", "0-40", "80-100")
+    toadForOracleSearchResults := SearchForDirectoryImage("Toad for Oracle", "Search")
+    toadForOracleSearchCoordinates := ExtractScreenCoordinates(toadForOracleSearchResults)
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
     Sleep(2000)
 
@@ -1189,7 +1219,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(1200)
     SendEvent("{Enter}") ; ENTER (Goto Item)
     Sleep(1200)
-    toadForOracleRunSelectedAppsCoordinates := GetImageCoordinatesFromSegment("Toad for Oracle Run selected apps", "0-40", "0-20")
+    toadForOracleRunSelectedAppsResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
+    toadForOracleRunSelectedAppsCoordinates := ExtractScreenCoordinates(toadForOracleRunSelectedAppsResults)
 
     if runtimeDate != "" {
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsCoordinates)
