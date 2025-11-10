@@ -41,12 +41,14 @@ Chrome|chrome.exe|Google\Chrome\Application
 CPU-Z|cpuz.exe|CPUID\CPU-Z
 CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
 CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
+CyberChef|CyberChef_v10.19.4.html|CyberChef
 CyberGhost|Dashboard.exe|CyberGhost 8
 darktable|darktable.exe|darktable\bin
 DaVinci Resolve|Resolve.exe|Blackmagic Design\DaVinci Resolve
 DBeaver|dbeaver.exe|DBeaver
 DbSchema|DbSchema.exe|DbSchema
 DevToys|DevToys.exe|DevToys Preview
+Discord|Discord.exe|Discord\app-1.0.9213
 Docker Desktop|Docker Desktop.exe|Docker\Docker
 draw.io|draw.io.exe|draw.io
 Draw|sdraw.exe|LibreOffice\program
@@ -162,6 +164,7 @@ REAPER|reaper.exe|REAPER
 REAPER|reaper.exe|REAPER (x64)
 RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
 RegexBuddy|RegexBuddy5.exe|Just Great Software\RegexBuddy 5
+Rufus|rufus-4.11.exe|Rufus
 ScreenToGif|ScreenToGif.exe|ScreenToGif
 Shotcut|shotcut.exe|Shotcut
 Slack|slack.exe|slack
@@ -196,8 +199,8 @@ TrueCrypt|TrueCrypt.exe|TrueCrypt
 UNIFY|RODE UNIFY.exe|RØDE Microphones\RØDE UNIFY
 VeraCrypt|VeraCrypt.exe|VeraCrypt
 VirtualBox|VirtualBox.exe|Oracle\VirtualBox
-Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
 Visual Studio Code|Code.exe|Microsoft VS Code
+Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
 VLC media player|vlc.exe|VideoLAN\VLC
 vMix|vMix64.exe|vMix
 Voicemeeter Banana|voicemeeterpro_x64.exe|VB\Voicemeeter
@@ -215,5 +218,6 @@ WizTree|WizTree.exe|WizTree
 WizTree|WizTree64.exe|WizTree
 Word|WINWORD.EXE|Microsoft Office\root\Office16
 Workstation Pro|vmware.exe|VMware\VMware Workstation
+WPS Office|wps.exe|Kingsoft\WPS Office\12.2.0.23131\office6
 Writer|swriter.exe|LibreOffice\program
 XnView MP|xnviewmp.exe|XnViewMP
