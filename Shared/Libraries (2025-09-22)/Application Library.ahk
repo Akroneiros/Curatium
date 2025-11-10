@@ -43,7 +43,13 @@ RegisterApplications() {
                 LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
             }
 
-            applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
+            executablePathSearchResult := ExecutablePathResolve(applicationName)
+            if Type(executablePathSearchResult) = "Map" {
+                applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
+                applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
+            } else {
+                applicationRegistry[applicationName]["Executable Path"]   := ""
+            }
 
             if applicationRegistry[applicationName]["Executable Path"] = "" {
                 applicationRegistry[applicationName]["Installed"] := false
@@ -62,7 +68,13 @@ RegisterApplications() {
         for application in mappingApplications {
             applicationName := application["Name"]
 
-            applicationRegistry[applicationName]["Executable Path"] := ExecutablePathResolve(applicationName)
+            executablePathSearchResult := ExecutablePathResolve(applicationName)
+            if Type(executablePathSearchResult) = "Map" {
+                applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
+                applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
+            } else {
+                applicationRegistry[applicationName]["Executable Path"]   := ""
+            }
 
             if applicationRegistry[applicationName]["Executable Path"] = "" {
                 applicationRegistry[applicationName]["Installed"] := false
@@ -76,7 +88,7 @@ RegisterApplications() {
     installedApplications := []
     for outerKey, innerMap in applicationRegistry {
         if innermap["Installed"] {
-            configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"] . "|" . innerMap["Counter"]
+            configuration := outerkey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"] . "|" . innerMap["Counter"] . "|" . SubStr(innermap["Resolution Method"], 1, 1)
 
             switch outerKey {
                 case "Excel":
@@ -96,14 +108,11 @@ ExecutablePathResolve(applicationName) {
     static methodName := RegisterMethod("ExecutablePathResolve(applicationName As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [applicationName])
 
-    executablePath      := ""
-    executableName      := ""
-    executableDirectory := ""
-    registryKeyPaths    := []
+    executablePath             := ""
+    executablePathSearchResult := ""
 
     static projectApplicationExecutableDirectoryCandidates := unset
     static sharedApplicationExecutableDirectoryCandidates  := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Executable Directory Candidates.csv")
-    static sharedApplicationRegistryPathCandidates         := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Registry Path Candidates.csv")
 
     if !IsSet(projectApplicationExecutableDirectoryCandidates) {
         projectApplicationExecutableDirectoryCandidatesFilePath := FileExistsInDirectory("Application Executable Directory Candidates", system["Project Directory"], "csv")
@@ -116,44 +125,42 @@ ExecutablePathResolve(applicationName) {
     }
 
     for applicationExecutableDirectoryCandidate in projectApplicationExecutableDirectoryCandidates {
+        if Type(executablePathSearchResult) = "Map" {
+            break
+        }
+
         if applicationExecutableDirectoryCandidate["Name"] = applicationName {
             executableName      := applicationExecutableDirectoryCandidate["Executable"]
             executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
 
-            executablePath := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
+            executablePathSearchResult := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
+        }
+    }
 
-            if executablePath != "" {
-                break
+    for applicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
+        if Type(executablePathSearchResult) = "Map" {
+            break
+        }
+
+        if applicationExecutableDirectoryCandidate["Name"] = applicationName {
+            executableName      := applicationExecutableDirectoryCandidate["Executable"]
+            executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
+
+            if Type(executablePathSearchResult) != "Map" {
+                executablePathSearchResult := ExecutablePathViaUninstall(applicationName, executablePath, executableName)
+            }
+
+            if Type(executablePathSearchResult) != "Map" {
+                executablePathSearchResult := ExecutablePathViaRegistry(applicationName, executablePath, executableName)
+            }
+
+            if Type(executablePathSearchResult) != "Map" {
+                executablePathSearchResult := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
             }
         }
     }
 
-    if executablePath = "" {
-        for applicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
-            if applicationExecutableDirectoryCandidate["Name"] = applicationName {
-                executableName      := applicationExecutableDirectoryCandidate["Executable"]
-                executableDirectory := applicationExecutableDirectoryCandidate["Directory"]
-
-                for applicationRegistryPathCandidate in sharedApplicationRegistryPathCandidates {
-                    if applicationRegistryPathCandidate["Name"] = applicationName {
-                        registryPath := applicationRegistryPathCandidate["Registry Path"]
-
-                        registryKeyPaths.Push(registryPath)
-                    }
-                }
-
-                executablePath := ExecutablePathViaRegistry(applicationName, executablePath, executableName, registryKeyPaths)
-                executablePath := ExecutablePathViaUninstall(applicationName, executablePath, executableName)
-                executablePath := ExecutablePathViaDirectory(applicationName, executablePath, executableName, executableDirectory)
-
-                if executablePath != "" {
-                    break
-                }
-            }
-        }
-    }
-
-    return executablePath
+    return executablePathSearchResult
 }
 
 ExecutablePathViaDirectory(applicationName, executablePath, executableName, directoryName) {
@@ -164,7 +171,7 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
         return executablePath
     }
 
-    static candidateBaseDirectories
+    static candidateBaseDirectories := unset
 
     if !IsSet(candidateBaseDirectories) {
         candidateBaseDirectories := []
@@ -203,10 +210,10 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
     }
 
     baseDirectoriesWithDirectoryNames := []
-    for baseDirectory in candidateBaseDirectories {
-        candidatePath := baseDirectory . "\" . directoryName . "\" . executableName
+    for candidateBaseDirectory in candidateBaseDirectories {
+        candidatePath := candidateBaseDirectory . "\" . directoryName . "\" . executableName
 
-        baseDirectoriesWithDirectoryNames.Push(baseDirectory . "\" . directoryName . "\")
+        baseDirectoriesWithDirectoryNames.Push(candidateBaseDirectory . "\" . directoryName . "\")
 
         if FileExist(candidatePath) {
             executablePath := candidatePath
@@ -331,56 +338,74 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
                         if StrCompare(versionKey, highestVersionKey) > 0 {
                             highestVersionKey := versionKey
                             executablePath := candidatePath
+                            break
                         }
                     }
                 }
             }
+        default:
+            for baseDirectory in candidateBaseDirectories {
+                if FileExist(candidatePath) {
+                    executablePath := candidatePath
+                    break
+                }
+            }
     }
 
-    return executablePath
+    executablePathSearchResult := unset
+    if executablePath != "" {
+        executablePathSearchResult := Map(
+            "Executable Path",   executablePath,
+            "Resolution Method", "Directory"
+        )
+    } else {
+        executablePathSearchResult := ""
+    }
+
+    return executablePathSearchResult
 }
 
-ExecutablePathViaRegistry(applicationName, executablePath, executableName, registryKeyPaths) {
-    static methodName := RegisterMethod("ExecutablePathViaRegistry(applicationName As String, executablePath As String [Optional], executableName As String, registryKeyPaths As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName, registryKeyPaths])
+ExecutablePathViaRegistry(applicationName, executablePath, executableName) {
+    static methodName := RegisterMethod("ExecutablePathViaRegistry(applicationName As String, executablePath As String [Optional], executableName As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, executablePath, executableName])
 
     if executablePath != "" {
         return executablePath
     }
 
-    if registryKeyPaths.Length !== 0 {
-        originalRegistryKeyPaths := registryKeyPaths.Clone()
-        registryKeyPaths := []
+    static appPathsBaseRegistryKeys := [
+        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
+        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
+        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
+    ]
 
-        for registryKeyPath in originalRegistryKeyPaths {
-            registryKeyPaths.Push("HKEY_CURRENT_USER\Software\" . registryKeyPath)
-            registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\" . registryKeyPath)
-            registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\WOW6432Node\" . registryKeyPath)
-        }
-    }
+    for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
+        subkeyPath := appPathsBaseRegistryKey . "\" . executableName
 
-    registryKeyPaths.Push("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths")
-    registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths")
-    registryKeyPaths.Push("HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths")
-
-    for registryKeyPath in registryKeyPaths {
-        installFolder := ""
-
+        pathFromRegistry := ""
         try {
-            installFolder := RegRead(registryKeyPath, "Path")
+            pathFromRegistry := RegRead(subkeyPath, "")
         }
 
-        if installFolder {
-            candidatePath := RTrim(installFolder, "\/") . "\" . executableName
-
-            if FileExist(candidatePath) {
-                executablePath := candidatePath
+        if pathFromRegistry {
+            if FileExist(pathFromRegistry) && ExtractFilename(pathFromRegistry) = executableName {
+                executablePath := pathFromRegistry
                 break
             }
         }
     }
 
-    return executablePath
+    executablePathSearchResult := unset
+    if executablePath != "" {
+        executablePathSearchResult := Map(
+            "Executable Path",   executablePath,
+            "Resolution Method", "Registry"
+        )
+    } else {
+        executablePathSearchResult := ""
+    }
+
+    return executablePathSearchResult
 }
 
 ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
@@ -466,7 +491,17 @@ ExecutablePathViaUninstall(applicationName, executablePath, executableName) {
         }
     }
 
-    return executablePath
+    executablePathSearchResult := unset
+    if executablePath != "" {
+        executablePathSearchResult := Map(
+            "Executable Path",   executablePath,
+            "Resolution Method", "Uninstall"
+        )
+    } else {
+        executablePathSearchResult := ""
+    }
+
+    return executablePathSearchResult
 }
 
 ResolveFactsForApplication(applicationName, counter) {

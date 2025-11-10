@@ -142,6 +142,7 @@ LogEngine(status, fullErrorText := "") {
     
         system["Project Directory"]     := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
         system["Shared Directory"]      := ExtractParentDirectory(A_LineFile)
+        system["Curatium Directory"]    := ExtractParentDirectory(system["Shared Directory"])
         system["Constants Directory"]   := system["Shared Directory"] . "Constants\"
         system["Images Directory"]      := system["Shared Directory"] . "Images\"
         system["Mappings Directory"]    := system["Shared Directory"] . "Mappings\"
@@ -162,6 +163,8 @@ LogEngine(status, fullErrorText := "") {
         system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
         system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
 
+        system["International"]         := GetInternationalFormatting()
+        
         system["Operating System"]      := GetOperatingSystem()
         system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
         system["Computer Name"]         := A_ComputerName
@@ -1983,6 +1986,51 @@ RegisterSymbol(value, type, addNewLine := true) {
 ; Helper Methods: System       ;
 ; **************************** ;
 
+GetInternationalFormatting() {
+    static methodName := RegisterMethod("GetInternationalFormatting()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
+    registryValueData            := ""
+    internationalFormattingMap   := Map()
+
+    excludedRegistryValueNames := [
+        "iCountry",
+        "iLocale",
+        "iPaperSize",
+        "Locale",
+        "LocaleName",
+        "sIntlCurrency",
+        "sLanguage"
+    ]
+
+    loop reg, internationalRegistryKeyPath, "V" {
+        registryValueName := A_LoopRegName
+        skipValue := false
+
+        for excludedRegistryValueName in excludedRegistryValueNames {
+            if excludedRegistryValueName = registryValueName {
+                skipValue := true
+                break
+            }
+        }
+
+        if skipValue {
+            continue
+        }
+
+        try {
+        	registryValueData := RegRead(internationalRegistryKeyPath, registryValueName)
+        }
+
+        internationalFormattingMap[registryValueName] := registryValueData
+    }
+
+    internationalFormatting := internationalFormattingMap
+    
+    return internationalFormatting
+}
+
 GetOperatingSystem() {
     static methodName := RegisterMethod("GetOperatingSystem()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
@@ -2256,81 +2304,67 @@ GetActiveKeyboardLayout() {
     static methodName := RegisterMethod("GetActiveKeyboardLayout()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
 
-    KL_NAMELENGTH          := 9
-    LOCALE_NAME_MAX_LENGTH := 85
-    MAX_PATH_CHARS         := 260
-    BYTES_PER_WIDE_CHAR    := 2
+    KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS := 9
+    LOCALE_NAME_MAX_LENGTH               := 85
+    MAX_PATH_CHARACTERS                  := 260
+    BYTES_PER_WIDE_CHAR                  := 2
 
-    klidBuffer         := Buffer(KL_NAMELENGTH * BYTES_PER_WIDE_CHAR, 0)
-    localeNameBuffer   := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-    indirectNameBuffer := Buffer(MAX_PATH_CHARS * BYTES_PER_WIDE_CHAR, 0)
-    immDescBuffer      := Buffer(MAX_PATH_CHARS * BYTES_PER_WIDE_CHAR, 0)
+    keyboardLayoutIdBuffer    := Buffer(KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
+    localeNameBuffer          := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
+    indirectDisplayNameBuffer := Buffer(MAX_PATH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
+    immDescBuffer             := Buffer(MAX_PATH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
 
-    resultLocaleName := "Unknown Language"
-    resultLayoutText := "Unknown Layout"
-    resultKlid       := "????????"
+    resultLocaleName            := "Unknown Language"
+    resultKeyboardLayoutName    := "Unknown Layout"
+    resultKeyboardLayoutId      := "????????"
+    currentKeyboardLayoutHandle := 0
 
-    ; KLID (preferred): GetKeyboardLayoutNameW -> "00020409". Fallback: derive a plausible KLID from current HKL's LANGID
-    wasKlidResolved := DllCall("User32\GetKeyboardLayoutNameW", "Ptr", klidBuffer.Ptr, "Int")
-    if wasKlidResolved {
-        resolvedKlid := StrGet(klidBuffer)
+    wasKeyboardLayoutIdResolved := DllCall("User32\GetKeyboardLayoutNameW", "Ptr", keyboardLayoutIdBuffer.Ptr, "Int")
+    if wasKeyboardLayoutIdResolved {
+        resolvedKeyboardLayoutIdText := StrGet(keyboardLayoutIdBuffer)
 
-        if resolvedKlid != "" {
-            resultKlid := resolvedKlid
+        if resolvedKeyboardLayoutIdText != "" {
+            resultKeyboardLayoutId := resolvedKeyboardLayoutIdText
         }
     }
 
-    if resultKlid = "????????" {
-        currentHkl := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-
-        if currentHkl {
-            derivedKlid := Format("{:08X}", currentHkl & 0xFFFFFFFF)
-
-            if derivedKlid != "" {
-                resultKlid := derivedKlid
-            }
-        }
-    }
-
-    ; Locale name (e.g., "en-US") from LANGID (last 4 hex digits of KLID)
-    if resultKlid != "????????" {
-        langIdHex := SubStr(resultKlid, -3)
-        if langIdHex != "" {
-            langId := ("0x" . langIdHex) + 0
-            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", langId, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
+    if resultKeyboardLayoutId != "????????" {
+        languageIdentifierHex := SubStr(resultKeyboardLayoutId, 5)
+        if languageIdentifierHex != "" {
+            languageIdentifier := ("0x" . languageIdentifierHex) + 0
+            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", languageIdentifier, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
             if wasLocaleNameResolved {
                 resolvedLocaleName := StrGet(localeNameBuffer)
 
                 if resolvedLocaleName != "" {
                     resultLocaleName := resolvedLocaleName
                 } else {
-                    resultLocaleName := langIdHex
+                    resultLocaleName := languageIdentifierHex
                 }
             } else {
-                resultLocaleName := langIdHex
+                resultLocaleName := languageIdentifierHex
             }
         }
     }
 
-    ; Layout text (e.g., "US-International"). Primary: HKEY_LOCAL_MACHINE\...\Keyboard Layouts\<KLID>\Layout Text. Secondary: Layout Display Name (resolve "@..."), then ImmGetDescriptionW.
-    if resultKlid != "????????" {
-        baseRegKey := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Keyboard Layouts\" . resultKlid
+    if resultKeyboardLayoutId != "????????" {
+        baseRegKey := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Keyboard Layouts\" . resultKeyboardLayoutId
 
         layoutText := ""
         try {
-            layoutText := RegRead(baseRegKey, "Layout Text", "")
+            layoutText := RegRead(baseRegKey, "Layout Text")
         }
 
         if layoutText = "" {
             try {
-                layoutText := RegRead(baseRegKey, "Layout Display Name", "")
+                layoutText := RegRead(baseRegKey, "Layout Display Name")
             }
 
             if layoutText != "" && SubStr(layoutText, 1, 1) = "@" {
-                wasIndirectLoaded := (DllCall("Shlwapi\SHLoadIndirectString", "WStr", layoutText, "Ptr", indirectNameBuffer.Ptr, "Int", MAX_PATH_CHARS, "Ptr", 0, "Int") = 0)
+                wasIndirectLoaded := (DllCall("Shlwapi\SHLoadIndirectString", "WStr", layoutText, "Ptr", indirectDisplayNameBuffer.Ptr, "Int", MAX_PATH_CHARACTERS, "Ptr", 0, "Int") = 0)
 
                 if wasIndirectLoaded {
-                    maybeResolved := StrGet(indirectNameBuffer)
+                    maybeResolved := StrGet(indirectDisplayNameBuffer)
                     if maybeResolved != "" {
                         layoutText := maybeResolved
                     }
@@ -2338,27 +2372,39 @@ GetActiveKeyboardLayout() {
             }
         }
 
-        if layoutText = "" {
-            currentHkl := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-
-            if currentHkl {
-                descLen := DllCall("Imm32\ImmGetDescriptionW", "Ptr", currentHkl, "Ptr", immDescBuffer.Ptr, "UInt", MAX_PATH_CHARS, "UInt")
-                if descLen > 0 {
-                    maybeImmName := StrGet(immDescBuffer)
-
-                    if maybeImmName != "" {
-                        layoutText := maybeImmName
-                    }
+        if layoutText != "" {
+            resultKeyboardLayoutName := layoutText
+        }
+    } else {
+        currentKeyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
+        if currentKeyboardLayoutHandle {
+            languageIdentifierFromHandle := currentKeyboardLayoutHandle & 0xFFFF
+            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", languageIdentifierFromHandle, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
+            if wasLocaleNameResolved {
+                maybeLocale := StrGet(localeNameBuffer)
+                if maybeLocale != "" {
+                    resultLocaleName := maybeLocale
                 }
             }
         }
+    }
 
-        if layoutText != "" {
-            resultLayoutText := layoutText
+    if resultKeyboardLayoutName = "Unknown Layout" {
+        if !currentKeyboardLayoutHandle {
+            currentKeyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
+        }
+        if currentKeyboardLayoutHandle {
+            immDescriptionLength := DllCall("Imm32\ImmGetDescriptionW", "Ptr", currentKeyboardLayoutHandle, "Ptr", immDescBuffer.Ptr, "UInt", MAX_PATH_CHARACTERS, "UInt")
+            if immDescriptionLength > 0 {
+                maybeImmName := StrGet(immDescBuffer)
+                if maybeImmName != "" {
+                    resultKeyboardLayoutName := maybeImmName
+                }
+            }
         }
     }
 
-    keyboardLayoutDescription := resultLocaleName . " - " . resultLayoutText . " (" . resultKlid . ")"
+    keyboardLayoutDescription := resultLocaleName . " - " . resultKeyboardLayoutName . " (" . resultKeyboardLayoutId . ")"
 
     return keyboardLayoutDescription
 }

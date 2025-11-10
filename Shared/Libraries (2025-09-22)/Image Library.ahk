@@ -98,6 +98,16 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
 
     projectImageCatalogFilePath  := system["Project Directory"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
     sharedImageCatalogFilePath   := system["Images Directory"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
+    catalogDirectory             := unset
+    imageLibraryCatalog          := unset
+
+    if !IsSet(applicationRegistry) {
+        try {
+            throw Error("Application Registry has not yet been initialized. Need to run RegisterApplications first.")
+        } catch as applicationRegistryUninitializedError {
+            LogInformationConclusion("Failed", logValuesForConclusion, applicationRegistryUninitializedError)
+        }
+    }
 
     try {
         if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
@@ -113,6 +123,14 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         }
     } catch as imageCatalogDuplicateError {
         LogInformationConclusion("Failed", logValuesForConclusion, imageCatalogDuplicateError)
+    }
+    
+    if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
+        catalogDirectory := system["Project Directory"]
+        imageLibraryCatalog := ConvertCsvToArrayOfMaps(projectImageCatalogFilePath)
+    } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
+        catalogDirectory := system["Images Directory"]
+        imageLibraryCatalog := ConvertCsvToArrayOfMaps(sharedImageCatalogFilePath)
     }
 
     static applications      := unset
@@ -155,29 +173,19 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         dpiScale          := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", system["DPI Scale"])["Counter"] . ""
     }
 
-    images               := unset
-    catalogDirectory     := unset
     relevantImages       := []
     uniqueDataReferences := []
 
-    if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-        images           := ConvertCsvToArrayOfMaps(projectImageCatalogFilePath)
-        catalogDirectory := system["Project Directory"]
-
-        for image in images {
-            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] {
-                relevantImages.Push(image)
-                uniqueDataReferences.Push(image["Image Library Data Reference"])
-            }
-        }
-    } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-        images           := ConvertCsvToArrayOfMaps(sharedImageCatalogFilePath)
-        catalogDirectory := system["Images Directory"]
-
-        for image in images {
+    for image in imageLibraryCatalog {
+        if IsInteger(image["Image Library Data Reference"]) {
             image["Image Library Data Reference"] := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Counter", image["Image Library Data Reference"])["Name"]
 
             if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] && applicationRegistry[image["Image Library Data Reference"]]["Installed"] {
+                relevantImages.Push(image)
+                uniqueDataReferences.Push(image["Image Library Data Reference"])
+            }
+        } else {
+            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] {
                 relevantImages.Push(image)
                 uniqueDataReferences.Push(image["Image Library Data Reference"])
             }
@@ -192,7 +200,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
 
         uniqueDataReferencesDirectories := uniqueDataReferences.Clone()
         for index, uniqueDataReferenceDirectory in uniqueDataReferencesDirectories {
-            uniqueDataReferencesDirectories[index] := catalogDirectory . uniqueDataReferenceDirectory . "\"
+            uniqueDataReferencesDirectories[index] := system["Images Directory"] . uniqueDataReferenceDirectory . "\"
         }
 
         BatchAppendSymbolLedger("D", uniqueDataReferencesDirectories)
@@ -203,7 +211,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             libraryDataEntries := unset
 
             libraryDataEntries := ConvertCsvToArrayOfMaps(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
-            EnsureDirectoryExists(catalogDirectory . uniqueDataReference . "\")
+            EnsureDirectoryExists(system["Images Directory"] . uniqueDataReference . "\")
 
             for image in relevantImages {
                 for libraryData in libraryDataEntries {
@@ -223,7 +231,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
                                 imageRegistry[libraryData["Directory"]][libraryData["Name"]] := []
                             }
 
-                            path := catalogDirectory . libraryData["Directory"] . "\" . libraryData["Filename"]
+                            path := system["Images Directory"] . libraryData["Directory"] . "\" . libraryData["Filename"]
 
                             horizontalRange      := StrReplace(image["Horizontal Range"], ",", ".")
                             horizontalParts      := StrSplit(horizontalRange, "-")
@@ -266,7 +274,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         BatchAppendSymbolLedger("H", hashValues)
 
         for image in pendingBase64ImageWriteQueue {
-            filePath := catalogDirectory . image["Directory"] . "\" . image["Filename"]
+            filePath := system["Images Directory"] . image["Directory"] . "\" . image["Filename"]
             if FileExist(filePath) {
                 if image["SHA-256"] != Hash.File("SHA256", filePath) {
                     DeleteFile(filePath)
