@@ -5,6 +5,7 @@ Access|49
 ACDSee Pro|149
 Acrobat Reader|21
 Advanced IP Scanner|150
+Advanced Renamer|201
 After Effects|102
 AIMP|50
 AkelPad|151
@@ -12,18 +13,25 @@ Angry IP Scanner|152
 Animate|103
 AnyDesk|51
 AnythingLLM|153
+ares|202
+Attribute Changer|203
 Audacity|52
 Audition|104
 AutoCAD|105
+AutoHotkey|204
 Balabolka|154
 Bandizip|53
 Base|54
 BasicMaker|55
 Battle.net|56
 Beyond Compare|33
+BlastEm|205
+BleachBit|206
 Blender|57
 Brave|58
 Bridge|106
+bsnes|207
+Bulk Rename Utility|208
 Burp Suite Community Edition|155
 Calc|59
 calibre|156
@@ -40,18 +48,27 @@ darktable|160
 DaVinci Resolve|60
 DBeaver|22
 DbSchema|23
+DeSmuME|209
 DevToys|13
+Directory Opus|210
 Discord|161
+Disk Drill|211
+DiskGenius|212
+DMDE|213
 Docker Desktop|41
+Dolphin|214
 draw.io|162
 Draw|61
 Dreamweaver|110
 Driver Store Explorer|163
+DuckStation|215
 Edge|7
 Epic Games Launcher|111
 Everything|8
+ExactFile|216
 Excel|1
 ExpressVPN|112
+f.lux|217
 FastStone Image Viewer|62
 Fiddler Classic|164
 Fiddler Everywhere|165
@@ -60,21 +77,27 @@ FileZilla|43
 Firefox|9
 Fireworks|113
 Flash Professional|114
+Flycast|218
 FontBase|166
 foobar2000|63
 Foxit PDF Reader|24
 FreeCAD|167
 FreeFileSync|64
+FreeMind|219
 GIMP|44
 GitHub Desktop|36
 GlassWire|168
+GoldWave|220
 Google Earth Pro|65
+Gopher64|221
 GoXLR App|115
 Gpg4win|66
 GPT4All|169
+GPU-Z|222
 Greenshot|67
 GtkHash|68
 HandBrake|69
+HeidiSQL|223
 Hoppscotch|170
 HTTP Toolkit|171
 HWiNFO|45
@@ -87,42 +110,60 @@ InDesign|118
 Inkscape|46
 Insomnia|173
 Internet Download Manager|47
+IObit Unlocker|224
 IrfanView|37
 iTubeGo|72
+Ivanti Secure Access Client|225
 IVPN Client|119
 Jan|174
+Joplin|226
 KeePass|14
 Keyboard Chatter Blocker|73
 Krita|74
 Kyno|175
 LatencyMon|176
 Ledger Live|75
+Levelator|227
+LibreWolf|228
 Lightroom Classic|120
 Lightroom|121
 Lightworks|122
 LM Studio|177
+LocalSend|229
+LockHunter|230
 MainType|178
 Math|76
 Media Encoder|123
+Mednafen|231
+melonDS|232
+Merge|233
+Mesen|234
+MeshLab|235
 MPC-BE|77
 Msty Studio|179
 Mullvad Browser|124
 Mullvad VPN|125
+Nestopia UE|236
 NetLimiter|180
 NordVPN|126
 Notepad++|2
+Notion|237
 NVIDIA App|181
+O&O ShutUp10++|238
 OBS Studio|15
 Obsidian|127
 Ollama|182
 OneNote|78
+OpenToonz|239
 Opera|79
 OSForensics|183
 Outlook|25
 Paint Shop Pro|16
 Paint.NET|26
+PCSX2|240
 PeaZip|80
 Photoshop|128
+Pinokio|241
 PlanMaker|81
 Postman|82
 Power BI Desktop|83
@@ -132,22 +173,36 @@ Prelude|129
 Premiere Pro|130
 Premiere Rush|131
 Presentations|84
+PresentMon|242
 Private Internet Access|132
 Process Explorer|184
+Process Lasso|243
 Proton VPN|133
 Publisher|85
 Pulover's Macro Creator|38
+puNES|244
 PureRef|185
 PuTTY|27
 qBittorrent|17
 REAPER|186
+Recuva|245
+Redream|246
 RegexBuddy|86
 Regshot|187
+RetroArch|247
+RODECaster App|248
+Rosalie's Mupen GUI|249
+RPCS3|250
 Rufus|188
+Ryujinx|251
 ScreenToGif|28
+ShareX|252
 Shotcut|134
+Shutter Encoder|253
 Slack|87
+Snes9x|254
 Sononym|189
+Sound Forge Audio Studio|255
 Speccy|190
 Spotify|88
 SQL Server Management Studio|3
@@ -161,8 +216,10 @@ Substance 3D Painter|138
 Substance 3D Sampler|139
 Substance 3D Stager|140
 Surfshark|141
+Synfig Studio|256
 SysTracer|191
 Tableau Desktop|91
+TablePlus|257
 TeraCopy|92
 TextMaker|93
 Thunderbird|142
@@ -174,7 +231,9 @@ Topaz Video|194
 TreeSize|95
 Trezor Suite|96
 TrueCrypt|11
+UltraEdit|258
 UNIFY|143
+Upscayl|259
 VeraCrypt|30
 VirtualBox|144
 Visual Studio Code|18
@@ -193,6 +252,7 @@ WinRAR|32
 WinSCP|19
 Wireshark|198
 WizTree|39
+WMI Explorer|260
 Word|12
 Workstation Pro|20
 WPS Office|199
