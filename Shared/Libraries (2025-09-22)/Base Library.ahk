@@ -12,22 +12,22 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     }
     logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [version])
 
-    sharedFolderPath := A_ScriptDir . "\Shared\Spreadsheet Operations Template\"
-    manifestFilePath := sharedFolderPath . "Version Manifest.ini"
+    spreadsheetOperationsTemplateDirectory := system["Shared Directory"] . "Spreadsheet Operations Template\"
+    versionManifestFilePath := spreadsheetOperationsTemplateDirectory . "Version Manifest.ini"
     version := StrReplace(version, "v", "")
 
     if version = "" {
         latestVersion := ""
         latestDate    := ""
 
-        sectionList := IniRead(manifestFilePath)
+        sectionList := IniRead(versionManifestFilePath)
         loop parse sectionList, "`n", "`r" {
             candidateVersion := A_LoopField
             if candidateVersion = "" {
                 continue
             }
 
-            candidateDate := IniRead(manifestFilePath, candidateVersion, "ReleaseDate", "")
+            candidateDate := IniRead(versionManifestFilePath, candidateVersion, "ReleaseDate", "")
             if latestDate = "" || StrCompare(candidateDate, latestDate) > 0 {
                 latestVersion := candidateVersion
                 latestDate    := candidateDate
@@ -36,9 +36,9 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         version := latestVersion
     }
 
-    releaseDate := IniRead(manifestFilePath, version, "ReleaseDate", "")
-    introHash   := IniRead(manifestFilePath, version, "IntroSHA-256", "")
-    outroHash   := IniRead(manifestFilePath, version, "OutroSHA-256", "")
+    releaseDate := IniRead(versionManifestFilePath, version, "ReleaseDate", "")
+    introHash   := IniRead(versionManifestFilePath, version, "IntroSHA-256", "")
+    outroHash   := IniRead(versionManifestFilePath, version, "OutroSHA-256", "")
 
     try {
         if releaseDate = "" {
@@ -52,13 +52,11 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         "Version",       version,
         "Release Date",  releaseDate,
         "Intro SHA-256", introHash,
-        "Outro SHA-256", outroHash,
-        "Intro Code",    "",
-        "Outro Code",    ""
+        "Outro SHA-256", outroHash
     )
 
-    templateCombined["Intro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
-    templateCombined["Outro Code"] := ReadFileOnHashMatch(sharedFolderPath . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
+    templateCombined["Intro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
+    templateCombined["Outro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
 
     LogInformationConclusion("Completed", logValuesForConclusion)
     return templateCombined
@@ -183,15 +181,22 @@ PastePath(savePath) {
         if attempts >= 2 {
             logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
         }
-
+        
         SendEvent("{End}") ; END (End of Line)
         Sleep(sleepAmount)
         SendEvent("+{Home}") ; SHIFT+HOME (Select the full line)
         Sleep(sleepAmount/2)
         SendEvent("{Delete}") ; Delete (Delete)
         Sleep(sleepAmount/2)
-        SendText(savePath)
-        Sleep(sleepAmount + sleepAmount)
+        if attempts != maxAttempts {
+            SendText(savePath)
+            Sleep(sleepAmount/2)
+        } else {
+            for character in StrSplit(savePath) {
+                SendEvent("{Raw}" . character)
+                Sleep(102)
+            }
+        }
 
         ; Verify the paste by reading the sentinel line.
         SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
@@ -246,8 +251,15 @@ PasteSearch(searchValue) {
         Sleep(sleepAmount/2)
         SendEvent("{Delete}") ; Delete (Delete)
         Sleep(sleepAmount/2)
-        SendText(searchValue)
-        Sleep(sleepAmount + sleepAmount)
+        if attempts != maxAttempts {
+            SendText(searchValue)
+            Sleep(sleepAmount + sleepAmount)
+        } else {
+            for character in StrSplit(searchValue) {
+                SendEvent("{Raw}" . character)
+                Sleep(102)
+            }
+        }
 
         ; Verify the paste by reading the sentinel line.
         SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)

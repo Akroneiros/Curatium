@@ -114,42 +114,57 @@ LogEngine(status, fullErrorText := "") {
     global system
 
     if status = "Beginning" {
-        SplitPath(A_ScriptFullPath, , &projectFolderPath, , &projectName)
+        SplitPath(A_ScriptFullPath, , , , &projectName)
+        SplitPath(A_LineFile, , &librariesFolderPath)
+        SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
+        SplitPath(sharedFolderPath, , &curatiumFolderPath)
 
-        if !DirExist(projectFolderPath . "\Log\") {
-            DirCreate(projectFolderPath . "\Log\")
-        }
-
-        dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-        tickCount   := A_TickCount
-      
-        logFilePath["Execution Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Execution Log" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Operation Log"] := projectFolderPath . "\Log\" . projectName . " - " . "Operation Log" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Runtime Trace"] := projectFolderPath . "\Log\" . projectName . " - " . "Runtime Trace" . " - " . dateOfToday . "." . tickCount . ".csv"
-        logFilePath["Symbol Ledger"] := projectFolderPath . "\Log\" . projectName . " - " . "Symbol Ledger" . " - " . dateOfToday . "." . tickCount . ".csv"
-
-        executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
-        executionLogFileHandle.Close()
-
-        operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
-        operationLogFileHandle.Close()
-
-        runtimeTraceFileHandle := FileOpen(logFilePath["Runtime Trace"], "w", "UTF-8")
-        runtimeTraceFileHandle.Close()
-
-        symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
-        symbolLedgerFileHandle.Close()
-    
-        system["Project Directory"]     := RegExReplace(A_ScriptFullPath, "^(.*)\\([^\\]+?) \(.+\)\.ahk$", "$1\Projects\$2\")
-        system["Shared Directory"]      := ExtractParentDirectory(A_LineFile)
-        system["Curatium Directory"]    := ExtractParentDirectory(system["Shared Directory"])
+        system["Project Name"]          := projectName
+        system["Curatium Directory"]    := curatiumFolderPath . "\"
+        system["Log Directory"]         := system["Curatium Directory"] . "Log\"
+        system["Project Directory"]     := system["Curatium Directory"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
+        system["Shared Directory"]      := sharedFolderPath . "\"
         system["Constants Directory"]   := system["Shared Directory"] . "Constants\"
         system["Images Directory"]      := system["Shared Directory"] . "Images\"
         system["Mappings Directory"]    := system["Shared Directory"] . "Mappings\"
-
-        system["Project Name"]          := projectName
-        system["Library Release"]       := (RegExMatch(ExtractDirectory(A_LineFile), "\(([^()]*)\)", &regularExpressionMatch), regularExpressionMatch[1])
+        system["Library Release"]       := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
         system["AutoHotkey Version"]    := A_AhkVersion
+
+        if !DirExist(system["Log Directory"]) {
+            DirCreate(system["Log Directory"])
+        }
+
+        while true {
+            dateTimeOfToday := FormatTime(A_NowUTC, "yyyy-MM-dd HH.mm.ss")
+            sharedStartName := system["Log Directory"] . projectName . " - " . dateTimeOfToday . " - "
+
+            logFilePath["Execution Log"] := sharedStartName . "Execution Log.csv"
+            logFilePath["Operation Log"] := sharedStartName . "Operation Log.csv"
+            logFilePath["Runtime Trace"] := sharedStartName . "Runtime Trace.csv"
+            logFilePath["Symbol Ledger"] := sharedStartName . "Symbol Ledger.csv"
+
+            if !FileExist(logFilePath["Execution Log"]) && !FileExist(logFilePath["Operation Log"]) && !FileExist(logFilePath["Runtime Trace"]) && !FileExist(logFilePath["Symbol Ledger"]) {
+                break
+            } else {
+                Sleep(1000)
+            }
+        }
+
+        executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
+        executionLogFileHandle.WriteLine("Log")
+        executionLogFileHandle.Close()
+
+        operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
+        operationLogFileHandle.WriteLine("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value")
+        operationLogFileHandle.Close()
+
+        runtimeTraceFileHandle := FileOpen(logFilePath["Runtime Trace"], "w", "UTF-8")
+        runtimeTraceFileHandle.WriteLine("Log")
+        runtimeTraceFileHandle.Close()
+
+        symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
+        symbolLedgerFileHandle.WriteLine("Reference|Type|Symbol")
+        symbolLedgerFileHandle.Close()
 
         warmupUtcTimestampPrecise       := GetUtcTimestampPrecise()
         warmupQpcCounter                := GetQueryPerformanceCounter()
@@ -208,9 +223,6 @@ LogEngine(status, fullErrorText := "") {
         }
     }
 
-    static operationLogLine := "Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value"
-    static symbolLedgerLine := "Reference|Type|Symbol"
-
     switch status {
         case "Beginning":
             executionLogLines := [
@@ -241,8 +253,6 @@ LogEngine(status, fullErrorText := "") {
             ]
 
             BatchAppendExecutionLog("Beginning", executionLogLines)
-            AppendCsvLineToLog(operationLogLine, "Operation Log")
-            AppendCsvLineToLog(symbolLedgerLine, "Symbol Ledger")
         case "Completed":
             if OverlayIsVisible() {
                 OverlayChangeTransparency(255)
@@ -1591,6 +1601,9 @@ BatchAppendSymbolLedger(symbolType, array) {
   
     arrayLength := symbolLedgerArray.Length
     if arrayLength !== 0 {
+        symbolLedgerArray := RemoveDuplicatesFromArray(symbolLedgerArray)
+        arrayLength := symbolLedgerArray.Length
+
         for index, value in symbolLedgerArray {
             if arrayLength !== index {
                 consolidatedSymbolLedger := consolidatedSymbolLedger . RegisterSymbol(value, symbolType)

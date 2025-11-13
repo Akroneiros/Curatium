@@ -28,7 +28,6 @@ RegisterApplications() {
 
     projectApplicationsFilePath := FileExistsInDirectory("Applications", system["Project Directory"], "csv")
 
-    projectApplications := unset
     if projectApplicationsFilePath != "" {
         projectApplications := ConvertCsvToArrayOfMaps(projectApplicationsFilePath)
 
@@ -47,15 +46,10 @@ RegisterApplications() {
             if Type(executablePathSearchResult) = "Map" {
                 applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
                 applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-            } else {
-                applicationRegistry[applicationName]["Executable Path"]   := ""
-            }
-
-            if applicationRegistry[applicationName]["Executable Path"] = "" {
-                applicationRegistry[applicationName]["Installed"] := false
-            } else {
-                applicationRegistry[applicationName]["Installed"] := true
+                applicationRegistry[applicationName]["Installed"]         := true
                 ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
+            } else {
+                applicationRegistry[applicationName]["Installed"]         := false
             }
         }
 
@@ -72,15 +66,10 @@ RegisterApplications() {
             if Type(executablePathSearchResult) = "Map" {
                 applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
                 applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-            } else {
-                applicationRegistry[applicationName]["Executable Path"]   := ""
-            }
-
-            if applicationRegistry[applicationName]["Executable Path"] = "" {
-                applicationRegistry[applicationName]["Installed"] := false
-            } else {
-                applicationRegistry[applicationName]["Installed"] := true
+                applicationRegistry[applicationName]["Installed"]         := true
                 ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
+            } else {
+                applicationRegistry[applicationName]["Installed"]         := false
             }
         }
     }
@@ -96,6 +85,8 @@ RegisterApplications() {
             }
 
             installedApplications.Push(configuration)
+
+            innerMap["Executable Hash"] := DecodeBaseToSha256Hex(innerMap["Executable Hash"], 86)
         }
     }
 
