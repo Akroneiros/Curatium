@@ -29,6 +29,7 @@ Base|sbase.exe|LibreOffice\program
 BasicMaker|BasicMaker.exe|SoftMaker Office NX
 Battle.net|Battle.net.exe|Battle.net
 Beyond Compare|BCompare.exe|Beyond Compare 5
+BGB|bgb64.exe|BGB
 BlastEm|blastem.exe|BlastEm
 BleachBit|bleachbit.exe|BleachBit
 Blender|blender.exe|Blender Foundation\Blender 4.5
@@ -49,12 +50,14 @@ Chrome|chrome.exe|Google\Chrome\Application
 CPU-Z|cpuz.exe|CPUID\CPU-Z
 CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
 CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
+CrystalDiskMark|DiskMark64.exe|CrystalDiskMark9
 CyberChef|CyberChef_v10.19.4.html|CyberChef
 CyberGhost|Dashboard.exe|CyberGhost 8
 darktable|darktable.exe|darktable\bin
 DaVinci Resolve|Resolve.exe|Blackmagic Design\DaVinci Resolve
 DBeaver|dbeaver.exe|DBeaver
 DbSchema|DbSchema.exe|DbSchema
+DC++|DCPlusPlus.exe|DC++
 DeSmuME|DeSmuME_0.9.13_x64.exe|DeSmuME
 DevToys|DevToys.exe|DevToys Preview
 Directory Opus|dopus.exe|GPSoftware\Directory Opus
@@ -70,10 +73,13 @@ Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver 2021
 Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver CS6
 DuckStation|duckstation-qt-x64-ReleaseLTCG.exe|DuckStation
 Edge|msedge.exe|Microsoft\Edge\Application
+Emulicious|Emulicious.exe|Emulicious
 Epic Games Launcher|EpicGamesLauncher.exe|Epic Games\Launcher\Portal\Binaries\Win32
 Everything|Everything.exe|Everything
+Exact Audio Copy|EAC.exe|Exact Audio Copy
 ExactFile|ExactFile.exe|ExactFile
 Excel|EXCEL.EXE|Microsoft Office\root\Office16
+Express Zip|expresszip.exe|NCH Software\ExpressZip
 ExpressVPN|ExpressVPN.exe|ExpressVPN\expressvpn-ui
 f.lux|flux.exe|FluxSoftware\Flux
 FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
@@ -110,6 +116,9 @@ Hoppscotch|hoppscotch-desktop.exe|Hoppscotch
 HTTP Toolkit|HTTP Toolkit.exe|HTTP Toolkit
 HWiNFO|HWiNFO32.EXE|HWiNFO32
 HWiNFO|HWiNFO64.EXE|HWiNFO64
+HWMonitor|HWMonitor.exe|CPUID\HWMonitor
+HxD|HxD.exe|HxD
+Icon Editor Pro|gfie.exe|Greenfish Icon Editor Pro 4.5
 Iconset|Iconset.exe|iconset
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator 2025\Support Files\Contents\Windows
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6 (64 Bit)\Support Files\Contents\Windows
@@ -128,6 +137,7 @@ IrfanView|i_view64.exe|IrfanView
 iTubeGo|itubegow.exe|iTubeGo
 Ivanti Secure Access Client|Pulse.exe|Common Files\Pulse Secure\JamUI
 IVPN Client|IVPN Client.exe|IVPN Client\ui
+IZArc|IZArc.exe|IZArc
 Jan|Jan.exe|Jan
 Joplin|Joplin.exe|Joplin
 Kdenlive|kdenlive.exe|kdenlive\bin
@@ -147,6 +157,7 @@ LM Studio|LM Studio.exe|LM Studio
 LocalSend|localsend_app.exe|LocalSend
 LockHunter|LockHunter.exe|LockHunter
 MainType|MainType.exe|High-Logic MainType
+MAME|mame.exe|MAME
 Math|smath.exe|LibreOffice\program
 Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder 2025
 Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder CS6
@@ -155,6 +166,7 @@ melonDS|melonDS.exe|melonDS
 Merge|Merge.exe|Araxis\Araxis Merge
 Mesen|Mesen.exe|Mesen
 MeshLab|meshlab.exe|VCG\MeshLab
+Mp3tag|Mp3tag.exe|Mp3tag
 MPC-BE|mpc-be.exe|MPC-BE
 MPC-BE|mpc-be64.exe|MPC-BE
 Msty Studio|MstyStudio.exe|MstyStudio
@@ -181,6 +193,8 @@ Paint Shop Pro|Paint Shop Pro.exe|Jasc Software Inc\Paint Shop Pro 8
 Paint.NET|paintdotnet.exe|Paint.NET
 PCSX2|pcsx2-qt.exe|PCSX2
 PeaZip|peazip.exe|PeaZip
+PhotoDirector 365|PhotoDirector17.exe|CyberLink\PhotoDirector\17.0.1031.0
+PhotoLine|PhotoLine.exe|PhotoLine
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop 2025
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6 (64 Bit)
@@ -188,6 +202,7 @@ Pinokio|Pinokio.exe|Pinokio
 PlanMaker|PlanMaker.exe|SoftMaker Office NX
 Postman|Postman.exe|Postman
 Power BI Desktop|PBIDesktop.exe|Microsoft Power BI Desktop\bin
+PowerArchiver|powerarc.exe|PowerArchiver
 PowerPoint|POWERPNT.EXE|Microsoft Office\root\Office16
 PowerToys|PowerToys.exe|PowerToys
 Prelude|Adobe Prelude.exe|Adobe\Adobe Prelude CS6
@@ -217,11 +232,13 @@ Rosalie's Mupen GUI|RMG.exe|Rosalie's Mupen GUI
 RPCS3|rpcs3.exe|RPCS3
 Rufus|rufus-4.11.exe|Rufus
 Ryujinx|Ryujinx.exe|Ryujinx
+SameBoy|sameboy.exe|SameBoy
 ScreenToGif|ScreenToGif.exe|ScreenToGif
 ShareX|ShareX.exe|ShareX
 Shotcut|shotcut.exe|Shotcut
 Shutter Encoder|Shutter Encoder.exe|Shutter Encoder
 Slack|slack.exe|slack
+SmartFTP|SmartFTP.exe|SmartFTP Client
 Snes9x|snes9x-x64.exe|Snes9x
 Sononym|Sononym.exe|Sononym
 Sound Forge Audio Studio|Audiostudio17.exe|SOUND FORGE\SOUND FORGE Audio Studio 17
@@ -264,6 +281,7 @@ Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
 VLC media player|vlc.exe|VideoLAN\VLC
 vMix|vMix64.exe|vMix
 Voicemeeter Banana|voicemeeterpro_x64.exe|VB\Voicemeeter
+Voicemod|Voicemod.exe|Voicemod V3
 VyprVPN|VyprVPN.exe|VyprVPN
 Waterfox|waterfox.exe|Waterfox
 Wave Link|WaveLink.exe|Elgato\WaveLink
@@ -273,6 +291,8 @@ Windscribe|Windscribe.exe|Windscribe
 WinMerge|WinMergeU.exe|WinMerge
 WinRAR|WinRAR.exe|WinRAR
 WinSCP|WinSCP.exe|WinSCP
+WinUAE|winuae64.exe|WinUAE
+WinZip|winzip64.exe|WinZip
 Wireshark|Wireshark.exe|Wireshark
 WizTree|WizTree.exe|WizTree
 WizTree|WizTree64.exe|WizTree

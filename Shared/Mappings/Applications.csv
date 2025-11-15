@@ -25,6 +25,7 @@ Base|54
 BasicMaker|55
 Battle.net|56
 Beyond Compare|33
+BGB|261
 BlastEm|205
 BleachBit|206
 Blender|57
@@ -42,12 +43,14 @@ CherryTree|34
 Chrome|6
 CPU-Z|158
 CrystalDiskInfo|35
+CrystalDiskMark|262
 CyberChef|159
 CyberGhost|109
 darktable|160
 DaVinci Resolve|60
 DBeaver|22
 DbSchema|23
+DC++|263
 DeSmuME|209
 DevToys|13
 Directory Opus|210
@@ -63,10 +66,13 @@ Dreamweaver|110
 Driver Store Explorer|163
 DuckStation|215
 Edge|7
+Emulicious|264
 Epic Games Launcher|111
 Everything|8
+Exact Audio Copy|265
 ExactFile|216
 Excel|1
+Express Zip|266
 ExpressVPN|112
 f.lux|217
 FastStone Image Viewer|62
@@ -101,6 +107,9 @@ HeidiSQL|223
 Hoppscotch|170
 HTTP Toolkit|171
 HWiNFO|45
+HWMonitor|267
+HxD|268
+Icon Editor Pro|269
 Iconset|172
 Illustrator|116
 ImgBurn|70
@@ -115,6 +124,7 @@ IrfanView|37
 iTubeGo|72
 Ivanti Secure Access Client|225
 IVPN Client|119
+IZArc|270
 Jan|174
 Joplin|226
 KeePass|14
@@ -132,6 +142,7 @@ LM Studio|177
 LocalSend|229
 LockHunter|230
 MainType|178
+MAME|271
 Math|76
 Media Encoder|123
 Mednafen|231
@@ -139,6 +150,7 @@ melonDS|232
 Merge|233
 Mesen|234
 MeshLab|235
+Mp3tag|272
 MPC-BE|77
 Msty Studio|179
 Mullvad Browser|124
@@ -162,11 +174,14 @@ Paint Shop Pro|16
 Paint.NET|26
 PCSX2|240
 PeaZip|80
+PhotoDirector 365|273
+PhotoLine|274
 Photoshop|128
 Pinokio|241
 PlanMaker|81
 Postman|82
 Power BI Desktop|83
+PowerArchiver|275
 PowerPoint|10
 PowerToys|48
 Prelude|129
@@ -195,11 +210,13 @@ Rosalie's Mupen GUI|249
 RPCS3|250
 Rufus|188
 Ryujinx|251
+SameBoy|276
 ScreenToGif|28
 ShareX|252
 Shotcut|134
 Shutter Encoder|253
 Slack|87
+SmartFTP|277
 Snes9x|254
 Sononym|189
 Sound Forge Audio Studio|255
@@ -241,6 +258,7 @@ Visual Studio|31
 VLC media player|97
 vMix|145
 Voicemeeter Banana|195
+Voicemod|278
 VyprVPN|146
 Waterfox|147
 Wave Link|196
@@ -250,6 +268,8 @@ Windscribe|148
 WinMerge|99
 WinRAR|32
 WinSCP|19
+WinUAE|279
+WinZip|280
 Wireshark|198
 WizTree|39
 WMI Explorer|260
