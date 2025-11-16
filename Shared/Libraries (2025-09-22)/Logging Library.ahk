@@ -106,13 +106,10 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
 }
 
 LogEngine(status, fullErrorText := "") {
-    static lastRuntimeTraceFlushTick := 0
-    static runtimeTraceBuffer        := []
-    static runtimeTraceFlushInterval := 7200000 ; 120 * 60 * 1000
-
     global logFilePath
     global system
 
+    runtimeTraceLines := []
     if status = "Beginning" {
         SplitPath(A_ScriptFullPath, , , , &projectName)
         SplitPath(A_LineFile, , &librariesFolderPath)
@@ -135,6 +132,7 @@ LogEngine(status, fullErrorText := "") {
         }
 
         while true {
+            milliseconds    := A_MSec + 0
             dateTimeOfToday := FormatTime(A_NowUTC, "yyyy-MM-dd HH.mm.ss")
             sharedStartName := system["Log Directory"] . projectName . " - " . dateTimeOfToday . " - "
 
@@ -144,9 +142,14 @@ LogEngine(status, fullErrorText := "") {
             logFilePath["Symbol Ledger"] := sharedStartName . "Symbol Ledger.csv"
 
             if !FileExist(logFilePath["Execution Log"]) && !FileExist(logFilePath["Operation Log"]) && !FileExist(logFilePath["Runtime Trace"]) && !FileExist(logFilePath["Symbol Ledger"]) {
+                if milliseconds >= 400 {
+                    Sleep(1016 - milliseconds)
+                    continue
+                }
+
                 break
             } else {
-                Sleep(1000)
+                Sleep(1016 - milliseconds)
             }
         }
 
@@ -166,17 +169,11 @@ LogEngine(status, fullErrorText := "") {
         symbolLedgerFileHandle.WriteLine("Reference|Type|Symbol")
         symbolLedgerFileHandle.Close()
 
-        warmupUtcTimestampPrecise       := GetUtcTimestampPrecise()
-        warmupQpcCounter                := GetQueryPerformanceCounter()
         warmupUtcTimestamp              := GetUtcTimestamp()
         warmupUtcTimestampInteger       := GetUtcTimestampInteger()
 
-        system["QPC Before Timestamp"]  := GetQueryPerformanceCounter()
-        system["UTC Timestamp Precise"] := GetUtcTimestampPrecise()
-        system["QPC After Timestamp"]   := GetQueryPerformanceCounter()
-        system["QPC Measurement Delta"] := system["QPC After Timestamp"] - system["QPC Before Timestamp"]
-        system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
-        system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
+        beginningLogTimestampPrecise    := LogTimestampPrecise()
+        LogRuntimeTraceTimestamp(beginningLogTimestampPrecise)
 
         system["International"]         := GetInternationalFormatting()
         
@@ -202,84 +199,109 @@ LogEngine(status, fullErrorText := "") {
         system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
         system["Color Mode"]            := GetWindowsColorMode()
 
-        runtimeTraceLines := [
-            system["QPC Before Timestamp"],
-            system["UTC Timestamp Precise"],
-            system["QPC After Timestamp"],
-            system["QPC Measurement Delta"],
-            system["QPC Midpoint Tick"],
-            system["UTC Timestamp Integer"],
-            GetPhysicalMemoryStatus(),
-            GetRemainingFreeDiskSpace()
+        executionLogLines := [
+            system["Project Name"],
+            system["Library Release"],
+            system["AutoHotkey Version"],
+            system["Operating System"],
+            system["OS Installation Date"],
+            system["Computer Name"],
+            system["Computer Identifier"],
+            system["Username"],
+            system["Time Zone Key Name"],
+            system["Region Format"],
+            system["Input Language"],
+            system["Keyboard Layout"],
+            system["Motherboard"],
+            system["CPU"],
+            system["Memory Size and Type"],
+            system["System Disk"],
+            system["Display GPU"],
+            system["Monitor"],
+            system["BIOS"],
+            system["QPC Frequency"],
+            system["Display Resolution"],
+            system["Refresh Rate"],
+            system["DPI Scale"],
+            system["Color Mode"]
         ]
+
+        BatchAppendExecutionLog("Beginning", executionLogLines)
+
+        runtimeTraceLines.Push(system["Runtime Trace Order"])
+        runtimeTraceLines.Push(system["QPC Before Timestamp"])
+        runtimeTraceLines.Push(system["UTC Timestamp Precise"])
+        runtimeTraceLines.Push(system["QPC After Timestamp"])
+        runtimeTraceLines.Push(system["QPC Midpoint Tick"])
+        runtimeTraceLines.Push(system["UTC Timestamp Integer"])
+        runtimeTraceLines.Push(GetPhysicalMemoryStatus())
+        runtimeTraceLines.Push(GetRemainingFreeDiskSpace())
 
         BatchAppendRuntimeTrace("Beginning", runtimeTraceLines)
     } else {
-        for line in [
-            GetPhysicalMemoryStatus(),
-            GetRemainingFreeDiskSpace()
-        ] {
-            runtimeTraceBuffer.Push(line)
-        }
+        elseLogTimestampPrecise := LogTimestampPrecise()
+        LogRuntimeTraceTimestamp(elseLogTimestampPrecise)
+
+        runtimeTraceLines.Push(system["Runtime Trace Order"])
+        runtimeTraceLines.Push(system["QPC Before Timestamp"])
+        runtimeTraceLines.Push(system["UTC Timestamp Precise"])
+        runtimeTraceLines.Push(system["QPC After Timestamp"])
+        runtimeTraceLines.Push(system["QPC Midpoint Tick"])
+        runtimeTraceLines.Push(system["UTC Timestamp Integer"])
+        runtimeTraceLines.Push(GetPhysicalMemoryStatus())
+        runtimeTraceLines.Push(GetRemainingFreeDiskSpace())
     }
 
     switch status {
-        case "Beginning":
-            executionLogLines := [
-                system["Project Name"],
-                system["Library Release"],
-                system["AutoHotkey Version"],
-                system["Operating System"],
-                system["OS Installation Date"],
-                system["Computer Name"],
-                system["Computer Identifier"],
-                system["Username"],
-                system["Time Zone Key Name"],
-                system["Region Format"],
-                system["Input Language"],
-                system["Keyboard Layout"],
-                system["Motherboard"],
-                system["CPU"],
-                system["Memory Size and Type"],
-                system["System Disk"],
-                system["Display GPU"],
-                system["Monitor"],
-                system["BIOS"],
-                system["QPC Frequency"],
-                system["Display Resolution"],
-                system["Refresh Rate"],
-                system["DPI Scale"],
-                system["Color Mode"]
-            ]
-
-            BatchAppendExecutionLog("Beginning", executionLogLines)
         case "Completed":
             if OverlayIsVisible() {
                 OverlayChangeTransparency(255)
             }
 
-            if runtimeTraceBuffer.Length !== 0 {
-                BatchAppendRuntimeTrace("Completed", runtimeTraceBuffer)
-                runtimeTraceBuffer.Length := 0
-            }
+            BatchAppendRuntimeTrace("Completed", runtimeTraceLines)
 
             FinalizeLogs()
         case "Failed":
-            if runtimeTraceBuffer.Length !== 0 {
-                BatchAppendRuntimeTrace("Failed", runtimeTraceBuffer)
-                runtimeTraceBuffer.Length := 0
-            }
-
+            BatchAppendRuntimeTrace("Failed", runtimeTraceLines)
             AppendCsvLineToLog(fullErrorText, "Runtime Trace")
             
             FinalizeLogs()
         case "Intermission":
-            currentTick := A_TickCount
-            if currentTick - lastRuntimeTraceFlushTick >= runtimeTraceFlushInterval {
-                lastRuntimeTraceFlushTick := currentTick
-                BatchAppendRuntimeTrace("Intermission", runtimeTraceBuffer)
-                runtimeTraceBuffer.Length := 0
-            }
+            BatchAppendRuntimeTrace("Intermission", runtimeTraceLines)
+    }
+}
+
+LogRuntimeTraceTimestamp(runtimeTraceTimestamp) {
+    global system
+
+    if !system.Has("Runtime Trace Order") {
+        system["Runtime Trace Order"]   := 1
+        system["QPC Before Timestamp"]  := runtimeTraceTimestamp["QPC Before Timestamp"]
+        system["UTC Timestamp Precise"] := runtimeTraceTimestamp["UTC Timestamp Precise"]
+        system["QPC After Timestamp"]   := runtimeTraceTimestamp["QPC After Timestamp"]
+        system["QPC Measurement Delta"] := runtimeTraceTimestamp["QPC Measurement Delta"]
+        system["QPC Midpoint Tick"]     := runtimeTraceTimestamp["QPC Midpoint Tick"]
+        system["UTC Timestamp Integer"] := runtimeTraceTimestamp["UTC Timestamp Integer"]
+    }
+
+    static methodName := RegisterMethod("LogRuntimeTraceTimestamp(runtimeTraceTimestamp As Object)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Log Runtime Trace Timestamp", methodName, [runtimeTraceTimestamp])
+
+    if system["Runtime Trace Order"] != 1 {
+        system["Runtime Trace Order"] := system["Runtime Trace Order"] + 1
+    }
+
+    logValuesForConclusion["Context"] := "Runtime Trace Order: " . system["Runtime Trace Order"]
+    
+    LogInformationConclusion("Completed", logValuesForConclusion)
+
+    if system.Has("Runtime Trace Order") {
+        system["QPC Before Timestamp"]  := runtimeTraceTimestamp["QPC Before Timestamp"]
+        system["UTC Timestamp Precise"] := runtimeTraceTimestamp["UTC Timestamp Precise"]
+        system["QPC After Timestamp"]   := runtimeTraceTimestamp["QPC After Timestamp"]
+        system["QPC Measurement Delta"] := runtimeTraceTimestamp["QPC Measurement Delta"]
+        system["QPC Midpoint Tick"]     := runtimeTraceTimestamp["QPC Midpoint Tick"]
+        system["UTC Timestamp Integer"] := runtimeTraceTimestamp["UTC Timestamp Integer"]
     }
 }
 
@@ -891,6 +913,64 @@ LogTimestamp() {
     )
 
     return logTimestamp
+}
+
+LogTimestampPrecise() {
+    static maxDurationMilliseconds  := 280
+    startTime                       := A_TickCount
+    queryPerformanceCounterReadings := []
+    utcTimestampPreciseReadings     := []
+    combinedReadings                := []
+
+    originalThreadPriority := GetAutoHotkeyThreadPriority()
+    if originalThreadPriority = 0 {
+        SetAutoHotkeyThreadPriority("Highest")
+    }
+
+    while (A_TickCount - startTime < maxDurationMilliseconds) {
+        queryPerformanceCounterReadings.Push(GetQueryPerformanceCounter())
+        utcTimestampPreciseReadings.Push(GetUtcTimestampPrecise())
+    }
+
+    if originalThreadPriority = 0 {
+        SetAutoHotkeyThreadPriority("Normal")
+    }
+
+    utcTimestampPreciseReadingsLength := utcTimestampPreciseReadings.Length
+    for index, utcTimestampPrecise in utcTimestampPreciseReadings {
+        if index = utcTimestampPreciseReadingsLength {
+            continue
+        }
+        qpcBefore := queryPerformanceCounterReadings[index]
+        qpcAfter  := queryPerformanceCounterReadings[index + 1]
+        combinedReadings.Push([qpcBefore, utcTimestampPrecise, qpcAfter, qpcAfter - qpcBefore])
+    }
+
+    bestIndex    := 1
+    bestDuration := combinedReadings[1][4]
+
+    for index, combinedReading in combinedReadings {
+        if index = 1 {
+            continue
+        }
+
+        duration := combinedReading[4]
+        if duration < bestDuration {
+            bestDuration := duration
+            bestIndex    := index
+        }
+    }
+
+    chosen := combinedReadings[bestIndex]
+    logTimestampPrecise := Map()
+    logTimestampPrecise["QPC Before Timestamp"]  := chosen[1]
+    logTimestampPrecise["UTC Timestamp Precise"] := chosen[2]
+    logTimestampPrecise["QPC After Timestamp"]   := chosen[3]
+    logTimestampPrecise["QPC Measurement Delta"] := chosen[4]
+    logTimestampPrecise["QPC Midpoint Tick"]     := logTimestampPrecise["QPC Before Timestamp"] + (logTimestampPrecise["QPC Measurement Delta"] // 2)
+    logTimestampPrecise["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(logTimestampPrecise["UTC Timestamp Precise"])
+
+    return logTimestampPrecise
 }
 
 OverlayChangeTransparency(transparencyValue) {
@@ -1616,6 +1696,16 @@ BatchAppendSymbolLedger(symbolType, array) {
     }
 }
 
+GetAutoHotkeyThreadPriority() {
+    static methodName := RegisterMethod("GetAutoHotkeyThreadPriority()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
+    threadPriority := DllCall("GetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int")
+
+    return threadPriority
+}
+
 GetPhysicalMemoryStatus() {
     static methodName := RegisterMethod("GetPhysicalMemoryStatus()", A_LineFile, A_LineNumber + 1)
     static logValuesForConclusion := LogHelperValidation(methodName)
@@ -1993,6 +2083,28 @@ RegisterSymbol(value, type, addNewLine := true) {
     }
 
     return symbolLine
+}
+
+SetAutoHotkeyThreadPriority(threadPriority) {
+    static threadPriorityWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Lowest", "Below Normal", "Normal", "Above Normal", "Highest")
+    static methodName := RegisterMethod("SetAutoHotkeyThreadPriority(threadPriority As String [Whitelist: " . threadPriorityWhitelist . "])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [threadPriority])
+
+    switch threadPriority {
+        case "Lowest":
+            threadPriority := -2
+        case "Below Normal":
+            threadPriority := -1
+        case "Normal":
+            threadPriority := 0
+        case "Above Normal":
+            threadPriority := 1
+        case "Highest":
+            threadPriority := 2
+    }
+
+    autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
+    DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", threadPriority)
 }
 
 ; **************************** ;

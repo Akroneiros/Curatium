@@ -204,7 +204,9 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
     for candidateBaseDirectory in candidateBaseDirectories {
         candidatePath := candidateBaseDirectory . "\" . directoryName . "\" . executableName
 
-        baseDirectoriesWithDirectoryNames.Push(candidateBaseDirectory . "\" . directoryName . "\")
+        if DirExist(candidateBaseDirectory . "\" . directoryName . "\") {
+            baseDirectoriesWithDirectoryNames.Push(candidateBaseDirectory . "\" . directoryName . "\")
+        }
 
         if FileExist(candidatePath) {
             executablePath := candidatePath
@@ -212,135 +214,127 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
         }
     }
 
-    switch applicationName {
-        case "CyberChef":
-            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
-                if executablePath != "" {
-                    break
-                }
+    if executablePath = "" {
+        extensionPosition   := InStr(executableName, ".", , -1)
+        executableExtension := SubStr(executableName, extensionPosition)
+        extensionLength     := StrLen(executableExtension)
+        
+        for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
+            if executablePath != "" {
+                break
+            }
 
-                if DirExist(baseDirectoryWithName) {
-                    applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
+            applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
 
-                    if applicationDirectoryFileList.Length = 0 {
+            if applicationDirectoryFileList.Length = 0 {
+                continue
+            } else {
+                for filePath in applicationDirectoryFileList {
+                    filename := ExtractFilename(filePath)
+
+                    if InStr(filename, applicationName) && SubStr(filename, -extensionLength) = executableExtension {
+                        executablePath := filePath
                         break
-                    } else {
-                        for filePath in applicationDirectoryFileList {
-                            filename := ExtractFilename(filePath)
-
-                            if InStr(filename, "CyberChef") = 1 && SubStr(filename, -5) = ".html" {
-                                executablePath := filePath
-                                break
-                            }
-                        }
                     }
                 }
             }
-        case "Discord":
-            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
-                if executablePath != "" {
-                    break
+        }
+    }
+
+    StrReplace(directoryName, ".", "", , &dotOccurrencesInDirectoryNameCount)
+    if executablePath = "" && dotOccurrencesInDirectoryNameCount >= 2 {
+        directoryNameSegments := StrSplit(directoryName, "\")
+        versionSegmentIndex := 0
+        versionSegment := ""
+
+        for index, directoryNameSegment in directoryNameSegments {
+            StrReplace(directoryNameSegment, ".", "", , &dotOccurrencesInDirectoryNameSegmentCount)
+
+            if dotOccurrencesInDirectoryNameSegmentCount < 2 {
+                continue
+            }
+
+            versionSegmentIndex := index
+            versionSegment := directoryNameSegment
+            break
+        }
+
+        if versionSegmentIndex != 0 {
+            relativePathBeforeVersionSegment := ""
+            relativePathAfterVersionSegment  := ""
+
+            for index, directoryNameSegment in directoryNameSegments {
+                if index < versionSegmentIndex {
+                    if relativePathBeforeVersionSegment != "" {
+                        relativePathBeforeVersionSegment .= "\"
+                    }
+                    relativePathBeforeVersionSegment .= directoryNameSegment
+                } else if index > versionSegmentIndex {
+                    if relativePathAfterVersionSegment != "" {
+                        relativePathAfterVersionSegment .= "\"
+                    }
+                    relativePathAfterVersionSegment .= directoryNameSegment
+                }
+            }
+
+            highestVersionKey := ""
+            highestVersionExecutablePath := ""
+
+            for candidateBaseDirectory in candidateBaseDirectories {
+                applicationRootDirectory := candidateBaseDirectory
+                if relativePathBeforeVersionSegment != "" {
+                    applicationRootDirectory .= "\" . relativePathBeforeVersionSegment
+                }
+                applicationRootDirectory .= "\"
+
+                if !DirExist(applicationRootDirectory) {
+                    continue
                 }
 
-                applicationParentDirectory := ExtractParentDirectory(baseDirectoryWithName)
+                loop files, applicationRootDirectory . "*", "D" {
+                    folderName := A_LoopFileName
 
-                if DirExist(applicationParentDirectory) && FileExist(applicationParentDirectory . "Update.exe") {
-                    highestVersionKey := ""
+                    StrReplace(folderName, ".", "", , &dotOccurrencesInFolderName)
+                    if dotOccurrencesInFolderName < 2 {
+                        continue
+                    }
 
-                    loop files, applicationParentDirectory . "app-*", "D" {
-                        folderName := A_LoopFileName
-                        if SubStr(folderName, 1, 4) != "app-" {
-                            continue
-                        }
+                    firstDigitPositionInFolderName := RegExMatch(folderName, "\d")
+                    if firstDigitPositionInFolderName = 0 {
+                        continue
+                    }
 
-                        versionText := SubStr(folderName, 5)
-                        if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
-                            continue
-                        }
+                    versionText := SubStr(folderName, firstDigitPositionInFolderName)
+                    if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
+                        continue
+                    }
 
-                        candidatePath := A_LoopFileFullPath . "\" . executableName
-                        if !FileExist(candidatePath) {
-                            continue
-                        }
+                    versionKey := ""
+                    for versionPartIndex, versionPart in StrSplit(versionText, ".") {
+                        versionKey .= Format("{:06}", Number(versionPart))
+                    }
 
-                        versionKey := ""
-                        for versionIndex, versionPart in StrSplit(versionText, ".") {
-                            versionKey .= Format("{:06}", Number(versionPart))
-                        }
+                    candidateExecutablePath := A_LoopFileFullPath
+                    if relativePathAfterVersionSegment != "" {
+                        candidateExecutablePath .= "\" . relativePathAfterVersionSegment
+                    }
+                    candidateExecutablePath .= "\" . executableName
 
-                        if StrCompare(versionKey, highestVersionKey) > 0 {
-                            highestVersionKey := versionKey
-                            executablePath := candidatePath
-                        }
+                    if !FileExist(candidateExecutablePath) {
+                        continue
+                    }
+
+                    if highestVersionKey = "" || StrCompare(versionKey, highestVersionKey) > 0 {
+                        highestVersionKey := versionKey
+                        highestVersionExecutablePath := candidateExecutablePath
                     }
                 }
             }
-        case "Rufus":
-            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
-                if executablePath != "" {
-                    break
-                }
 
-                if DirExist(baseDirectoryWithName) {
-                    applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
-
-                    if applicationDirectoryFileList.Length = 0 {
-                        break
-                    } else {
-                        for filePath in applicationDirectoryFileList {
-                            filename := ExtractFilename(filePath)
-
-                            if InStr(filename, "Rufus") = 1 && SubStr(filename, -4) = ".exe" {
-                                executablePath := filePath
-                                break
-                            }
-                        }
-                    }
-                }
+            if highestVersionExecutablePath != "" {
+                executablePath := highestVersionExecutablePath
             }
-        case "WPS Office":
-            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
-                if executablePath != "" {
-                    break
-                }
-
-                applicationParentDirectory := ExtractParentDirectory(baseDirectoryWithName)
-                applicationParentDirectory := ExtractParentDirectory(applicationParentDirectory)
-
-                if DirExist(applicationParentDirectory) && FileExist(applicationParentDirectory . "ksolaunch.exe") {
-                    highestVersionKey := ""
-
-                    loop files, applicationParentDirectory . "*", "D" {
-                        versionText := A_LoopFileName
-                        if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
-                            continue
-                        }
-
-                        candidatePath := A_LoopFileFullPath . "\office6\" . executableName
-                        if !FileExist(candidatePath) {
-                            continue
-                        }
-
-                        versionKey := ""
-                        for versionIndex, versionPart in StrSplit(versionText, ".") {
-                            versionKey .= Format("{:06}", Number(versionPart))
-                        }
-
-                        if StrCompare(versionKey, highestVersionKey) > 0 {
-                            highestVersionKey := versionKey
-                            executablePath := candidatePath
-                            break
-                        }
-                    }
-                }
-            }
-        default:
-            for baseDirectory in candidateBaseDirectories {
-                if FileExist(candidatePath) {
-                    executablePath := candidatePath
-                    break
-                }
-            }
+        }
     }
 
     executablePathSearchResult := unset

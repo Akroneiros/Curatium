@@ -451,24 +451,24 @@ ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
 }
 
 WaitUntilFileIsModifiedToday(filePath) {
-    static methodName := RegisterMethod("WaitUntilFileIsModifiedToday(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("WaitUntilFileIsModifiedToday(filePath As String [Type: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Wait Until File is Modified Today: " . ExtractFilename(filePath, true), methodName, [filePath])
 
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-    checkInterval := 4000   ; Check every 4 seconds (in milliseconds)
-    mouseInterval := 120000 ; Move mouse every 2 minutes (in milliseconds)
-    maxWaitMinutes := 360   ; Maximum wait time = 6 hours
-    ; Calculate how many times to loop based on max wait time and check interval.
-    ; Example: (360 minutes × 60,000 ms) ÷ 4,000 ms = 5,400 loops (i.e. 6 hours total)
+    checkInterval := 4000   ; Check every 4 seconds (in milliseconds).
+    mouseInterval := 120000 ; Move mouse every 2 minutes (in milliseconds).
+    maxWaitMinutes := 360   ; Maximum wait time = 6 hours.
     maxLoops := (maxWaitMinutes * 60000) // checkInterval
     timeSinceLastMouse := 0
 
     loop maxLoops {
-        fileModifiedDate := FileGetTime(filePath, "M") ; Get modified date for file.
-        fileModifiedDate := FormatTime(fileModifiedDate, "yyyy-MM-dd")
+        if FileExist(filePath) {
+            fileModifiedDate := FileGetTime(filePath, "M")
+            fileModifiedDate := FormatTime(fileModifiedDate, "yyyy-MM-dd")
 
-        if dateOfToday = fileModifiedDate {
-            break ; Break if file modified today.
+            if dateOfToday = fileModifiedDate {
+                break
+            }
         }
 
         Sleep(checkInterval)
