@@ -85,7 +85,6 @@ f.lux|flux.exe|FluxSoftware\Flux
 FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
 Fiddler Classic|Fiddler.exe|Fiddler
 Fiddler Everywhere|Fiddler Everywhere.exe|Fiddler Everywhere
-FileOptimizer|FileOptimizer32.exe|FileOptimizer
 FileOptimizer|FileOptimizer64.exe|FileOptimizer
 FileZilla|filezilla.exe|FileZilla FTP Client
 Firefox|firefox.exe|Mozilla Firefox
@@ -167,7 +166,6 @@ Merge|Merge.exe|Araxis\Araxis Merge
 Mesen|Mesen.exe|Mesen
 MeshLab|meshlab.exe|VCG\MeshLab
 Mp3tag|Mp3tag.exe|Mp3tag
-MPC-BE|mpc-be.exe|MPC-BE
 MPC-BE|mpc-be64.exe|MPC-BE
 Msty Studio|MstyStudio.exe|MstyStudio
 Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
@@ -294,7 +292,6 @@ WinSCP|WinSCP.exe|WinSCP
 WinUAE|winuae64.exe|WinUAE
 WinZip|winzip64.exe|WinZip
 Wireshark|Wireshark.exe|Wireshark
-WizTree|WizTree.exe|WizTree
 WizTree|WizTree64.exe|WizTree
 WMI Explorer|WmiExplorer.exe|WMI Explorer
 Word|WINWORD.EXE|Microsoft Office\root\Office16
