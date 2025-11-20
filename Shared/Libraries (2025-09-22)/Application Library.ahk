@@ -224,7 +224,7 @@ ExecutablePathViaDirectory(applicationName, executablePath, executableName, dire
                 break
             }
 
-            applicationDirectoryFileList := GetFileListFromDirectory(baseDirectoryWithName, true)
+            applicationDirectoryFileList := GetFilesFromDirectory(baseDirectoryWithName, true)
 
             if applicationDirectoryFileList.Length = 0 {
                 continue
@@ -1160,11 +1160,13 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     WinActivate(windowCriteria)
     WinMaximize(windowCriteria)
 
-    SendEvent("!s")      ; ALT+S (Session)
+    SendEvent("!s") ; ALT+S (Session)
     Sleep(400)
-    SendEvent("s")       ; S (Test Connection)
+    SendEvent("t") ; T (Test All Connections (Reconnect) [OR] Test/Reconnect)
     Sleep(400)
-    SendEvent("{Enter}") ; ENTER (Apply)
+    SendEvent("t") ; T (Test All Connections (Reconnect) [OR] t)
+    Sleep(400)
+    SendEvent("{Backspace}") ; Backspace (Remove t if present)
     
     overallStartTickCount := A_TickCount
     firstSeenTickCount := 0
@@ -1222,21 +1224,24 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     toadForOracleSearchCoordinates := ExtractScreenCoordinates(toadForOracleSearchResults)
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
     Sleep(2000)
-
     SendEvent("{Tab}") ; TAB (Text to find:)
-    Sleep(1200)
-
+    Sleep(800)
     PasteSearch(appName)
-
-    Sleep(1200)
+    Sleep(800)
     SendEvent("{Enter}") ; ENTER (Search)
     Sleep(1200)
     SendEvent("+{Tab}") ; SHIFT+TAB (Item)
-    Sleep(1200)
+
+    if toadForOracleSearchResults["Variant"] = "c" || toadForOracleSearchResults["Variant"] = "d" {
+        Sleep(800)
+        SendEvent("+{Tab}") ; SHIFT+TAB (Item)
+    }
+
+    Sleep(800)
     SendEvent("+{F10}") ; SHIFT+F10 (Right-click)
-    Sleep(1200)
+    Sleep(800)
     SendEvent("{Down}") ; DOWN ARROW (Goto Item)
-    Sleep(1200)
+    Sleep(800)
     SendEvent("{Enter}") ; ENTER (Goto Item)
     Sleep(1200)
     toadForOracleRunSelectedAppsResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")

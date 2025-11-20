@@ -19,7 +19,7 @@ CreateApplicationImages() {
         }
     }
 
-    imagesFileList := GetFileListFromDirectory(system["Images Directory"])
+    imagesFileList := GetFilesFromDirectory(system["Images Directory"])
     applicationImageLibraryDataFiles := []
     for filePath in imagesFileList {
         if InStr(filePath, "Image Library Data") {
@@ -443,7 +443,7 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
     static headerCatalog := "Image Library Data Reference|Counter Reference|Display Resolution|DPI Scale|Horizontal Range|Vertical Range" . newLine
     static headerData    := "Name|Variant|Counter|SHA-256|Extension|Base64" . newLine
 
-    referenceDirectories := GetFolderListFromDirectory(directoryPath)
+    referenceDirectories := GetFoldersFromDirectory(directoryPath)
     for index, referenceFolderPath in referenceDirectories {
         SplitPath(RTrim(referenceFolderPath, "\/"), &lastReferenceDirectoryName)
 
@@ -470,7 +470,7 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
         hashToCounter := Map()
         counter := 1
 
-        actionImageDirectories := GetFolderListFromDirectory(referenceFolderPath)
+        actionImageDirectories := GetFoldersFromDirectory(referenceFolderPath)
         for index, actionFolderPath in actionImageDirectories {
             SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
 

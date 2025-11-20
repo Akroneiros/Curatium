@@ -439,6 +439,30 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
+SetAutoHotkeyThreadPriority(threadPriority) {
+    static threadPriorityWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Lowest", "Below Normal", "Normal", "Above Normal", "Highest")
+    static methodName := RegisterMethod("SetAutoHotkeyThreadPriority(threadPriority As String [Whitelist: " . threadPriorityWhitelist . "])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Set AutoHotkey Thread Priority (" . threadPriority . ")", methodName, [threadPriority])
+
+    switch threadPriority {
+        case "Lowest":
+            threadPriority := -2
+        case "Below Normal":
+            threadPriority := -1
+        case "Normal":
+            threadPriority := 0
+        case "Above Normal":
+            threadPriority := 1
+        case "Highest":
+            threadPriority := 2
+    }
+
+    autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
+    DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", threadPriority)
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 ; **************************** ;
 ; Helper Methods               ;
 ; **************************** ;
@@ -607,6 +631,16 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     }
 
     return uniqueValues
+}
+
+GetAutoHotkeyThreadPriority() {
+    static methodName := RegisterMethod("GetAutoHotkeyThreadPriority()", A_LineFile, A_LineNumber + 1)
+    static logValuesForConclusion := LogHelperValidation(methodName)
+
+    autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
+    threadPriority := DllCall("GetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int")
+
+    return threadPriority
 }
 
 GetBase64FromFile(filePath) {

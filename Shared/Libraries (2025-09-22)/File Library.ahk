@@ -7,7 +7,7 @@ CleanOfficeLocksInFolder(directoryPath) {
     logValuesForConclusion := LogInformationBeginning("Clean Office Locks in Folder (" . directoryPath . ")", methodName, [directoryPath])
 
     deletedCount     := 0
-    filesInDirectory := GetFileListFromDirectory(directoryPath, true)
+    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
 
     if filesInDirectory.Length = 0 {
         LogInformationConclusion("Skipped", logValuesForConclusion)
@@ -178,7 +178,7 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Type: Search], directoryPath As String [Type: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("File Exists in Directory (" . filename . ")", methodName, [filename, directoryPath, fileExtension])
 
-    filesInDirectory := GetFileListFromDirectory(directoryPath, true)
+    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
 
     if filesInDirectory.Length = 0 {
         LogInformationConclusion("Completed", logValuesForConclusion)
@@ -210,52 +210,6 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
             LogInformationConclusion("Failed", logValuesForConclusion, tooManyMatchesError)
         }
     }
-}
-
-GetFileListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("GetFileListFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Get File List from Directory (" . directoryPath . ")", methodName, [directoryPath, emptyDirectoryAllowed])
-
-    files := []
-    pattern := RTrim(directoryPath, "\/") . "\*"
-
-    loop files, pattern, "F" {
-        files.Push(A_LoopFileFullPath)
-    }
-
-    try {
-        if !emptyDirectoryAllowed && files.Length = 0 {
-            throw Error("Directory exists but contains no files: " directoryPath)
-        }
-    } catch as emptyDirectoryError {
-        LogInformationConclusion("Failed", logValuesForConclusion, emptyDirectoryError)
-    }
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-    return files
-}
-
-GetFolderListFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("GetFolderListFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Get Folder List from Directory (" . directoryPath . ")", methodName, [directoryPath, emptyDirectoryAllowed])
-
-    folders := []
-    pattern := RTrim(directoryPath, "\/") . "\*"
-
-    loop files, pattern, "D" {
-        folders.Push(A_LoopFileFullPath . "\")
-    }
-
-    try {
-        if !emptyDirectoryAllowed && folders.Length = 0 {
-            throw Error("Directory exists but contains no folders: " . directoryPath)
-        }
-    } catch as emptyDirectoryError {
-        LogInformationConclusion("Failed", logValuesForConclusion, emptyDirectoryError)
-    }
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-    return folders
 }
 
 MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
@@ -518,4 +472,40 @@ ExtractParentDirectory(filePath) {
     }
 
     return parentFolderPath
+}
+
+GetFilesFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
+    static methodName := RegisterMethod("GetFilesFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [directoryPath, emptyDirectoryAllowed])
+
+    files := []
+    pattern := RTrim(directoryPath, "\/") . "\*"
+
+    loop files, pattern, "F" {
+        files.Push(A_LoopFileFullPath)
+    }
+
+    if !emptyDirectoryAllowed && files.Length = 0 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Directory exists but contains no files: " directoryPath)
+    }
+
+    return files
+}
+
+GetFoldersFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
+    static methodName := RegisterMethod("GetFoldersFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [directoryPath, emptyDirectoryAllowed])
+
+    folders := []
+    pattern := RTrim(directoryPath, "\/") . "\*"
+
+    loop files, pattern, "D" {
+        folders.Push(A_LoopFileFullPath . "\")
+    }
+
+    if !emptyDirectoryAllowed && folders.Length = 0 {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Directory exists but contains no folders: " . directoryPath)
+    }
+
+    return folders
 }
