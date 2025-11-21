@@ -19,6 +19,7 @@ Audacity|52
 Audition|104
 AutoCAD|105
 AutoHotkey|204
+Azure Data Studio|281
 Balabolka|154
 Bandizip|53
 Base|54
@@ -29,6 +30,7 @@ BGB|261
 BlastEm|205
 BleachBit|206
 Blender|57
+BlueStacks|282
 Brave|58
 Bridge|106
 bsnes|207
@@ -37,6 +39,7 @@ Burp Suite Community Edition|155
 Calc|59
 calibre|156
 CapCut|107
+Capture2Text|283
 Character Animator|108
 Charles Proxy|157
 CherryTree|34
@@ -68,6 +71,7 @@ DuckStation|215
 Edge|7
 Emulicious|264
 Epic Games Launcher|111
+Epic Pen|284
 Everything|8
 Exact Audio Copy|265
 ExactFile|216
@@ -88,8 +92,10 @@ FontBase|166
 foobar2000|63
 Foxit PDF Reader|24
 FreeCAD|167
+FreeCommander XE|285
 FreeFileSync|64
 FreeMind|219
+Genymotion Desktop|286
 GIMP|44
 GitHub Desktop|36
 GlassWire|168
@@ -125,6 +131,7 @@ iTubeGo|72
 Ivanti Secure Access Client|225
 IVPN Client|119
 IZArc|270
+Jabber|287
 Jan|174
 Joplin|226
 KeePass|14
@@ -133,6 +140,7 @@ Krita|74
 Kyno|175
 LatencyMon|176
 Ledger Live|75
+Ledger Wallet|288
 Levelator|227
 LibreWolf|228
 Lightroom Classic|120
@@ -141,12 +149,15 @@ Lightworks|122
 LM Studio|177
 LocalSend|229
 LockHunter|230
+Logi Options+|289
+Logitech Options|290
 MainType|178
 MAME|271
 Math|76
 Media Encoder|123
 Mednafen|231
 melonDS|232
+MEmu Play|291
 Merge|233
 Mesen|234
 MeshLab|235
@@ -174,6 +185,7 @@ Paint Shop Pro|16
 Paint.NET|26
 PCSX2|240
 PeaZip|80
+Pencil2D Animation|292
 PhotoDirector 365|273
 PhotoLine|274
 Photoshop|128
@@ -181,6 +193,7 @@ Pinokio|241
 PlanMaker|81
 Postman|82
 Power BI Desktop|83
+Power BI Report Builder|293
 PowerArchiver|275
 PowerPoint|10
 PowerToys|48
@@ -193,6 +206,7 @@ Private Internet Access|132
 Process Explorer|184
 Process Lasso|243
 Proton VPN|133
+Proximity|294
 Publisher|85
 Pulover's Macro Creator|38
 puNES|244
@@ -218,10 +232,12 @@ Shutter Encoder|253
 Slack|87
 SmartFTP|277
 Snes9x|254
+SoapUI|295
 Sononym|189
 Sound Forge Audio Studio|255
 Speccy|190
 Spotify|88
+SQL Developer|296
 SQL Server Management Studio|3
 StartAllBack|29
 Steam|89
@@ -232,6 +248,8 @@ Substance 3D Modeler|137
 Substance 3D Painter|138
 Substance 3D Sampler|139
 Substance 3D Stager|140
+Sumatra PDF|297
+SuperPuTTY|298
 Surfshark|141
 Synfig Studio|256
 SysTracer|191
@@ -242,6 +260,7 @@ TextMaker|93
 Thunderbird|142
 TightVNC|94
 Toad for Oracle|4
+Toad for SQL Server|299
 Topaz Gigapixel|192
 Topaz Photo|193
 Topaz Video|194
@@ -278,4 +297,5 @@ Workstation Pro|20
 WPS Office|199
 Writer|100
 XnView MP|40
+Yubico Authenticator|300
 ZenTimings|200
