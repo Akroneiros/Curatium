@@ -91,7 +91,7 @@ CreateApplicationImages() {
 }
 
 CreateImagesFromCatalog(imageLibraryCatalogName) {
-    static methodName := RegisterMethod("CreateImagesFromCatalog(imageCatalogName As String [Type: Search])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("CreateImagesFromCatalog(imageCatalogName As String [Constraint: Search])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Create Images from Catalog", methodName, [imageLibraryCatalogName])
 
     global imageRegistry
@@ -413,8 +413,8 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
 ; Helper Methods               ;
 ; **************************** ;
 
-ConvertImagesToBase64ImageLibraries(directoryPath) {
-    static methodName := RegisterMethod("ConvertImagesToBase64ImageLibraries(directoryPath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
+ConvertImagesToBase64ImageLibrary(directoryPath) {
+    static methodName := RegisterMethod("ConvertImagesToBase64ImageLibrary(directoryPath As String [Constraint: Directory])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [directoryPath])
 
     static applications   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
@@ -443,89 +443,118 @@ ConvertImagesToBase64ImageLibraries(directoryPath) {
     static headerCatalog := "Image Library Data Reference|Counter Reference|Display Resolution|DPI Scale|Horizontal Range|Vertical Range" . newLine
     static headerData    := "Name|Variant|Counter|SHA-256|Extension|Base64" . newLine
 
-    referenceDirectories := GetFoldersFromDirectory(directoryPath)
-    for index, referenceFolderPath in referenceDirectories {
-        SplitPath(RTrim(referenceFolderPath, "\/"), &lastReferenceDirectoryName)
-
-        referenceIsApplication := false
-        for index, application in applications {
-            if application["Name"] = lastReferenceDirectoryName {
-                referenceIsApplication := true
-                break
-            }
+    SplitPath(RTrim(directoryPath, "\/"), &referenceDirectoryName)
+    referenceIsApplication := false
+    for index, application in applications {
+        if application["Name"] = referenceDirectoryName {
+            referenceIsApplication := true
+            break
         }
-
-        catalogEntries := []
-        dataEntries    := []
-        imageLibraryCatalogFilePath       := directoryPath . "Image Library Catalog (" . lastReferenceDirectoryName . ")" . ".csv"
-        imageLibraryDataReferenceFilePath := directoryPath . "Image Library Data (" . lastReferenceDirectoryName . ")" . ".csv"
-
-        imageLibraryDataReference := unset
-        if referenceIsApplication {
-            imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Name", lastReferenceDirectoryName)["Counter"] + 0
-        } else {
-            imageLibraryDataReference := lastReferenceDirectoryName
-        }
-
-        hashToCounter := Map()
-        counter := 1
-
-        actionImageDirectories := GetFoldersFromDirectory(referenceFolderPath)
-        for index, actionFolderPath in actionImageDirectories {
-            SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
-
-            if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-                LogHelperError(logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
-            }
-
-            actionName   := Trim(matchResults[1])
-            actionLetter := matchResults[2]
-
-            loop files, actionFolderPath . "*", "F" {
-                SplitPath(A_LoopFileName, , , , &filenameWithoutExtension)
-                lastOpenParenthesisIndex := InStr(filenameWithoutExtension, "(", "On", -1)
-                baseTextWithoutRanges    := RTrim(SubStr(filenameWithoutExtension, 1, lastOpenParenthesisIndex - 1))
-                rangeContent             := SubStr(filenameWithoutExtension, lastOpenParenthesisIndex + 1, InStr(filenameWithoutExtension, ")", "On", -1) - lastOpenParenthesisIndex - 1)
-
-                rangeParts := StrSplit(rangeContent, ",", " `t")
-                horizontalPercentRange := rangeParts[1]
-                verticalPercentRange   := rangeParts[2]
-
-                parts      := StrSplit(baseTextWithoutRanges, "@", " `t")
-                resolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", parts[1])["Counter"]
-                scale      := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", parts[2])["Counter"]
-
-                fileHash    := Hash.File("SHA256", A_LoopFileFullPath)
-                encodedHash := EncodeSha256HexToBase(fileHash, 86)
-                base64Data  := GetBase64FromFile(A_LoopFileFullPath)
-
-                extension := ""
-                for index, rowMap in fileSignatures {
-                    maximumBase64Signature := rowMap["Maximum Base64 Signature"]
-                    if SubStr(base64Data, 1, StrLen(maximumBase64Signature)) = maximumBase64Signature {
-                        extension  := rowMap["Extension"]
-                        base64Data := SubStr(base64Data, StrLen(maximumBase64Signature) + 1)
-                        break
-                    }
-                }               
-
-                if !hashToCounter.Has(fileHash) {
-                    hashToCounter[fileHash] := counter
-                    counter := counter + 1
-
-                    dataEntries.Push(actionName . "|" . actionLetter . "|" . hashToCounter[fileHash] . "|" . encodedHash . "|" . extension . "|" . base64Data)
-                }
-                
-                catalogEntries.Push(imageLibraryDataReference . "|" . hashToCounter[fileHash] . "|" . resolution . "|" . scale . "|" . horizontalPercentRange . "|" . verticalPercentRange)
-            }
-        }
-
-        csvDataString := headerData . ConvertArrayIntoCsvString(dataEntries)
-        FileAppend(csvDataString, imageLibraryDataReferenceFilePath, "UTF-8")
-
-        csvCatalogString := headerCatalog . ConvertArrayIntoCsvString(catalogEntries)
-        FileAppend(csvCatalogString, imageLibraryCatalogFilePath, "UTF-8")
     }
+
+    imageLibraryCatalogFilePath       := directoryPath . "Image Library Catalog (" . referenceDirectoryName . ")" . ".csv"
+    imageLibraryDataReferenceFilePath := directoryPath . "Image Library Data (" . referenceDirectoryName . ")" . ".csv"
+    imageLibraryDataReference         := unset
+    if referenceIsApplication {
+        imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Name", referenceDirectoryName)["Counter"] + 0
+    } else {
+        imageLibraryDataReference := referenceDirectoryName
+    }
+
+    if FileExist(imageLibraryCatalogFilePath) {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
+    }
+
+    hashToCounter := Map()
+    counter := 1
+    if FileExist(imageLibraryDataReferenceFilePath) {
+        imageLibraryDataReferenceFile := ConvertCsvToArrayOfMaps(imageLibraryDataReferenceFilePath)
+
+        for index, rowMap in imageLibraryDataReferenceFile {
+            if counter < rowMap["Counter"] {
+                counter := rowMap["Counter"]
+            }
+        }
+
+        counter := counter + 1
+    }
+
+    originalCounter := counter
+    catalogEntries  := []
+    dataEntries     := []
+
+    actionImageDirectories := GetFoldersFromDirectory(directoryPath)
+    for index, actionFolderPath in actionImageDirectories {
+        SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
+
+        if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
+            LogHelperError(logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
+        }
+
+        actionName   := Trim(matchResults[1])
+        actionLetter := matchResults[2]
+
+        loop files, actionFolderPath . "*", "F" {
+            SplitPath(A_LoopFileName, , , , &filenameWithoutExtension)
+            lastOpenParenthesisIndex := InStr(filenameWithoutExtension, "(", "On", -1)
+            baseTextWithoutRanges    := RTrim(SubStr(filenameWithoutExtension, 1, lastOpenParenthesisIndex - 1))
+            rangeContent             := SubStr(filenameWithoutExtension, lastOpenParenthesisIndex + 1, InStr(filenameWithoutExtension, ")", "On", -1) - lastOpenParenthesisIndex - 1)
+
+            rangeParts := StrSplit(rangeContent, ",", " `t")
+
+            validation := unset
+            for rangePart in rangeParts {
+                validation := ValidateDataUsingSpecification(rangePart, "String", "Percent Range")
+
+                if validation != "" {
+                    subfolder := StrSplit(RTrim(actionFolderPath, "\"), "\").Pop()
+                    LogHelperError(logValuesForConclusion, A_LineNumber, "File " . Chr(34) . A_LoopFileName . Chr(34) . " in subfolder " . Chr(34) . subfolder . Chr(34) . " has invalid range value in parenthesis after percent. " . validation)
+                }
+            }
+
+            horizontalPercentRange := rangeParts[1]
+            verticalPercentRange   := rangeParts[2]
+
+            parts      := StrSplit(baseTextWithoutRanges, "@", " `t")
+            resolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", parts[1])["Counter"]
+            scale      := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", parts[2])["Counter"]
+
+            fileHash    := Hash.File("SHA256", A_LoopFileFullPath)
+            encodedHash := EncodeSha256HexToBase(fileHash, 86)
+            base64Data  := GetBase64FromFile(A_LoopFileFullPath)
+
+            extension := ""
+            for index, rowMap in fileSignatures {
+                maximumBase64Signature := rowMap["Maximum Base64 Signature"]
+                if SubStr(base64Data, 1, StrLen(maximumBase64Signature)) = maximumBase64Signature {
+                    extension  := rowMap["Extension"]
+                    base64Data := SubStr(base64Data, StrLen(maximumBase64Signature) + 1)
+                    break
+                }
+            }               
+
+            if !hashToCounter.Has(fileHash) {
+                hashToCounter[fileHash] := counter
+                counter := counter + 1
+
+                dataEntries.Push(actionName . "|" . actionLetter . "|" . hashToCounter[fileHash] . "|" . encodedHash . "|" . extension . "|" . base64Data)
+            }
+            
+            catalogEntries.Push(imageLibraryDataReference . "|" . hashToCounter[fileHash] . "|" . resolution . "|" . scale . "|" . horizontalPercentRange . "|" . verticalPercentRange)
+        }
+    }
+
+    csvDataString := unset
+    if originalCounter = 1 {
+        csvDataString := headerData . ConvertArrayIntoCsvString(dataEntries)
+    } else {
+        csvDataString := newLine . ConvertArrayIntoCsvString(dataEntries)
+    }
+
+    FileAppend(csvDataString, imageLibraryDataReferenceFilePath, "UTF-8")
+
+    csvCatalogString := headerCatalog . ConvertArrayIntoCsvString(catalogEntries)
+    FileAppend(csvCatalogString, imageLibraryCatalogFilePath, "UTF-8")
 }
 
 ExtractScreenCoordinates(imageSearchResults) {
@@ -542,7 +571,7 @@ ExtractScreenCoordinates(imageSearchResults) {
 }
 
 GetImageDimensions(imageAbsolutePath) {
-    static methodName := RegisterMethod("GetImageDimensions(imageAbsolutePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("GetImageDimensions(imageAbsolutePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [imageAbsolutePath])
 
     static gdiPlusStartupInputSize := (A_PtrSize = 8) ? 24 : 16
@@ -585,7 +614,7 @@ GetImageDimensions(imageAbsolutePath) {
 }
 
 OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRange, verticalRange) {
-    static methodName := RegisterMethod("OverrideDirectoryImageVariant(directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Type: Percent Range], verticalRange As String [Type: Percent Range])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("OverrideDirectoryImageVariant(directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [directoryFolder, imageName, variant, horizontalRange, verticalRange])
 
     global imageRegistry

@@ -3,7 +3,7 @@
 #Include Logging Library.ahk
 
 CleanOfficeLocksInFolder(directoryPath) {
-    static methodName := RegisterMethod("CleanOfficeLocksInFolder(directoryPath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("CleanOfficeLocksInFolder(directoryPath As String [Constraint: Directory])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Clean Office Locks in Folder (" . directoryPath . ")", methodName, [directoryPath])
 
     deletedCount     := 0
@@ -35,7 +35,7 @@ CleanOfficeLocksInFolder(directoryPath) {
 }
 
 ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
-    static methodName := RegisterMethod("ConvertCsvToArrayOfMaps(filePath As String [Type: Absolute Path], delimiter As String [Optional: |])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ConvertCsvToArrayOfMaps(filePath As String [Constraint: Absolute Path], delimiter As String [Optional: |])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")", methodName, [filePath])
 
     hashValue := Hash.File("SHA256", filePath)
@@ -83,7 +83,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
 }
 
 CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "") {
-    static methodName := RegisterMethod("CopyFileToTarget(filePath As String [Type: Absolute Path], targetDirectory As String [Type: Directory], findValue As String [Optional], replaceValue As String [Optional])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("CopyFileToTarget(filePath As String [Constraint: Absolute Path], targetDirectory As String [Constraint: Directory], findValue As String [Optional], replaceValue As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Copy File to Target (" . ExtractFilename(filePath) . ")", methodName, [filePath, targetDirectory, findValue, replaceValue])
 
     try {
@@ -132,7 +132,7 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
 }
 
 DeleteFile(filePath) {
-    static methodName := RegisterMethod("DeleteFile(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("DeleteFile(filePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Delete File (" . ExtractFilename(filePath) . ")", methodName, [filePath])
 
     try {
@@ -154,7 +154,7 @@ DeleteFile(filePath) {
 }
 
 EnsureDirectoryExists(directoryPath) {
-    static methodName := RegisterMethod("EnsureDirectoryExists(directoryPath As String [Type: Directory])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("EnsureDirectoryExists(directoryPath As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Ensure Directory Exists (" . directoryPath . ")", methodName, [directoryPath])
 
     if !DirExist(directoryPath) {
@@ -175,7 +175,7 @@ EnsureDirectoryExists(directoryPath) {
 }
 
 FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
-    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Type: Search], directoryPath As String [Type: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Constraint: Search], directoryPath As String [Constraint: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("File Exists in Directory (" . filename . ")", methodName, [filename, directoryPath, fileExtension])
 
     filesInDirectory := GetFilesFromDirectory(directoryPath, true)
@@ -213,7 +213,7 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
 }
 
 MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
-    static methodName := RegisterMethod("MoveFileToDirectory(filePath As String [Type: Absolute Path], directoryPath As String [Type: Directory], overwrite As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("MoveFileToDirectory(filePath As String [Constraint: Absolute Path], directoryPath As String [Constraint: Directory], overwrite As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Move File to Directory (" . ExtractFilename(filePath) . ")", methodName, [filePath, directoryPath, overwrite])
 
     filename   := ExtractFilename(filePath)
@@ -255,7 +255,7 @@ MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
 }
 
 ReadFileOnHashMatch(filePath, expectedHash) {
-    static methodName := RegisterMethod("ReadFileOnHashMatch(filePath As String [Type: Absolute Path], expectedHash As String [Type: SHA-256])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ReadFileOnHashMatch(filePath As String [Constraint: Absolute Path], expectedHash As String [Constraint: SHA-256])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Read File on Hash Match (" . ExtractFilename(filePath) . ")", methodName, [filePath, expectedHash])
 
     try {
@@ -334,7 +334,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
 }
 
 WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
-    static methodName := RegisterMethod("WriteBase64IntoFileWithHash(base64Text As String [Type: Base64], filePath As String [Type: Absolute Save Path], expectedHash As String [Type: SHA-256])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("WriteBase64IntoFileWithHash(base64Text As String [Constraint: Base64], filePath As String [Constraint: Absolute Save Path], expectedHash As String [Constraint: SHA-256])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Write Base64 into File with Hash" . " (" . ExtractFilename(filePath) . ")", methodName, [base64Text, filePath, expectedHash])
     
     requiredSizeInBytes := 0
@@ -475,7 +475,7 @@ ExtractParentDirectory(filePath) {
 }
 
 GetFilesFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("GetFilesFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("GetFilesFromDirectory(directoryPath As String [Constraint: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [directoryPath, emptyDirectoryAllowed])
 
     files := []
@@ -493,7 +493,7 @@ GetFilesFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
 }
 
 GetFoldersFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("GetFoldersFromDirectory(directoryPath As String [Type: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("GetFoldersFromDirectory(directoryPath As String [Constraint: Directory], emptyDirectoryAllowed As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [directoryPath, emptyDirectoryAllowed])
 
     folders := []

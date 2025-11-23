@@ -63,7 +63,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
 }
 
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")", methodName, [horizontalValue, verticalValue, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
@@ -99,7 +99,7 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
 
 PasteCode(code, commentPrefix) {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'",  "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("PasteCode(code As String [Type: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("PasteCode(code As String [Constraint: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Code (Length: " . StrLen(code) . ")", methodName, [code, commentPrefix])
 
     sentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
@@ -166,7 +166,7 @@ PasteCode(code, commentPrefix) {
 }
 
 PastePath(savePath) {
-    static methodName := RegisterMethod("PastePath(savePath As String [Type: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("PastePath(savePath As String [Constraint: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Path (" . savePath . ")", methodName, [savePath])
 
     attempts    := 0
@@ -229,7 +229,7 @@ PastePath(savePath) {
 }
 
 PasteSearch(searchValue) {
-    static methodName := RegisterMethod("PasteSearch(searchValue As String [Type: Search Open])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("PasteSearch(searchValue As String [Constraint: Search Open])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Paste Search (" . searchValue . ")", methodName, [searchValue])
 
     attempts    := 0
@@ -293,7 +293,7 @@ PasteSearch(searchValue) {
 
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Double", "Left", "Middle", "Move", "Move Smooth", "Right", "Wheel Down", "Wheel Up")
-    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")", methodName, [mouseAction, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
@@ -345,7 +345,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
 
 PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouseButton := "Left", modifierKeys := "") {
     static mouseActionWhitelist := Format('"{1}", "{2}"', "Left", "Right")
-    static methodName := RegisterMethod("PerformMouseDragBetweenCoordinates(startCoordinatePair As String [Type: Coordinate Pair], endCoordinatePair As String [Type: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("PerformMouseDragBetweenCoordinates(startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")", methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys])
 
     modeBeforeAction := A_CoordModeMouse
@@ -463,12 +463,39 @@ SetAutoHotkeyThreadPriority(threadPriority) {
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
+ValidateDisplayScaling() {
+    static methodName := RegisterMethod("ValidateDisplayScaling()", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Validate Display Scaling", methodName)
+
+    validateDisplayResolution := ValidateDataUsingSpecification(system["Display Resolution"], "String", "Display Resolution")
+
+    try {
+        if validateDisplayResolution != "" {
+            throw Error(validateDisplayResolution)
+        }
+    } catch as invalidDisplayResolutionError {
+        LogInformationConclusion("Failed", logValuesForConclusion, invalidDisplayResolutionError)
+    }
+
+    validateDpiScale := ValidateDataUsingSpecification(system["DPI Scale"], "String", "DPI Scale")
+
+    try {
+        if validateDpiScale != "" {
+            throw Error(validateDpiScale)
+        }
+    } catch as invalidDpiScaleError {
+         LogInformationConclusion("Failed", logValuesForConclusion, invalidDpiScaleError)
+    }
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
+}
+
 ; **************************** ;
 ; Helper Methods               ;
 ; **************************** ;
 
 ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
-    static methodName := RegisterMethod("ComputeMouseSpeed(startCoordinatePair As String [Type: Coordinate Pair], endCoordinatePair As String [Type: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ComputeMouseSpeed(startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [startCoordinatePair, endCoordinatePair])
 
     startCoordinates := StrSplit(startCoordinatePair, "x")
@@ -528,7 +555,7 @@ ConvertArrayIntoCsvString(array) {
 }
 
 ConvertHexStringToBase64(hexString, removePadding := true) {
-    static methodName := RegisterMethod("ConvertHexStringToBase64(hexString As String [Type: Hexadecimal String], removePadding As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ConvertHexStringToBase64(hexString As String [Constraint: Hexadecimal String], removePadding As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [hexString])
 
     byteCount := StrLen(hexString) // 2
@@ -644,7 +671,7 @@ GetAutoHotkeyThreadPriority() {
 }
 
 GetBase64FromFile(filePath) {
-    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Type: Absolute Path])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [filePath])
 
     fileContentBuffer := FileRead(filePath, "RAW")
@@ -700,4 +727,235 @@ RemoveDuplicatesFromArray(array) {
     }
 
     return array
+}
+
+ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitelist := []) {
+    validation := ""
+
+    static resolutions := unset
+    static scales      := unset
+
+    switch dataType {
+        case "Boolean":
+            if !(Type(dataValue) = "Integer" && (dataValue = 0 || dataValue = 1)) {
+                validation := "Value must be Boolean (true/false) or Integer (0/1)."
+            }
+        case "Integer":
+            if Type(dataValue) != "Integer" {
+                validation := "Value must be an Integer."
+            } else {
+                switch dataConstraint {
+                    case "Byte":
+                        if dataValue < 0 || dataValue > 255 {
+                            validation := "Value out of byte range (0–255)."
+                        }
+                    case "Year":
+                        if dataValue < 1601 || dataValue > 30827 {
+                            validation := "Value for year must be between 1601 and 30827."
+                        }
+                }
+            }
+        case "Object":
+            ; No validation, but allowed Data Type.
+        case "String":
+            if whitelist.Length != 0 {
+                valueIsWhitelisted := false
+
+                for index, whitelistEntry in whitelist {
+                    if dataValue = whitelistEntry {
+                        valueIsWhitelisted := true
+                        break
+                    }
+                }
+
+                if !valueIsWhitelisted {
+                    validation := "Value did not match whitelist."
+                }
+            } else if Type(dataValue) != "String" {
+                validation := "Value must be a String."
+            } else {
+                switch dataConstraint {
+                    case "Absolute Path", "Absolute Save Path":
+                        isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
+                        isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+
+                        if !(isDrive || isUNC) {
+                            validation := "Value must start with drive (C:\) or UNC (\\server\share\)."
+                        } else if !FileExist(dataValue) && dataConstraint = "Absolute Path" {
+                            validation := "File doesn't exist."
+                        }
+                    case "Base64":
+                        if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
+                            validation := "Invalid Base64 content. Only A–Z, a–z, 0–9, +, /, and = allowed."
+                        } else if Mod(StrLen(dataValue), 4) != 0 {
+                            validation := "Invalid Base64 length. Must be multiple of 4."
+                        } else if RegExMatch(dataValue, "=[^=]") {
+                            validation := "Invalid Base64 padding. The character = can only appear at the end."
+                        }
+                    case "Coordinate Pair":
+                        widthDisplayResolution  := A_ScreenWidth
+                        heightDisplayResolution := A_ScreenHeight
+
+                        if !RegExMatch(dataValue, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
+                            validation := "Coordinate pair not formatted correctly."
+                        } else if (
+                            (x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)
+                        ) {
+                            if x < 0 || x >= widthDisplayResolution {
+                                validation := "X out of bounds. Valid 0 to " . (widthDisplayResolution - 1) . "."
+                            } else {
+                                validation := "Y out of bounds. Valid 0 to " . (heightDisplayResolution - 1) . "."
+                            }
+                        }
+                    case "Directory":
+                        isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
+                        isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+
+                        if !(isDrive || isUNC) {
+                            validation := "Directory path must start with drive (C:\) or UNC (\\server\share\)."
+                        } else if !DirExist(dataValue) {
+                            validation := "Directory doesn't exist."
+                        } else if SubStr(dataValue, -1) != "\" {
+                            validation := "Directory path must end with a backslash \."
+                        }
+                    case "Display Resolution":
+                        if !IsSet(resolutions) {
+                            resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
+                        }
+
+                        validation := "Invalid Display Resolution."
+                        for resolution in resolutions {
+                            if resolution["Resolution"] = dataValue {
+                                validation := ""
+                                break
+                            }
+                        }
+                    case "DPI Scale":
+                        if !IsSet(scales) {
+                            scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
+                        }
+
+                        validation := "Invalid DPI Scale."
+                        for scale in scales {
+                            if scale["Scale"] = dataValue {
+                                validation := ""
+                                break
+                            }
+                        }
+                    case "Filename":
+                        pattern := "[\\/:*?" . Chr(34) . "<>|]"
+
+                        if RegExMatch(dataValue, pattern) {
+                            forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
+                            validation := "Filename contains forbidden characters (" . forbiddenList . ")."
+                        } else if dataValue = "." || dataValue = ".." {
+                            validation := "Filename reserved."
+                        }
+                    case "Hexadecimal String":
+                        minimumByteCount := 0
+                        maximumByteCount := 0
+                        totalByteCount := StrLen(dataValue) // 2
+
+                        if Mod(StrLen(dataValue), 2) != 0 {
+                            validation := "The hexadecimal string must contain an even number of characters (two characters per byte)."
+                        } else if minimumByteCount > 0 && totalByteCount < minimumByteCount {
+                            validation := "The hexadecimal string is too short. It must contain at least " . minimumByteCount . " bytes (" . (minimumByteCount * 2) . " characters)."
+                        } else if maximumByteCount > 0 && totalByteCount > maximumByteCount {
+                            validation := "The hexadecimal string is too long. It must contain no more than " . maximumByteCount . " bytes (" . (maximumByteCount * 2) . " characters)."
+                        } else {
+                            totalCharacterCount := StrLen(dataValue)
+                            loop totalCharacterCount {
+                                currentCharacter := SubStr(dataValue, A_Index, 1)
+                                currentCharacterCode := Ord(currentCharacter)
+
+                                isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
+
+                                if !isHexadecimalDigit {
+                                    validation := "The hexadecimal string contains an invalid character '" . currentCharacter . "' at position " . A_Index . "."
+                                }
+                            }
+                        }
+                    case "ISO Date Time":
+                        if !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
+                            validation := "Invalid ISO 8601 Date Time (must be YYYY-MM-DD HH:MM:SS)."
+                        } else {
+                            dateTimeparts := StrSplit(dataValue, " ")
+                            dateParts     := StrSplit(dateTimeparts[1], "-")
+                            timeParts     := StrSplit(dateTimeparts[2], ":")
+
+                            year   := dateParts[1] + 0
+                            month  := dateParts[2] + 0
+                            day    := dateParts[3] + 0
+                            hour   := timeParts[1] + 0
+                            minute := timeParts[2] + 0
+                            second := timeParts[3] + 0
+
+                            if validation = "" {
+                                validation := StrReplace(ValidateIsoDate(year, month, day, hour, minute, second), "ISO 8601 Date:", "ISO 8601 Date Time:")
+                            }
+                        }
+                    case "ISO Date":
+                        if !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2}$") {
+                            validation := "Invalid ISO 8601 Date (must be YYYY-MM-DD)."
+                        } else {
+                            dateParts := StrSplit(dataValue, "-")
+                            year      := dateParts[1] + 0
+                            month     := dateParts[2] + 0
+                            day       := dateParts[3] + 0
+
+                            if validation = "" {
+                                validation := ValidateIsoDate(year, month, day)
+                            }
+                        }
+                    case "Percent Range":
+                        dataValue := StrReplace(dataValue, ",", ".")
+
+                        if !RegExMatch(dataValue, "^\d{1,3}(?:\.\d)?-\d{1,3}(?:\.\d)?$") {
+                            validation := "Must be two numbers (0–100) with up to one decimal, separated by -."
+                        } else {
+                            parts  := StrSplit(dataValue, "-")
+                            first  := parts[1] + 0
+                            second := parts[2] + 0
+
+                            if first < 0 || first > 100 || second < 0 || second > 100 {
+                                validation := "Values must be between 0 and 100."
+                            } else if first >= second {
+                                validation := "First value must be lower than second."
+                            }
+                        }
+                    case "Raw Date Time":
+                        if !RegExMatch(dataValue, "^\d{14}$") {
+                            validation := "Must be in the format YYYYMMDDHHMMSS."
+                        } else {
+                            year   := SubStr(dataValue, 1, 4) + 0
+                            month  := SubStr(dataValue, 5, 2) + 0
+                            day    := SubStr(dataValue, 7, 2) + 0
+                            hour   := SubStr(dataValue, 9, 2) + 0
+                            minute := SubStr(dataValue, 11, 2) + 0
+                            second := SubStr(dataValue, 13, 2) + 0
+
+                            if validation = "" {
+                                validation := ValidateIsoDate(year, month, day, hour, minute, second, true)
+                            }
+                        }
+                    case "Search", "Search Open":
+                        pattern := "[\\/:*?" . Chr(34) . "<>|]"
+
+                        if dataConstraint = "Search" && RegExMatch(dataValue, pattern) {
+                            forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
+                            validation := "Contains forbidden characters (" . forbiddenList . ")."
+                        }
+                    case "SHA-256":
+                        if StrLen(dataValue) != 64 {
+                            validation := "Expected length is 64 but instead got: " . StrLen(dataValue) "."
+                        } else if !RegExMatch(dataValue, "^[0-9a-fA-F]{64}$") {
+                            validation := "Must be hex digits only."
+                        }
+                }
+            }
+        default:
+            validation := "Invalid Data Type: " . dataType . "."
+    }
+
+    return validation
 }

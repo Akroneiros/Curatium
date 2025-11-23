@@ -701,7 +701,7 @@ ValidateApplicationInstalled(applicationName) {
 ; **************************** ;
 
 CloseApplication(applicationName) {
-    static methodName := RegisterMethod("CloseApplication(applicationName As String [Type: Search Open])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("CloseApplication(applicationName As String [Constraint: Search Open])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Close Application (" . applicationName . ")", methodName, [applicationName])
 
     try {
@@ -729,7 +729,7 @@ CloseApplication(applicationName) {
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional], aboutRange As String [Optional] [Type: Search Open], aboutCondition As String [Optional] [Type: Search Open])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Constraint: Search], saveDirectory As String [Constraint: Directory], code As String [Constraint: Code], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Search Open], aboutCondition As String [Optional] [Constraint: Search Open])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -910,7 +910,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelActivateEditorAndPasteCode(code) {
-    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Type: Code])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Constraint: Code])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Excel Activate Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code])
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
@@ -933,7 +933,7 @@ ExcelActivateEditorAndPasteCode(code) {
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Type: Search], saveDirectory As String [Type: Directory], code As String [Type: Code], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Constraint: Search], saveDirectory As String [Constraint: Directory], code As String [Constraint: Code], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Starting Run"
@@ -1066,7 +1066,7 @@ StartSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Type: Code], saveDirectory As String [Type: Directory], filename As String [Type: Search])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Constraint: Code], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Search])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
@@ -1132,7 +1132,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Type: Search], runtimeDate As String [Optional] [Type: Raw Date Time])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Constraint: Search], runtimeDate As String [Optional] [Constraint: Raw Date Time])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute Automation App (" . appName . ")", methodName, [appName, runtimeDate])
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")

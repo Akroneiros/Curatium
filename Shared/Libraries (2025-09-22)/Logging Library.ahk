@@ -270,224 +270,32 @@ LogEngine(status, fullErrorText := "") {
 }
 
 LogValidateMethodArguments(methodName, arguments) {
-    if methodName = "OverlayInsertSpacer" {
-        return ""
-    }
-
     validation := ""
 
+    if methodName = "OverlayInsertSpacer" {
+        return validation
+    }
+
     for index, argument in arguments {
-        parameter := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        dataType  := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        optional  := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-        pattern   := methodRegistry[methodName]["Parameter Contracts"][index]["Pattern"]
-        typeValue := methodRegistry[methodName]["Parameter Contracts"][index]["Type"]
-        whitelist := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+        parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+        dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+        dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+        optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+        whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
-        parameterMissingValue := "Parameter " . Chr(34) . parameter . Chr(34) . " has no value passed into it."
+        parameterMissingValue := "Parameter " . Chr(34) . parameterName . Chr(34) . " has no value passed into it."
 
-        switch dataType {
-            case "Boolean":
-                if !(Type(argument) = "Integer" && (argument = 0 || argument = 1)) {
-                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be Boolean (true/false) or Integer (0/1)."
-                }
-            case "Integer":
-                if Type(argument) != "Integer" {
-                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be an Integer"
-                } else {
-                    switch typeValue {
-                        case "Byte":
-                            if argument < 0 || argument > 255 {
-                                validation := "Value out of byte range (0–255): " . argument
-                            }
-                        case "Year":
-                            if argument < 1601 || argument > 30827 {
-                                validation := "Year value must be between 1601 and 30827: " . argument
-                            }
-                    }
-                }
-            case "Object":
-                ; Helper methods only, no handling.
-            case "String":
-                if optional = "" && argument = "" {
-                    validation := parameterMissingValue
-                } else if optional = "Optional" && argument = "" {
-                    ; Skip validation regardless of type as no value exists.
-                } else if pattern != "" {
-                    if !RegExMatch(argument, pattern) {
-                        validation := "Argument pattern (" . pattern . ") does not validate against argument: " . argument
-                    }
-                } else if whitelist.Length != 0 {
-                    valueIsWhitelisted := false
+        if dataType = "String" && optional = "" && argument = "" {
+            validation := parameterMissingValue
+        } else {
+            validation := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
+        }
 
-                    for index, whitelistEntry in whitelist {
-                        if argument = whitelistEntry {
-                            valueIsWhitelisted := true
-                            break
-                        }
-                    }
-
-                    if !valueIsWhitelisted {
-                        validation := "Failed as whitelist did not match argument: " . argument
-                    }
-                } else if Type(argument) != "String" {
-                    validation := "Parameter " . Chr(34) . parameter . Chr(34) . " must be a String."
-                } else {
-                    switch typeValue {
-                        case "Absolute Path", "Absolute Save Path":
-                            isDrive := RegExMatch(argument, "^[A-Za-z]:\\")
-                            isUNC   := RegExMatch(argument, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
-
-                            if !(isDrive || isUNC) {
-                                validation := "Path must start with drive (C:\) or UNC (\\server\share\): " . argument
-                            } else if !FileExist(argument) && typeValue = "Absolute Path" {
-                                validation := "File doesn't exist: " . argument
-                            }
-                        case "Base64":
-                            if !RegExMatch(argument, "^[A-Za-z0-9+/]*={0,2}$") {
-                                validation := "Invalid Base64 content. Only A–Z, a–z, 0–9, +, /, and = allowed."
-                            } else if Mod(StrLen(argument), 4) != 0 {
-                                validation := "Invalid Base64 length. mMust be multiple of 4."
-                            } else if RegExMatch(argument, "=[^=]") {
-                                validation := "Invalid Base64 padding. The character = can only appear at the end."
-                            }
-                        case "Coordinate Pair":
-                            widthDisplayResolution  := A_ScreenWidth
-                            heightDisplayResolution := A_ScreenHeight
-
-                            if !RegExMatch(argument, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
-                                validation := "Coordinate pair not formatted correctly: " . argument
-                            } else if (
-                                (x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)
-                            ) {
-                                if x < 0 || x >= widthDisplayResolution {
-                                    validation := "X out of bounds. Tried " . x . " (valid 0 to " . (widthDisplayResolution - 1) . ")."
-                                } else {
-                                    validation := "Y out of bounds. Tried " . y . " (valid 0 to " . (heightDisplayResolution - 1) . ")."
-                                }
-                            }
-                        case "Directory":
-                            isDrive := RegExMatch(argument, "^[A-Za-z]:\\")
-                            isUNC   := RegExMatch(argument, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
-
-                            if !(isDrive || isUNC) {
-                                validation := "Path must start with drive (C:\) or UNC (\\server\share\): " . argument
-                            } else if !DirExist(argument) && methodName !== "EnsureDirectoryExists" {
-                                validation := "Directory doesn't exist: " . argument
-                            } else if SubStr(argument, -1) != "\" {
-                                validation := "Directory path must end with a backslash \: " . argument
-                            }
-                        case "Filename":
-                            pattern := "[\\/:*?" . Chr(34) . "<>|]"
-
-                            if RegExMatch(argument, pattern) {
-                                forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
-                                validation := "Filename contains forbidden characters (" . forbiddenList . "): " . argument
-                            } else if argument = "." || argument = ".." {
-                                validation := "Filename reserved: " . argument
-                            }
-                        case "Hexadecimal String":
-                            minimumByteCount := 0
-                            maximumByteCount := 0
-                            totalByteCount := StrLen(argument) // 2
-
-                            if Mod(StrLen(argument), 2) != 0 {
-                                validation := "The hexadecimal string must contain an even number of characters (two characters per byte)."
-                            } else if minimumByteCount > 0 && totalByteCount < minimumByteCount {
-                                validation := "The hexadecimal string is too short. It must contain at least " . minimumByteCount . " bytes (" . (minimumByteCount * 2) . " characters)."
-                            } else if maximumByteCount > 0 && totalByteCount > maximumByteCount {
-                                validation := "The hexadecimal string is too long. It must contain no more than " . maximumByteCount . " bytes (" . (maximumByteCount * 2) . " characters)."
-                            } else {
-                                totalCharacterCount := StrLen(argument)
-                                loop totalCharacterCount {
-                                    currentCharacter := SubStr(argument, A_Index, 1)
-                                    currentCharacterCode := Ord(currentCharacter)
-
-                                    isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
-
-                                    if !isHexadecimalDigit {
-                                        validation := "The hexadecimal string contains an invalid character '" . currentCharacter . "' at position " . A_Index . "."
-                                    }
-                                }
-                            }
-                        case "ISO Date Time":
-                            if !RegExMatch(argument, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
-                                validation := "Invalid ISO 8601 Date Time: " . argument . " (must be YYYY-MM-DD HH:MM:SS)."
-                            } else {
-                                dateTimeparts := StrSplit(argument, " ")
-                                dateParts     := StrSplit(dateTimeparts[1], "-")
-                                timeParts     := StrSplit(dateTimeparts[2], ":")
-
-                                year   := dateParts[1] + 0
-                                month  := dateParts[2] + 0
-                                day    := dateParts[3] + 0
-                                hour   := timeParts[1] + 0
-                                minute := timeParts[2] + 0
-                                second := timeParts[3] + 0
-
-                                if validation = "" {
-                                    validation := StrReplace(ValidateIsoDate(year, month, day, hour, minute, second), "ISO 8601 Date:", "ISO 8601 Date Time:")
-                                }
-                            }
-                        case "ISO Date":
-                            if !RegExMatch(argument, "^\d{4}-\d{2}-\d{2}$") {
-                                validation := "Invalid ISO 8601 Date: " . argument . " (must be YYYY-MM-DD)."
-                            } else {
-                                dateParts := StrSplit(argument, "-")
-                                year      := dateParts[1] + 0
-                                month     := dateParts[2] + 0
-                                day       := dateParts[3] + 0
-
-                                if validation = "" {
-                                    validation := ValidateIsoDate(year, month, day)
-                                }
-                            }
-                        case "Percent Range":
-                            argument := StrReplace(argument, ",", ".")
-
-                            if !RegExMatch(argument, "^\d{1,3}(?:\.\d)?-\d{1,3}(?:\.\d)?$") {
-                                validation := "Must be two numbers (0–100) with up to one decimal, separated by -: " . argument
-                            } else {
-                                parts  := StrSplit(argument, "-")
-                                first  := parts[1] + 0
-                                second := parts[2] + 0
-
-                                if first < 0 || first > 100 || second < 0 || second > 100 {
-                                    validation := "Values must be between 0 and 100: " . argument
-                                } else if first >= second {
-                                    validation := "First value must be lower than second: " . argument
-                                }
-                            }
-                        case "Raw Date Time":
-                            if !RegExMatch(argument, "^\d{14}$") {
-                                validation := "Must be in the format YYYYMMDDHHMMSS: " . argument
-                            } else {
-                                year   := SubStr(argument, 1, 4) + 0
-                                month  := SubStr(argument, 5, 2) + 0
-                                day    := SubStr(argument, 7, 2) + 0
-                                hour   := SubStr(argument, 9, 2) + 0
-                                minute := SubStr(argument, 11, 2) + 0
-                                second := SubStr(argument, 13, 2) + 0
-
-                                if validation = "" {
-                                    validation := ValidateIsoDate(year, month, day, hour, minute, second, true)
-                                }
-                            }
-                        case "Search", "Search Open":
-                            pattern := "[\\/:*?" . Chr(34) . "<>|]"
-
-                            if typeValue = "Search" && RegExMatch(argument, pattern) {
-                                forbiddenList := "\ / : * ? " . Chr(34) . " < > |"
-                                validation := "Contains forbidden characters (" . forbiddenList . "): " . argument
-                            }
-                        case "SHA-256":
-                            if StrLen(argument) != 64 {
-                                validation := "Expected length of 64 but instead got: " . StrLen(argument)
-                            } else if !RegExMatch(argument, "^[0-9a-fA-F]{64}$") {
-                                validation := "Must be hex digits only."
-                            }
-                    }
-                }
+        if validation = parameterMissingValue {
+            break
+        } else if validation != "" {
+            validation := "Parameter " . Chr(34) . parameterName . Chr(34) . " failed validation. " . validation
+            break
         }
     }
 
@@ -501,13 +309,13 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
     argumentValueLog  := ""
 
     argumentsAndValidation := Map(
-        "Arguments Full", "",
-        "Arguments Log",  "",
-        "Parameter",      "",
-        "Argument",       "",
-        "Data Type",      "",
-        "Type",           "",
-        "Validation",     validation
+        "Arguments Full",  "",
+        "Arguments Log",   "",
+        "Parameter",       "",
+        "Argument",        "",
+        "Data Type",       "",
+        "Data Constraint", "",
+        "Validation",      validation
     )
 
     argumentsAndValidation["Arguments Full"] := ""
@@ -518,10 +326,10 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
     }
 
     for index, argument in arguments {
-        argumentsAndValidation["Parameter"] := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        argumentsAndValidation["Argument"]  := argument
-        argumentsAndValidation["Data Type"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        argumentsAndValidation["Type"]      := methodRegistry[methodName]["Parameter Contracts"][index]["Type"]
+        argumentsAndValidation["Parameter"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+        argumentsAndValidation["Argument"]        := argument
+        argumentsAndValidation["Data Type"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+        argumentsAndValidation["Data Constraint"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
 
         argumentValueFull := argument
         argumentValueLog  := argument
@@ -539,7 +347,7 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
 
                 continue
             case "String":
-                switch argumentsAndValidation["Type"] {
+                switch argumentsAndValidation["Data Constraint"] {
                     case "Absolute Path", "Absolute Save Path":
                         SplitPath(argument, &filename, &directoryPath)
 
@@ -951,7 +759,7 @@ LogTimestampPrecise() {
 }
 
 OverlayChangeTransparency(transparencyValue) {
-    static methodName := RegisterMethod("OverlayChangeTransparency(transparencyValue As Integer [Type: Byte])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("OverlayChangeTransparency(transparencyValue As Integer [Constraint: Byte])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Overlay Change Transparency (" . transparencyValue . ")", methodName, [transparencyValue])
 
     WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
@@ -1872,9 +1680,8 @@ ParseMethodDeclaration(declaration) {
             dataTypesValue := StrSplit(metadataValue, " ")[1]
             metadataValue := SubStr(metadataValue, StrLen(dataTypesValue) + 2)
 
+            dataConstraint := ""
             optionalValue  := ""
-            patternValue   := ""
-            typeValue      := ""
             whitelist      := []
 
             for metadataBlock in StrSplit(metadataValue, "]", true) {
@@ -1898,10 +1705,8 @@ ParseMethodDeclaration(declaration) {
                         } else {
                             optionalValue := conceptValue
                         }
-                    case "pattern":
-                        patternValue := conceptValue
-                    case "type":
-                        typeValue := conceptValue
+                    case "constraint":
+                        dataConstraint := conceptValue
                     case "whitelist":
                         for index, piece in StrSplit(conceptValue, '", "')
                         {
@@ -1914,12 +1719,11 @@ ParseMethodDeclaration(declaration) {
             }
 
             parameterContracts.Push(Map(
-                "Parameter Name", parameterName,
-                "Data Type",      dataTypesValue,
-                "Optional",       optionalValue,
-                "Pattern",        patternValue,
-                "Type",           typeValue,
-                "Whitelist",      whitelist
+                "Parameter Name",  parameterName,
+                "Data Type",       dataTypesValue,
+                "Data Constraint", dataConstraint,
+                "Optional",        optionalValue,
+                "Whitelist",       whitelist
             ))
 
             if index < parameterParts.Length {
