@@ -494,6 +494,19 @@ ValidateDisplayScaling() {
 ; Helper Methods               ;
 ; **************************** ;
 
+CombineCode(introCode, mainCode, outroCode := "") {
+    static methodName := RegisterMethod("CombineCode(introCode As String, mainCode As String, outroCode As String [Optional])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [introCode, mainCode, outroCode])
+
+    combinedCode := introCode . "`r`n`r`n" . mainCode
+
+    if outroCode != "" {
+        combinedCode := combinedCode . "`r`n`r`n" . outroCode
+    } 
+
+    return combinedCode
+}
+
 ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
     static methodName := RegisterMethod("ComputeMouseSpeed(startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [startCoordinatePair, endCoordinatePair])
