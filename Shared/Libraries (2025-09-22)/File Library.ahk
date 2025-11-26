@@ -175,7 +175,7 @@ EnsureDirectoryExists(directoryPath) {
 }
 
 FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
-    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Constraint: Search], directoryPath As String [Constraint: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Constraint: Locator], directoryPath As String [Constraint: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("File Exists in Directory (" . filename . ")", methodName, [filename, directoryPath, fileExtension])
 
     filesInDirectory := GetFilesFromDirectory(directoryPath, true)

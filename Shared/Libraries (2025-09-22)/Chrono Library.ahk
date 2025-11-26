@@ -183,7 +183,19 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
             month     := dateParts[2] + 0
             day       := dateParts[3] + 0
 
-            validation := ValidateIsoDate(year, month, day)
+            validation := ""
+            if validation = "" {
+                validation := ValidateDataUsingSpecification(year, "Integer", "Year")
+            }
+
+            if validation = "" {
+                validation := ValidateDataUsingSpecification(month, "Integer", "Month")
+            }
+
+            if validation = "" {
+                validation := ValidateDataUsingSpecification(day, "Integer", "Day")
+            }
+
             if validation != "" {
                 throw Error(validation)
             }
@@ -522,10 +534,33 @@ ConvertIntegerToUtcTimestamp(integerValue) {
         millisecondNumber := millisecond + 0
     }
 
-    dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+    validation := ""
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(yearNumber, "Integer", "Year")
+    }
 
-    if dateValidationResults != "" {
-        LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(monthNumber, "Integer", "Month")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(dayNumber, "Integer", "Day")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(hourNumber, "Integer", "Hour")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(minuteNumber, "Integer", "Minute")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(secondNumber, "Integer", "Second")
+    }
+
+    if validation != "" {
+        LogHelperError(logValuesForConclusion, A_LineNumber, validation)
     }
 
     utcTimestamp := unset
@@ -598,10 +633,33 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
         millisecond := SubStr(utcTimestamp, 21, 3)
     }
 
-    dateValidationResults := ValidateIsoDate(yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+    validation := ""
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(yearNumber, "Integer", "Year")
+    }
 
-    if dateValidationResults != "" {
-        LogHelperError(logValuesForConclusion, A_LineNumber, dateValidationResults)
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(monthNumber, "Integer", "Month")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(dayNumber, "Integer", "Day")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(hourNumber, "Integer", "Hour")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(minuteNumber, "Integer", "Minute")
+    }
+
+    if validation = "" {
+        validation := ValidateDataUsingSpecification(secondNumber, "Integer", "Second")
+    }
+
+    if validation != "" {
+        LogHelperError(logValuesForConclusion, A_LineNumber, validation)
     }
 
     if utcTimestampLength = 19 {
@@ -836,81 +894,4 @@ LocalIsoWithUtcTag(localIsoString) {
     utcIso := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", utcYear, utcMonth, utcDay, utcHour, utcMinute, utcSecond)
 
     return localIsoString " <UTC " utcIso ">"
-}
-
-ValidateIsoDate(year, month, day, hour := unset, minute := unset, second := unset, checkLocalTime := unset) {
-    static methodName := RegisterMethod("ValidateIsoDate(year As Integer, month As Integer, day As Integer, hour As Integer [Optional], minute As Integer [Optional], second As Integer [Optional], checkLocalTime As Boolean [Optional])", A_LineFile, A_LineNumber + 10)
-    arrayValidation := [year, month, day]
-    timeIsSet := IsSet(hour) && IsSet(minute) && IsSet(second)
-    if timeIsSet {
-        if !IsSet(checkLocalTime) {
-            checkLocalTime := false
-        }
-
-        arrayValidation.Push(hour, minute, second, checkLocalTime)
-    }
-    logValuesForConclusion := LogHelperValidation(methodName, arrayValidation)
-
-    validationResults := ""
-
-    year   := Number(year)
-    month  := Number(month)
-    day    := Number(day)
-
-    if timeIsSet {
-        hour   := Number(hour)
-        minute := Number(minute)
-        second := Number(second)
-    }
-
-    if year < 0 || year > 9999 {
-        validationResults := "Invalid ISO 8601 Date: " . year . " (year out of range 0000–9999)."
-    } else if month < 1 || month > 12 {
-        validationResults := "Invalid ISO 8601 Date: " . month . " (month must be 01–12)."
-    } else if day < 1 || day > 31 {
-        validationResults := "Invalid ISO 8601 Date: " . day . " (day must be 01–31)."
-    } else if !IsValidGregorianDay(year, month, day) {
-        validationResults := "Invalid ISO 8601 Date: " . day . " (day out of range for month)."
-    }
-    
-    if validationResults = "" && timeIsSet {
-        if hour < 0 || hour > 23 {
-            validationResults := "Invalid ISO 8601 Date Time: " . hour . " (hour must be 00–23)."
-        } else if minute < 0 || minute > 59 {
-            validationResults := "Invalid ISO 8601 Date Time: " . minute . " (minute must be 00–59)."
-        } else if second < 0 || second > 59 {
-            validationResults := "Invalid ISO 8601 Date Time: " . second . " (second must be 00–59)."
-        } else {
-            if checkLocalTime {
-                static localSystemTimeBuffer := Buffer(16, 0)
-                NumPut("UShort", year,   localSystemTimeBuffer, 0)
-                NumPut("UShort", month,  localSystemTimeBuffer, 2)
-                NumPut("UShort", 0,      localSystemTimeBuffer, 4)
-                NumPut("UShort", day,    localSystemTimeBuffer, 6)
-                NumPut("UShort", hour,   localSystemTimeBuffer, 8)
-                NumPut("UShort", minute, localSystemTimeBuffer, 10)
-                NumPut("UShort", second, localSystemTimeBuffer, 12)
-                NumPut("UShort", 0,      localSystemTimeBuffer, 14)
-
-                static utcSystemTimeBuffer := Buffer(16, 0)
-                if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTimeBuffer, "Ptr", utcSystemTimeBuffer, "Int") {
-                    validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time, DST gap or system restriction).", year, month, day, hour, minute, second)
-                } else {
-                    systemTimeLocal := Buffer(16, 0)
-                    DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "Ptr", 0, "Ptr", utcSystemTimeBuffer, "Ptr", systemTimeLocal, "Int")
-                    roundTripYear   := NumGet(systemTimeLocal, 0, "UShort")
-                    roundTripMonth  := NumGet(systemTimeLocal, 2, "UShort")
-                    roundTripDay    := NumGet(systemTimeLocal, 6, "UShort")
-                    roundTripHour   := NumGet(systemTimeLocal, 8, "UShort")
-                    roundTripMinute := NumGet(systemTimeLocal, 10, "UShort")
-                    roundTripSecond := NumGet(systemTimeLocal, 12, "UShort")
-                    if roundTripYear != year || roundTripMonth != month || roundTripDay != day || roundTripHour != hour || roundTripMinute != minute || roundTripSecond != second {
-                        validationResults := Format("Invalid ISO 8601 Date Time: {:04}-{:02}-{:02} {:02}:{:02}:{:02} (nonexistent local time after round-trip, DST gap).", year, month, day, hour, minute, second)
-                    }
-                }
-            }
-        }
-    }
-
-    return validationResults
 }

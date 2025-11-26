@@ -283,10 +283,12 @@ LogValidateMethodArguments(methodName, arguments) {
         optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
         whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
-        parameterMissingValue := "Parameter " . Chr(34) . parameterName . Chr(34) . " has no value passed into it."
+        parameterMissingValue := 'Parameter "' . parameterName . '" has no value passed into it.'
 
         if dataType = "String" && optional = "" && argument = "" {
             validation := parameterMissingValue
+        } else if dataType = "String" && optional != "" && argument = "" {
+            ; Skip validation as it's Optional.
         } else {
             validation := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
         }
@@ -294,7 +296,7 @@ LogValidateMethodArguments(methodName, arguments) {
         if validation = parameterMissingValue {
             break
         } else if validation != "" {
-            validation := "Parameter " . Chr(34) . parameterName . Chr(34) . " failed validation. " . validation
+            validation := 'Parameter "' . parameterName . '" failed validation. ' . validation
             break
         }
     }
@@ -330,6 +332,7 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
         argumentsAndValidation["Argument"]        := argument
         argumentsAndValidation["Data Type"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
         argumentsAndValidation["Data Constraint"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+        argumentsAndValidation["Whitelist"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
         argumentValueFull := argument
         argumentValueLog  := argument
@@ -347,77 +350,92 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
 
                 continue
             case "String":
-                switch argumentsAndValidation["Data Constraint"] {
-                    case "Absolute Path", "Absolute Save Path":
-                        SplitPath(argument, &filename, &directoryPath)
+                if argumentsAndValidation["Whitelist"].Length != 0 {
+                    if !symbolLedger.Has(argument . "|W") {
+                        csvSymbolLedgerLine := RegisterSymbol(argument, "Whitelist", false)
+                        AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                    }
 
-                        if !symbolLedger.Has(directoryPath . "|D") {
-                            csvSymbolLedgerLine := RegisterSymbol(directoryPath, "Directory", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                    argumentValueLog := symbolLedger[argument . "|W"]
+                } else {
+                    switch argumentsAndValidation["Data Constraint"] {
+                        case "Absolute Path", "Absolute Save Path":
+                            SplitPath(argument, &filename, &directoryPath)
 
-                        if !symbolLedger.Has(filename . "|F") {
-                            csvSymbolLedgerLine := RegisterSymbol(filename, "Filename", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            if !symbolLedger.Has(directoryPath . "|D") {
+                                csvSymbolLedgerLine := RegisterSymbol(directoryPath, "Directory", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        argumentValueLog := symbolLedger[directoryPath . "|D"] . "\" . symbolLedger[filename . "|F"]
-                    case "Base64":
-                        base64Summary := "<Base64 (Length: " . StrLen(argument) . ")>"
+                            if !symbolLedger.Has(filename . "|F") {
+                                csvSymbolLedgerLine := RegisterSymbol(filename, "Filename", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        if !symbolLedger.Has(base64Summary . "|B") {
-                            csvSymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            argumentValueLog := symbolLedger[directoryPath . "|D"] . "\" . symbolLedger[filename . "|F"]
+                        case "Base64":
+                            base64Summary := "<Base64 (Length: " . StrLen(argument) . ")>"
 
-                        argumentValueFull := base64Summary
-                        argumentValueLog := symbolLedger[base64Summary . "|B"]
-                    case "Code":
-                        codeSummary := "<Code (Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ")>"
+                            if !symbolLedger.Has(base64Summary . "|B") {
+                                csvSymbolLedgerLine := RegisterSymbol(base64Summary, "Base64", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        if !symbolLedger.Has(codeSummary . "|C") {
-                            csvSymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            argumentValueFull := base64Summary
+                            argumentValueLog := symbolLedger[base64Summary . "|B"]
+                        case "Code":
+                            codeSummary := "<Code (Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ")>"
 
-                        argumentValueFull := codeSummary
-                        argumentValueLog := symbolLedger[codeSummary . "|C"]
-                    case "Directory":
-                        if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
-                            csvSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            if !symbolLedger.Has(codeSummary . "|C") {
+                                csvSymbolLedgerLine := RegisterSymbol(codeSummary, "Code", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        argumentValueLog := symbolLedger[RTrim(argument, "\") . "|D"]
-                    case "Filename":
-                        if !symbolLedger.Has(argument . "|F") {
-                            csvSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            argumentValueFull := codeSummary
+                            argumentValueLog := symbolLedger[codeSummary . "|C"]
+                        case "Directory":
+                            if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
+                                csvSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        argumentValueLog := symbolLedger[argument . "|F"]
-                    case "ISO Date Time":
-                        argumentValueLog := LocalIsoWithUtcTag(argument)
-                    case "Search", "Search Open":
-                        if !symbolLedger.Has(argument . "|S") {
-                            csvSymbolLedgerLine := RegisterSymbol(argument, "Search", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            argumentValueLog := symbolLedger[RTrim(argument, "\") . "|D"]
+                        case "Filename":
+                            if !symbolLedger.Has(argument . "|F") {
+                                csvSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        argumentValueLog := symbolLedger[argument . "|S"]
-                    case "SHA-256":
-                        encodedHash := EncodeSha256HexToBase(argument, 86)
-                        if !symbolLedger.Has(encodedHash . "|H") {
-                            csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
-                            AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
-                        }
+                            argumentValueLog := symbolLedger[argument . "|F"]
+                        case "Locator":
+                            if !symbolLedger.Has(argument . "|L") {
+                                csvSymbolLedgerLine := RegisterSymbol(argument, "Locator", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
 
-                        argumentValueLog := symbolLedger[encodedHash . "|H"]
-                    default:
-                        if StrLen(argument) > 192 {
-                            argumentValueFull := SubStr(argument, 1, 224) . "…"
-                            argumentValueLog  := SubStr(argument, 1, 192) . "…"
-                        }
+                            argumentValueLog := symbolLedger[argument . "|L"]
+                        case "Secret":
+                            if !symbolLedger.Has("<Secret>" . "|S") {
+                                csvSymbolLedgerLine := RegisterSymbol("<Secret>", "Secret", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
+
+                            argumentValueLog  := symbolLedger["<Secret>" . "|S"]
+                            argumentValueFull := symbolLedger["<Secret>" . "|S"]
+                        case "SHA-256":
+                            encodedHash := EncodeSha256HexToBase(argument, 86)
+                            if !symbolLedger.Has(encodedHash . "|H") {
+                                csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
+                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                            }
+
+                            argumentValueLog := symbolLedger[encodedHash . "|H"]
+                        default:
+                            if StrLen(argument) > 192 {
+                                argumentValueFull := SubStr(argument, 1, 224) . "…"
+                                argumentValueLog  := SubStr(argument, 1, 192) . "…"
+                            }
+                    }
                 }
                 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
@@ -809,16 +827,8 @@ OverlayShowLogForMethod(methodNameInput) {
         methodRegistry[methodNameInput]["Overlay Log"] := true
     } else {
         methodRegistry[methodNameInput] := Map(
-            "Declaration",     "",
-            "Signature",       "",
-            "Library",         "",
-            "Contract",        "",
-            "Parameters",      "",
-            "Data Types",      "",
-            "Metadata",        "",
-            "Validation Line", "",
-            "Overlay Log",     true,
-            "Symbol",          ""
+            "Overlay Log", true,
+            "Symbol",      ""
         )
     }
 
@@ -1418,7 +1428,8 @@ BatchAppendRuntimeTrace(appendType, array) {
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
-    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}"', "Base64", "B", "Code", "C", "Directory", "D", "File", "F", "Hash", "H", "Overlay", "O", "Search", "S")
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}", "{15}", "{16}"',
+        "Base64", "B", "Code", "C", "Directory", "D", "File", "F", "Hash", "H", "Locator", "L", "Overlay", "O", "Whitelist", "W")
     static methodName := RegisterMethod("BatchAppendSymbolLedger(symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [symbolType, array])
 
@@ -1435,10 +1446,12 @@ BatchAppendSymbolLedger(symbolType, array) {
             symbolType := "F"
         case "hash", "h":
             symbolType := "H"
+        case "locator", "l":
+            symbolType := "L"
         case "overlay", "o":
             symbolType := "O"
-        case "search", "s":
-            symbolType := "S"
+        case "whitelist", "w":
+            symbolType := "W"
     }
 
     consolidatedSymbolLedger := ""
@@ -1778,10 +1791,9 @@ RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
         symbol   := symbolLedger[declaration . "|" . "M"]
     }
 
+    parsedMethod := ParseMethodDeclaration(declaration)
     if methodRegistry.Has(methodName) {
         if methodRegistry[methodName]["Symbol"] = "" {
-            parsedMethod := ParseMethodDeclaration(declaration)
-
             methodRegistry[methodName]["Declaration"]         := parsedMethod["Declaration"]
             methodRegistry[methodName]["Signature"]           := parsedMethod["Signature"]
             methodRegistry[methodName]["Library"]             := parsedMethod["Library"]
@@ -1793,9 +1805,7 @@ RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
             methodRegistry[methodName]["Parameter Contracts"] := parsedMethod["Parameter Contracts"]
             methodRegistry[methodName]["Symbol"]              := symbol
         }
-    } else {
-        parsedMethod := ParseMethodDeclaration(declaration)
-        
+    } else {      
         methodRegistry[methodName] := Map(
             "Declaration",         parsedMethod["Declaration"],
             "Signature",           parsedMethod["Signature"],
@@ -1832,12 +1842,16 @@ RegisterSymbol(value, type, addNewLine := true) {
             type := "F"
         case "hash", "h":
             type := "H"
+        case "locator", "l":
+            type := "L"
         case "method", "m":
             type := "M"
         case "overlay", "o":
             type := "O"
-        case "search", "s":
+        case "secret", "s":
             type := "S"
+        case "whitelist", "w":
+            type := "W"
     }
 
     if !symbolLedger.Has(value . "|" . type) {

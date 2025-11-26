@@ -91,7 +91,7 @@ CreateApplicationImages() {
 }
 
 CreateImagesFromCatalog(imageLibraryCatalogName) {
-    static methodName := RegisterMethod("CreateImagesFromCatalog(imageCatalogName As String [Constraint: Search])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("CreateImagesFromCatalog(imageCatalogName As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Create Images from Catalog", methodName, [imageLibraryCatalogName])
 
     global imageRegistry
