@@ -806,7 +806,7 @@ OverlayHideLogForMethod(methodNameInput) {
     
     try {
         if !methodRegistry.Has(methodNameInput) {
-            throw Error("Method " . Chr(34) . methodNameInput . Chr(34) . " not registered.")
+            throw Error('Method "' . methodNameInput . '" not registered.')
         }
     } catch as methodNotRegisteredError {
         LogInformationConclusion("Failed", logValuesForConclusion, methodNotRegisteredError)

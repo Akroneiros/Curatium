@@ -745,7 +745,8 @@ RemoveDuplicatesFromArray(array) {
 ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitelist := []) {
     validation := ""
 
-    static InvalidLocatorCharactersPattern         := '[\\"|]'
+    static hexadecimalAllowedCharactersMessage     := "Only 0–9, A–F, and a–f are allowed."
+    static invalidLocatorCharactersPattern         := '[\\"|]'
     static windowsInvalidFilenameCharactersPattern := '[\\/:*?"<>|]'
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
@@ -756,11 +757,11 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     switch dataType {
         case "Boolean":
             if !(Type(dataValue) = "Integer" && (dataValue = 0 || dataValue = 1)) {
-                validation := "Boolean must be (true/false) or Integer (0/1)."
+                validation := "Boolean must be an Integer with value 0 or 1."
             }
         case "Integer":
             if Type(dataValue) != "Integer" {
-                validation := "Integer must be an Integer."
+                validation := "Value must be an Integer."
             } else {
                 switch dataConstraint {
                     case "Byte":
@@ -810,7 +811,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                     validation := "Whitelisted values did not match value."
                 }
             } else if Type(dataValue) != "String" {
-                validation := "String must be a String."
+                validation := "Value must be a String."
             } else {
                 switch dataConstraint {
                     case "Absolute Path", "Absolute Save Path":
@@ -895,16 +896,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " cannot end with a space or period."
                         }
                     case "Hexadecimal String":
-                        minimumByteCount := 0
-                        maximumByteCount := 0
-                        totalByteCount := StrLen(dataValue) // 2
-
                         if Mod(StrLen(dataValue), 2) != 0 {
                             validation := dataConstraint . " must contain an even number of characters (two characters per byte)."
-                        } else if minimumByteCount > 0 && totalByteCount < minimumByteCount {
-                            validation := dataConstraint . " is too short. It must contain at least " . minimumByteCount . " bytes (" . (minimumByteCount * 2) . " characters)."
-                        } else if maximumByteCount > 0 && totalByteCount > maximumByteCount {
-                            validation := dataConstraint . " is too long. It must contain no more than " . maximumByteCount . " bytes (" . (maximumByteCount * 2) . " characters)."
                         } else {
                             totalCharacterCount := StrLen(dataValue)
                             loop totalCharacterCount {
@@ -914,16 +907,23 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
 
                                 if !isHexadecimalDigit {
-                                    validation := dataConstraint . " contains an invalid character '" . currentCharacter . "' at position " . A_Index . "."
+                                    validation := dataConstraint . " contains an invalid character '" . currentCharacter . "' at position " . A_Index . ". " . hexadecimalAllowedCharactersMessage
+                                    break
                                 }
                             }
                         }
-                    case "ISO Date", "ISO Date Time":
+                    case "ISO Date", "ISO Date Time", "Raw Date Time":
                         if dataConstraint = "ISO Date" && !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2}$") {
                             validation := dataConstraint . " is invalid (must be YYYY-MM-DD)."
                         } else if dataConstraint = "ISO Date Time" && !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
                             validation := dataConstraint . " is invalid (must be YYYY-MM-DD HH:MM:SS)."
+                        } else if dataConstraint = "Raw Date Time" && !RegExMatch(dataValue, "^\d{14}$") {
+                            validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
                         } else {
+                            if dataConstraint = "Raw Date Time" {
+                                dataValue := FormatTime(dataValue, "yyyy-MM-dd HH:mm:ss")
+                            }
+
                             dateTimeparts := StrSplit(dataValue, " ")
                             dateParts     := StrSplit(dateTimeparts[1], "-")
                             year   := dateParts[1] + 0
@@ -942,11 +942,14 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := ValidateDataUsingSpecification(day, "Integer", "Day")
                             }
 
-                            if !IsValidGregorianDay(year, month, day) {
+                            isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
+                            daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+                            if day > daysInMonth[month] {
                                 validation := "Gregorian Day is out of range for the month."
                             }
 
-                            if dataConstraint = "ISO Date Time" && validation = "" {
+                            if dataConstraint != "ISO Date" && validation = "" {
                                 timeParts := StrSplit(dateTimeparts[2], ":")
                                 hour   := timeParts[1] + 0
                                 minute := timeParts[2] + 0
@@ -970,7 +973,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             }
                         }
                     case "Locator":
-                        if RegExMatch(dataValue, InvalidLocatorCharactersPattern) {
+                        if RegExMatch(dataValue, invalidLocatorCharactersPattern) {
                             validation := dataConstraint . " contains forbidden characters (" . '\ " |' . ")."
                         }
                     case "Percent Range":
@@ -991,50 +994,11 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := dataConstraint . " first value must be lower than second."
                             }
                         }
-                    case "Raw Date Time":
-                        if !RegExMatch(dataValue, "^\d{14}$") {
-                            validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
-                        } else {
-                            year   := SubStr(dataValue, 1, 4) + 0
-                            month  := SubStr(dataValue, 5, 2) + 0
-                            day    := SubStr(dataValue, 7, 2) + 0
-                            hour   := SubStr(dataValue, 9, 2) + 0
-                            minute := SubStr(dataValue, 11, 2) + 0
-                            second := SubStr(dataValue, 13, 2) + 0
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(year, "Integer", "Year")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(month, "Integer", "Month")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(day, "Integer", "Day")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(hour, "Integer", "Hour")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(minute, "Integer", "Minute")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(second, "Integer", "Second")
-                            }
-
-                            if validation != "" {
-                                validation := dataConstraint . " " . validation
-                            }
-                        }
                     case "SHA-256":
                         if StrLen(dataValue) != 64 {
                             validation := dataConstraint . " expected length is 64 but instead got length of: " . StrLen(dataValue) "."
-                        } else if !RegExMatch(dataValue, "^[0-9a-fA-F]{64}$") {
-                            validation := dataConstraint . " must be hex digits only."
+                        } else if !RegExMatch(dataValue, "^[0-9a-fA-F]+$") {
+                            validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
                 }
             }

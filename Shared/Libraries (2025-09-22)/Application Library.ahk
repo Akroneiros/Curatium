@@ -39,7 +39,7 @@ RegisterApplications() {
 
             try {
                 if !applicationRegistry.Has(applicationName) {
-                    throw Error("Application " . Chr(34) . applicationName . Chr(34) . " does not exist.")
+                    throw Error('Application "' . applicationName . '" does not exist.')
                 }
             } catch as applicationMissingError {
                 LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
@@ -73,6 +73,31 @@ RegisterApplications() {
                 ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
             } else {
                 applicationRegistry[applicationName]["Installed"]         := false
+            }
+        }
+    }
+
+    if applicationRegistry["DaVinci Resolve Studio"]["Installed"] && applicationRegistry["DaVinci Resolve"]["Installed"] {
+        if applicationRegistry["DaVinci Resolve Studio"]["Executable Path"] = applicationRegistry["DaVinci Resolve"]["Executable Path"] {
+            executableDirectory := ExtractDirectory(applicationRegistry["DaVinci Resolve Studio"]["Executable Path"])
+            readMeFilePath      := executableDirectory . "Documents\ReadMe.html"
+
+            if FileExist(readMeFilePath) {
+                readMeFileContents := ReadFileOnHashMatch(readMeFilePath, Hash.File("SHA256", readMeFilePath))
+
+                notInstalledApplication := "DaVinci Resolve Studio"
+                if InStr(readMeFileContents, "About DaVinci Resolve Studio") {
+                    notInstalledApplication := "DaVinci Resolve"
+                }
+
+                applicationRegistry[notInstalledApplication].Delete("Binary Type")
+                applicationRegistry[notInstalledApplication].Delete("Executable Filename")
+                applicationRegistry[notInstalledApplication].Delete("Executable Hash")
+                applicationRegistry[notInstalledApplication].Delete("Executable Path")
+                applicationRegistry[notInstalledApplication].Delete("Executable Version")
+                applicationRegistry[notInstalledApplication].Delete("Resolution Method")
+
+                applicationRegistry[notInstalledApplication]["Installed"] := false
             }
         }
     }
@@ -163,13 +188,13 @@ ExecutablePathResolve(applicationName) {
         }
     }
 
-    if projectEntryAvailable {
+    if projectEntryAvailable || applicationRegistry[applicationName].Has("Executable Collision") {
         if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaDirectory(applicationName, relevantApplicationExecutableDirectoryCandidates)
+            executablePathSearchResult := ExecutablePathViaReference(applicationName, relevantApplicationExecutableDirectoryCandidates)
         }
 
         if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaRegistry(applicationName, relevantApplicationExecutableDirectoryCandidates)
+            executablePathSearchResult := ExecutablePathViaAppPaths(applicationName, relevantApplicationExecutableDirectoryCandidates)
         }
 
         if Type(executablePathSearchResult) != "Map" {
@@ -181,19 +206,19 @@ ExecutablePathResolve(applicationName) {
         }
 
         if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaRegistry(applicationName, relevantApplicationExecutableDirectoryCandidates)
+            executablePathSearchResult := ExecutablePathViaAppPaths(applicationName, relevantApplicationExecutableDirectoryCandidates)
         }
 
         if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaDirectory(applicationName, relevantApplicationExecutableDirectoryCandidates)
+            executablePathSearchResult := ExecutablePathViaReference(applicationName, relevantApplicationExecutableDirectoryCandidates)
         }
     }
 
     return executablePathSearchResult
 }
 
-ExecutablePathViaDirectory(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("ExecutablePathViaDirectory(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
+ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandidates) {
+    static methodName := RegisterMethod("ExecutablePathViaReference(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static candidateBaseDirectories := unset
@@ -379,15 +404,15 @@ ExecutablePathViaDirectory(applicationName, applicationExecutableDirectoryCandid
     if executablePathSearchResult != "" {
         executablePathSearchResult := Map(
             "Executable Path",   executablePathSearchResult,
-            "Resolution Method", "Directory"
+            "Resolution Method", "Reference"
         )
     }
 
     return executablePathSearchResult
 }
 
-ExecutablePathViaRegistry(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("ExecutablePathViaRegistry(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
+ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandidates) {
+    static methodName := RegisterMethod("ExecutablePathViaAppPaths(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static appPathsBaseRegistryKeys := [
@@ -427,7 +452,7 @@ ExecutablePathViaRegistry(applicationName, applicationExecutableDirectoryCandida
     if executablePathSearchResult != "" {
         executablePathSearchResult := Map(
             "Executable Path",   executablePathSearchResult,
-            "Resolution Method", "Registry"
+            "Resolution Method", "App Paths"
         )
     }
 
@@ -672,7 +697,7 @@ ValidateApplicationFact(applicationName, factName, factValue) {
 
     try {
         if !applicationRegistry[applicationName].Has(factName) {
-            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " does not have a valid fact name: " . Chr(34) . factName . Chr(34))
+            throw Error('Application "' . applicationName . '" does not have a valid fact name: ' . factName)
         }
     } catch as factNameMissingError {
         LogInformationConclusion("Failed", logValuesForConclusion, factNameMissingError)
@@ -680,7 +705,7 @@ ValidateApplicationFact(applicationName, factName, factValue) {
 
     try {
         if applicationRegistry[applicationName][factName] !== factValue {
-            throw Error("Application " . Chr(34) . applicationName . Chr(34) . " with fact name of " . Chr(34) . factName . Chr(34) . " does not match fact value of: " . Chr(34) . factValue . Chr(34))
+            throw Error('Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
         }
     } catch as factValueMissingError {
         LogInformationConclusion("Failed", logValuesForConclusion, factValueMissingError)

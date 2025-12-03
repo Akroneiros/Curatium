@@ -835,20 +835,6 @@ GetUtcTimestampPrecise() {
     return utcTimestampPrecise
 }
 
-IsValidGregorianDay(year, month, day) {
-    static methodName := RegisterMethod("IsValidGregorianDay(year As Integer, month As Integer, day As Integer)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [year, month, day])
-
-    isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
-    daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-    if day <= daysInMonth[month] {
-        return true
-    } else {
-        return false
-    }
-}
-
 LocalIsoWithUtcTag(localIsoString) {
     static methodName := RegisterMethod("LocalIsoWithUtcTag(localIsoString As String)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [localIsoString])
