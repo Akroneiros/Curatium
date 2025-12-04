@@ -789,8 +789,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " must be between 0 and 59."
                         }
                     case "Year":
-                        if dataValue < 1601 || dataValue > 30827 {
-                            validation := dataConstraint . " must be between 1601 and 30827."
+                        if dataValue < 1601 || dataValue > 9999 {
+                            validation := dataConstraint . " must be between 1601 and 9999."
                         }
                 }
             }
@@ -819,15 +819,15 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
 
                         if !(isDrive || isUNC) {
-                            validation := dataConstraint . " must start with drive (C:\) or UNC (\\server\share\)."
+                            validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."
                         } else if !FileExist(dataValue) && dataConstraint = "Absolute Path" {
                             validation := dataConstraint . " File doesn't exist."
                         }
                     case "Base64":
                         if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
-                            validation := dataConstraint . " invalid content. Only A–Z, a–z, 0–9, +, /, and = allowed."
+                            validation := dataConstraint . " invalid characters. Only A–Z, a–z, 0–9, +, /, and = allowed."
                         } else if Mod(StrLen(dataValue), 4) != 0 {
-                            validation := dataConstraint . " invalid length. Must be multiple of 4."
+                            validation := dataConstraint . " invalid length. Length must be a multiple of 4."
                         } else if RegExMatch(dataValue, "=[^=]") {
                             validation := dataConstraint . " invalid padding. The character = can only appear at the end."
                         }
@@ -836,7 +836,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         heightDisplayResolution := A_ScreenHeight
 
                         if !RegExMatch(dataValue, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
-                            validation := dataConstraint . " not formatted correctly."
+                            validation := dataConstraint . " is not formatted correctly."
                         } else if (
                             (x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)
                         ) {
@@ -851,7 +851,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
 
                         if !(isDrive || isUNC) {
-                            validation := dataConstraint . " path must start with drive (C:\) or UNC (\\server\share\)."
+                            validation := dataConstraint . " path must start with a drive (C:\) or UNC path (\\server\share\)."
                         } else if !DirExist(dataValue) {
                             validation := dataConstraint . " doesn't exist."
                         } else if SubStr(dataValue, -1) != "\" {
@@ -887,7 +887,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         } else if RegExMatch(dataValue, windowsInvalidFilenameCharactersPattern) {
                             validation := dataConstraint . " contains invalid characters (" . windowsInvalidFilenameCharactersList . ")."
                         } else if dataValue = "." || dataValue = ".." {
-                            validation := dataConstraint . " reserved."
+                            validation := dataConstraint . " is reserved."
                         } else if RegExMatch(dataValue, windowsReservedDeviceNamesPattern) {
                             validation := dataConstraint . " uses a reserved device name (CON, PRN, AUX, NUL, COM1–COM9, LPT1–LPT9)."
                         } else if Trim(dataValue, " .") = "" {
@@ -921,7 +921,9 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
                         } else {
                             if dataConstraint = "Raw Date Time" {
-                                dataValue := FormatTime(dataValue, "yyyy-MM-dd HH:mm:ss")
+                                dataValue :=
+                                    SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) .
+                                    " " . SubStr(dataValue, 9, 2)  . ":" . SubStr(dataValue, 11, 2) . ":" . SubStr(dataValue, 13, 2)
                             }
 
                             dateTimeparts := StrSplit(dataValue, " ")
@@ -942,11 +944,13 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := ValidateDataUsingSpecification(day, "Integer", "Day")
                             }
 
-                            isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
-                            daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+                            if validation = "" {
+                                isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
+                                daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-                            if day > daysInMonth[month] {
-                                validation := "Gregorian Day is out of range for the month."
+                                if day > daysInMonth[month] {
+                                    validation := "Day is invalid for this month and year."
+                                }
                             }
 
                             if dataConstraint != "ISO Date" && validation = "" {

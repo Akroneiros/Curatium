@@ -174,44 +174,6 @@ EnsureDirectoryExists(directoryPath) {
     }
 }
 
-FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
-    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Constraint: Locator], directoryPath As String [Constraint: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("File Exists in Directory (" . filename . ")", methodName, [filename, directoryPath, fileExtension])
-
-    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
-
-    if filesInDirectory.Length = 0 {
-        LogInformationConclusion("Completed", logValuesForConclusion)
-        return ""
-    }
-
-    index := filesInDirectory.Length
-    while index >= 1 {
-        filePath := filesInDirectory[index]
-        SplitPath(filePath, , , &loopFileExtension, &nameWithoutExtension)
-
-        if ((fileExtension != "" && loopFileExtension != fileExtension) || !InStr(nameWithoutExtension, filename)) {
-            filesInDirectory.RemoveAt(index)
-        }
-
-        index -= 1
-    }
-
-    if filesInDirectory.Length = 0 {
-        LogInformationConclusion("Completed", logValuesForConclusion)
-        return ""
-    } else if filesInDirectory.Length = 1  {
-        LogInformationConclusion("Completed", logValuesForConclusion)
-        return filesInDirectory[1]
-    } else {
-        try {
-            throw Error("Too many files match the filename (" . filename . ") in the directory: " . directoryPath)
-        } catch as tooManyMatchesError {
-            LogInformationConclusion("Failed", logValuesForConclusion, tooManyMatchesError)
-        }
-    }
-}
-
 MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
     static methodName := RegisterMethod("MoveFileToDirectory(filePath As String [Constraint: Absolute Path], directoryPath As String [Constraint: Directory], overwrite As Boolean [Optional: false])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Move File to Directory (" . ExtractFilename(filePath) . ")", methodName, [filePath, directoryPath, overwrite])
@@ -472,6 +434,36 @@ ExtractParentDirectory(filePath) {
     }
 
     return parentFolderPath
+}
+
+FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
+    static methodName := RegisterMethod("FileExistsInDirectory(filename As String [Constraint: Locator], directoryPath As String [Constraint: Directory], fileExtension As String [Optional])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [filename, directoryPath, fileExtension])
+
+    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
+    if filesInDirectory.Length = 0 {
+        return ""
+    }
+
+    index := filesInDirectory.Length
+    while index >= 1 {
+        filePath := filesInDirectory[index]
+        SplitPath(filePath, , , &loopFileExtension, &nameWithoutExtension)
+
+        if ((fileExtension != "" && loopFileExtension != fileExtension) || !InStr(nameWithoutExtension, filename)) {
+            filesInDirectory.RemoveAt(index)
+        }
+
+        index -= 1
+    }
+
+    if filesInDirectory.Length = 0 {
+        return ""
+    } else if filesInDirectory.Length = 1  {
+        return filesInDirectory[1]
+    } else {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Too many files match the filename (" . filename . ") in the directory: " . directoryPath)
+    }
 }
 
 GetFilesFromDirectory(directoryPath, emptyDirectoryAllowed := false) {

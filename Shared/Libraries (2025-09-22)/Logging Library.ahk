@@ -1647,7 +1647,7 @@ ParseMethodDeclaration(declaration) {
             currentCharacter := A_LoopField
 
             ; While inQuotedString = true, commas and brackets are considered literal characters.
-            if currentCharacter = Chr(34) { ; Chr(34) = "
+            if currentCharacter = '"' {
                 inQuotedString := !inQuotedString
                 currentParameterText .= currentCharacter
                 continue

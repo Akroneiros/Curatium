@@ -521,53 +521,20 @@ ConvertIntegerToUtcTimestamp(integerValue) {
     second      := SubStr(digitText, 13, 2)
     millisecond := unset
 
-    yearNumber        := year + 0
-    monthNumber       := month + 0
-    dayNumber         := day + 0
-    hourNumber        := hour + 0
-    minuteNumber      := minute + 0
-    secondNumber      := second + 0
-    millisecondNumber := unset
-
     if digitTextLength = 17 {
         millisecond := SubStr(digitText, 15)
-        millisecondNumber := millisecond + 0
     }
 
-    validation := ""
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(yearNumber, "Integer", "Year")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(monthNumber, "Integer", "Month")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(dayNumber, "Integer", "Day")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(hourNumber, "Integer", "Hour")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(minuteNumber, "Integer", "Minute")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(secondNumber, "Integer", "Second")
-    }
-
+    validation := ValidateDataUsingSpecification(year . "-" . month . "-" . day . " " . hour . ":" . minute . ":" . second, "String", "ISO Date Time")
     if validation != "" {
         LogHelperError(logValuesForConclusion, A_LineNumber, validation)
     }
 
     utcTimestamp := unset
     if digitTextLength = 14 {
-        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber)
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
     } else if digitTextLength = 17 {
-        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", yearNumber, monthNumber, dayNumber, hourNumber, minuteNumber, secondNumber, millisecondNumber)
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
     }
 
     return utcTimestamp
@@ -578,10 +545,9 @@ ConvertUnixTimeToUtcTimestamp(unixSeconds) {
     logValuesForConclusion := LogHelperValidation(methodName, [unixSeconds])
 
     if unixSeconds < -11644473600 {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "unixSeconds predates 1601-01-01 UTC and cannot be represented as FILETIME: " . unixSeconds)
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Unix Seconds predates 1601-01-01 UTC and cannot be represented as FILETIME: " . unixSeconds)
     }
 
-    ; Unix seconds (1970; negatives allowed) → FILETIME ticks (since 1601, 100 ns): (unixSeconds + 11644473600) * 10000000
     fileTimeTicks := (unixSeconds + 11644473600) * 10000000
 
     static fileTimeBuffer := Buffer(8, 0)
@@ -622,42 +588,11 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
     second      := SubStr(utcTimestamp, 18, 2)
     millisecond := unset
 
-    yearNumber   := year + 0
-    monthNumber  := month + 0
-    dayNumber    := day + 0
-    hourNumber   := hour + 0
-    minuteNumber := minute + 0
-    secondNumber := second + 0
-
     if utcTimestampLength >= 23 {
         millisecond := SubStr(utcTimestamp, 21, 3)
     }
 
-    validation := ""
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(yearNumber, "Integer", "Year")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(monthNumber, "Integer", "Month")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(dayNumber, "Integer", "Day")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(hourNumber, "Integer", "Hour")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(minuteNumber, "Integer", "Minute")
-    }
-
-    if validation = "" {
-        validation := ValidateDataUsingSpecification(secondNumber, "Integer", "Second")
-    }
-
+    validation := ValidateDataUsingSpecification(year . "-" . month . "-" . day . " " . hour . ":" . minute . ":" . second, "String", "ISO Date Time")
     if validation != "" {
         LogHelperError(logValuesForConclusion, A_LineNumber, validation)
     }
@@ -833,51 +768,4 @@ GetUtcTimestampPrecise() {
     }
 
     return utcTimestampPrecise
-}
-
-LocalIsoWithUtcTag(localIsoString) {
-    static methodName := RegisterMethod("LocalIsoWithUtcTag(localIsoString As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [localIsoString])
-
-    if !RegExMatch(localIsoString, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
-        return localIsoString
-    }
-
-    dateTimeParts := StrSplit(localIsoString, " ")
-    dateParts     := StrSplit(dateTimeParts[1], "-")
-    timeParts     := StrSplit(dateTimeParts[2], ":")
-
-    year   := dateParts[1] + 0
-    month  := dateParts[2] + 0
-    day    := dateParts[3] + 0
-    hour   := timeParts[1] + 0
-    minute := timeParts[2] + 0
-    second := timeParts[3] + 0
-
-    localSystemTime := Buffer(16, 0)
-    NumPut("UShort", year,   localSystemTime, 0)
-    NumPut("UShort", month,  localSystemTime, 2)
-    NumPut("UShort", 0,      localSystemTime, 4)
-    NumPut("UShort", day,    localSystemTime, 6)
-    NumPut("UShort", hour,   localSystemTime, 8)
-    NumPut("UShort", minute, localSystemTime, 10)
-    NumPut("UShort", second, localSystemTime, 12)
-    NumPut("UShort", 0,      localSystemTime, 14)
-
-    utcSystemTime := Buffer(16, 0)
-    utcSuccess := DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int")
-
-    if !utcSuccess {
-        return localIsoString
-    }
-
-    utcYear   := NumGet(utcSystemTime, 0, "UShort")
-    utcMonth  := NumGet(utcSystemTime, 2, "UShort")
-    utcDay    := NumGet(utcSystemTime, 6, "UShort")
-    utcHour   := NumGet(utcSystemTime, 8, "UShort")
-    utcMinute := NumGet(utcSystemTime, 10, "UShort")
-    utcSecond := NumGet(utcSystemTime, 12, "UShort")
-    utcIso := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", utcYear, utcMonth, utcDay, utcHour, utcMinute, utcSecond)
-
-    return localIsoString " <UTC " utcIso ">"
 }

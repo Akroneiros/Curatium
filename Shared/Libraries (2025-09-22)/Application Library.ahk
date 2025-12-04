@@ -596,6 +596,12 @@ ResolveFactsForApplication(applicationName, counter) {
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
     switch applicationName {
+        case "7-Zip":
+            directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
+            
+            if FileExist(directoryPath . "7z.exe") {
+                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . "7z.exe"
+            }
         case "CyberChef":
             cyberChefHtml := ReadFileOnHashMatch(applicationRegistry[applicationName]["Executable Path"], DecodeBaseToSha256Hex(applicationRegistry[applicationName]["Executable Hash"], 86))
 
@@ -675,6 +681,12 @@ ResolveFactsForApplication(applicationName, counter) {
             excelWorkbook := 0
             excelApplication := 0
             ProcessWaitClose(excelProcessIdentifier, 2)
+        case "HandBrake":
+            directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
+            
+            if FileExist(directoryPath . "HandBrakeCLI.exe") {
+                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . "HandBrakeCLI.exe"
+            }
         case "Word":
             wordApplication := ComObject("Word.Application")
 

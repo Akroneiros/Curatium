@@ -508,7 +508,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
                 if validation != "" {
                     subfolder := StrSplit(RTrim(actionFolderPath, "\"), "\").Pop()
-                    LogHelperError(logValuesForConclusion, A_LineNumber, "File " . Chr(34) . A_LoopFileName . Chr(34) . " in subfolder " . Chr(34) . subfolder . Chr(34) . " has invalid range value in parenthesis after percent. " . validation)
+                    LogHelperError(logValuesForConclusion, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
                 }
             }
 
