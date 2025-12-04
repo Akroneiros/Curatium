@@ -7,9 +7,6 @@
 !/LICENSE
 !/README.md
 
-# <Root>: Keep any top-level file whose NAME contains this phrase.
-!/*Framework Demonstration*
-
 # History: Ignore everything by default.
 /History/**
 
@@ -25,6 +22,9 @@
 
 # Projects: Re-open the directory so Git can look inside (root had /*).
 !/Projects/
+
+# Projects: Keep any top-level file whose NAME contains this phrase.
+!/Projects/*Framework Demonstration*
 
 # Projects: Whitelist the specific subfolder and all its contents.
 !/Projects/Framework Demonstration/
