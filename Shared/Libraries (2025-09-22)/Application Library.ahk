@@ -595,13 +595,18 @@ ResolveFactsForApplication(applicationName, counter) {
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
-    switch applicationName {
-        case "7-Zip":
+    static commandLineExecutables := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Command Line Executables.csv")
+    for commandLineExecutable in commandLineExecutables {
+        if applicationName = commandLineExecutable["Name"] {
             directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
-            
-            if FileExist(directoryPath . "7z.exe") {
-                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . "7z.exe"
+
+            if FileExist(directoryPath . commandLineExecutable["Command Line Executable"]) {
+                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . commandLineExecutable["Command Line Executable"]
             }
+        }
+    }
+
+    switch applicationName {
         case "CyberChef":
             cyberChefHtml := ReadFileOnHashMatch(applicationRegistry[applicationName]["Executable Path"], DecodeBaseToSha256Hex(applicationRegistry[applicationName]["Executable Hash"], 86))
 
@@ -681,12 +686,6 @@ ResolveFactsForApplication(applicationName, counter) {
             excelWorkbook := 0
             excelApplication := 0
             ProcessWaitClose(excelProcessIdentifier, 2)
-        case "HandBrake":
-            directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
-            
-            if FileExist(directoryPath . "HandBrakeCLI.exe") {
-                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . "HandBrakeCLI.exe"
-            }
         case "Word":
             wordApplication := ComObject("Word.Application")
 
