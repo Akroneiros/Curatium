@@ -30,6 +30,7 @@ BGB|261
 BlastEm|205
 BleachBit|206
 Blender|57
+Blue Prism|321
 BlueStacks|282
 Brave|58
 Bridge|106
@@ -43,6 +44,7 @@ CapCut|107
 Capture2Text|283
 Character Animator|108
 Charles Proxy|157
+Chatterino|322
 CherryTree|34
 Chrome|6
 ComfyUI|302
@@ -73,6 +75,7 @@ Draw|61
 Dreamweaver|110
 Driver Store Explorer|163
 DuckStation|215
+Ecosia Browser|323
 Edge|7
 Elgato Control Center|306
 Emulicious|264
@@ -95,6 +98,7 @@ Firefox|9
 Fireworks|113
 FL Studio|308
 Flash Professional|114
+Floorp Browser|324
 Flycast|218
 FontBase|166
 foobar2000|63
@@ -105,6 +109,7 @@ FreeFileSync|64
 FreeMind|219
 Fusion Studio|309
 G HUB|310
+GearUP|325
 Genymotion Desktop|286
 GIMP|44
 GitHub Desktop|36
@@ -117,6 +122,7 @@ GoXLR App|115
 Gpg4win|66
 GPT4All|169
 GPU-Z|222
+GrabIt|326
 Greenshot|67
 GtkHash|68
 Gyazo|312
@@ -168,6 +174,7 @@ MainType|178
 MAME|271
 Math|76
 Media Encoder|123
+MediaMonkey|327
 Mednafen|231
 melonDS|232
 MEmu Play|291
@@ -181,6 +188,8 @@ Mullvad Browser|124
 Mullvad VPN|125
 Nestopia UE|236
 NetLimiter|180
+Newsbin Pro|328
+Newshosting|329
 Nexus Mods App|314
 NordVPN|126
 Notepad++|2
@@ -205,7 +214,9 @@ PhotoLine|274
 Photoshop|128
 Pinokio|241
 PlanMaker|81
+Portmaster|330
 Postman|82
+Power Automate|331
 Power BI Desktop|83
 Power BI Report Builder|293
 PowerArchiver|275
@@ -271,6 +282,8 @@ Synfig Studio|256
 SysTracer|191
 Tableau Desktop|91
 TablePlus|257
+TagSpaces|332
+TeamSpeak|333
 TeamViewer|317
 TeraCopy|92
 TextMaker|93
@@ -281,9 +294,11 @@ Toad for SQL Server|299
 Topaz Gigapixel|192
 Topaz Photo|193
 Topaz Video|194
+Tor Browser|334
 TreeSize|95
 Trezor Suite|96
 TrueCrypt|11
+UiPath Studio|335
 UltraEdit|258
 UNIFY|143
 Unity Hub|318
@@ -293,14 +308,17 @@ VeraCrypt|30
 VirtualBox|144
 Visual Studio Code|18
 Visual Studio|31
+Vivaldi|336
 VLC media player|97
 vMix|145
 Voicemeeter Banana|195
 Voicemod|278
 VyprVPN|146
+Wago App|337
 Waterfox|147
 Wave Link|196
 WaveLab Pro|197
+Winamp|338
 WinDirStat|98
 Windscribe|148
 WinMerge|99
@@ -310,6 +328,7 @@ WinUAE|279
 WinZip|280
 Wirecast|320
 Wireshark|198
+WizFile|339
 WizTree|39
 WMI Explorer|260
 Word|12
@@ -318,4 +337,5 @@ WPS Office|199
 Writer|100
 XnView MP|40
 Yubico Authenticator|300
+Zen Browser|340
 ZenTimings|200
