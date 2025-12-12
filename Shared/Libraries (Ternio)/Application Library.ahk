@@ -640,8 +640,8 @@ ResolveFactsForApplication(applicationName, counter) {
             WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
             WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
             ExcelActivateEditorAndPasteCode(excelMacroCode)
-            SendEvent("{F5}") ; F5 (Run Sub/UserForm)
-            Sleep(200)
+            SendInput("{F5}") ; Run Sub/UserForm
+            Sleep(240)
 
             if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                 applicationRegistry["Excel"]["Code Execution"] := "Basic"
@@ -651,20 +651,18 @@ ResolveFactsForApplication(applicationName, counter) {
             if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" && applicationRegistry["Excel"]["Code Execution"] = "Basic" {
                 applicationRegistry["Excel"]["Code Execution"] := "Partial"
 
-                SendEvent("^{F4}") ; CTRL+F4 (Close Window: Module)
-                Sleep(200)
-                SendEvent("^a") ; CTRL+A (Select All)
-                Sleep(200)
-                SendEvent("^a") ; CTRL+A (Select All)
-                Sleep(200)
-                SendEvent("{Delete}") ; Delete (Delete)
+                KeyboardShortcut("CTRL", "F4") ; Close Window: Module
+                Sleep(240)
+                KeyboardShortcut("CTRL", "A") ; Select All
+                Sleep(240)
+                SendInput("{Delete}") ; Delete
                 A_Clipboard := excelMacroCode
                 ClipWait(2)
-                SendEvent("^v") ; CTRL+V (Paste)
-                Sleep(200)
-                SendEvent("{F5}") ; F5 (Run Sub/UserForm)
-                Sleep(200)
-                SendEvent("{Esc}") ; Escape (Close Window Macros)
+                KeyboardShortcut("CTRL", "V") ; Paste
+                Sleep(240)
+                SendInput("{F5}") ; Run Sub/UserForm
+                Sleep(240)
+                SendInput("{Esc}") ; Close Window Macros
                 Sleep(32)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
@@ -885,7 +883,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
         if aboutValues[aboutRange] = aboutCondition {
             ExcelActivateEditorAndPasteCode(code)
-            SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+            SendInput("{F5}") ; Run Sub/UserForm
             WaitForExcelToClose(excelProcessIdentifier)
             aboutWorksheet   := 0
             excelWorkbook    := 0
@@ -915,7 +913,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
             if matchedIndex > 0 {
                 ExcelActivateEditorAndPasteCode(code)
-                SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+                SendInput("{F5}") ; Run Sub/UserForm
                 WaitForExcelToClose(excelProcessIdentifier)
                 aboutWorksheet   := 0
                 excelWorkbook    := 0
@@ -953,7 +951,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         }
     } else {
         ExcelActivateEditorAndPasteCode(code)
-        SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+        SendInput("{F5}") ; Run Sub/UserForm
         WaitForExcelToClose(excelProcessIdentifier)
         aboutWorksheet   := 0
         excelWorkbook    := 0
@@ -970,16 +968,16 @@ ExcelActivateEditorAndPasteCode(code) {
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
-    SendEvent("!{F11}") ; F11 (Microsoft Visual Basic for Applications)
+    KeyboardShortcut("ALT", "F11") ; Microsoft Visual Basic for Applications
     WinWait("ahk_class wndclass_desked_gsk", , 10)
     WinActivate("ahk_class wndclass_desked_gsk")
     WinWaitActive("ahk_class wndclass_desked_gsk", , 2)
 
     if applicationRegistry["Excel"]["Code Execution"] != "Full" {
-        SendEvent("!i") ; ALT+I (Insert)
-        Sleep(560)
-        SendEvent("m") ; M (Module)
-        Sleep(440)
+        KeyboardShortcut("ALT", "I") ; Insert
+        Sleep(160)
+        SendInput("m") ; Module
+        Sleep(240)
     }
 
     PasteCode(code, "'")
@@ -1036,7 +1034,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
         WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
         ExcelActivateEditorAndPasteCode(code)
-        SendEvent("{F5}") ; F5 (Run Sub/UserForm)
+        SendInput("{F5}") ; Run Sub/UserForm
         WaitForExcelToClose(excelProcessIdentifier)
         excelWorkbook    := 0
         excelApplication := 0
@@ -1100,7 +1098,7 @@ StartSqlServerManagementStudioAndConnect() {
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
     sqlServerManagementStudioExecutableFilename := applicationRegistry["SQL Server Management Studio"]["Executable Filename"]
     WinWaitActive("Connect to Server ahk_exe " . sqlServerManagementStudioExecutableFilename,, 20)
-    SendInput("{Enter}")
+    SendInput("{Enter}") ; Connect
 
     try {
         if WinWaitClose("Connect to Server ahk_exe " . sqlServerManagementStudioExecutableFilename,, 40) {
@@ -1128,10 +1126,10 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     savePath := saveDirectory . filename . ".csv"
 
-    SendInput("^n") ; CTRL+N (Query with Current Connection)
+    KeyboardShortcut("CTRL", "N") ; Query with Current Connection
     Sleep(800)
     PasteCode(code, "--")
-    SendInput("{F5}") ; F5 (Run the selected portion of the query editor or the entire query editor if nothing is selected)
+    SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
     sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
     sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
     sqlQueryResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
@@ -1139,12 +1137,12 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     Sleep(480)
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindowCoordinates)
     Sleep(480)
-    SendEvent("v") ; V (Save Results As...)
+    SendInput("v") ; Save Results As...
     WinWaitActive("ahk_class #32770",, 2)
-    SendEvent("!n") ; ALT+N (File name)
+    KeyboardShortcut("ALT", "N") ; File name
     Sleep(80)
     PastePath(savePath)
-    SendInput("{Enter}") ; ENTER (Save)
+    SendInput("{Enter}") ; Save
 
     maximumWaitMilliseconds := 10000
     pollIntervalMilliseconds := 100
@@ -1161,7 +1159,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     if fileExistsAlready {
         previousModifiedTime := FileGetTime(savePath, "M")
         Sleep(1000)
-        SendEvent("y") ; Y (Yes)
+        SendInput("y") ; Yes
         startTickCount := A_TickCount
         Sleep(1000)
         while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
@@ -1215,13 +1213,13 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     WinActivate(windowCriteria)
     WinMaximize(windowCriteria)
 
-    SendEvent("!s") ; ALT+S (Session)
+    KeyboardShortcut("ALT", "S") ; Session
     Sleep(400)
-    SendEvent("t") ; T (Test All Connections (Reconnect) [OR] Test/Reconnect)
+    SendInput("t") ; Test All Connections (Reconnect) [OR] Test/Reconnect
     Sleep(400)
-    SendEvent("t") ; T (Test All Connections (Reconnect) [OR] t)
+    SendInput("t") ; Test All Connections (Reconnect) [OR] t
     Sleep(400)
-    SendEvent("{Backspace}") ; Backspace (Remove t if present)
+    SendInput("{Backspace}") ; Remove t if present
     
     overallStartTickCount := A_TickCount
     firstSeenTickCount := 0
@@ -1256,7 +1254,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(800)
 
     try {
-        SendEvent("!u") ; ALT+U (Utilities)
+        KeyboardShortcut("ALT", "U") ; Utilities
         submenuWindowHandle := WinWait("ahk_exe " toadForOracleExecutableFilename " ahk_class TdxBarSubMenuControl", , 1000)
         if !submenuWindowHandle {
             throw Error("Failed to open the Utilities menu (submenu was not detected).")
@@ -1266,7 +1264,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
 
     try {
-        SendEvent("{Enter}") ; ENTER (Automation Designer)
+        SendInput("{Enter}") ; Automation Designer
 
         if !WinWaitClose("ahk_id " submenuWindowHandle, , 1000) {
             throw Error("Failed to launch Automation Designer from the Utilities menu.")
@@ -1279,25 +1277,25 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     toadForOracleSearchCoordinates := ExtractScreenCoordinates(toadForOracleSearchResults)
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
     Sleep(2000)
-    SendEvent("{Tab}") ; TAB (Text to find:)
+    SendInput("{Tab}") ; Text to find:
     Sleep(800)
     PasteSearch(appName)
     Sleep(800)
-    SendEvent("{Enter}") ; ENTER (Search)
+    SendInput("{Enter}") ; Search
     Sleep(1200)
-    SendEvent("+{Tab}") ; SHIFT+TAB (Item)
+    KeyboardShortcut("SHIFT", "TAB") ; Item
 
     if toadForOracleSearchResults["Variant"] = "c" || toadForOracleSearchResults["Variant"] = "d" {
         Sleep(800)
-        SendEvent("+{Tab}") ; SHIFT+TAB (Item)
+        KeyboardShortcut("SHIFT", "TAB") ; Item
     }
 
     Sleep(800)
-    SendEvent("+{F10}") ; SHIFT+F10 (Right-click)
+    KeyboardShortcut("SHIFT", "F10") ; Right-click
     Sleep(800)
-    SendEvent("{Down}") ; DOWN ARROW (Goto Item)
+    SendInput("{Down}") ; Goto Item
     Sleep(800)
-    SendEvent("{Enter}") ; ENTER (Goto Item)
+    SendInput("{Enter}") ; Goto Item
     Sleep(1200)
     toadForOracleRunSelectedAppsResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
     toadForOracleRunSelectedAppsCoordinates := ExtractScreenCoordinates(toadForOracleRunSelectedAppsResults)

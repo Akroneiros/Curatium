@@ -107,7 +107,7 @@ PasteCode(code, commentPrefix) {
     
     attempts    := 0
     maxAttempts := 4
-    sleepAmount := 360
+    sleepAmount := 240
     success     := false
 
     while attempts < maxAttempts {
@@ -118,33 +118,31 @@ PasteCode(code, commentPrefix) {
             logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
         }
 
-        SendEvent("^a") ; CTRL+A (Select All)
+        KeyboardShortcut("CTRL", "A") ; Select All
         Sleep(sleepAmount/2)
-        SendEvent("^a") ; CTRL+A (Select All)
-        Sleep(sleepAmount/2)
-        SendEvent("{Delete}") ; Delete (Delete)
+        SendInput("{Delete}") ; Delete
         Sleep(sleepAmount/2)
 
         A_Clipboard := code ; Load combined code into clipboard.
         if !ClipWait(1 * attempts) { ; Clipboard not ready, go to next attempt.
             continue
         }
-        SendEvent("^v") ; CTRL+V (Paste)
+        KeyboardShortcut("CTRL", "V") ; Paste
         Sleep(sleepAmount + sleepAmount)
 
         ; Verify the paste by reading the sentinel line.
-        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
         Sleep(sleepAmount/2)
-        SendEvent("^c") ; CTRL+C (Copy)
+        KeyboardShortcut("CTRL", "C") ; Copy
         Sleep(sleepAmount)
 
         if A_Clipboard !== sentinel {
             continue ; Sentinel content not copied, go to next attempt.
         }
 
-        SendEvent("{Delete}")
+        SendInput("{Delete}")
         Sleep(sleepAmount/2)
-        SendEvent("{Backspace}")
+        SendInput("{Backspace}")
         Sleep(sleepAmount/2)
 
         success := true
@@ -182,11 +180,11 @@ PastePath(savePath) {
             logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
         }
         
-        SendEvent("{End}") ; END (End of Line)
+        SendInput("{End}") ; End of Line
         Sleep(sleepAmount)
-        SendEvent("+{Home}") ; SHIFT+HOME (Select the full line)
+        KeyboardShortcut("SHIFT", "HOME") ; Select the full line
         Sleep(sleepAmount/2)
-        SendEvent("{Delete}") ; Delete (Delete)
+        SendInput("{Delete}") ; Delete
         Sleep(sleepAmount/2)
         if attempts != maxAttempts {
             SendText(savePath)
@@ -199,16 +197,16 @@ PastePath(savePath) {
         }
 
         ; Verify the paste by reading the sentinel line.
-        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
         Sleep(sleepAmount)
-        SendEvent("^c") ; CTRL+C (Copy)
+        KeyboardShortcut("CTRL", "C") ; Copy
         Sleep(sleepAmount)
 
         if A_Clipboard !== savePath {
             continue ; Clipboard content does not match Save Path, go to next attempt.
         }
 
-        SendEvent("{End}") ; END (End of Line)
+        SendInput("{End}") ; End of Line
 
         success := true
         if attempts >= 2 {
@@ -245,11 +243,11 @@ PasteSearch(searchValue) {
             logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
         }
 
-        SendEvent("{End}") ; END (End of Line)
+        SendInput("{End}") ; End of Line
         Sleep(sleepAmount)
-        SendEvent("+{Home}") ; SHIFT+HOME (Select the full line)
+        KeyboardShortcut("SHIFT", "HOME") ; Select the full line
         Sleep(sleepAmount/2)
-        SendEvent("{Delete}") ; Delete (Delete)
+        SendInput("{Delete}") ; Delete
         Sleep(sleepAmount/2)
         if attempts != maxAttempts {
             SendText(searchValue)
@@ -262,16 +260,16 @@ PasteSearch(searchValue) {
         }
 
         ; Verify the paste by reading the sentinel line.
-        SendEvent("+{Home}") ; SHIFT+HOME (Select the whole last line)
+        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
         Sleep(sleepAmount)
-        SendEvent("^c") ; CTRL+C (Copy)
+        KeyboardShortcut("CTRL", "C") ; Copy
         Sleep(sleepAmount)
 
         if A_Clipboard !== searchValue {
             continue ; Clipboard content does not match Save Path, go to next attempt.
         }
 
-        SendEvent("{End}") ; END (End of Line)
+        SendInput("{End}") ; End of Line
 
         success := true
         if attempts >= 2 {
@@ -719,6 +717,25 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
     }
 
     return returnValue
+}
+
+KeyboardShortcut(modifier, key) {
+    if StrLen(key) > 1 {
+        key := "{" . key . "}"
+    } else {
+        key := StrLower(key)
+    }
+
+    switch modifier, false {
+        case "ALT":
+            SendInput("{Alt down}" . key . "{Alt up}")
+        case "CTRL", "CONTROL":
+            SendInput("{Ctrl down}" . key . "{Ctrl up}")
+        case "SHIFT":
+            SendInput("{Shift down}" . key . "{Shift up}")
+        case "WIN", "WINDOWS":
+            SendInput("{LWin down}" . key . "{LWin up}")
+    }
 }
 
 RemoveDuplicatesFromArray(array) {
