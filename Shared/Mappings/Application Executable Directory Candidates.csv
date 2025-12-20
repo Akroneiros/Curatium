@@ -8,6 +8,7 @@ Advanced IP Scanner|advanced_ip_scanner.exe|Advanced IP Scanner
 Advanced Renamer|ARen.exe|Advanced Renamer
 After Effects|AfterFX.exe|Adobe\Adobe After Effects 2025\Support Files
 After Effects|AfterFX.exe|Adobe\Adobe After Effects CS6\Support Files
+Afterburner|MSIAfterburner.exe|MSI Afterburner
 AIMP|AIMP.exe|AIMP
 AkelPad|AkelPad.exe|AkelPad
 Angry IP Scanner|ipscan.exe|Angry IP Scanner
@@ -25,12 +26,14 @@ AutoCAD|acad.exe|Autodesk\AutoCAD 2026
 AutoHotkey|AutoHotkey64.exe|AutoHotkey\v2
 Azure Data Studio|azuredatastudio.exe|Azure Data Studio
 Balabolka|balabolka.exe|Balabolka
+Bandicam|bdcam.exe|Bandicam
 Bandizip|Bandizip.exe|Bandizip
 Base|sbase.exe|LibreOffice\program
 BasicMaker|BasicMaker.exe|SoftMaker Office NX
 Battle.net|Battle.net.exe|Battle.net
 Beyond Compare|BCompare.exe|Beyond Compare 5
 BGB|bgb64.exe|BGB
+Bitwarden|Bitwarden.exe|Bitwarden
 BlastEm|blastem.exe|BlastEm
 BleachBit|bleachbit.exe|BleachBit
 Blender|blender.exe|Blender Foundation\Blender 4.5
@@ -40,6 +43,7 @@ Brave|brave.exe|BraveSoftware\Brave-Browser\Application
 Bridge|Adobe Bridge.exe|Adobe\Adobe Bridge 2025
 Bridge|Bridge.exe|Adobe\Adobe Bridge CS6
 Bridge|Bridge.exe|Adobe\Adobe Bridge CS6 (64 Bit)
+Broadcaster|XSplit.Core.exe|XSplit\Broadcaster
 bsnes|bsnes.exe|bsnes_v115-windows
 Bulk Rename Utility|Bulk Rename Utility.exe|Bulk Rename Utility
 Burp Suite Community Edition|BurpSuiteCommunity.exe|BurpSuiteCommunity
@@ -98,6 +102,7 @@ Express Zip|expresszip.exe|NCH Software\ExpressZip
 ExpressVPN|ExpressVPN.exe|ExpressVPN\expressvpn-ui
 f.lux|flux.exe|FluxSoftware\Flux
 FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
+Ferdium|Ferdium.exe|Ferdium
 Fiddler Classic|Fiddler.exe|Fiddler
 Fiddler Everywhere|Fiddler Everywhere.exe|Fiddler Everywhere
 FileOptimizer|FileOptimizer64.exe|FileOptimizer
@@ -118,6 +123,7 @@ FreeMind|FreeMind.exe|FreeMind
 Fusion Studio|Fusion.exe|Blackmagic Design\Fusion 20
 G HUB|lghub_system_tray.exe|LGHUB\system_tray
 GearUP|gearup_booster.exe|GearUP\9232
+Gecata|Gecata.exe|Movavi Gecata 6
 Genymotion Desktop|genymotion.exe|Genymobile\Genymotion
 GIMP|gimp-3.exe|GIMP 3\bin
 GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
@@ -154,6 +160,7 @@ InCopy|InCopy.exe|Adobe\Adobe InCopy 2025
 InDesign|InDesign.exe|Adobe\Adobe InDesign 2025
 InDesign|InDesign.exe|Adobe\Adobe InDesign CS6
 Inkscape|inkscape.exe|Inkscape\bin
+Inno Setup|Compil32.exe|Inno Setup 6
 Insomnia|Insomnia.exe|insomnia
 Internet Download Manager|IDMan.exe|Internet Download Manager
 IObit Unlocker|IObitUnlocker.exe|IObit\IObit Unlocker
@@ -169,6 +176,7 @@ Joplin|Joplin.exe|Joplin
 Kdenlive|kdenlive.exe|kdenlive\bin
 KeePass|KeePass.exe|KeePass Password Safe 2
 Keyboard Chatter Blocker|KeyboardChatterBlocker.exe|Keyboard Chatter Blocker
+KoboldCpp|koboldcpp.exe|KoboldCpp
 Krita|krita.exe|Krita (x64)\bin
 Krita|krita.exe|Krita (x86)\bin
 Kyno|Kyno.exe|Lesspain\Kyno
@@ -202,6 +210,7 @@ MPC-BE|mpc-be64.exe|MPC-BE
 Msty Studio|MstyStudio.exe|MstyStudio
 Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
 Mullvad VPN|Mullvad VPN.exe|Mullvad VPN
+Mumble|mumble.exe|Mumble\client
 Nestopia UE|nestopia.exe|Nestopia UE
 NetLimiter|NLClientApp.exe|Locktime Software\NetLimiter
 Newsbin Pro|NewsbinPro64.exe|Newsbin
@@ -210,6 +219,7 @@ Nexus Mods App|NexusMods.App.exe|NexusMods.App
 NordVPN|NordVPN.exe|NordVPN
 Notepad++|notepad++.exe|Notepad++
 Notion|Notion.exe|Notion
+NSIS|NSIS.exe|NSIS
 NVIDIA App|NVIDIA App.exe|NVIDIA Corporation\NVIDIA App\CEF
 O&O ShutUp10++|OOSU10.exe|O&O ShutUp10++
 OBS Studio|obs32.exe|obs-studio\bin\32bit
@@ -259,6 +269,7 @@ puNES|punes64.exe|puNES
 PureRef|PureRef.exe|PureRef
 PuTTY|putty.exe|PuTTY
 qBittorrent|qbittorrent.exe|qBittorrent
+Rainmeter|Rainmeter.exe|Rainmeter
 REAPER|reaper.exe|REAPER
 REAPER|reaper.exe|REAPER (x64)
 Recuva|recuva64.exe|Recuva
@@ -294,6 +305,7 @@ Steam|steam.exe|Steam
 Stream Deck|StreamDeck.exe|Elgato\StreamDeck
 Streamer.bot|Streamer.bot.exe|Streamer.bot
 Streamlabs Desktop|Streamlabs OBS.exe|Streamlabs OBS
+Streamster|Streamster.ClientApp.Win.exe|Streamster
 Substance 3D Designer|Adobe Substance 3D Designer.exe|Adobe\Adobe Substance 3D Designer
 Substance 3D Modeler|Adobe Substance 3D Modeler.exe|Adobe\Adobe Substance 3D Modeler
 Substance 3D Painter|Adobe Substance 3D Painter.exe|Adobe\Adobe Substance 3D Painter
@@ -302,6 +314,7 @@ Substance 3D Stager|Adobe Substance 3D Stager.exe|Adobe\Adobe Substance 3D Stage
 Sumatra PDF|SumatraPDF.exe|SumatraPDF
 SuperPuTTY|SuperPutty.exe|SuperPuTTY
 Surfshark|Surfshark.exe|Surfshark
+Syncthing Tray|syncthingtray.exe|Syncthing Tray
 Synfig Studio|synfigstudio.exe|Synfig\bin
 SysTracer|SysTracer.exe|SysTracer
 Tableau Desktop|tableau.exe|Tableau\Tableau 2025.2\bin
@@ -330,7 +343,10 @@ UNIFY|RODE UNIFY.exe|RØDE Microphones\RØDE UNIFY
 Unity Hub|Unity Hub.exe|Unity Hub
 Unreal Editor|UnrealEditor.exe|Epic Games\UE_5.7\Engine\Binaries\Win64
 Upscayl|Upscayl.exe|Upscayl
+UserBenchmark|UserBenchmark.exe|UserBenchmark
+VCam|VCam.exe|VCam
 VeraCrypt|VeraCrypt.exe|VeraCrypt
+Virtual Audio Cable|vcctlpan.exe|Virtual Audio Cable
 VirtualBox|VirtualBox.exe|Oracle\VirtualBox
 Visual Studio Code|Code.exe|Microsoft VS Code
 Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
@@ -338,6 +354,8 @@ Vivaldi|vivaldi.exe|Vivaldi\Application
 VLC media player|vlc.exe|VideoLAN\VLC
 vMix|vMix64.exe|vMix
 Voicemeeter Banana|voicemeeterpro_x64.exe|VB\Voicemeeter
+Voicemeeter Potato|voicemeeter8x64.exe|VB\Voicemeeter
+Voicemeeter|voicemeeter_x64.exe|VB\Voicemeeter
 Voicemod|Voicemod.exe|Voicemod V3
 VyprVPN|VyprVPN.exe|VyprVPN
 Wago App|Wago App.exe|wago-app
@@ -345,6 +363,7 @@ Waterfox|waterfox.exe|Waterfox
 Wave Link|WaveLink.exe|Elgato\WaveLink
 WaveLab Pro|WaveLabPro12.exe|Steinberg\WaveLab Pro 12
 Winamp|winamp.exe|Winamp
+Windhawk|windhawk.exe|Windhawk
 WinDirStat|WinDirStat.exe|WinDirStat
 Windscribe|Windscribe.exe|Windscribe
 WinMerge|WinMergeU.exe|WinMerge
@@ -361,6 +380,7 @@ Word|WINWORD.EXE|Microsoft Office\root\Office16
 Workstation Pro|vmware.exe|VMware\VMware Workstation
 WPS Office|wps.exe|Kingsoft\WPS Office\12.2.0.23131\office6
 Writer|swriter.exe|LibreOffice\program
+WTFast|WTFast.exe|WTFast
 XnView MP|xnviewmp.exe|XnViewMP
 Yubico Authenticator|authenticator.exe|Yubico\Yubico Authenticator
 Zen Browser|zen.exe|Zen Browser
