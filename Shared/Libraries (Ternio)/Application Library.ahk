@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
+#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
 #Include Base Library.ahk
 #Include Image Library.ahk
 #Include Logging Library.ahk
@@ -225,15 +226,11 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
     if !IsSet(candidateBaseDirectories) {
         candidateBaseDirectories := []
 
-        portableFilesDirectory        := ExtractDirectory(A_WinDir) . "Portable Files"
-        programFilesPortableDirectory := ExtractDirectory(A_WinDir) . "Program Files (Portable)"
-
-        if DirExist(portableFilesDirectory) {
-            candidateBaseDirectories.Push(portableFilesDirectory)
-        }
-
-        if DirExist(programFilesPortableDirectory) {
-            candidateBaseDirectories.Push(programFilesPortableDirectory)
+        configCandidateBaseDirectories := jsongo.Parse(FileRead(system["Configuration File"]))["candidateBaseDirectories"]
+        for configCandidateBaseDirectoy in configCandidateBaseDirectories {
+            if DirExist(configCandidateBaseDirectoy) {
+                candidateBaseDirectories.Push(configCandidateBaseDirectoy)
+            }
         }
 
         programFilesDirectory := EnvGet("ProgramFiles")
@@ -617,15 +614,18 @@ ResolveFactsForApplication(applicationName, counter) {
         case "Excel":
             CloseApplication("Excel")
 
+            tinyDelay  := 16
+            ShortDelay := 360
+
             applicationRegistry["Excel"]["Code Execution"] := "Failed"
-            excelMacroCode := 'Sub Run(): Range("A1").Value = "Cell": End Sub'
+            excelMacroCode := 'Sub Run()' . '`r`n' . '    Range("A1").Value = "Cell"' . '`r`n' . 'End Sub'
             excelApplication := ComObject("Excel.Application")
             excelWorkbook := excelApplication.Workbooks.Add()
             excelApplication.Visible := true
 
             excelWindowHandle := excelApplication.Hwnd
             while !excelWindowHandle := excelApplication.Hwnd {
-                Sleep(16)
+                Sleep(tinyDelay)
             }
 
             personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
@@ -641,7 +641,7 @@ ResolveFactsForApplication(applicationName, counter) {
             WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
             ExcelActivateEditorAndPasteCode(excelMacroCode)
             SendInput("{F5}") ; Run Sub/UserForm
-            Sleep(240)
+            Sleep(ShortDelay)
 
             if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                 applicationRegistry["Excel"]["Code Execution"] := "Basic"
@@ -652,18 +652,17 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry["Excel"]["Code Execution"] := "Partial"
 
                 KeyboardShortcut("CTRL", "F4") ; Close Window: Module
-                Sleep(240)
+                Sleep(ShortDelay)
                 KeyboardShortcut("CTRL", "A") ; Select All
-                Sleep(240)
+                Sleep(ShortDelay)
                 SendInput("{Delete}") ; Delete
                 A_Clipboard := excelMacroCode
-                ClipWait(2)
                 KeyboardShortcut("CTRL", "V") ; Paste
-                Sleep(240)
+                Sleep(ShortDelay)
                 SendInput("{F5}") ; Run Sub/UserForm
-                Sleep(240)
+                Sleep(ShortDelay)
                 SendInput("{Esc}") ; Close Window Macros
-                Sleep(32)
+                Sleep(tinyDelay + tinyDelay)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                     applicationRegistry["Excel"]["Code Execution"] := "Full"
@@ -782,7 +781,7 @@ CloseApplication(applicationName) {
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Code], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Locator], aboutCondition As String [Optional] [Constraint: Locator])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Locator], aboutCondition As String [Optional] [Constraint: Locator])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -963,7 +962,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelActivateEditorAndPasteCode(code) {
-    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Constraint: Code])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Constraint: Summary])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Excel Activate Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code])
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
@@ -980,13 +979,13 @@ ExcelActivateEditorAndPasteCode(code) {
         Sleep(240)
     }
 
-    PasteCode(code, "'")
+    PasteText(code, "'")
 
     LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Code], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Starting Run"
@@ -1051,32 +1050,44 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
-    totalSecondsToWait := 240 * 60
-    mouseMoveIntervalSec := 120
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Long Delay", 1000)
+        SetMethodSetting(methodName, "Total Seconds to Wait", 240 * 60)
+        SetMethodSetting(methodName, "Mouse Move Interval Seconds", 120)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings                 := methodRegistry[methodName]["Settings"]
+    longDelay                := settings.Get("Long Delay")
+    totalSecondsToWait       := settings.Get("Total Seconds to Wait")
+    mouseMoveIntervalSeconds := settings.Get("Mouse Move Interval Seconds")
+
     secondsSinceLastMouseMove := 0
 
     userInterfaceIsGone := false
     loop totalSecondsToWait {
         windowCount := WinGetList("ahk_pid " excelProcessIdentifier).Length
         if windowCount = 0 {
-            Sleep(1000)
+            Sleep(longDelay)
             userInterfaceIsGone := true
             break
         }
 
         secondsSinceLastMouseMove += 1
-        if secondsSinceLastMouseMove >= mouseMoveIntervalSec {
+        if secondsSinceLastMouseMove >= mouseMoveIntervalSeconds {
             MouseMove 1, 0, 0, "R"
             MouseMove -1, 0, 0, "R"
             secondsSinceLastMouseMove := 0
         }
 
-        Sleep(1000)
+        Sleep(longDelay)
     }
 
     try {
         if !userInterfaceIsGone {
-            throw Error("Excel did not close within 240 minutes.")
+            throw Error("Excel did not close within " . totalSecondsToWait . " seconds.")
         }
     } catch as excelCloseError {
         LogInformationConclusion("Failed", logValuesForConclusion, excelCloseError)
@@ -1119,51 +1130,64 @@ StartSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Constraint: Code], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Constraint: Summary], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Short Delay", 100)
+        SetMethodSetting(methodName, "Medium Delay", 480)
+        SetMethodSetting(methodName, "Long Delay", 1000)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+    shortDelay  := settings.Get("Short Delay")
+    mediumDelay := settings.Get("Medium Delay")
+    longDelay   := settings.Get("Long Delay")
+
     savePath := saveDirectory . filename . ".csv"
 
     KeyboardShortcut("CTRL", "N") ; Query with Current Connection
-    Sleep(800)
-    PasteCode(code, "--")
+    Sleep(longDelay)
+    PasteText(code, "--")
     SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
     sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
     sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
     sqlQueryResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
     PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindowCoordinates)
-    Sleep(480)
+    Sleep(mediumDelay)
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindowCoordinates)
-    Sleep(480)
+    Sleep(mediumDelay)
     SendInput("v") ; Save Results As...
     WinWaitActive("ahk_class #32770",, 2)
     KeyboardShortcut("ALT", "N") ; File name
-    Sleep(80)
-    PastePath(savePath)
+    Sleep(mediumDelay)
+    PasteText(savePath)
     SendInput("{Enter}") ; Save
 
-    maximumWaitMilliseconds := 10000
-    pollIntervalMilliseconds := 100
+    maximumWaitMilliseconds := longDelay * 10
     startTickCount := A_TickCount
 
     fileExistsAlready := !!FileExist(savePath)
 
     if !fileExistsAlready {
         while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
-            Sleep(pollIntervalMilliseconds)
+            Sleep(shortDelay)
         }
     }
 
     if fileExistsAlready {
         previousModifiedTime := FileGetTime(savePath, "M")
-        Sleep(1000)
+        Sleep(longDelay)
         SendInput("y") ; Yes
         startTickCount := A_TickCount
-        Sleep(1000)
+        Sleep(longDelay)
         while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
-            Sleep(pollIntervalMilliseconds)
+            Sleep(shortDelay)
         }
 
         try {
@@ -1174,7 +1198,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             LogInformationConclusion("Failed", logValuesForConclusion, timedOutError)
         }
 
-        Sleep(240)
+        Sleep(mediumDelay)
     }
 
     LogInformationConclusion("Completed", logValuesForConclusion)
@@ -1189,6 +1213,24 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     logValuesForConclusion := LogInformationBeginning("Execute Automation App (" . appName . ")", methodName, [appName, runtimeDate])
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Tiny Delay", 16)
+        SetMethodSetting(methodName, "Short Delay", 400)
+        SetMethodSetting(methodName, "Medium Delay", 880)
+        SetMethodSetting(methodName, "Long Delay", 1280)
+        SetMethodSetting(methodName, "Massive Delay", 30000)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings     := methodRegistry[methodName]["Settings"]
+    tinyDelay    := settings.Get("Tiny Delay")
+    shortDelay   := settings.Get("Short Delay")
+    mediumDelay  := settings.Get("Medium Delay")
+    longDelay    := settings.Get("Long Delay")
+    massiveDelay := settings.Get("Massive Delay")
 
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
@@ -1214,11 +1256,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     WinMaximize(windowCriteria)
 
     KeyboardShortcut("ALT", "S") ; Session
-    Sleep(400)
+    Sleep(shortDelay)
     SendInput("t") ; Test All Connections (Reconnect) [OR] Test/Reconnect
-    Sleep(400)
+    Sleep(shortDelay)
     SendInput("t") ; Test All Connections (Reconnect) [OR] t
-    Sleep(400)
+    Sleep(shortDelay)
     SendInput("{Backspace}") ; Remove t if present
     
     overallStartTickCount := A_TickCount
@@ -1232,7 +1274,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             if dialogExists != false {
                 dialogHasAppeared := true
                 firstSeenTickCount := A_TickCount
-            } else if A_TickCount - overallStartTickCount >= 2000 {
+            } else if A_TickCount - overallStartTickCount >= (longDelay + longDelay) {
                 break
             }
         } else {
@@ -1240,22 +1282,22 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
                 break
             }
             try {
-                if A_TickCount - firstSeenTickCount >= 30000 {
-                    throw Error("Reconnect dialog did not close within " . Round(30000 / 1000) . " seconds.")
+                if A_TickCount - firstSeenTickCount >= massiveDelay {
+                    throw Error("Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
                 }
             } catch as reconnectFailedError {
                 LogInformationConclusion("Failed", logValuesForConclusion, reconnectFailedError)
             }
         }
 
-        Sleep(32)
+        Sleep(tinyDelay)
     }
 
-    Sleep(800)
+    Sleep(mediumDelay)
 
     try {
         KeyboardShortcut("ALT", "U") ; Utilities
-        submenuWindowHandle := WinWait("ahk_exe " toadForOracleExecutableFilename " ahk_class TdxBarSubMenuControl", , 1000)
+        submenuWindowHandle := WinWait("ahk_exe " toadForOracleExecutableFilename " ahk_class TdxBarSubMenuControl", , longDelay)
         if !submenuWindowHandle {
             throw Error("Failed to open the Utilities menu (submenu was not detected).")
         }
@@ -1266,7 +1308,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     try {
         SendInput("{Enter}") ; Automation Designer
 
-        if !WinWaitClose("ahk_id " submenuWindowHandle, , 1000) {
+        if !WinWaitClose("ahk_id " submenuWindowHandle, , longDelay) {
             throw Error("Failed to launch Automation Designer from the Utilities menu.")
         }
     } catch as selectAutomationDesignerError {
@@ -1276,27 +1318,27 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     toadForOracleSearchResults := SearchForDirectoryImage("Toad for Oracle", "Search")
     toadForOracleSearchCoordinates := ExtractScreenCoordinates(toadForOracleSearchResults)
     PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
-    Sleep(2000)
+    Sleep(mediumDelay + longDelay)
     SendInput("{Tab}") ; Text to find:
-    Sleep(800)
-    PasteSearch(appName)
-    Sleep(800)
+    Sleep(mediumDelay)
+    PasteText(appName)
+    Sleep(mediumDelay)
     SendInput("{Enter}") ; Search
-    Sleep(1200)
+    Sleep(longDelay)
     KeyboardShortcut("SHIFT", "TAB") ; Item
 
     if toadForOracleSearchResults["Variant"] = "c" || toadForOracleSearchResults["Variant"] = "d" {
-        Sleep(800)
+        Sleep(mediumDelay)
         KeyboardShortcut("SHIFT", "TAB") ; Item
     }
 
-    Sleep(800)
+    Sleep(mediumDelay)
     KeyboardShortcut("SHIFT", "F10") ; Right-click
-    Sleep(800)
+    Sleep(mediumDelay)
     SendInput("{Down}") ; Goto Item
-    Sleep(800)
+    Sleep(mediumDelay)
     SendInput("{Enter}") ; Goto Item
-    Sleep(1200)
+    Sleep(longDelay)
     toadForOracleRunSelectedAppsResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
     toadForOracleRunSelectedAppsCoordinates := ExtractScreenCoordinates(toadForOracleRunSelectedAppsResults)
 
@@ -1304,16 +1346,16 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsCoordinates)
 
         while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
-            Sleep(240)
+            Sleep(shortDelay)
         }
 
         while A_Now < runtimeDate {
-            Sleep(16)
+            Sleep(tinyDelay)
         }
     }
 
     PerformMouseActionAtCoordinates("Left", toadForOracleRunSelectedAppsCoordinates)
-    Sleep(16)
+    Sleep(tinyDelay)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 
     LogInformationConclusion("Completed", logValuesForConclusion)

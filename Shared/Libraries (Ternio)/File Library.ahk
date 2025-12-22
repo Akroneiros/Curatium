@@ -388,7 +388,32 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
 
             LogInformationConclusion("Failed", logValuesForConclusion, fileWriteOrMoveError)
         }
+
+        LogInformationConclusion("Completed", logValuesForConclusion)
     }
+}
+
+WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM") {
+    static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
+    static methodName := RegisterMethod("WriteTextIntoFile(text As String [Constraint: Summary], filePath As String [Constraint: Absolute Save Path], encoding As String [Whitelist: " . encodingWhitelist . "])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Write Text Into File" . " (" . ExtractFilename(filePath) . ")", methodName, [text, filePath, encoding])
+
+    switch encoding {
+        case "UTF-8": encoding := "UTF-8-RAW"
+        case "UTF-8-BOM": encoding := "UTF-8"
+        case "UTF-16 LE BOM": encoding := "UTF-16"
+    }
+    
+    fileHandle := unset
+    try {
+        fileHandle := FileOpen(filePath, "w", encoding)
+        fileHandle.Write(text)
+        fileHandle.Close()
+    } catch as fileWriteError {
+        LogInformationConclusion("Failed", logValuesForConclusion, fileWriteError)
+    }    
+
+    LogInformationConclusion("Completed", logValuesForConclusion)
 }
 
 ; **************************** ;

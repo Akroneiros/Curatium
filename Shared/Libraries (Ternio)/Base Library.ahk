@@ -97,192 +97,117 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     return modifiedCoordinatePair
 }
 
-PasteCode(code, commentPrefix) {
+PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'",  "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("PasteCode(code As String [Constraint: Code], commentPrefix As String [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Paste Code (Length: " . StrLen(code) . ")", methodName, [code, commentPrefix])
+    static methodName := RegisterMethod("PasteText(text As String [Constraint: Summary], commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Paste Text)", methodName, [text, commentPrefix])
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Max Attempts", 4)
+        SetMethodSetting(methodName, "Short Delay", 120)
+        SetMethodSetting(methodName, "Medium Delay", 260)
+        SetMethodSetting(methodName, "Short Accumulation", 20)
+        SetMethodSetting(methodName, "Medium Accumulation", 40)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+    maxAttempts := settings.Get("Max Attempts")
+    shortDelay  := settings.Get("Short Delay")
+    mediumDelay := settings.Get("Medium Delay")
+    shortAccumulation  := settings.Get("Short Accumulation")
+    mediumAccumulation := settings.Get("Medium Accumulation")
+
+    rows := StrSplit(text, "`n").Length
 
     sentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
-    code := code . "`r`n" . sentinel
+    if rows != 1 {
+        text := text . "`r`n" . sentinel
+    }
     
-    attempts    := 0
-    maxAttempts := 4
-    sleepAmount := 240
-    success     := false
+    attempts := 0
+    success  := false
 
     while attempts < maxAttempts {
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
+                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconods."
+        }
+
         attempts++
-        sleepAmount := sleepAmount + (attempts * 40)
+        mediumDelay := mediumDelay + (attempts * mediumAccumulation)
+        shortDelay  := shortDelay + (attempts * shortAccumulation)
 
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-
-        KeyboardShortcut("CTRL", "A") ; Select All
-        Sleep(sleepAmount/2)
-        SendInput("{Delete}") ; Delete
-        Sleep(sleepAmount/2)
-
-        A_Clipboard := code ; Load combined code into clipboard.
-        if !ClipWait(1 * attempts) { ; Clipboard not ready, go to next attempt.
-            continue
-        }
-        KeyboardShortcut("CTRL", "V") ; Paste
-        Sleep(sleepAmount + sleepAmount)
-
-        ; Verify the paste by reading the sentinel line.
-        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
-        Sleep(sleepAmount/2)
-        KeyboardShortcut("CTRL", "C") ; Copy
-        Sleep(sleepAmount)
-
-        if A_Clipboard !== sentinel {
-            continue ; Sentinel content not copied, go to next attempt.
-        }
-
-        SendInput("{Delete}")
-        Sleep(sleepAmount/2)
-        SendInput("{Backspace}")
-        Sleep(sleepAmount/2)
-
-        success := true
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-        break
-    }
-
-    if !success {
-        try {
-            throw Error("Paste of code failed.")
-        } catch as pasteOfCodeFailedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfCodeFailedError)
-        }
-    }
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-}
-
-PastePath(savePath) {
-    static methodName := RegisterMethod("PastePath(savePath As String [Constraint: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Paste Path (" . savePath . ")", methodName, [savePath])
-
-    attempts    := 0
-    maxAttempts := 4
-    sleepAmount := 200
-    success     := false
-
-    while attempts < maxAttempts {
-        attempts++
-        sleepAmount := sleepAmount + (attempts * 20)
-
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-        
-        SendInput("{End}") ; End of Line
-        Sleep(sleepAmount)
-        KeyboardShortcut("SHIFT", "HOME") ; Select the full line
-        Sleep(sleepAmount/2)
-        SendInput("{Delete}") ; Delete
-        Sleep(sleepAmount/2)
-        if attempts != maxAttempts {
-            SendText(savePath)
-            Sleep(sleepAmount/2)
+        if rows = 1 {
+            SendInput("{End}") ; End of Line.
+            Sleep(mediumDelay)
+            KeyboardShortcut("SHIFT", "HOME") ; Select the full line.
+            Sleep(shortDelay)
+            SendInput("{Delete}") ; Delete
         } else {
-            for character in StrSplit(savePath) {
-                SendEvent("{Raw}" . character)
-                Sleep(102)
+            KeyboardShortcut("CTRL", "A") ; Select All
+            Sleep(shortDelay)
+            SendInput("{Delete}") ; Delete
+        }
+
+        Sleep(shortDelay)
+
+        A_Clipboard := text ; Load combined text into clipboard.
+
+        if rows = 1 { 
+            if attempts != maxAttempts {
+                SendText(text)
+                Sleep(shortDelay)
+            } else {
+                for character in StrSplit(text) {
+                    SendEvent("{Raw}" . character)
+                    Sleep(102)
+                }
             }
-        }
 
-        ; Verify the paste by reading the sentinel line.
-        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
-        Sleep(sleepAmount)
-        KeyboardShortcut("CTRL", "C") ; Copy
-        Sleep(sleepAmount)
+            KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
+            Sleep(mediumDelay)
+            KeyboardShortcut("CTRL", "C") ; Copy
+            ClipWait()
+            Sleep(mediumDelay)
 
-        if A_Clipboard !== savePath {
-            continue ; Clipboard content does not match Save Path, go to next attempt.
-        }
-
-        SendInput("{End}") ; End of Line
-
-        success := true
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-        break
-    }
-
-    if !success {
-        try {
-            throw Error("Paste of path failed.")
-        } catch as pasteOfPathFailedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfPathFailedError)
-        }
-    }
-
-    LogInformationConclusion("Completed", logValuesForConclusion)
-}
-
-PasteSearch(searchValue) {
-    static methodName := RegisterMethod("PasteSearch(searchValue As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Paste Search (" . searchValue . ")", methodName, [searchValue])
-
-    attempts    := 0
-    maxAttempts := 4
-    sleepAmount := 200
-    success     := false
-
-    while attempts < maxAttempts {
-        attempts++
-        sleepAmount := sleepAmount + (attempts * 20)
-
-        if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Retrying, attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
-        }
-
-        SendInput("{End}") ; End of Line
-        Sleep(sleepAmount)
-        KeyboardShortcut("SHIFT", "HOME") ; Select the full line
-        Sleep(sleepAmount/2)
-        SendInput("{Delete}") ; Delete
-        Sleep(sleepAmount/2)
-        if attempts != maxAttempts {
-            SendText(searchValue)
-            Sleep(sleepAmount + sleepAmount)
+            if A_Clipboard !== text {
+                continue ; Clipboard content does not match, go to next attempt.
+            }
         } else {
-            for character in StrSplit(searchValue) {
-                SendEvent("{Raw}" . character)
-                Sleep(102)
+            KeyboardShortcut("CTRL", "V") ; Paste
+            Sleep(mediumDelay + mediumDelay)
+            KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
+            Sleep(shortDelay)
+            KeyboardShortcut("CTRL", "C") ; Copy
+            ClipWait()
+            Sleep(mediumDelay)
+
+            if A_Clipboard !== sentinel {
+                continue ; Sentinel content not copied, go to next attempt.
             }
+
+            SendInput("{Delete}")
+            Sleep(shortDelay)
+            SendInput("{Backspace}")
+            Sleep(shortDelay)
         }
-
-        ; Verify the paste by reading the sentinel line.
-        KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
-        Sleep(sleepAmount)
-        KeyboardShortcut("CTRL", "C") ; Copy
-        Sleep(sleepAmount)
-
-        if A_Clipboard !== searchValue {
-            continue ; Clipboard content does not match Save Path, go to next attempt.
-        }
-
-        SendInput("{End}") ; End of Line
 
         success := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Sleep amount is currently " . sleepAmount . " milliseconds."
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
+                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconods."
         }
         break
     }
 
     if !success {
         try {
-            throw Error("Paste of search failed.")
-        } catch as pasteOfPathFailedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfPathFailedError)
+            throw Error("Paste of text failed.")
+        } catch as pasteOfTextFailedError {
+            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfTextFailedError)
         }
     }
 
@@ -759,11 +684,18 @@ RemoveDuplicatesFromArray(array) {
     return array
 }
 
+SetMethodSetting(methodName, settingName, settingValue, override := false) {
+    global methodRegistry
+
+    if !methodRegistry[methodName]["Settings"].Has(settingName) || override {
+        methodRegistry[methodName]["Settings"][settingName] := settingValue
+    }
+}
+
 ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitelist := []) {
     validation := ""
 
     static hexadecimalAllowedCharactersMessage     := "Only 0–9, A–F, and a–f are allowed."
-    static invalidLocatorCharactersPattern         := '[\\"|]'
     static windowsInvalidFilenameCharactersPattern := '[\\/:*?"<>|]'
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
@@ -837,6 +769,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 
                         if !(isDrive || isUNC) {
                             validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."
+                        } else if !DirExist(ExtractDirectory(dataValue)) {
+                            validation := dataConstraint . " Directory doesn't exist."
                         } else if !FileExist(dataValue) && dataConstraint = "Absolute Path" {
                             validation := dataConstraint . " File doesn't exist."
                         }
@@ -994,8 +928,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             }
                         }
                     case "Locator":
-                        if RegExMatch(dataValue, invalidLocatorCharactersPattern) {
-                            validation := dataConstraint . " contains forbidden characters (" . '\ " |' . ")."
+                        if InStr(dataValue, "|") {
+                            validation := dataConstraint . " contains the character |."
                         }
                     case "Percent Range":
                         dataValue := StrReplace(dataValue, ",", ".")

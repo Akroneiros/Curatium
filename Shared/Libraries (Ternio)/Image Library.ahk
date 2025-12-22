@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
+#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
 #Include Application Library.ahk
 #Include Base Library.ahk
 #Include File Library.ahk
@@ -144,14 +145,14 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     if !IsSet(applications) && !IsSet(variants) && !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) && !IsSet(displayResolution) && !IsSet(dpiScale) {
         applications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
 
-        heroes := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Heroes (2025-09-20).csv")
+        imageVariants := ConvertCsvToArrayOfMaps(jsongo.Parse(FileRead(system["Configuration File"]))["settings"]["imageVariantPreset"])
 
         variants := Map()
-        for hero in heroes {
-            heroName       := hero["Name"]
-            firstCharacter := StrLower(SubStr(heroName, 1, 1))
+        for name in imageVariants {
+            variantName    := name["Name"]
+            firstCharacter := StrLower(SubStr(variantName, 1, 1))
 
-            variants[firstCharacter] := heroName
+            variants[firstCharacter] := variantName
         }
 
         fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
