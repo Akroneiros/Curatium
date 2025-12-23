@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
+#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
 #Include Base Library.ahk
 #Include Chrono Library.ahk
 #Include Image Library.ahk
@@ -135,7 +136,7 @@ LogEngine(status, fullErrorText := "") {
             DirCreate(system["Project Directory"])
         }
 
-        system["Configuration File"]    := system["Project Directory"] . "Configuration (" . system["Library Release"] . ").json"
+        system["Configuration"]         := system["Project Directory"] . "Configuration (" . system["Library Release"] . ").json"
 
         while true {
             milliseconds    := A_MSec + 0
@@ -244,20 +245,27 @@ LogEngine(status, fullErrorText := "") {
 
         BatchAppendRuntimeTrace("Beginning", runtimeTraceLines)
 
-        if !FileExist(system["Configuration File"]) {
+        if !FileExist(system["Configuration"]) {
             newLine := "`r`n"
             configurationData := '{' . newLine . 
-                '    "applications": [' . newLine . '    ],' . newLine . 
-                '    "applicationExecutableDirectoryCandidates": [' . newLine . '    ],' . newLine . 
-                '    "candidateBaseDirectories": [' . newLine . 
+                '    "Application Whitelist": [' . newLine . 
+                    '        ' .  newLine . 
+                '    ],' . newLine . 
+                '    "Application Executable Directory Candidates": [' . newLine .
+                    '        '  . newLine . 
+                '    ],' . newLine . 
+                '    "Candidate Base Directories": [' . newLine . 
                     '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '", ' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . '    ],' . newLine . 
-                '    "settings": {' . newLine . 
-                    '        "imageVariantPreset": "' . system["Constants Directory"] . 'Heroes (2025-09-20).csv' . '"' . newLine . 
+                    '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
+                    '    ],' . newLine . 
+                '    "Settings": {' . newLine . 
+                    '        "Image Variant Preset": "' . system["Constants Directory"] . 'Heroes (2025-09-20).csv' . '"' . newLine . 
                 '    }' . newLine . '}'
             configurationData := StrReplace(configurationData, "\", "\\")
-            WriteTextIntoFile(configurationData, system["Configuration File"])
+            WriteTextIntoFile(configurationData, system["Configuration"])
         }
+
+        system["Configuration"] := jsongo.Parse(FileRead(system["Configuration"]))
     } else {
         LogTimestampPrecise()
 

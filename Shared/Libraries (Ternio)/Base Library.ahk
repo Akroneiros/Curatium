@@ -181,7 +181,7 @@ PasteText(text, commentPrefix := "") {
             Sleep(mediumDelay + mediumDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
             Sleep(shortDelay)
-            KeyboardShortcut("CTRL", "C") ; Copy
+            KeyboardShortcut("CTRL", "X") ; Cut
             ClipWait()
             Sleep(mediumDelay)
 
@@ -189,9 +189,7 @@ PasteText(text, commentPrefix := "") {
                 continue ; Sentinel content not copied, go to next attempt.
             }
 
-            SendInput("{Delete}")
-            Sleep(shortDelay)
-            SendInput("{Backspace}")
+            SendInput("{Left}")
             Sleep(shortDelay)
         }
 
@@ -704,6 +702,10 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static scales      := unset
 
     switch dataType {
+        case "Array":
+            if Type(dataValue) != "Array" {
+                validation := "Value must be an Array."
+            }
         case "Boolean":
             if !(Type(dataValue) = "Integer" && (dataValue = 0 || dataValue = 1)) {
                 validation := "Boolean must be an Integer with value 0 or 1."

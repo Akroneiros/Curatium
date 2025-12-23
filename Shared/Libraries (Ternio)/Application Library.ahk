@@ -1,6 +1,5 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
-#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
 #Include Base Library.ahk
 #Include Image Library.ahk
 #Include Logging Library.ahk
@@ -19,62 +18,52 @@ RegisterApplications() {
     applicationRegistry := Map()
    
     mappingApplications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
-    for application in mappingApplications {
-        applicationName := application["Name"]
+    for mappingApplication in mappingApplications {
+        applicationName := mappingApplication["Name"]
 
         applicationRegistry[applicationName] := Map()
 
-        applicationRegistry[applicationName]["Counter"] := application["Counter"] + 0
+        applicationRegistry[applicationName]["Counter"] := mappingApplication["Counter"] + 0
     }
 
-    projectApplicationsFilePath := ""
-    if FileExist(system["Project Directory"] . "Applications.csv") {
-        projectApplicationsFilePath := system["Project Directory"] . "Applications.csv"
-    }
-
-    if projectApplicationsFilePath != "" {
-        projectApplications := ConvertCsvToArrayOfMaps(projectApplicationsFilePath)
-
-        for application in projectApplications {
-            applicationName := application["Name"]
-
+    applicationWhitelist := system["Configuration"]["Application Whitelist"]
+    applicationWhitelistLength := applicationWhitelist.Length
+    if applicationWhitelistLength != 0 {
+        for application in applicationWhitelist {
             try {
-                if !applicationRegistry.Has(applicationName) {
-                    throw Error('Application "' . applicationName . '" does not exist.')
+                if !applicationRegistry.Has(application) {
+                    throw Error('Application "' . application . '" does not exist.')
                 }
             } catch as applicationMissingError {
                 LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
             }
 
-            executablePathSearchResult := ExecutablePathResolve(applicationName)
-            if Type(executablePathSearchResult) = "Map" {
-                applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
-                applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-                applicationRegistry[applicationName]["Installed"]         := true
-                ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
-            } else {
-                applicationRegistry[applicationName]["Installed"]         := false
+            applicationRegistry[application]["Whitelisted"] := true
+        }
+
+        for application in applicationRegistry {
+            if !applicationRegistry[application].Has("Whitelisted") {
+                applicationRegistry[application]["Whitelisted"] := false
+                applicationRegistry[application]["Installed"]   := false
+            }
+        }
+    }
+
+    for application in applicationRegistry {
+        if applicationWhitelistLength != 0 {
+            if applicationRegistry[application]["Whitelisted"] = false {
+                continue
             }
         }
 
-        for application in mappingApplications {
-            if !applicationRegistry[application["Name"]].Has("Installed") {
-                applicationRegistry[application["Name"]]["Installed"]     := false
-            }
-        }
-    } else {
-        for application in mappingApplications {
-            applicationName := application["Name"]
-
-            executablePathSearchResult := ExecutablePathResolve(applicationName)
-            if Type(executablePathSearchResult) = "Map" {
-                applicationRegistry[applicationName]["Executable Path"]   := executablePathSearchResult["Executable Path"]
-                applicationRegistry[applicationName]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-                applicationRegistry[applicationName]["Installed"]         := true
-                ResolveFactsForApplication(applicationName, applicationRegistry[applicationName]["Counter"])
-            } else {
-                applicationRegistry[applicationName]["Installed"]         := false
-            }
+        executablePathSearchResult := ExecutablePathResolve(application)
+        if Type(executablePathSearchResult) = "Map" {
+            applicationRegistry[application]["Executable Path"]   := executablePathSearchResult["Executable Path"]
+            applicationRegistry[application]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
+            applicationRegistry[application]["Installed"]         := true
+            ResolveFactsForApplication(application, applicationRegistry[application]["Counter"])
+        } else {
+            applicationRegistry[application]["Installed"]         := false
         }
     }
 
@@ -226,10 +215,10 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
     if !IsSet(candidateBaseDirectories) {
         candidateBaseDirectories := []
 
-        configCandidateBaseDirectories := jsongo.Parse(FileRead(system["Configuration File"]))["candidateBaseDirectories"]
-        for configCandidateBaseDirectoy in configCandidateBaseDirectories {
-            if DirExist(configCandidateBaseDirectoy) {
-                candidateBaseDirectories.Push(configCandidateBaseDirectoy)
+        configurationCandidateBaseDirectories := system["Configuration"]["Candidate Base Directories"]
+        for configurationCandidateBaseDirectory in configurationCandidateBaseDirectories {
+            if DirExist(configurationCandidateBaseDirectory) {
+                candidateBaseDirectories.Push(configurationCandidateBaseDirectory)
             }
         }
 
@@ -575,6 +564,16 @@ ResolveFactsForApplication(applicationName, counter) {
 
     global applicationRegistry
 
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Excel Tiny Delay", 16)
+        SetMethodSetting(methodName, "Excel Short Delay", 360)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings := methodRegistry[methodName]["Settings"]
+
     executableHash := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
     executableHash := EncodeSha256HexToBase(executableHash, 86)
 
@@ -612,10 +611,10 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry[applicationName]["Executable Version"] := versionMatch[1]
             }
         case "Excel":
-            CloseApplication("Excel")
+            excelTinyDelay  := settings.Get("Excel Tiny Delay")
+            excelShortDelay := settings.Get("Excel Short Delay")
 
-            tinyDelay  := 16
-            ShortDelay := 360
+            CloseApplication("Excel")
 
             applicationRegistry["Excel"]["Code Execution"] := "Failed"
             excelMacroCode := 'Sub Run()' . '`r`n' . '    Range("A1").Value = "Cell"' . '`r`n' . 'End Sub'
@@ -625,7 +624,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             excelWindowHandle := excelApplication.Hwnd
             while !excelWindowHandle := excelApplication.Hwnd {
-                Sleep(tinyDelay)
+                Sleep(excelTinyDelay)
             }
 
             personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
@@ -641,7 +640,7 @@ ResolveFactsForApplication(applicationName, counter) {
             WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
             ExcelActivateEditorAndPasteCode(excelMacroCode)
             SendInput("{F5}") ; Run Sub/UserForm
-            Sleep(ShortDelay)
+            Sleep(excelShortDelay)
 
             if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                 applicationRegistry["Excel"]["Code Execution"] := "Basic"
@@ -652,17 +651,17 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry["Excel"]["Code Execution"] := "Partial"
 
                 KeyboardShortcut("CTRL", "F4") ; Close Window: Module
-                Sleep(ShortDelay)
+                Sleep(excelShortDelay)
                 KeyboardShortcut("CTRL", "A") ; Select All
-                Sleep(ShortDelay)
+                Sleep(excelShortDelay)
                 SendInput("{Delete}") ; Delete
                 A_Clipboard := excelMacroCode
                 KeyboardShortcut("CTRL", "V") ; Paste
-                Sleep(ShortDelay)
+                Sleep(excelShortDelay)
                 SendInput("{F5}") ; Run Sub/UserForm
-                Sleep(ShortDelay)
+                Sleep(excelShortDelay)
                 SendInput("{Esc}") ; Close Window Macros
-                Sleep(tinyDelay + tinyDelay)
+                Sleep(excelTinyDelay + excelTinyDelay)
 
                 if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
                     applicationRegistry["Excel"]["Code Execution"] := "Full"
@@ -1154,6 +1153,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     KeyboardShortcut("CTRL", "N") ; Query with Current Connection
     Sleep(longDelay)
     PasteText(code, "--")
+    Sleep(shortDelay)
     SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
     sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
     sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
@@ -1167,6 +1167,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     KeyboardShortcut("ALT", "N") ; File name
     Sleep(mediumDelay)
     PasteText(savePath)
+    Sleep(shortDelay)
     SendInput("{Enter}") ; Save
 
     maximumWaitMilliseconds := longDelay * 10

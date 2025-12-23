@@ -1,6 +1,5 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
-#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
 #Include Application Library.ahk
 #Include Base Library.ahk
 #Include File Library.ahk
@@ -145,10 +144,10 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     if !IsSet(applications) && !IsSet(variants) && !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) && !IsSet(displayResolution) && !IsSet(dpiScale) {
         applications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
 
-        imageVariants := ConvertCsvToArrayOfMaps(jsongo.Parse(FileRead(system["Configuration File"]))["settings"]["imageVariantPreset"])
+        configurationImageVariantPreset := ConvertCsvToArrayOfMaps(system["Configuration"]["Settings"]["Image Variant Preset"])
 
         variants := Map()
-        for name in imageVariants {
+        for name in configurationImageVariantPreset {
             variantName    := name["Name"]
             firstCharacter := StrLower(SubStr(variantName, 1, 1))
 
