@@ -78,9 +78,11 @@ Directory Opus|dopus.exe|GPSoftware\Directory Opus
 Discord|Discord.exe|Discord\app-1.0.9213
 Disk Drill|DD.exe|CleverFiles\Disk Drill
 DiskGenius|DiskGenius.exe|DiskGenius
+Display Driver Uninstaller|Display Driver Uninstaller.exe|Display Driver Uninstaller
 DMDE|dmde.exe|DMDE
 Docker Desktop|Docker Desktop.exe|Docker\Docker
 Dolphin|Dolphin.exe|Dolphin-x64
+DOSBox|DOSBox.exe|DOSBox-0.74-3
 draw.io|draw.io.exe|draw.io
 Draw|sdraw.exe|LibreOffice\program
 Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver 2021
@@ -122,6 +124,8 @@ FreeFileSync|FreeFileSync.exe|FreeFileSync
 FreeMind|FreeMind.exe|FreeMind
 Fusion Studio|Fusion.exe|Blackmagic Design\Fusion 20
 G HUB|lghub_system_tray.exe|LGHUB\system_tray
+GameCube Backup Manager|GCBM.exe|gcbm
+GameSave Manager|gs_mngr_3.exe|GameSave Manager v3
 GearUP|gearup_booster.exe|GearUP\9232
 Gecata|Gecata.exe|Movavi Gecata 6
 Genymotion Desktop|genymotion.exe|Genymobile\Genymotion
@@ -131,6 +135,7 @@ GlassWire|GlassWire.exe|GlassWire
 Godot Engine|Godot_v4.5.1-stable_win64.exe|Godot Engine
 GoldWave|GoldWave.exe|GoldWave
 Google Earth Pro|googleearth.exe|Google\Google Earth Pro\client
+Google Play Games|client.exe|Google\Play Games\current\client
 Gopher64|gopher64-windows-x86_64.exe|Gopher64
 GoXLR App|GoXLR App.exe|TC-Helicon\GOXLR
 Gpg4win|kleopatra.exe|Gpg4win\bin
@@ -173,6 +178,7 @@ IZArc|IZArc.exe|IZArc
 Jabber|CiscoJabber.exe|Cisco Systems\Cisco Jabber
 Jan|Jan.exe|Jan
 Joplin|Joplin.exe|Joplin
+JRomManager|JRomManager.exe|JRomManager
 Kdenlive|kdenlive.exe|kdenlive\bin
 KeePass|KeePass.exe|KeePass Password Safe 2
 Keyboard Chatter Blocker|KeyboardChatterBlocker.exe|Keyboard Chatter Blocker
@@ -181,6 +187,7 @@ Krita|krita.exe|Krita (x64)\bin
 Krita|krita.exe|Krita (x86)\bin
 Kyno|Kyno.exe|Lesspain\Kyno
 LatencyMon|LatMon.exe|LatencyMon
+LaunchBox|LaunchBox.exe|LaunchBox\Core
 Ledger Live|Ledger Live.exe|Ledger Live
 Ledger Wallet|Ledger Wallet.exe|Ledger Live\Ledger Wallet
 Levelator|levelator.exe|Levelator
@@ -207,6 +214,7 @@ Mesen|Mesen.exe|Mesen
 MeshLab|meshlab.exe|VCG\MeshLab
 Mp3tag|Mp3tag.exe|Mp3tag
 MPC-BE|mpc-be64.exe|MPC-BE
+MPF|MPF.exe|MPF
 Msty Studio|MstyStudio.exe|MstyStudio
 Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
 Mullvad VPN|Mullvad VPN.exe|Mullvad VPN
@@ -244,6 +252,7 @@ Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6 (64 Bit)
 Pinokio|Pinokio.exe|Pinokio
 PlanMaker|PlanMaker.exe|SoftMaker Office NX
+Playnite|Playnite.DesktopApp.exe|Playnite
 Portmaster|portmaster.exe|Portmaster
 Postman|Postman.exe|Postman
 Power Automate|PAD.Console.Host.exe|Power Automate Desktop\dotnet
@@ -277,8 +286,14 @@ Redream|redream.exe|Redream
 RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
 RegexBuddy|RegexBuddy5.exe|Just Great Software\RegexBuddy 5
 Regshot|Regshot-x64-Unicode.exe|Regshot
+Retool|retoolgui.exe|Retool
 RetroArch|retroarch.exe|RetroArch-Win64
+RetroBat|RetroBat.exe|RetroBat
+Retrom|Retrom.exe|Retrom
+Roblox Studio|RobloxStudioBeta.exe|Roblox\Versions\version-34c9847319974d28
 RODECaster App|RODECaster App.exe|RØDE Microphones\RODECaster App
+Rominator|Rominator.exe|Rominator for Windows
+RomVault|ROMVault37.exe|RomVault
 Rosalie's Mupen GUI|RMG.exe|Rosalie's Mupen GUI
 RPCS3|rpcs3.exe|RPCS3
 Rufus|rufus-4.11.exe|Rufus
@@ -314,6 +329,8 @@ Substance 3D Stager|Adobe Substance 3D Stager.exe|Adobe\Adobe Substance 3D Stage
 Sumatra PDF|SumatraPDF.exe|SumatraPDF
 SuperPuTTY|SuperPutty.exe|SuperPuTTY
 Surfshark|Surfshark.exe|Surfshark
+Switch Backup Manager|Switch Backup Manager.exe|Switch Backup Manager
+Switch Library Manager|Switch-Library-Manager.exe|Switch Library Manager
 Syncthing Tray|syncthingtray.exe|Syncthing Tray
 Synfig Studio|synfigstudio.exe|Synfig\bin
 SysTracer|SysTracer.exe|SysTracer
@@ -327,6 +344,7 @@ TeraCopy|TeraCopy.exe|TeraCopy
 TextMaker|TextMaker.exe|SoftMaker Office NX
 Thunderbird|thunderbird.exe|Mozilla Thunderbird
 TightVNC|tvnviewer.exe|TightVNC
+TinyWiiBackupManager|TinyWiiBackupManager.exe|TinyWiiBackupManager
 Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
 Toad for SQL Server|toad.exe|Quest Software\Toad for SQL Server Subscription Edition\Toad for SQL Server Subscription
 Topaz Gigapixel|Topaz Gigapixel.exe|Topaz Labs LLC\Topaz Gigapixel
@@ -359,9 +377,11 @@ Voicemeeter|voicemeeter_x64.exe|VB\Voicemeeter
 Voicemod|Voicemod.exe|Voicemod V3
 VyprVPN|VyprVPN.exe|VyprVPN
 Wago App|Wago App.exe|wago-app
+Wallpaper Engine|wallpaper64.exe|Steam\steamapps\common\wallpaper_engine
 Waterfox|waterfox.exe|Waterfox
 Wave Link|WaveLink.exe|Elgato\WaveLink
 WaveLab Pro|WaveLabPro12.exe|Steinberg\WaveLab Pro 12
+Wii Backup Manager|WiiBackupManager_Win64.exe|Wii Backup Manager
 Winamp|winamp.exe|Winamp
 Windhawk|windhawk.exe|Windhawk
 WinDirStat|WinDirStat.exe|WinDirStat

@@ -71,9 +71,11 @@ Directory Opus|210
 Discord|161
 Disk Drill|211
 DiskGenius|212
+Display Driver Uninstaller|361
 DMDE|213
 Docker Desktop|41
 Dolphin|214
+DOSBox|362
 draw.io|162
 Draw|61
 Dreamweaver|110
@@ -114,6 +116,8 @@ FreeFileSync|64
 FreeMind|219
 Fusion Studio|309
 G HUB|310
+GameCube Backup Manager|363
+GameSave Manager|364
 GearUP|325
 Gecata|346
 Genymotion Desktop|286
@@ -123,6 +127,7 @@ GlassWire|168
 Godot Engine|311
 GoldWave|220
 Google Earth Pro|65
+Google Play Games|365
 Gopher64|221
 GoXLR App|115
 Gpg4win|66
@@ -160,12 +165,14 @@ IZArc|270
 Jabber|287
 Jan|174
 Joplin|226
+JRomManager|366
 KeePass|14
 Keyboard Chatter Blocker|73
 KoboldCpp|348
 Krita|74
 Kyno|175
 LatencyMon|176
+LaunchBox|367
 Ledger Live|75
 Ledger Wallet|288
 Levelator|227
@@ -191,6 +198,7 @@ Mesen|234
 MeshLab|235
 Mp3tag|272
 MPC-BE|77
+MPF|368
 Msty Studio|179
 Mullvad Browser|124
 Mullvad VPN|125
@@ -224,6 +232,7 @@ PhotoLine|274
 Photoshop|128
 Pinokio|241
 PlanMaker|81
+Playnite|369
 Portmaster|330
 Postman|82
 Power Automate|331
@@ -254,8 +263,14 @@ Recuva|245
 Redream|246
 RegexBuddy|86
 Regshot|187
+Retool|370
 RetroArch|247
+RetroBat|371
+Retrom|372
+Roblox Studio|373
 RODECaster App|248
+Rominator|374
+RomVault|375
 Rosalie's Mupen GUI|249
 RPCS3|250
 Rufus|188
@@ -290,6 +305,8 @@ Substance 3D Stager|140
 Sumatra PDF|297
 SuperPuTTY|298
 Surfshark|141
+Switch Backup Manager|376
+Switch Library Manager|377
 Syncthing Tray|353
 Synfig Studio|256
 SysTracer|191
@@ -302,6 +319,7 @@ TeraCopy|92
 TextMaker|93
 Thunderbird|142
 TightVNC|94
+TinyWiiBackupManager|378
 Toad for Oracle|4
 Toad for SQL Server|299
 Topaz Gigapixel|192
@@ -333,9 +351,11 @@ Voicemeeter|358
 Voicemod|278
 VyprVPN|146
 Wago App|337
+Wallpaper Engine|379
 Waterfox|147
 Wave Link|196
 WaveLab Pro|197
+Wii Backup Manager|380
 Winamp|338
 Windhawk|359
 WinDirStat|98
