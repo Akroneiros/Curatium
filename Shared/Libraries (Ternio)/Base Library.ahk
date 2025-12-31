@@ -122,9 +122,9 @@ PasteText(text, commentPrefix := "") {
 
     rows := StrSplit(text, "`n").Length
 
-    sentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
+    pasteSentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
     if rows != 1 {
-        text := text . "`r`n" . sentinel
+        text := text . "`r`n" . pasteSentinel
     }
     
     attempts := 0
@@ -154,8 +154,6 @@ PasteText(text, commentPrefix := "") {
 
         Sleep(shortDelay)
 
-        A_Clipboard := text ; Load combined text into clipboard.
-
         if rows = 1 { 
             if attempts != maxAttempts {
                 SendText(text)
@@ -174,23 +172,25 @@ PasteText(text, commentPrefix := "") {
             Sleep(mediumDelay)
 
             if A_Clipboard !== text {
-                continue ; Clipboard content does not match, go to next attempt.
+                continue ; Clipboard does not match, go to next attempt.
             }
         } else {
+            A_Clipboard := text ; Load combined text into clipboard.
+            Sleep(shortDelay)
             KeyboardShortcut("CTRL", "V") ; Paste
             Sleep(mediumDelay + mediumDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
             Sleep(shortDelay)
+            KeyboardShortcut("SHIFT", "LEFT") ; Select one character more to the left.
+            Sleep(shortDelay)
             KeyboardShortcut("CTRL", "X") ; Cut
             ClipWait()
             Sleep(mediumDelay)
+            clipboardSentinel := StrReplace(StrReplace(A_Clipboard, "`r", ""), "`n", "")
 
-            if A_Clipboard !== sentinel {
-                continue ; Sentinel content not copied, go to next attempt.
+            if clipboardSentinel !== pasteSentinel {
+                continue ; Paste Sentinel not copied, go to next attempt.
             }
-
-            SendInput("{Left}")
-            Sleep(shortDelay)
         }
 
         success := true

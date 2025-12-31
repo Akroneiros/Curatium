@@ -1153,7 +1153,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     KeyboardShortcut("CTRL", "N") ; Query with Current Connection
     Sleep(longDelay)
     PasteText(code, "--")
-    Sleep(shortDelay)
+    Sleep(mediumDelay)
     SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
     sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
     sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
