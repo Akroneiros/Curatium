@@ -366,18 +366,11 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
         argumentValueFull := argument
         argumentValueLog  := argument
         switch argumentsAndValidation["Data Type"] {
+            case "Array", "Object":
+                argumentValueFull := "<" . argumentsAndValidation["Data Type"] . ">"
+                argumentValueLog  := "<" . argumentsAndValidation["Data Type"] . ">"
             case "Boolean":
             case "Integer":
-            case "Object":
-                argumentsAndValidation["Arguments Full"] .= "<Object>"
-                argumentsAndValidation["Arguments Log"]  .= "<Object>"
-
-                if index < arguments.Length {
-                    argumentsAndValidation["Arguments Full"] .= ", "
-                    argumentsAndValidation["Arguments Log"]  .= ", "
-                }
-
-                continue
             case "String":
                 if argumentsAndValidation["Whitelist"].Length != 0 {
                     if !symbolLedger.Has(argument . "|W") {
@@ -1813,6 +1806,11 @@ RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
             methodRegistry[methodName]["Metadata"]            := parsedMethod["Metadata"]
             methodRegistry[methodName]["Validation Line"]     := parsedMethod["Validation Line"]
             methodRegistry[methodName]["Parameter Contracts"] := parsedMethod["Parameter Contracts"]
+
+            if !methodRegistry[methodName].Has("Overlay Log") {
+                methodRegistry[methodName]["Overlay Log"]     := false
+            }
+
             methodRegistry[methodName]["Symbol"]              := symbol
             
             if !methodRegistry[methodName].Has("Settings") {

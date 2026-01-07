@@ -638,7 +638,13 @@ ResolveFactsForApplication(applicationName, counter) {
             excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
             WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
             WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
-            ExcelActivateEditorAndPasteCode(excelMacroCode)
+            visualBasicEditorActivatedSuccessfully := ExcelActivateVisualBasicEditorAndPasteCode(excelMacroCode, excelProcessIdentifier)
+
+            if !visualBasicEditorActivatedSuccessfully {
+                LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+            }
+
+            Sleep(excelShortDelay)
             SendInput("{F5}") ; Run Sub/UserForm
             Sleep(excelShortDelay)
 
@@ -791,6 +797,18 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Tiny Delay", 32)
+        SetMethodSetting(methodName, "Short Delay", 260)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings   := methodRegistry[methodName]["Settings"]
+    tinyDelay  := settings.Get("Tiny Delay")
+    shortDelay := settings.Get("Short Delay")
+
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     try {
         if excelFilePath = "" {
@@ -807,7 +825,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     excelWindowHandle := excelApplication.Hwnd
     while !excelWindowHandle := excelApplication.Hwnd {
-        Sleep(32)
+        Sleep(tinyDelay)
     }
 
     static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
@@ -821,7 +839,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     excelApplication.CalculateUntilAsyncQueriesDone()
     while excelApplication.CalculationState != 0 {
-        Sleep(64)
+        Sleep(tinyDelay + tinyDelay)
     }
 
     aboutWorksheet := ""
@@ -880,7 +898,17 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
 
         if aboutValues[aboutRange] = aboutCondition {
-            ExcelActivateEditorAndPasteCode(code)
+            visualBasicEditorActivatedSuccessfully := ExcelActivateVisualBasicEditorAndPasteCode(code, excelProcessIdentifier)
+
+            try {
+                if !visualBasicEditorActivatedSuccessfully {
+                    throw Error("Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+                }
+            } catch as failedToOpenVisualBasicEditorError1st {
+                LogInformationConclusion("Failed", logValuesForConclusion, failedToOpenVisualBasicEditorError1st)
+            }
+
+            Sleep(shortDelay)
             SendInput("{F5}") ; Run Sub/UserForm
             WaitForExcelToClose(excelProcessIdentifier)
             aboutWorksheet   := 0
@@ -910,7 +938,17 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             }
 
             if matchedIndex > 0 {
-                ExcelActivateEditorAndPasteCode(code)
+                visualBasicEditorActivatedSuccessfully := ExcelActivateVisualBasicEditorAndPasteCode(code, excelProcessIdentifier)
+
+                try {
+                    if !visualBasicEditorActivatedSuccessfully {
+                        throw Error("Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+                    }
+                } catch as failedToOpenVisualBasicEditorError2nd {
+                    LogInformationConclusion("Failed", logValuesForConclusion, failedToOpenVisualBasicEditorError2nd)
+                }
+
+                Sleep(shortDelay)
                 SendInput("{F5}") ; Run Sub/UserForm
                 WaitForExcelToClose(excelProcessIdentifier)
                 aboutWorksheet   := 0
@@ -948,7 +986,17 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             LogInformationConclusion("Skipped", logValuesForConclusion)
         }
     } else {
-        ExcelActivateEditorAndPasteCode(code)
+        visualBasicEditorActivatedSuccessfully := ExcelActivateVisualBasicEditorAndPasteCode(code, excelProcessIdentifier)
+
+        try {
+            if !visualBasicEditorActivatedSuccessfully {
+                throw Error("Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+            }
+        } catch as failedToOpenVisualBasicEditorError3rd {
+            LogInformationConclusion("Failed", logValuesForConclusion, failedToOpenVisualBasicEditorError3rd)
+        }
+
+        Sleep(shortDelay)
         SendInput("{F5}") ; Run Sub/UserForm
         WaitForExcelToClose(excelProcessIdentifier)
         aboutWorksheet   := 0
@@ -960,27 +1008,51 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     }
 }
 
-ExcelActivateEditorAndPasteCode(code) {
-    static methodName := RegisterMethod("ExcelActivateEditorAndPasteCode(code As String [Constraint: Summary])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Excel Activate Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code])
+ExcelActivateVisualBasicEditorAndPasteCode(code, excelProcessIdentifier) {
+    static methodName := RegisterMethod("ExcelActivateVisualBasicEditorAndPasteCode(code As String [Constraint: Summary], excelProcessIdentifier As Integer)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogInformationBeginning("Excel Activate Visual Basic Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code, excelProcessIdentifier])
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
-    KeyboardShortcut("ALT", "F11") ; Microsoft Visual Basic for Applications
-    WinWait("ahk_class wndclass_desked_gsk", , 10)
-    WinActivate("ahk_class wndclass_desked_gsk")
-    WinWaitActive("ahk_class wndclass_desked_gsk", , 2)
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Short Delay", 160)
+        SetMethodSetting(methodName, "Medium Delay", 240)
 
-    if applicationRegistry["Excel"]["Code Execution"] != "Full" {
-        KeyboardShortcut("ALT", "I") ; Insert
-        Sleep(160)
-        SendInput("m") ; Module
-        Sleep(240)
+        defaultMethodSettingsSet := true
     }
 
-    PasteText(code, "'")
+    settings    := methodRegistry[methodName]["Settings"]
+    shortDelay  := settings.Get("Short Delay")
+    mediumDelay := settings.Get("Medium Delay")
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    visualBasicEditorActivatedSuccessfully := unset
+
+    KeyboardShortcut("ALT", "F11") ; Microsoft Visual Basic for Applications
+
+    visualBasicEditorWindowHandle := WinWait("ahk_pid " . excelProcessIdentifier . " ahk_class wndclass_desked_gsk", , 10)
+    if visualBasicEditorWindowHandle != 0 {
+        visualBasicEditorActivatedSuccessfully := true
+
+        WinActivate("ahk_pid " . excelProcessIdentifier . " ahk_class wndclass_desked_gsk", , 4)
+
+        if applicationRegistry["Excel"]["Code Execution"] != "Full" {
+            KeyboardShortcut("ALT", "I") ; Insert
+            Sleep(shortDelay)
+            SendInput("m") ; Module
+            Sleep(mediumDelay)
+        }
+
+        PasteText(code, "'")
+
+        LogInformationConclusion("Completed", logValuesForConclusion)
+        return visualBasicEditorActivatedSuccessfully
+    } else {
+        visualBasicEditorActivatedSuccessfully := false
+
+        LogInformationConclusion("Skipped", logValuesForConclusion)
+        return visualBasicEditorActivatedSuccessfully
+    }
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
@@ -994,6 +1066,18 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [documentName, saveDirectory, code, displayName])
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Tiny Delay", 32)
+        SetMethodSetting(methodName, "Short Delay", 260)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings   := methodRegistry[methodName]["Settings"]
+    tinyDelay  := settings.Get("Tiny Delay")
+    shortDelay := settings.Get("Short Delay")
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -1020,7 +1104,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
         excelWindowHandle := excelApplication.Hwnd
         while !excelWindowHandle := excelApplication.Hwnd {
-            Sleep(32)
+            Sleep(tinyDelay)
         }
 
         static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
@@ -1031,7 +1115,17 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
         WinActivate("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier)
         WinWaitActive("ahk_class XLMAIN ahk_pid " . excelProcessIdentifier, , 10)
-        ExcelActivateEditorAndPasteCode(code)
+        visualBasicEditorActivatedSuccessfully := ExcelActivateVisualBasicEditorAndPasteCode(code, excelProcessIdentifier)
+
+        try {
+            if !visualBasicEditorActivatedSuccessfully {
+                throw Error("Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+            }
+        } catch as failedToOpenVisualBasicEditorError {
+            LogInformationConclusion("Failed", logValuesForConclusion, failedToOpenVisualBasicEditorError)
+        }
+
+        Sleep(shortDelay)
         SendInput("{F5}") ; Run Sub/UserForm
         WaitForExcelToClose(excelProcessIdentifier)
         excelWorkbook    := 0
@@ -1067,7 +1161,7 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     userInterfaceIsGone := false
     loop totalSecondsToWait {
-        windowCount := WinGetList("ahk_pid " excelProcessIdentifier).Length
+        windowCount := WinGetList("ahk_pid " . excelProcessIdentifier).Length
         if windowCount = 0 {
             Sleep(longDelay)
             userInterfaceIsGone := true

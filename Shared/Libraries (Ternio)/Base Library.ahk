@@ -643,6 +643,20 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
 }
 
 KeyboardShortcut(modifier, key) {
+    static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
+    static methodName := RegisterMethod("KeyboardShortcut(modifier As String [Whitelist: " . modifierWhitelist . "], key As String)", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [modifier, key])
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Tiny Delay", 32)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings  := methodRegistry[methodName]["Settings"]
+    tinyDelay := settings.Get("Tiny Delay")
+
     if StrLen(key) > 1 {
         key := "{" . key . "}"
     } else {
@@ -651,18 +665,33 @@ KeyboardShortcut(modifier, key) {
 
     switch modifier, false {
         case "ALT":
-            SendInput("{Alt down}" . key . "{Alt up}")
+            SendInput("{Alt down}")
         case "CTRL", "CONTROL":
-            SendInput("{Ctrl down}" . key . "{Ctrl up}")
+            SendInput("{Ctrl down}")
         case "SHIFT":
-            SendInput("{Shift down}" . key . "{Shift up}")
+            SendInput("{Shift down}")
         case "WIN", "WINDOWS":
-            SendInput("{LWin down}" . key . "{LWin up}")
+            SendInput("{LWin down}")
+    }
+
+    Sleep(tinyDelay + tinyDelay)
+    SendInput(key)
+    Sleep(tinyDelay)
+
+    switch modifier, false {
+        case "ALT":
+            SendInput("{Alt up}")
+        case "CTRL", "CONTROL":
+            SendInput("{Ctrl up}")
+        case "SHIFT":
+            SendInput("{Shift up}")
+        case "WIN", "WINDOWS":
+            SendInput("{LWin up}")
     }
 }
 
 RemoveDuplicatesFromArray(array) {
-    static methodName := RegisterMethod("RemoveDuplicatesFromArray(array As Object)", A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("RemoveDuplicatesFromArray(array As Array)", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [array])
 
     seen := Map()

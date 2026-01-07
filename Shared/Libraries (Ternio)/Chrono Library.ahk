@@ -466,10 +466,22 @@ WaitUntilFileIsModifiedToday(filePath) {
     static methodName := RegisterMethod("WaitUntilFileIsModifiedToday(filePath As String [Constraint: Absolute Save Path])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogInformationBeginning("Wait Until File is Modified Today: " . ExtractFilename(filePath, true), methodName, [filePath])
 
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Check Interval", 4000)
+        SetMethodSetting(methodName, "Mouse Interval", 120000)
+        SetMethodSetting(methodName, "Max Wait Minutes", 360)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+
+    checkInterval  := settings.Get("Check Interval")
+    mouseInterval  := settings.Get("Mouse Interval")
+    maxWaitMinutes := settings.Get("Max Wait Minutes")
+
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-    checkInterval := 4000   ; Check every 4 seconds (in milliseconds).
-    mouseInterval := 120000 ; Move mouse every 2 minutes (in milliseconds).
-    maxWaitMinutes := 360   ; Maximum wait time = 6 hours.
     maxLoops := (maxWaitMinutes * 60000) // checkInterval
     timeSinceLastMouse := 0
 
