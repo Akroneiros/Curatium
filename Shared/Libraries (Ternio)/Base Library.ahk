@@ -415,6 +415,53 @@ ValidateDisplayScaling() {
 ; Helper Methods               ;
 ; **************************** ;
 
+ActivateWindow(windowTitle, customErrorMessage := "") {
+    static methodName := RegisterMethod("ActivateWindow(windowTitle As String, customErrorMessage As String [Optional])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [windowTitle, customErrorMessage])
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Seconds to Attempt", 10)
+        SetMethodSetting(methodName, "Short Delay", 128)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings         := methodRegistry[methodName]["Settings"]
+    secondsToAttempt := settings.Get("Seconds to Attempt")
+    shortDelay       := settings.Get("Short Delay")
+
+    windowHandle := WinWait(windowTitle, , secondsToAttempt)
+    if !windowHandle {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to find window after trying for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+    }
+
+    totalSleep := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
+    loop 10 {
+        loopDelay := shortDelay * A_Index
+        if A_Index = 1 {
+            loopDelay := Round(loopDelay/2)
+        }
+        Sleep(loopDelay)
+
+        try {
+            WinActivate("ahk_id " . windowHandle)
+            break
+        } catch {
+            if A_Index = 10 {
+                LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+            }
+        }
+    }
+
+    windowHandle := WinWaitActive("ahk_id " . windowHandle, , secondsToAttempt)
+    if !windowHandle {
+        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+    }
+
+    return windowHandle
+}
+
 CombineCode(introCode, mainCode, outroCode := "") {
     static methodName := RegisterMethod("CombineCode(introCode As String, mainCode As String, outroCode As String [Optional])", A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogHelperValidation(methodName, [introCode, mainCode, outroCode])
