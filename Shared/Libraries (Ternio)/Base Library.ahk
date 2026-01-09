@@ -104,11 +104,11 @@ PasteText(text, commentPrefix := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Max Attempts", 4)
-        SetMethodSetting(methodName, "Short Delay", 120)
-        SetMethodSetting(methodName, "Medium Delay", 260)
-        SetMethodSetting(methodName, "Short Accumulation", 20)
-        SetMethodSetting(methodName, "Medium Accumulation", 40)
+        SetMethodSetting(methodName, "Max Attempts", 4, false)
+        SetMethodSetting(methodName, "Short Delay", 120, false)
+        SetMethodSetting(methodName, "Medium Delay", 260, false)
+        SetMethodSetting(methodName, "Short Accumulation", 20, false)
+        SetMethodSetting(methodName, "Medium Accumulation", 40, false)
 
         defaultMethodSettingsSet := true
     }
@@ -421,8 +421,8 @@ ActivateWindow(windowTitle, customErrorMessage := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Seconds to Attempt", 10)
-        SetMethodSetting(methodName, "Short Delay", 128)
+        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
+        SetMethodSetting(methodName, "Short Delay", 128, false)
 
         defaultMethodSettingsSet := true
     }
@@ -696,7 +696,7 @@ KeyboardShortcut(modifier, key) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32)
+        SetMethodSetting(methodName, "Tiny Delay", 32, false)
 
         defaultMethodSettingsSet := true
     }
@@ -758,11 +758,23 @@ RemoveDuplicatesFromArray(array) {
     return array
 }
 
-SetMethodSetting(methodName, settingName, settingValue, override := false) {
+SetMethodSetting(settingMethod, settingName, settingValue, override := true) {
+    static methodName := RegisterMethod("SetMethodSetting(settingMethod As String, settingName As String, settingValue As Variant, override As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogHelperValidation(methodName, [settingMethod, settingName, settingValue, override])
+
     global methodRegistry
 
-    if !methodRegistry[methodName]["Settings"].Has(settingName) || override {
-        methodRegistry[methodName]["Settings"][settingName] := settingValue
+    if !methodRegistry.Has(settingMethod) {
+        methodRegistry[settingMethod] := Map()
+        methodRegistry[settingMethod]["Symbol"] := ""
+    }
+
+    if !methodRegistry[settingMethod].Has("Settings") {
+        methodRegistry[settingMethod]["Settings"] := Map()
+    }
+
+    if !methodRegistry[settingMethod]["Settings"].Has(settingName) || override {
+        methodRegistry[settingMethod]["Settings"][settingName] := settingValue
     }
 }
 
@@ -1034,6 +1046,12 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
                 }
+            }
+        case "Variant":
+            if whitelist.Length != 0 {
+                validation := "Whitelist not supported for Data Type of Variant."
+            } else if Type(dataValue) != "Integer" && Type(dataValue) != "String" {
+                validation := "Value must be an Integer or a String."
             }
         default:
             validation := "Data Type is invalid: " . dataType . "."

@@ -566,8 +566,8 @@ ResolveFactsForApplication(applicationName, counter) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Excel Tiny Delay", 16)
-        SetMethodSetting(methodName, "Excel Short Delay", 360)
+        SetMethodSetting(methodName, "Excel Tiny Delay", 16, false)
+        SetMethodSetting(methodName, "Excel Short Delay", 360, false)
 
         defaultMethodSettingsSet := true
     }
@@ -786,8 +786,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32)
-        SetMethodSetting(methodName, "Short Delay", 260)
+        SetMethodSetting(methodName, "Tiny Delay", 32, false)
+        SetMethodSetting(methodName, "Short Delay", 260, false)
 
         defaultMethodSettingsSet := true
     }
@@ -967,9 +967,9 @@ ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32)
-        SetMethodSetting(methodName, "Short Delay", 160)
-        SetMethodSetting(methodName, "Medium Delay", 240)
+        SetMethodSetting(methodName, "Tiny Delay", 32, false)
+        SetMethodSetting(methodName, "Short Delay", 160, false)
+        SetMethodSetting(methodName, "Medium Delay", 240, false)
 
         defaultMethodSettingsSet := true
     }
@@ -1021,8 +1021,8 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32)
-        SetMethodSetting(methodName, "Short Delay", 260)
+        SetMethodSetting(methodName, "Tiny Delay", 32, false)
+        SetMethodSetting(methodName, "Short Delay", 260, false)
 
         defaultMethodSettingsSet := true
     }
@@ -1080,9 +1080,9 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Long Delay", 1000)
-        SetMethodSetting(methodName, "Total Seconds to Wait", 240 * 60)
-        SetMethodSetting(methodName, "Mouse Move Interval Seconds", 120)
+        SetMethodSetting(methodName, "Long Delay", 1000, false)
+        SetMethodSetting(methodName, "Total Seconds to Wait", 240 * 60, false)
+        SetMethodSetting(methodName, "Mouse Move Interval Seconds", 120, false)
 
         defaultMethodSettingsSet := true
     }
@@ -1161,9 +1161,9 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Short Delay", 100)
-        SetMethodSetting(methodName, "Medium Delay", 480)
-        SetMethodSetting(methodName, "Long Delay", 1000)
+        SetMethodSetting(methodName, "Short Delay", 100, false)
+        SetMethodSetting(methodName, "Medium Delay", 480, false)
+        SetMethodSetting(methodName, "Long Delay", 1000, false)
 
         defaultMethodSettingsSet := true
     }
@@ -1242,11 +1242,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 16)
-        SetMethodSetting(methodName, "Short Delay", 400)
-        SetMethodSetting(methodName, "Medium Delay", 880)
-        SetMethodSetting(methodName, "Long Delay", 1280)
-        SetMethodSetting(methodName, "Massive Delay", 30000)
+        SetMethodSetting(methodName, "Tiny Delay", 16, false)
+        SetMethodSetting(methodName, "Short Delay", 400, false)
+        SetMethodSetting(methodName, "Medium Delay", 880, false)
+        SetMethodSetting(methodName, "Long Delay", 1280, false)
+        SetMethodSetting(methodName, "Massive Delay", 30000, false)
 
         defaultMethodSettingsSet := true
     }

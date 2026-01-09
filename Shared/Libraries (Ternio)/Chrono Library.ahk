@@ -468,9 +468,9 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Check Interval", 4000)
-        SetMethodSetting(methodName, "Mouse Interval", 120000)
-        SetMethodSetting(methodName, "Max Wait Minutes", 360)
+        SetMethodSetting(methodName, "Check Interval", 4000, false)
+        SetMethodSetting(methodName, "Mouse Interval", 120000, false)
+        SetMethodSetting(methodName, "Max Wait Minutes", 360, false)
 
         defaultMethodSettingsSet := true
     }

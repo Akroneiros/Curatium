@@ -447,6 +447,11 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
                 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
                 argumentValueLog  := Format('"{1}"', argumentValueLog)
+            case "Variant":
+                if Type(argument) = "String" {
+                    argumentValueFull := Format('"{1}"', argumentValueFull)
+                    argumentValueLog  := Format('"{1}"', argumentValueLog)
+                }
         }
 
         argumentsAndValidation["Arguments Full"] .= argumentValueFull
