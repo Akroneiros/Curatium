@@ -30,6 +30,9 @@
 !/Projects/Framework Demonstration/
 !/Projects/Framework Demonstration/**
 
+#Projects/Framework Demonstration: Ignore configuration files in Framework Demonstration.
+/Projects/Framework Demonstration/**/Configuration \(*\).json
+
 # Shared: Include everything.
 !/Shared/
 !/Shared/**
