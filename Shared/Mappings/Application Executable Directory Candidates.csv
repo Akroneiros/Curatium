@@ -13,6 +13,7 @@ AIMP|AIMP.exe|AIMP
 AkelPad|AkelPad.exe|AkelPad
 Angry IP Scanner|ipscan.exe|Angry IP Scanner
 Animate|Animate.exe|Adobe\Adobe Animate 2024
+Anki|anki.exe|Anki
 AnyDesk|AnyDesk.exe|AnyDesk
 AnythingLLM|AnythingLLM.exe|AnythingLLM
 ares|ares.exe|ares-v146
@@ -24,6 +25,8 @@ AutoCAD|acad.exe|Autodesk\AutoCAD 2024
 AutoCAD|acad.exe|Autodesk\AutoCAD 2025
 AutoCAD|acad.exe|Autodesk\AutoCAD 2026
 AutoHotkey|AutoHotkey64.exe|AutoHotkey\v2
+AzaharPlus|azahar.exe|azaharplus-2123.3-A-windows
+Azahar|azahar.exe|Azahar
 Azure Data Studio|azuredatastudio.exe|Azure Data Studio
 Balabolka|balabolka.exe|Balabolka
 Bandicam|bdcam.exe|Bandicam
@@ -33,6 +36,7 @@ BasicMaker|BasicMaker.exe|SoftMaker Office NX
 Battle.net|Battle.net.exe|Battle.net
 Beyond Compare|BCompare.exe|Beyond Compare 5
 BGB|bgb64.exe|BGB
+BigPEmu|BigPEmu.exe|BigPEmu
 Bitwarden|Bitwarden.exe|Bitwarden
 BlastEm|blastem.exe|BlastEm
 BleachBit|bleachbit.exe|BleachBit
@@ -72,6 +76,7 @@ DaVinci Resolve|Resolve.exe|Blackmagic Design\DaVinci Resolve
 DBeaver|dbeaver.exe|DBeaver
 DbSchema|DbSchema.exe|DbSchema
 DC++|DCPlusPlus.exe|DC++
+Deluge|deluge.exe|Deluge
 DeSmuME|DeSmuME_0.9.13_x64.exe|DeSmuME
 DevToys|DevToys.exe|DevToys Preview
 Directory Opus|dopus.exe|GPSoftware\Directory Opus
@@ -99,6 +104,7 @@ Everything|Everything.exe|Everything
 Exact Audio Copy|EAC.exe|Exact Audio Copy
 ExactFile|ExactFile.exe|ExactFile
 Excel|EXCEL.EXE|Microsoft Office\root\Office16
+ExifCleaner|ExifCleaner-3.6.0.exe|ExifCleaner
 ExitLag|ExitLag.exe|ExitLag
 Express Zip|expresszip.exe|NCH Software\ExpressZip
 ExpressVPN|ExpressVPN.exe|ExpressVPN\expressvpn-ui
@@ -112,9 +118,11 @@ FileZilla|filezilla.exe|FileZilla FTP Client
 Firefox|firefox.exe|Mozilla Firefox
 Fireworks|Fireworks.exe|Adobe\Adobe Fireworks CS6
 FL Studio|FL64.exe|Image-Line\FL Studio 2025
+Flameshot|flameshot.exe|Flameshot\bin
 Flash Professional|Flash.exe|Adobe\Adobe Flash CS6
 Floorp Browser|floorp.exe|Ablaze Floorp
 Flycast|flycast.exe|Flycast
+Focusrite Control|Focusrite Control 2.exe|Focusrite\Focusrite Control 2
 FontBase|FontBase.exe|FontBase
 foobar2000|foobar2000.exe|foobar2000
 Foxit PDF Reader|FoxitPDFReader.exe|Foxit Software\Foxit PDF Reader
@@ -172,6 +180,7 @@ IObit Unlocker|IObitUnlocker.exe|IObit\IObit Unlocker
 IrfanView|i_view32.exe|IrfanView
 IrfanView|i_view64.exe|IrfanView
 iTubeGo|itubegow.exe|iTubeGo
+iTunes|iTunes.exe|iTunes
 Ivanti Secure Access Client|Pulse.exe|Common Files\Pulse Secure\JamUI
 IVPN Client|IVPN Client.exe|IVPN Client\ui
 IZArc|IZArc.exe|IZArc
@@ -212,6 +221,7 @@ MEmu Play|MEmu.exe|Microvirt\MEmu
 Merge|Merge.exe|Araxis\Araxis Merge
 Mesen|Mesen.exe|Mesen
 MeshLab|meshlab.exe|VCG\MeshLab
+mGBA|mGBA.exe|mGBA
 Mp3tag|Mp3tag.exe|Mp3tag
 MPC-BE|mpc-be64.exe|MPC-BE
 MPF|MPF.exe|MPF
@@ -242,6 +252,7 @@ Outlook|OUTLOOK.EXE|Microsoft Office\root\Office16
 Paint Shop Pro|Paint Shop Pro 9.exe|Jasc Software Inc\Paint Shop Pro 9
 Paint Shop Pro|Paint Shop Pro.exe|Jasc Software Inc\Paint Shop Pro 8
 Paint.NET|paintdotnet.exe|Paint.NET
+Pale Moon|palemoon.exe|Pale Moon
 PCSX2|pcsx2-qt.exe|PCSX2
 PeaZip|peazip.exe|PeaZip
 Pencil2D Animation|pencil2d.exe|Pencil2D
@@ -261,6 +272,7 @@ Power BI Report Builder|PowerBIReportBuilder.exe|Power BI Report Builder
 PowerArchiver|powerarc.exe|PowerArchiver
 PowerPoint|POWERPNT.EXE|Microsoft Office\root\Office16
 PowerToys|PowerToys.exe|PowerToys
+PPSSPP|PPSSPPWindows64.exe|PPSSPP
 Prelude|Adobe Prelude.exe|Adobe\Adobe Prelude CS6
 Premiere Pro|Adobe Premiere Pro.exe|Adobe\Adobe Premiere Pro 2025
 Premiere Pro|Adobe Premiere Pro.exe|Adobe\Adobe Premiere Pro CS6
@@ -277,8 +289,10 @@ Pulover's Macro Creator|MacroCreator.exe|MacroCreator
 puNES|punes64.exe|puNES
 PureRef|PureRef.exe|PureRef
 PuTTY|putty.exe|PuTTY
+PyCharm|pycharm64.exe|JetBrains\PyCharm 2025.3.1\bin
 qBittorrent|qbittorrent.exe|qBittorrent
 Rainmeter|Rainmeter.exe|Rainmeter
+RapidTyping|RapidTyping.exe|RapidTyping 5
 REAPER|reaper.exe|REAPER
 REAPER|reaper.exe|REAPER (x64)
 Recuva|recuva64.exe|Recuva
@@ -317,6 +331,7 @@ SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 21\
 SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 22\Release\Common7\IDE
 StartAllBack|StartAllBackCfg.exe|StartAllBack
 Steam|steam.exe|Steam
+Stella|Stella.exe|Stella
 Stream Deck|StreamDeck.exe|Elgato\StreamDeck
 Streamer.bot|Streamer.bot.exe|Streamer.bot
 Streamlabs Desktop|Streamlabs OBS.exe|Streamlabs OBS
@@ -343,6 +358,7 @@ TeamViewer|TeamViewer.exe|TeamViewer
 TeraCopy|TeraCopy.exe|TeraCopy
 TextMaker|TextMaker.exe|SoftMaker Office NX
 Thunderbird|thunderbird.exe|Mozilla Thunderbird
+TIDAL|TIDAL.exe|TIDAL
 TightVNC|tvnviewer.exe|TightVNC
 TinyWiiBackupManager|TinyWiiBackupManager.exe|TinyWiiBackupManager
 Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
@@ -355,6 +371,7 @@ TreeSize|TreeSize.exe|JAM Software\TreeSize
 TreeSize|TreeSizeFree.exe|JAM Software\TreeSize Free
 Trezor Suite|Trezor Suite.exe|Trezor Suite
 TrueCrypt|TrueCrypt.exe|TrueCrypt
+TypingMaster|TypingMaster.exe|TypingMaster12
 UiPath Studio|UiPath.Studio.exe|UiPath\Studio
 UltraEdit|uedit64.exe|IDM Computer Solutions\UltraEdit
 UNIFY|RODE UNIFY.exe|RØDE Microphones\RØDE UNIFY
@@ -401,7 +418,10 @@ Workstation Pro|vmware.exe|VMware\VMware Workstation
 WPS Office|wps.exe|Kingsoft\WPS Office\12.2.0.23131\office6
 Writer|swriter.exe|LibreOffice\program
 WTFast|WTFast.exe|WTFast
+xemu|xemu.exe|xemu
+Xenia Edge|xenia_edge.exe|Xenia Edge
 XnView MP|xnviewmp.exe|XnViewMP
+Ymir|ymir-sdl3.exe|Ymir
 Yubico Authenticator|authenticator.exe|Yubico\Yubico Authenticator
 Zen Browser|zen.exe|Zen Browser
 ZenTimings|ZenTimings.exe|ZenTimings

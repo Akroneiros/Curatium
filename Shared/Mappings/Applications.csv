@@ -12,6 +12,7 @@ AIMP|50
 AkelPad|151
 Angry IP Scanner|152
 Animate|103
+Anki|381
 AnyDesk|51
 AnythingLLM|153
 ares|202
@@ -20,6 +21,8 @@ Audacity|52
 Audition|104
 AutoCAD|105
 AutoHotkey|204
+AzaharPlus|382
+Azahar|383
 Azure Data Studio|281
 Balabolka|154
 Bandicam|342
@@ -29,6 +32,7 @@ BasicMaker|55
 Battle.net|56
 Beyond Compare|33
 BGB|261
+BigPEmu|384
 Bitwarden|343
 BlastEm|205
 BleachBit|206
@@ -65,6 +69,7 @@ DaVinci Resolve|60
 DBeaver|22
 DbSchema|23
 DC++|263
+Deluge|385
 DeSmuME|209
 DevToys|13
 Directory Opus|210
@@ -91,6 +96,7 @@ Everything|8
 Exact Audio Copy|265
 ExactFile|216
 Excel|1
+ExifCleaner|386
 ExitLag|307
 Express Zip|266
 ExpressVPN|112
@@ -104,9 +110,11 @@ FileZilla|43
 Firefox|9
 Fireworks|113
 FL Studio|308
+Flameshot|387
 Flash Professional|114
 Floorp Browser|324
 Flycast|218
+Focusrite Control|388
 FontBase|166
 foobar2000|63
 Foxit PDF Reader|24
@@ -159,6 +167,7 @@ Internet Download Manager|47
 IObit Unlocker|224
 IrfanView|37
 iTubeGo|72
+iTunes|389
 Ivanti Secure Access Client|225
 IVPN Client|119
 IZArc|270
@@ -196,6 +205,7 @@ MEmu Play|291
 Merge|233
 Mesen|234
 MeshLab|235
+mGBA|390
 Mp3tag|272
 MPC-BE|77
 MPF|368
@@ -224,6 +234,7 @@ OSForensics|183
 Outlook|25
 Paint Shop Pro|16
 Paint.NET|26
+Pale Moon|391
 PCSX2|240
 PeaZip|80
 Pencil2D Animation|292
@@ -241,6 +252,7 @@ Power BI Report Builder|293
 PowerArchiver|275
 PowerPoint|10
 PowerToys|48
+PPSSPP|392
 Prelude|129
 Premiere Pro|130
 Premiere Rush|131
@@ -256,8 +268,10 @@ Pulover's Macro Creator|38
 puNES|244
 PureRef|185
 PuTTY|27
+PyCharm|393
 qBittorrent|17
 Rainmeter|351
+RapidTyping|394
 REAPER|186
 Recuva|245
 Redream|246
@@ -293,6 +307,7 @@ SQL Developer|296
 SQL Server Management Studio|3
 StartAllBack|29
 Steam|89
+Stella|395
 Stream Deck|90
 Streamer.bot|316
 Streamlabs Desktop|135
@@ -318,6 +333,7 @@ TeamViewer|317
 TeraCopy|92
 TextMaker|93
 Thunderbird|142
+TIDAL|396
 TightVNC|94
 TinyWiiBackupManager|378
 Toad for Oracle|4
@@ -329,6 +345,7 @@ Tor Browser|334
 TreeSize|95
 Trezor Suite|96
 TrueCrypt|11
+TypingMaster|397
 UiPath Studio|335
 UltraEdit|258
 UNIFY|143
@@ -375,7 +392,10 @@ Workstation Pro|20
 WPS Office|199
 Writer|100
 WTFast|360
+xemu|398
+Xenia Edge|399
 XnView MP|40
+Ymir|400
 Yubico Authenticator|300
 Zen Browser|340
 ZenTimings|200
