@@ -8,15 +8,11 @@
 global imageRegistry := Map()
 
 CreateApplicationImages() {
-    static methodName := RegisterMethod("CreateApplicationImages()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Create Application Images", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Create Application Images")
 
     if !IsSet(applicationRegistry) {
-        try {
-            throw Error("Application Registry has not yet been initialized. Need to run RegisterApplications first.")
-        } catch as applicationRegistryUninitializedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, applicationRegistryUninitializedError)
-        }
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application Registry has not yet been initialized. Need to run RegisterApplications first.")
     }
 
     imagesFileList := GetFilesFromDirectory(system["Images Directory"])
@@ -42,7 +38,7 @@ CreateApplicationImages() {
     }
 
     if installedApplicationsWithImageLibraryDataCount = 0 {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logValuesForConclusion)
     } else {
         switch system["Display Resolution"] {
             case "1920x1080":
@@ -50,49 +46,33 @@ CreateApplicationImages() {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Full High Definition")
                     default:
-                        try {
-                            throw Error("DPI scale unsupported: " . system["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
-                        } catch as dpiScaleUnsupportedError {
-                            LogInformationConclusion("Failed", logValuesForConclusion, dpiScaleUnsupportedError)
-                        }
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "2560x1440":
                 switch system["DPI Scale"] {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Quad High Definition")
                     default:
-                        try {
-                            throw Error("DPI scale unsupported: " . system["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
-                        } catch as dpiScaleUnsupportedError {
-                            LogInformationConclusion("Failed", logValuesForConclusion, dpiScaleUnsupportedError)
-                        }
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "3840x2160":
                 switch system["DPI Scale"] {
                     case "100%", "125%", "150%", "175%":
                         CreateImagesFromCatalog("Ultra High Definition")
                     default:
-                        try {
-                            throw Error("DPI scale unsupported: " . system["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
-                        } catch as dpiScaleUnsupportedError {
-                            LogInformationConclusion("Failed", logValuesForConclusion, dpiScaleUnsupportedError)
-                        }
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
                 }
             default:
-                try {
-                    throw Error("Display resolution unsupported: " . system["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
-                } catch as displayResolutionUnsupportedError {
-                    LogInformationConclusion("Failed", logValuesForConclusion, displayResolutionUnsupportedError)
-                }
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Display resolution unsupported: " . system["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
         }
 
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
     }
 }
 
 CreateImagesFromCatalog(imageLibraryCatalogName) {
-    static methodName := RegisterMethod("CreateImagesFromCatalog(imageCatalogName As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Create Images from Catalog", methodName, [imageLibraryCatalogName])
+    static methodName := RegisterMethod("imageCatalogName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
 
     global imageRegistry
 
@@ -102,27 +82,15 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     imageLibraryCatalog          := unset
 
     if !IsSet(applicationRegistry) {
-        try {
-            throw Error("Application Registry has not yet been initialized. Need to run RegisterApplications first.")
-        } catch as applicationRegistryUninitializedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, applicationRegistryUninitializedError)
-        }
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application Registry has not yet been initialized. Need to run RegisterApplications first.")
     }
 
-    try {
-        if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-            throw Error("Image Library Catalog not found: " . imageLibraryCatalogName)
-        }
-    } catch as imageCatalogMissingError {
-        LogInformationConclusion("Failed", logValuesForConclusion, imageCatalogMissingError)
+    if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
     }
 
-    try {
-        if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-            throw Error("Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
-        }
-    } catch as imageCatalogDuplicateError {
-        LogInformationConclusion("Failed", logValuesForConclusion, imageCatalogDuplicateError)
+    if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
     }
     
     if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
@@ -193,7 +161,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     }
 
     if relevantImages.Length = 0 {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logValuesForConclusion)
     } else {
         pendingBase64ImageWriteQueue := []
         uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
@@ -296,28 +264,20 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             }
         }
 
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
     }
 }
 
 SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, variant := "") {
-    static methodName := RegisterMethod("SearchForDirectoryImage(directoryFolder As String, imageName As String, secondsToAttempt As Integer [Optional: 60], variant As String [Optional])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Search for Directory Image (" . directoryFolder . ", " . imageName . ")", methodName, [directoryFolder, imageName, secondsToAttempt, variant])
+    static methodName := RegisterMethod("directoryFolder As String, imageName As String, secondsToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, secondsToAttempt, variant], "Search for Directory Image (" . directoryFolder . ", " . imageName . ")")
 
-    try {
-        if !imageRegistry.Has(directoryFolder) {
-            throw Error("Directory folder for image not found: " . directoryFolder)
-        }
-    } catch as directoryFolderForImageNotFoundError {
-        LogInformationConclusion("Failed", logValuesForConclusion, directoryFolderForImageNotFoundError)
+    if !imageRegistry.Has(directoryFolder) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
     }
 
-    try {
-        if !imageRegistry[directoryFolder].Has(imageName) {
-            throw Error("Image name not found: " . imageName)
-        }
-    } catch as imageNotFoundError {
-        LogInformationConclusion("Failed", logValuesForConclusion, imageNotFoundError)
+    if !imageRegistry[directoryFolder].Has(imageName) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
     }
 
     if secondsToAttempt = 0 {
@@ -326,19 +286,15 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
 
     variant := StrLower(variant)
     if variant != "" {
-        try {
-            variantFound := false
-            for image in imageRegistry[directoryFolder][imageName] {
-                if variant = image["Variant"] {
-                    variantFound := true
-                }
+        variantFound := false
+        for image in imageRegistry[directoryFolder][imageName] {
+            if variant = image["Variant"] {
+                variantFound := true
             }
+        }
 
-            if !variantFound {
-                throw Error("Variant not found: " . variant)
-            }
-        } catch as variantNotFoundError {
-            LogInformationConclusion("Failed", logValuesForConclusion, variantNotFoundError)
+        if !variantFound {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
         }
     }
 
@@ -405,7 +361,7 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
         OverlayChangeVisibility()
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
     return imageSearchResults
 }
 
@@ -414,8 +370,8 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
 ; **************************** ;
 
 ConvertImagesToBase64ImageLibrary(directoryPath) {
-    static methodName := RegisterMethod("ConvertImagesToBase64ImageLibrary(directoryPath As String [Constraint: Directory])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [directoryPath])
+    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
 
     static applications   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
     static fileSignatures := unset
@@ -462,7 +418,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     }
 
     if FileExist(imageLibraryCatalogFilePath) {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
     }
 
     hashToCounter := Map()
@@ -488,7 +444,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
 
         if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-            LogHelperError(logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
         }
 
         actionName   := Trim(matchResults[1])
@@ -508,7 +464,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
                 if validation != "" {
                     subfolder := StrSplit(RTrim(actionFolderPath, "\"), "\").Pop()
-                    LogHelperError(logValuesForConclusion, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
+                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
                 }
             }
 
@@ -558,11 +514,11 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 }
 
 ExtractScreenCoordinates(imageSearchResults) {
-    static methodName := RegisterMethod("ExtractScreenCoordinates(imageSearchResults As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [imageSearchResults])
+    static methodName := RegisterMethod("imageSearchResults As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [imageSearchResults])
 
     if imageSearchResults["Variant"] = "" && imageSearchResults["Coordinate Pair"] = "" {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Tried for " . imageSearchResults["Seconds to Attempt"] . " seconds.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Tried for " . imageSearchResults["Seconds to Attempt"] . " seconds.")
     }
 
     coordinatePair := imageSearchResults["Coordinate Pair"]
@@ -571,8 +527,8 @@ ExtractScreenCoordinates(imageSearchResults) {
 }
 
 GetImageDimensions(imageAbsolutePath) {
-    static methodName := RegisterMethod("GetImageDimensions(imageAbsolutePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [imageAbsolutePath])
+    static methodName := RegisterMethod("imageAbsolutePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [imageAbsolutePath])
 
     static gdiPlusStartupInputSize := (A_PtrSize = 8) ? 24 : 16
     static gdiPlusStartupInputBuffer := Buffer(gdiPlusStartupInputSize, 0)
@@ -586,23 +542,23 @@ GetImageDimensions(imageAbsolutePath) {
     gdiPlusStartupToken := 0
     gdiPlusStartupResult := DllCall("GdiPlus\GdiplusStartup", "Ptr*", &gdiPlusStartupToken, "Ptr", gdiPlusStartupInputBuffer.Ptr, "Ptr", 0, "UInt")
     if gdiPlusStartupResult != 0 {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to initialize Windows GDI+. [GdiPlus\GdiplusStartup" . ", GDI+ Status Code: " . gdiPlusStartupResult . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to initialize Windows GDI+. [GdiPlus\GdiplusStartup" . ", GDI+ Status Code: " . gdiPlusStartupResult . "]")
     }
 
     gdiPlusBitmapPointer := 0
     gdiPlusCreateBitmapStatus := DllCall("GdiPlus\GdipCreateBitmapFromFile", "WStr", imageAbsolutePath, "Ptr*", &gdiPlusBitmapPointer, "UInt")
     if gdiPlusCreateBitmapStatus != 0 || !gdiPlusBitmapPointer {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to create a bitmap object based on the image. [GdiPlus\GdipCreateBitmapFromFile" . ", GDI+ Status Code: " . gdiPlusCreateBitmapStatus . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to create a bitmap object based on the image. [GdiPlus\GdipCreateBitmapFromFile" . ", GDI+ Status Code: " . gdiPlusCreateBitmapStatus . "]")
     }
 
     gdiPlusGetImageWidthStatus := DllCall("GdiPlus\GdipGetImageWidth", "Ptr", gdiPlusBitmapPointer, "UInt*", &imageWidthPixels := 0, "UInt")
     if gdiPlusGetImageWidthStatus != 0 {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to get the width in pixels of the image. [GdiPlus\GdipGetImageWidth" . ", GDI+ Status Code: " . gdiPlusGetImageWidthStatus . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to get the width in pixels of the image. [GdiPlus\GdipGetImageWidth" . ", GDI+ Status Code: " . gdiPlusGetImageWidthStatus . "]")
     }
 
     gdiPlusGetImageHeightStatus := DllCall("GdiPlus\GdipGetImageHeight", "Ptr", gdiPlusBitmapPointer, "UInt*", &imageHeightPixels := 0, "UInt")
     if gdiPlusGetImageHeightStatus != 0 {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to get the height in pixels of the image. [GdiPlus\GdipGetImageHeight" . ", GDI+ Status Code: " . gdiPlusGetImageHeightStatus . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to get the height in pixels of the image. [GdiPlus\GdipGetImageHeight" . ", GDI+ Status Code: " . gdiPlusGetImageHeightStatus . "]")
     }
 
     DllCall("Gdiplus\GdipDisposeImage", "Ptr", gdiPlusBitmapPointer, "UInt")
@@ -614,17 +570,17 @@ GetImageDimensions(imageAbsolutePath) {
 }
 
 OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRange, verticalRange) {
-    static methodName := RegisterMethod("OverrideDirectoryImageVariant(directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [directoryFolder, imageName, variant, horizontalRange, verticalRange])
+    static methodName := RegisterMethod("directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, variant, horizontalRange, verticalRange])
 
     global imageRegistry
 
     if !imageRegistry.Has(directoryFolder) {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
     }
 
     if !imageRegistry[directoryFolder].Has(imageName) {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
     }
 
     variant := StrLower(variant)
@@ -636,7 +592,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
     }
 
     if !variantFound {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
     }
 
     static displayResolution := StrSplit(system["Display Resolution"], "x")

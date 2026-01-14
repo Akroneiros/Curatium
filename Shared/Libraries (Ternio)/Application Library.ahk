@@ -11,8 +11,8 @@ global applicationRegistry := unset
 ; **************************** ;
 
 RegisterApplications() {
-    static methodName := RegisterMethod("RegisterApplications()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Register Applications", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Register Applications")
 
     global applicationRegistry
     applicationRegistry := Map()
@@ -30,12 +30,8 @@ RegisterApplications() {
     applicationWhitelistLength := applicationWhitelist.Length
     if applicationWhitelistLength != 0 {
         for application in applicationWhitelist {
-            try {
-                if !applicationRegistry.Has(application) {
-                    throw Error('Application "' . application . '" does not exist.')
-                }
-            } catch as applicationMissingError {
-                LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
+            if !applicationRegistry.Has(application) {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . application . '" does not exist.')
             }
 
             applicationRegistry[application]["Whitelisted"] := true
@@ -112,12 +108,12 @@ RegisterApplications() {
 
     BatchAppendExecutionLog("Application", installedApplications)
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ExecutablePathResolve(applicationName) {
-    static methodName := RegisterMethod("ExecutablePathResolve(applicationName As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName])
+    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName])
 
     global applicationRegistry
 
@@ -208,8 +204,8 @@ ExecutablePathResolve(applicationName) {
 }
 
 ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("ExecutablePathViaReference(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static candidateBaseDirectories := unset
     if !IsSet(candidateBaseDirectories) {
@@ -398,8 +394,8 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
 }
 
 ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("ExecutablePathViaAppPaths(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static appPathsBaseRegistryKeys := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
@@ -446,8 +442,8 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
 }
 
 ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("ExecutablePathViaUninstall(applicationName As String, applicationExecutableDirectoryCandidates As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static uninstallBaseKeyPaths := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -559,8 +555,8 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
 }
 
 ResolveFactsForApplication(applicationName, counter) {
-    static methodName := RegisterMethod("ResolveFactsForApplication(applicationName As String, counter As Integer)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [applicationName, counter])
+    static methodName := RegisterMethod("applicationName As String, counter As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, counter])
 
     global applicationRegistry
 
@@ -692,51 +688,35 @@ ResolveFactsForApplication(applicationName, counter) {
 }
 
 ValidateApplicationFact(applicationName, factName, factValue) {
-    static methodName := RegisterMethod("ValidateApplicationFact(applicationName As String, factName As String, factValue As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")", methodName, [applicationName, factName, factValue])
+    static methodName := RegisterMethod("applicationName As String, factName As String, factValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, factName, factValue], "Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")")
 
-    try {
-        if !applicationRegistry[applicationName].Has(factName) {
-            throw Error('Application "' . applicationName . '" does not have a valid fact name: ' . factName)
-        }
-    } catch as factNameMissingError {
-        LogInformationConclusion("Failed", logValuesForConclusion, factNameMissingError)
+    if !applicationRegistry[applicationName].Has(factName) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" does not have a valid fact name: ' . factName)
     }
 
-    try {
-        if applicationRegistry[applicationName][factName] !== factValue {
-            throw Error('Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
-        }
-    } catch as factValueMissingError {
-        LogInformationConclusion("Failed", logValuesForConclusion, factValueMissingError)
+    if applicationRegistry[applicationName][factName] !== factValue {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ValidateApplicationInstalled(applicationName) {
-    static methodName := RegisterMethod("ValidateApplicationInstalled(applicationName As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Validate Application Installed (" . applicationName . ")", methodName, [applicationName])
+    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName], "Validate Application Installed (" . applicationName . ")")
 
-    try {
-        if !applicationRegistry.Has(applicationName) {
-            throw Error("Application doesn't exist: " . applicationName)
-        }
-    } catch as applicationMissingError {
-        LogInformationConclusion("Failed", logValuesForConclusion, applicationMissingError)
+    if !applicationRegistry.Has(applicationName) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application doesn't exist: " . applicationName)
     }
 
-    try {
-        if !applicationRegistry[applicationName]["Installed"] {
-            throw Error("Application not installed: " . applicationName)
-        }
-    } catch as applicationNotInstalledError {
-        LogInformationConclusion("Failed", logValuesForConclusion, applicationNotInstalledError)
+    if !applicationRegistry[applicationName]["Installed"] {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application not installed: " . applicationName)
     }
 
     applicationIsInstalled := true
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
     return applicationIsInstalled
 }
 
@@ -745,26 +725,22 @@ ValidateApplicationInstalled(applicationName) {
 ; **************************** ;
 
 CloseApplication(applicationName) {
-    static methodName := RegisterMethod("CloseApplication(applicationName As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Close Application (" . applicationName . ")", methodName, [applicationName])
+    static methodName := RegisterMethod("applicationName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [applicationName], "Close Application (" . applicationName . ")")
 
-    try {
-        if !applicationRegistry.Has(applicationName) {
-            throw Error("Application not found: " . applicationName)
-        }
-    } catch as missingApplicationError {
-        LogInformationConclusion("Failed", logValuesForConclusion, missingApplicationError)
+    if !applicationRegistry.Has(applicationName) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application not found: " . applicationName)
     }
 
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
     if !ProcessExist(executableName) {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logValuesForConclusion)
     } else {
         ProcessClose(executableName)
         ProcessWaitClose(executableName, 4)
 
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
     }
 }
 
@@ -773,14 +749,14 @@ CloseApplication(applicationName) {
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("ExcelExtensionRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Locator], aboutCondition As String [Optional] [Constraint: Locator])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Locator], aboutCondition As String [Optional] [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
     } else {
         overlayValue := displayName . " Excel Extension Run"
     }
-    logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition])
+    logValuesForConclusion := LogBeginning(methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -797,12 +773,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     shortDelay := settings.Get("Short Delay")
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
-    try {
-        if excelFilePath = "" {
-            throw Error("documentName not found: " . documentName)
-        }
-    } catch as documentNameNotFoundError {
-        LogInformationConclusion("Failed", logValuesForConclusion, documentNameNotFoundError)
+    if excelFilePath = "" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "documentName not found: " . documentName)
     }
 
     excelApplication := ComObject("Excel.Application")
@@ -835,11 +807,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     }
 
     if (aboutRange != "" || aboutCondition != "") && !aboutWorksheetFound {
-        try {
-            throw Error("Worksheet About not found with arguments passed in.")
-        } catch as worksheetAboutMissingError {
-            LogInformationConclusion("Failed", logValuesForConclusion, worksheetAboutMissingError)
-        }
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Worksheet About not found with arguments passed in.")
     }
 
     if aboutRange = "Progression Status" {
@@ -885,7 +853,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             excelApplication := 0
             ProcessWaitClose(excelProcessIdentifier, 2)
 
-            LogInformationConclusion("Completed", logValuesForConclusion)
+            LogConclusion("Completed", logValuesForConclusion)
         } else if aboutRange = "ProgressionStatus" {
             conditionParts := StrSplit(aboutCondition, ", ")
             builtPrefix := ""
@@ -916,7 +884,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 excelApplication := 0
                 ProcessWaitClose(excelProcessIdentifier, 2)
 
-                LogInformationConclusion("Completed", logValuesForConclusion)
+                LogConclusion("Completed", logValuesForConclusion)
             } else {
                 activeWorkbook := excelApplication.ActiveWorkbook
                 activeWorkbook.Close(false)
@@ -929,7 +897,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 excelApplication := 0
                 Sleep(shortDelay * 4)
 
-                LogInformationConclusion("Skipped", logValuesForConclusion)
+                LogConclusion("Skipped", logValuesForConclusion)
             }
         } else {
             activeWorkbook := excelApplication.ActiveWorkbook
@@ -943,7 +911,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             excelApplication := 0
             Sleep(shortDelay * 4)
 
-            LogInformationConclusion("Skipped", logValuesForConclusion)
+            LogConclusion("Skipped", logValuesForConclusion)
         }
     } else {
         excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication)
@@ -955,13 +923,13 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         excelApplication := 0
         ProcessWaitClose(excelProcessIdentifier, 2)
 
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
     }
 }
 
 ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication) {
-    static methodName := RegisterMethod("ExcelActivateVisualBasicEditorAndPasteCode(code As String [Constraint: Summary], excelApplication As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Excel Activate Visual Basic Editor and Paste Code (Length: " . StrLen(code) . ")", methodName, [code, excelApplication])
+    static methodName := RegisterMethod("code As String [Constraint: Summary], excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [code, excelApplication], "Excel Activate Visual Basic Editor and Paste Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1000,22 +968,22 @@ ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication) {
 
         PasteText(code, "'")
 
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
         return excelProcessIdentifier
     } else {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
     }
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("ExcelStartingRun(documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Starting Run"
     } else {
         overlayValue := displayName . " Excel Starting Run"
     }
-    logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [documentName, saveDirectory, code, displayName])
+    logValuesForConclusion := LogBeginning(methodName, [documentName, saveDirectory, code, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1045,7 +1013,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     }
 
     if xlsxPath != "" {
-        LogInformationConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logValuesForConclusion)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
         FileAppend("", sidecarPath, "UTF-8-RAW")
@@ -1068,13 +1036,13 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         ProcessWaitClose(excelProcessIdentifier, 2)
 
         DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
-        LogInformationConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logValuesForConclusion)
     }
 }
 
 WaitForExcelToClose(excelProcessIdentifier) {
-    static methodName := RegisterMethod("WaitForExcelToClose(excelProcessIdentifier As Integer)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Wait for Excel to Close (PID: " . excelProcessIdentifier . ")", methodName, [excelProcessIdentifier])
+    static methodName := RegisterMethod("excelProcessIdentifier As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [excelProcessIdentifier], "Wait for Excel to Close (PID: " . excelProcessIdentifier . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1113,15 +1081,11 @@ WaitForExcelToClose(excelProcessIdentifier) {
         Sleep(longDelay)
     }
 
-    try {
-        if !userInterfaceIsGone {
-            throw Error("Excel did not close within " . totalSecondsToWait . " seconds.")
-        }
-    } catch as excelCloseError {
-        LogInformationConclusion("Failed", logValuesForConclusion, excelCloseError)
+    if !userInterfaceIsGone {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Excel did not close within " . totalSecondsToWait . " seconds.")
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ; **************************** ;
@@ -1129,8 +1093,8 @@ WaitForExcelToClose(excelProcessIdentifier) {
 ; **************************** ;
 
 StartSqlServerManagementStudioAndConnect() {
-    static methodName := RegisterMethod("StartSqlServerManagementStudioAndConnect()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Start SQL Server Management Studio and Connect", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Start SQL Server Management Studio and Connect")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1138,24 +1102,20 @@ StartSqlServerManagementStudioAndConnect() {
     sqlServerManagementStudioConnectionWindowHandle := ActivateWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], "Connect Dialog Window not found.")
     SendInput("{Enter}") ; Connect
 
-    try {
-        if WinWaitClose("Connect ahk_id " . sqlServerManagementStudioConnectionWindowHandle,, 40) {
-        } else {
-            throw Error("Connection failed.")
-        }
-    } catch as connectError {
-        LogInformationConclusion("Failed", logValuesForConclusion, connectError)
+    if WinWaitClose("Connect ahk_id " . sqlServerManagementStudioConnectionWindowHandle,, 40) {
+    } else {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Connection failed.")
     }
 
     microsoftSqlServerManagementStudioWindowHandle := ActivateWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"])
     WinMaximize("ahk_id " . microsoftSqlServerManagementStudioWindowHandle)
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("ExecuteSqlQueryAndSaveAsCsv(code As String [Constraint: Summary], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Locator])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Execute SQL Query and Save (" . filename . ")", methodName, [code, saveDirectory, filename])
+    static methodName := RegisterMethod("code As String [Constraint: Summary], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Locator]",  A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1216,18 +1176,14 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             Sleep(shortDelay)
         }
 
-        try {
-            if FileGetTime(savePath, "M") = previousModifiedTime {
-                throw Error("Timed out waiting for overwrite: " . savePath)
-            }
-        } catch as timedOutError {
-            LogInformationConclusion("Failed", logValuesForConclusion, timedOutError)
+        if FileGetTime(savePath, "M") = previousModifiedTime {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Timed out waiting for overwrite: " . savePath)
         }
 
         Sleep(mediumDelay)
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ; **************************** ;
@@ -1235,8 +1191,8 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static methodName := RegisterMethod("ExecuteAutomationApp(appName As String [Constraint: Locator], runtimeDate As String [Optional] [Constraint: Raw Date Time])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Execute Automation App (" . appName . ")", methodName, [appName, runtimeDate])
+    static methodName := RegisterMethod("appName As String [Constraint: Locator], runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
 
@@ -1260,20 +1216,12 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
-    try {
-        if !ProcessExist(toadForOracleExecutableFilename) {
-            throw Error("Toad for Oracle process is not running.")
-        }
-    } catch as processNotRunningError {
-        LogInformationConclusion("Failed", logValuesForConclusion, processNotRunningError)
+    if !ProcessExist(toadForOracleExecutableFilename) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Toad for Oracle process is not running.")
     }
 
-    try {
-        if WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin") {
-            throw Error("No server connection is active in Toad for Oracle (login dialog is open).")
-        }
-    } catch as noActiveConnectionError {
-        LogInformationConclusion("Failed", logValuesForConclusion, noActiveConnectionError)
+    if WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin") {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No server connection is active in Toad for Oracle (login dialog is open).")
     }
 
     windowCriteria := "ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain"
@@ -1310,12 +1258,9 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             if !dialogExists {
                 break
             }
-            try {
-                if A_TickCount - firstSeenTickCount >= massiveDelay {
-                    throw Error("Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
-                }
-            } catch as reconnectFailedError {
-                LogInformationConclusion("Failed", logValuesForConclusion, reconnectFailedError)
+
+            if A_TickCount - firstSeenTickCount >= massiveDelay {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
             }
         }
 
@@ -1370,7 +1315,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(tinyDelay)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ; **************************** ;
@@ -1378,8 +1323,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 ; **************************** ;
 
 DetermineWindowsBinaryType(executablePath) {
-    static methodName := RegisterMethod("DetermineWindowsBinaryType(executablePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [executablePath])
+    static methodName := RegisterMethod("executablePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [executablePath])
 
     static SCS_32BIT_BINARY := 0
     static SCS_DOS_BINARY   := 1

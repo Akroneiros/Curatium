@@ -35,30 +35,19 @@ $Esc:: {
 }
 
 AbortExecution() {
-    static methodName := RegisterMethod("AbortExecution()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Abort Execution", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Abort Execution")
 
-    try {
-        throw Error("Execution aborted early by pressing escape.")
-    } catch as executionAbortedError {
-        LogInformationConclusion("Failed", logValuesForConclusion, executionAbortedError)
-    }
+    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Execution aborted early by pressing escape.")
 }
 
-DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := unset) {
+DisplayErrorMessage(logValuesForConclusion, errorLineNumber, errorMessage) {
     windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
     currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
     newLine := "`r`n"
 
-    errorMessage := (errorObject.HasOwnProp("Message") ? errorObject.Message : errorObject)
-
-    lineNumber := unset
-    if IsSet(customLineNumber) {
-        lineNumber := customLineNumber
-    } else if logValuesForConclusion["Validation"] != "" {
-        lineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
-    } else {
-        lineNumber := errorObject.Line
+    if logValuesForConclusion["Validation"] != "" {
+        errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
     }
     
     declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
@@ -69,13 +58,13 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
             "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
             "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
             "Arguments: " .    logValuesForConclusion["Arguments Full"] . newLine . 
-            "Line Number: " .  lineNumber . newLine . 
+            "Line Number: " .  errorLineNumber . newLine . 
             "Date Runtime: " . currentDateTime . newLine . 
             "Error Output: " . errorMessage
     } else {
         fullErrorText :=
             "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
-            "Line Number: " .  lineNumber . newLine . 
+            "Line Number: " .  errorLineNumber . newLine . 
             "Date Runtime: " . currentDateTime . newLine . 
             "Error Output: " . errorMessage
     }
@@ -86,7 +75,7 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
         WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
     }
 
-    if logValuesForConclusion["Method Name"] !== "AbortExecution" {
+    if logValuesForConclusion["Method Name"] != "AbortExecution" {
         errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
         errorWindow.SetFont("s10", "Segoe UI")
         errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", fullErrorText)
@@ -104,6 +93,194 @@ DisplayErrorMessage(logValuesForConclusion, errorObject, customLineNumber := uns
     } else {
         ExitApp()
     }
+}
+
+LogBeginning(methodName, arguments := [], overlayValue := unset) {
+    static lastRuntimeTraceTick := 0
+
+    logValuesForConclusion := Map(
+        "Method Name",    methodName,
+        "Arguments Full", "",
+        "Arguments Log",  "",
+        "Validation",     "",
+        "Context",        ""
+    )
+
+    if methodName = "ConvertUtcTimestampToInteger" || methodName = "GetQueryPerformanceCounter" || methodName = "GetUtcTimestamp" || methodName = "GetUtcTimestampInteger" || methodName = "GetUtcTimestampPrecise" {
+        return logValuesForConclusion
+    }
+
+    timestamp := LogTimestamp()
+
+    runtimeTraceInterval := 6 * 60 * 1000
+    runtimeTraceTick := A_TickCount
+
+    if lastRuntimeTraceTick = 0 {
+        lastRuntimeTraceTick := runtimeTraceTick
+    }
+
+    csvBeginning := unset
+    overlayKey   := unset
+    if IsSet(overlayValue) {
+        encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
+        encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+        encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+
+        if methodName != "OverlayInsertSpacer" && methodName != "OverlayUpdateCustomLine" {
+            overlayKey := OverlayGenerateNextKey(methodName)
+
+            if overlayKey != 0 {
+                OverlayUpdateLine(overlayKey, overlayValue . overlayStatus["Beginning"])
+            }
+        } else {
+            if methodName = "OverlayInsertSpacer" {
+                OverlayUpdateLine(overlayKey := OverlayGenerateNextKey(), overlayValue := "")
+            } else if methodName = "OverlayUpdateCustomLine" {
+                OverlayUpdateLine(overlayKey := arguments[1], overlayValue := arguments[2])
+            }
+        }
+
+        logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
+
+        csvBeginning :=
+            encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
+            "B" .                                  "|" . ; Status
+            encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
+            encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
+            methodRegistry[methodName]["Symbol"]         ; Method or Context
+    } else {
+        overlayKey := 0
+    }
+
+    logValuesForConclusion["Overlay Key"] := overlayKey
+
+    if arguments.Length != 0 {
+        logValuesForConclusion["Validation"] := LogValidateMethodArguments(methodName, arguments)
+        logValuesForConclusion               := LogFormatMethodArguments(logValuesForConclusion, arguments)
+
+        if IsSet(overlayValue) {
+            csvBeginning := csvBeginning . "|" . 
+                logValuesForConclusion["Arguments Log"] ; Arguments
+        }
+
+        if !IsSet(overlayValue) && logValuesForConclusion["Validation"] != "" {
+            encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
+            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+            encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+
+            logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
+
+            csvBeginning :=
+                encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
+                "B" .                                  "|" . ; Status
+                encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
+                encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
+                methodRegistry[methodName]["Symbol"] . "|" . ; Method or Context
+                logValuesForConclusion["Arguments Log"]      ; Arguments
+        }
+    }
+
+    if logValuesForConclusion["Overlay Key"] != 0 {
+        if !symbolLedger.Has(overlayValue . "|O") {
+            csvOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
+            AppendCsvLineToLog(csvOverlaySymbolLedgerLine, "Symbol Ledger")
+        }
+
+        if IsSet(overlayValue) {
+            encodedOverlayKey := EncodeIntegerToBase(overlayKey, 94)
+
+            csvBeginning := csvBeginning . "|" . 
+                encodedOverlayKey . "|" .         ; Overlay Key
+                symbolLedger[overlayValue . "|O"] ; Overlay Value
+        }
+    }
+
+    if IsSet(overlayValue) || logValuesForConclusion["Validation"] != "" {
+        AppendCsvLineToLog(csvBeginning, "Operation Log")
+
+        if logValuesForConclusion["Validation"] != "" {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, logValuesForConclusion["Validation"])
+        }
+    } else {
+        logValuesForConclusion["Query Performance Counter Midpoint Tick"] := timestamp["Query Performance Counter Midpoint Tick"]
+        logValuesForConclusion["UTC Timestamp Integer"]                   := timestamp["UTC Timestamp Integer"]
+    }
+
+    if runtimeTraceTick - lastRuntimeTraceTick >= runtimeTraceInterval {
+        lastRuntimeTraceTick := runtimeTraceTick
+        LogEngine("Intermission")
+    }
+
+    return logValuesForConclusion
+}
+
+LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset, errorMessage := unset) {
+    timestamp := LogTimestamp()
+
+    if !logValuesForConclusion.Has("Operation Sequence Number") {
+        logValuesForConclusion["Operation Sequence Number"] := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
+    }
+
+    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
+    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+
+    csvConclusion := 
+        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
+        "[[Status]]" .                   "|" . ; Status
+        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
+        encodedUtcTimestampInteger             ; UTC Timestamp Integer
+
+    if logValuesForConclusion["Context"] != "" {
+        csvConclusion := csvConclusion . "|" . 
+            logValuesForConclusion["Context"]  ; Method or Context
+    }
+
+    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
+        switch conclusionStatus {
+            case "Skipped":
+                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "S"), "Operation Log")
+
+                if logValuesForConclusion["Overlay Key"] !== 0 {
+                    OverlayUpdateStatus(logValuesForConclusion, "Skipped")
+                }
+            case "Completed":
+                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "C"), "Operation Log")
+
+                if logValuesForConclusion["Overlay Key"] !== 0 {
+                    OverlayUpdateStatus(logValuesForConclusion, "Completed")
+                }
+            case "Failed":
+                if logValuesForConclusion.Has("Query Performance Counter Midpoint Tick") && logValuesForConclusion.Has("UTC Timestamp Integer") {
+                    csvBeginning :=
+                        encodedOperationSequenceNumber .       "|" .                                                       ; Operation Sequence Number
+                        "B" .                                  "|" .                                                       ; Status
+                        EncodeIntegerToBase(logValuesForConclusion["Query Performance Counter Midpoint Tick"], 94) . "|" . ; Query Performance Counter
+                        EncodeIntegerToBase(logValuesForConclusion["UTC Timestamp Integer"], 94) . "|" .                   ; UTC Timestamp Integer
+                        methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"]                                    ; Method or Context
+
+                        if logValuesForConclusion["Arguments Log"] != "" {
+                            csvBeginning := csvBeginning . "|" . 
+                                logValuesForConclusion["Arguments Log"]                                                    ; Arguments
+                        }
+
+                    AppendCsvLineToLog(csvBeginning, "Operation Log")
+                }
+
+                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "F"), "Operation Log")
+
+                if logValuesForConclusion["Overlay Key"] != 0 {
+                    OverlayUpdateStatus(logValuesForConclusion, "Failed")
+                }
+
+                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
+                    OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
+                }
+
+                DisplayErrorMessage(logValuesForConclusion, errorLineNumber, errorMessage)
+            default:
+                DisplayErrorMessage(logValuesForConclusion, A_LineNumber, "Unsupported overlay status: " . conclusionStatus)
+        }
 }
 
 LogEngine(status, fullErrorText := "") {
@@ -333,46 +510,41 @@ LogValidateMethodArguments(methodName, arguments) {
     return validation
 }
 
-LogFormatMethodArguments(methodName, arguments, validation := "") {
+LogFormatMethodArguments(logValuesForConclusion, arguments) {
     global symbolLedger
 
-    argumentValueFull := ""
-    argumentValueLog  := ""
+    methodName := logValuesForConclusion["Method Name"]
 
-    argumentsAndValidation := Map(
+    if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
+        return logValuesForConclusion
+    }
+
+    argumentsFormatted := Map(
         "Arguments Full",  "",
         "Arguments Log",   "",
         "Parameter",       "",
         "Argument",        "",
         "Data Type",       "",
-        "Data Constraint", "",
-        "Validation",      validation
+        "Data Constraint", ""
     )
 
-    argumentsAndValidation["Arguments Full"] := ""
-    argumentsAndValidation["Arguments Log"]  := ""
-
-    if methodName = "OverlayInsertSpacer" {
-        return argumentsAndValidation
-    }
-
     for index, argument in arguments {
-        argumentsAndValidation["Parameter"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        argumentsAndValidation["Argument"]        := argument
-        argumentsAndValidation["Data Type"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        argumentsAndValidation["Data Constraint"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-        argumentsAndValidation["Whitelist"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+        argumentsFormatted["Parameter"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+        argumentsFormatted["Argument"]        := argument
+        argumentsFormatted["Data Type"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+        argumentsFormatted["Data Constraint"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+        argumentsFormatted["Whitelist"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
         argumentValueFull := argument
         argumentValueLog  := argument
-        switch argumentsAndValidation["Data Type"] {
+        switch argumentsFormatted["Data Type"] {
             case "Array", "Object":
-                argumentValueFull := "<" . argumentsAndValidation["Data Type"] . ">"
-                argumentValueLog  := "<" . argumentsAndValidation["Data Type"] . ">"
+                argumentValueFull := "<" . argumentsFormatted["Data Type"] . ">"
+                argumentValueLog  := "<" . argumentsFormatted["Data Type"] . ">"
             case "Boolean":
             case "Integer":
             case "String":
-                if argumentsAndValidation["Whitelist"].Length != 0 {
+                if argumentsFormatted["Whitelist"].Length != 0 {
                     if !symbolLedger.Has(argument . "|W") {
                         csvSymbolLedgerLine := RegisterSymbol(argument, "Whitelist", false)
                         AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
@@ -380,7 +552,7 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
 
                     argumentValueLog := symbolLedger[argument . "|W"]
                 } else {
-                    switch argumentsAndValidation["Data Constraint"] {
+                    switch argumentsFormatted["Data Constraint"] {
                         case "Absolute Path", "Absolute Save Path":
                             SplitPath(argument, &filename, &directoryPath)
 
@@ -454,250 +626,19 @@ LogFormatMethodArguments(methodName, arguments, validation := "") {
                 }
         }
 
-        argumentsAndValidation["Arguments Full"] .= argumentValueFull
-        argumentsAndValidation["Arguments Log"]  .= argumentValueLog
+        argumentsFormatted["Arguments Full"] .= argumentValueFull
+        argumentsFormatted["Arguments Log"]  .= argumentValueLog
 
         if index < arguments.Length {
-            argumentsAndValidation["Arguments Full"] .= ", "
-            argumentsAndValidation["Arguments Log"]  .= ", "
+            argumentsFormatted["Arguments Full"] .= ", "
+            argumentsFormatted["Arguments Log"]  .= ", "
         }
     }
 
-    return argumentsAndValidation
-}
-
-LogHelperError(logValuesForConclusion, errorLineNumber, errorMessage) {
-    timestamp := LogTimestamp()
-
-    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
-    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
-    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
-    operationSequenceNumber        := NextOperationSequenceNumber()
-    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 86)
-    logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
-
-    csvConclusion := 
-        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
-        "F" .                            "|" . ; Status
-        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
-        encodedUtcTimestampInteger             ; UTC Timestamp Integer
-
-    if logValuesForConclusion["Context"] != "" {
-        csvConclusion := csvConclusion . "|" . 
-            logValuesForConclusion["Context"]  ; Context
-    }
-
-    AppendCsvLineToLog(csvConclusion, "Operation Log")
-
-    try {
-        throw Error(errorMessage)
-    } catch as customError {
-        DisplayErrorMessage(logValuesForConclusion, customError, errorLineNumber)
-    }
-}
-
-LogHelperValidation(methodName, arguments := unset) {
-    logValuesForConclusion := Map(
-        "Operation Sequence Number", 0,
-        "Method Name",               methodName,
-        "Arguments Full",            "",
-        "Arguments Log",             "",
-        "Overlay Key",               0,
-        "Validation",                "",
-        "Context",                   ""
-    )
-
-    argumentsAndValidationStatus := unset
-    if IsSet(arguments) {
-        logValuesForConclusion["Validation"] := LogValidateMethodArguments(methodName, arguments)
-        argumentsAndValidationStatus := LogFormatMethodArguments(methodName, arguments, logValuesForConclusion["Validation"])
-
-        logValuesForConclusion["Arguments Full"] := argumentsAndValidationStatus["Arguments Full"]
-        logValuesForConclusion["Arguments Log"]  := argumentsAndValidationStatus["Arguments Log"]
-
-        if logValuesForConclusion["Validation"] != "" {
-            timestamp := LogTimestamp()
-
-            operationSequenceNumber        := NextOperationSequenceNumber()
-            encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 94)
-            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
-            encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
-            logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
-            
-            csvShared :=
-                encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
-                "B" .                                  "|" . ; Status
-                encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
-                encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
-                methodRegistry[methodName]["Symbol"]         ; Method
-
-            if logValuesForConclusion["Arguments Full"] != "" {
-                csvShared := csvShared . "|" . 
-                    logValuesForConclusion["Arguments Log"]  ; Arguments
-            }
-
-            AppendCsvLineToLog(csvShared, "Operation Log")
-
-            try {
-                throw Error(logValuesForConclusion["Validation"])
-            } catch as validationError {
-                LogInformationConclusion("Failed", logValuesForConclusion, validationError)
-            }
-        }
-    }
+    logValuesForConclusion["Arguments Full"] := argumentsFormatted["Arguments Full"]
+    logValuesForConclusion["Arguments Log"]  := argumentsFormatted["Arguments Log"]
 
     return logValuesForConclusion
-}
-
-LogInformationBeginning(overlayValue, methodName, arguments := unset, overlayCustomKey := 0) {
-    static lastRuntimeTraceTick := 0
-
-    timestamp := LogTimestamp()
-
-    runtimeTraceInterval := 6 * 60 * 1000
-    runtimeTraceTick := A_TickCount
-
-    if lastRuntimeTraceTick = 0 {
-        lastRuntimeTraceTick := runtimeTraceTick
-    }
-
-    operationSequenceNumber        := NextOperationSequenceNumber()
-    encodedOperationSequenceNumber := EncodeIntegerToBase(operationSequenceNumber, 94)
-    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
-    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
-    csvShared :=
-        encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
-        "B" .                                  "|" . ; Status
-        encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
-        encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
-        methodRegistry[methodName]["Symbol"]         ; Method
-
-    overlayKey := unset
-    if overlayCustomKey = 0 {
-        overlayKey := OverlayGenerateNextKey(methodName)
-    } else {
-        overlayKey := overlayCustomKey
-        if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
-            arguments[1] := overlayKey
-        }
-    }
-
-    logValuesForConclusion := Map(
-        "Operation Sequence Number", encodedOperationSequenceNumber,
-        "Method Name",               methodName,
-        "Arguments Full",            "",
-        "Arguments Log",             "",
-        "Overlay Key",               overlayKey,
-        "Validation",                "",
-        "Context",                   ""
-    )
-
-    argumentsAndValidationStatus := unset
-    if IsSet(arguments) {
-        logValuesForConclusion["Validation"]     := LogValidateMethodArguments(methodName, arguments)
-        argumentsAndValidationStatus             := LogFormatMethodArguments(methodName, arguments, logValuesForConclusion["Validation"])
-        logValuesForConclusion["Arguments Full"] := argumentsAndValidationStatus["Arguments Full"]
-        logValuesForConclusion["Arguments Log"]  := argumentsAndValidationStatus["Arguments Log"]
-
-        csvShared := csvShared . "|" . 
-            argumentsAndValidationStatus["Arguments Log"] ; Arguments
-    }
-
-    if overlayKey !== 0 {
-        if !symbolLedger.Has(overlayValue . "|O") {
-            csvOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
-            AppendCsvLineToLog(csvOverlaySymbolLedgerLine, "Symbol Ledger")
-        }
-
-        encodedOverlayKey := EncodeIntegerToBase(overlayKey, 94)
-
-        csvShared := csvShared . "|" . 
-            encodedOverlayKey . "|" .                   ; Overlay Key
-            symbolLedger[overlayValue . "|O"]           ; Overlay Value
-
-        if overlayCustomKey = 0 {
-            OverlayUpdateLine(overlayKey, overlayValue . overlayStatus["Beginning"])
-        } else {
-            OverlayUpdateLine(overlayKey, overlayValue)
-        }
-    }
-
-    AppendCsvLineToLog(csvShared, "Operation Log")
-
-    try {
-        if IsSet(argumentsAndValidationStatus) {
-            logValuesForConclusion["Validation"] := argumentsAndValidationStatus["Validation"]
-
-            if argumentsAndValidationStatus["Validation"] != "" {
-                throw Error(argumentsAndValidationStatus["Validation"])
-            }
-        }
-    } catch as validationError {
-        LogInformationConclusion("Failed", logValuesForConclusion, validationError)
-    }
-
-    if runtimeTraceTick - lastRuntimeTraceTick >= runtimeTraceInterval {
-        lastRuntimeTraceTick := runtimeTraceTick
-        LogEngine("Intermission")
-    }
-
-    return logValuesForConclusion
-}
-
-LogInformationConclusion(conclusionStatus, logValuesForConclusion, errorObject := unset) {
-    timestamp := LogTimestamp()
-
-    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
-    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
-    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
-    csvConclusion := 
-        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
-        "[[Status]]" .                   "|" . ; Status
-        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
-        encodedUtcTimestampInteger             ; UTC Timestamp Integer
-
-    if logValuesForConclusion["Context"] != "" {
-        csvConclusion := csvConclusion . "|" . 
-            logValuesForConclusion["Context"]  ; Context
-    }
-
-    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
-        switch conclusionStatus {
-            case "Skipped":
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "S"), "Operation Log")
-
-                if logValuesForConclusion["Overlay Key"] !== 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Skipped")
-                }
-            case "Completed":
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "C"), "Operation Log")
-
-                if logValuesForConclusion["Overlay Key"] !== 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Completed")
-                }
-            case "Failed":
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "F"), "Operation Log")
-
-                if logValuesForConclusion["Overlay Key"] !== 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Failed")
-                }
-
-                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
-                    OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
-                }
-
-                DisplayErrorMessage(logValuesForConclusion, errorObject)
-            default:
-                try {
-                    throw Error("Unsupported overlay status: " . conclusionStatus)
-                } catch as unsupportedOverlayStatusError {
-                    DisplayErrorMessage(logValuesForConclusion, unsupportedOverlayStatusError)
-                }
-        }
 }
 
 LogTimestamp() {
@@ -730,11 +671,11 @@ LogTimestampPrecise() {
     utcTimestampPreciseReadings     := []
     combinedReadings                := []
 
-    autoHotkeyThreadPriority := GetAutoHotkeyThreadPriority()
+    originalAutoHotkeyThreadHandle   := DllCall("GetCurrentThread", "Ptr")
+    originalAutoHotkeyThreadPriority := DllCall("GetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int")
 
-    if autoHotkeyThreadPriority = 0 {
-        autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
-        DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
+    if originalAutoHotkeyThreadPriority = 0 {
+        DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
     while (A_TickCount - startTime < maxDurationMilliseconds) {
@@ -742,9 +683,8 @@ LogTimestampPrecise() {
         utcTimestampPreciseReadings.Push(GetUtcTimestampPrecise())
     }
 
-    if autoHotkeyThreadPriority = 0 {
-        autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
-        DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", 0) ; Change to Normal.
+    if originalAutoHotkeyThreadPriority = 0 {
+        DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 0) ; Change to Normal.
     }
 
     utcTimestampPreciseReadingsLength := utcTimestampPreciseReadings.Length
@@ -780,26 +720,26 @@ LogTimestampPrecise() {
     system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
     system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
 
-    static methodName := RegisterMethod("LogTimestampPrecise()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Log Timestamp Precise", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Log Timestamp Precise")
 
     logValuesForConclusion["Context"] := "Runtime Trace Order: " . system["Runtime Trace Order"]
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 OverlayChangeTransparency(transparencyValue) {
-    static methodName := RegisterMethod("OverlayChangeTransparency(transparencyValue As Integer [Constraint: Byte])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Overlay Change Transparency (" . transparencyValue . ")", methodName, [transparencyValue])
+    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
 
     WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 OverlayChangeVisibility() {
-    static methodName := RegisterMethod("OverlayChangeVisibility()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Overlay Change Visibility", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Change Visibility")
 
     if DllCall("User32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
         overlayGui.Hide()
@@ -807,31 +747,27 @@ OverlayChangeVisibility() {
         overlayGui.Show("NoActivate")
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("OverlayHideLogForMethod(methodNameInput As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Overlay Hide Log for Method (" . methodName . ")", methodName, [methodName])
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
     
-    try {
-        if !methodRegistry.Has(methodNameInput) {
-            throw Error('Method "' . methodNameInput . '" not registered.')
-        }
-    } catch as methodNotRegisteredError {
-        LogInformationConclusion("Failed", logValuesForConclusion, methodNotRegisteredError)
+    if !methodRegistry.Has(methodNameInput) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
     }
 
     methodRegistry[methodNameInput]["Overlay Log"] := false
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("OverlayShowLogForMethod(methodNameInput As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Overlay Show Log for Method (" . methodNameInput . ")", methodName, [methodNameInput])
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
 
@@ -839,19 +775,22 @@ OverlayShowLogForMethod(methodNameInput) {
         methodRegistry[methodNameInput]["Overlay Log"] := true
     } else {
         methodRegistry[methodNameInput] := Map(
-            "Overlay Log", true,
-            "Symbol",      ""
+            "Overlay Log", true
         )
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
-OverlayGenerateNextKey(methodName := "") {
+OverlayGenerateNextKey(methodName := unset) {
     static counter := 1
 
-    if methodName = "[[Custom]]" {
+    if !IsSet(methodName) {
         return counter++
+    }
+
+    if Type(methodName) != "String" {
+        return 0
     }
 
     if !methodRegistry.Has(methodName) {
@@ -941,25 +880,24 @@ OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
 }
 
 OverlayInsertSpacer() {
-    static methodName := RegisterMethod("OverlayInsertSpacer()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("", methodName, [""], overlayKey := OverlayGenerateNextKey("[[Custom]]"))
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Insert Spacer")
     
-    OverlayUpdateLine(overlayKey, "")
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
-OverlayUpdateCustomLine(overlayKey, value) {
-    static methodName := RegisterMethod("OverlayUpdateCustomLine(overlayKey As Integer, value As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning(value, methodName, [""], overlayKey) ; No arguments as log will show in overlay.
+OverlayUpdateCustomLine(overlayKey, overlayValue) {
+    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [overlayKey, overlayValue], "Overlay Update Custom Line")
 
-    ;  OverlayUpdateCustomLine(overlaySummaryKey := OverlayGenerateNextKey("[[Custom]]"), "Overlay Summary: " . "Project A")
-    ; Update to overlay will be made in LogInformationBeginning based on passing in a custom overlay key.
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
-OverlayUpdateLine(overlayKey, value) {
+OverlayUpdateLine(overlayKey, overlayValue) {
     global overlayGui
     global overlayLines
     global overlayOrder
@@ -967,7 +905,7 @@ OverlayUpdateLine(overlayKey, value) {
     if !overlayLines.Has(overlayKey) {
         overlayOrder.Push(overlayKey)
     }
-    overlayLines[overlayKey] := value
+    overlayLines[overlayKey] := overlayValue
 
     newText := ""
     for index, lineKey in overlayOrder {
@@ -1373,8 +1311,8 @@ AppendCsvLineToLog(csvLine, logType) {
 
 BatchAppendExecutionLog(executionType, array) {
     static executionTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Application", "A", "Beginning", "B")
-    static methodName := RegisterMethod("BatchAppendExecutionLog(executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [executionType, array])
+    static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [executionType, array])
 
     static newLine := "`r`n"
 
@@ -1405,8 +1343,8 @@ BatchAppendExecutionLog(executionType, array) {
 
 BatchAppendRuntimeTrace(appendType, array) {
     static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Beginning", "B", "Completed", "C", "Failed", "F", "Intermission", "I")
-    static methodName := RegisterMethod("BatchAppendRuntimeTrace(appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [appendType, array])
+    static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [appendType, array])
 
     static newLine := "`r`n"
 
@@ -1442,8 +1380,8 @@ BatchAppendRuntimeTrace(appendType, array) {
 BatchAppendSymbolLedger(symbolType, array) {
     static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}"',
         "Directory", "D", "File", "F", "Hash", "H", "Locator", "L", "Overlay", "O", "Summary", "S", "Whitelist", "W")
-    static methodName := RegisterMethod("BatchAppendSymbolLedger(symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [symbolType, array])
+    static methodName := RegisterMethod("symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [symbolType, array])
 
     static newLine := "`r`n"
 
@@ -1503,8 +1441,8 @@ BatchAppendSymbolLedger(symbolType, array) {
 }
 
 GetPhysicalMemoryStatus() {
-    static methodName := RegisterMethod("GetPhysicalMemoryStatus()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     pointerSizeInBytes := A_PtrSize
     structureSizeInBytes := 4 + (pointerSizeInBytes = 8 ? 4 : 0) + (10 * pointerSizeInBytes) + (3 * 4)
@@ -1519,7 +1457,7 @@ GetPhysicalMemoryStatus() {
     getPerformanceInfoSucceeded := DllCall("Psapi\GetPerformanceInfo", "Ptr", performanceInformationBuffer.Ptr, "UInt", structureSizeInBytes, "Int")
 
     if !getPerformanceInfoSucceeded {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve performance values for memory. [Psapi\GetPerformanceInfo" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve performance values for memory. [Psapi\GetPerformanceInfo" . ", System Error Code: " . A_LastError . "]")
     }
 
     offsetInBytes := 4
@@ -1571,8 +1509,8 @@ GetPhysicalMemoryStatus() {
 }
 
 GetRemainingFreeDiskSpace() {
-    static methodName := RegisterMethod("GetRemainingFreeDiskSpace()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     systemDrive := SubStr(A_WinDir, 1, 3)
 
@@ -1587,7 +1525,7 @@ GetRemainingFreeDiskSpace() {
     resultText := ""
 
     if !getDiskFreeSpaceSucceeded {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve information about the amount of space that is available on system disk volume. [Kernel32\GetDiskFreeSpaceExW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve information about the amount of space that is available on system disk volume. [Kernel32\GetDiskFreeSpaceExW" . ", System Error Code: " . A_LastError . "]")
     }
 
     freeGibiBytes  := freeBytesAvailableToCaller / bytesPerGibiByte
@@ -1627,8 +1565,8 @@ NextSymbolLedgerAlias() {
     return symbolLedgerAlias
 }
 
-ParseMethodDeclaration(declaration) {
-    atParts     := StrSplit(declaration, "@", , 2)
+ParseMethodWithDeclaration(methodWithDeclaration) {
+    atParts     := StrSplit(methodWithDeclaration, "@", , 2)
     signature   := RTrim(atParts[1])
     RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
     library := Trim(regularExpressionMatch[1])
@@ -1759,8 +1697,8 @@ ParseMethodDeclaration(declaration) {
         }
     }
 
-    parsedMethod := Map(
-        "Declaration",         declaration,
+    methodWithDeclarationParsed := Map(
+        "Declaration",         methodWithDeclaration,
         "Signature",           signature,
         "Library",             library,
         "Contract",            contract,
@@ -1768,71 +1706,63 @@ ParseMethodDeclaration(declaration) {
         "Data Types",          dataTypes,
         "Metadata",            metadata,
         "Validation Line",     lineNumberForValidation,
-        "Parameter Contracts", parameterContracts,
-        "Overlay Log",         "",
-        "Symbol",              ""
+        "Parameter Contracts", parameterContracts
     )
 
-    return parsedMethod
+    return methodWithDeclarationParsed
 }
 
-RegisterMethod(declaration, sourceFilePath := "", validationLineNumber := 0) {
+RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
     global methodRegistry
 
-    if sourceFilePath != "" && validationLineNumber !== 0 {
-        SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
-        libraryTag := " @ " . filenameWithoutExtension
-        validationLineNumber := " " . "<" . validationLineNumber . ">"
-        declaration := declaration . libraryTag . validationLineNumber
-    }
-
-    methodName := SubStr(declaration, 1, InStr(declaration, "(") - 1)
+    SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
+    libraryTag := " @ " . filenameWithoutExtension
+    validationLineNumber := " " . "<" . validationLineNumber . ">"
+    methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
 
     symbol := unset
-    if !symbolLedger.Has(declaration . "|" . "M") {
-        csvSymbolLedgerLine := RegisterSymbol(declaration, "M", false)
+    if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
+        csvSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
         AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
 
         csvParts := StrSplit(csvSymbolLedgerLine, "|")
         symbol   := csvParts[csvParts.Length]
     } else {
-        symbol   := symbolLedger[declaration . "|" . "M"]
+        symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
     }
 
-    parsedMethod := ParseMethodDeclaration(declaration)
+    methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
     if methodRegistry.Has(methodName) {
-        if methodRegistry[methodName]["Symbol"] = "" {
-            methodRegistry[methodName]["Declaration"]         := parsedMethod["Declaration"]
-            methodRegistry[methodName]["Signature"]           := parsedMethod["Signature"]
-            methodRegistry[methodName]["Library"]             := parsedMethod["Library"]
-            methodRegistry[methodName]["Contract"]            := parsedMethod["Contract"]
-            methodRegistry[methodName]["Parameters"]          := parsedMethod["Parameters"]
-            methodRegistry[methodName]["Data Types"]          := parsedMethod["Data Types"]
-            methodRegistry[methodName]["Metadata"]            := parsedMethod["Metadata"]
-            methodRegistry[methodName]["Validation Line"]     := parsedMethod["Validation Line"]
-            methodRegistry[methodName]["Parameter Contracts"] := parsedMethod["Parameter Contracts"]
+        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
+        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
+        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
+        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
+        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
 
-            if !methodRegistry[methodName].Has("Overlay Log") {
-                methodRegistry[methodName]["Overlay Log"]     := false
-            }
+        if !methodRegistry[methodName].Has("Overlay Log") {
+            methodRegistry[methodName]["Overlay Log"]     := false
+        }
 
-            methodRegistry[methodName]["Symbol"]              := symbol
-            
-            if !methodRegistry[methodName].Has("Settings") {
-                methodRegistry[methodName]["Settings"]        := Map()
-            }
+        methodRegistry[methodName]["Symbol"]              := symbol
+        
+        if !methodRegistry[methodName].Has("Settings") {
+            methodRegistry[methodName]["Settings"]        := Map()
         }
     } else {      
         methodRegistry[methodName] := Map(
-            "Declaration",         parsedMethod["Declaration"],
-            "Signature",           parsedMethod["Signature"],
-            "Library",             parsedMethod["Library"],
-            "Contract",            parsedMethod["Contract"],
-            "Parameters",          parsedMethod["Parameters"],
-            "Data Types",          parsedMethod["Data Types"],
-            "Metadata",            parsedMethod["Metadata"],
-            "Validation Line",     parsedMethod["Validation Line"],
-            "Parameter Contracts", parsedMethod["Parameter Contracts"],
+            "Declaration",         methodWithDeclarationParsed["Declaration"],
+            "Signature",           methodWithDeclarationParsed["Signature"],
+            "Library",             methodWithDeclarationParsed["Library"],
+            "Contract",            methodWithDeclarationParsed["Contract"],
+            "Parameters",          methodWithDeclarationParsed["Parameters"],
+            "Data Types",          methodWithDeclarationParsed["Data Types"],
+            "Metadata",            methodWithDeclarationParsed["Metadata"],
+            "Validation Line",     methodWithDeclarationParsed["Validation Line"],
+            "Parameter Contracts", methodWithDeclarationParsed["Parameter Contracts"],
             "Overlay Log",         false,
             "Symbol",              symbol,
             "Settings",            Map()
@@ -1889,8 +1819,8 @@ RegisterSymbol(value, type, addNewLine := true) {
 ; **************************** ;
 
 GetInternationalFormatting() {
-    static methodName := RegisterMethod("GetInternationalFormatting()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
     registryValueData            := ""
@@ -1934,8 +1864,8 @@ GetInternationalFormatting() {
 }
 
 GetOperatingSystem() {
-    static methodName := RegisterMethod("GetOperatingSystem()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
 
@@ -2007,8 +1937,8 @@ GetOperatingSystem() {
 }
 
 GetWindowsInstallationDateUtcTimestamp() {
-    static methodName := RegisterMethod("GetWindowsInstallationDateUtcTimestamp()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     registryKeySystemSetup               := "HKEY_LOCAL_MACHINE\System\Setup"
     registryKeyCurrentVersionNonWow      := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
@@ -2053,12 +1983,12 @@ GetWindowsInstallationDateUtcTimestamp() {
     }
 
     if !IsSet(installDateSeconds) {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
     }
 
     installDateSeconds := installDateSeconds & 0xFFFFFFFF
     if installDateSeconds <= 0 {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
     }
 
     utcTimestamp := ConvertUnixTimeToUtcTimestamp(installDateSeconds)
@@ -2067,8 +1997,8 @@ GetWindowsInstallationDateUtcTimestamp() {
 }
 
 GetComputerIdentifier() {
-    static methodName := RegisterMethod("GetComputerIdentifier()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     computerIdentifier := "N/A"
 
@@ -2110,8 +2040,8 @@ GetComputerIdentifier() {
 }
 
 GetTimeZoneKeyName() {
-    static methodName := RegisterMethod("GetTimeZoneKeyName()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     timeZoneKeyName := "Unknown"
 
@@ -2136,15 +2066,15 @@ GetTimeZoneKeyName() {
     }
 
     if timeZoneKeyName = "Unknown" {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve time zone information.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve time zone information.")
     }
 
     return timeZoneKeyName
 }
 
 GetRegionFormat() {
-    static methodName := RegisterMethod("GetRegionFormat()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     LOCALE_NAME_MAX_LENGTH := 85
     BYTES_PER_WIDE_CHAR    := 2
@@ -2174,8 +2104,8 @@ GetRegionFormat() {
 }
 
 GetInputLanguage() {
-    static methodName := RegisterMethod("GetInputLanguage()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     LOCALE_NAME_MAX_LENGTH := 85
     BYTES_PER_WIDE_CHAR    := 2
@@ -2203,8 +2133,8 @@ GetInputLanguage() {
 }
 
 GetActiveKeyboardLayout() {
-    static methodName := RegisterMethod("GetActiveKeyboardLayout()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS := 9
     LOCALE_NAME_MAX_LENGTH               := 85
@@ -2312,8 +2242,8 @@ GetActiveKeyboardLayout() {
 }
 
 GetMotherboard() {
-    static methodName := RegisterMethod("GetMotherboard()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     rawManufacturer := ""
     rawProduct := ""
@@ -2360,8 +2290,8 @@ GetMotherboard() {
 }
 
 GetCpu() {
-    static methodName := RegisterMethod("GetCpu()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     modelName := ""
     defaultModelName := "Unknown CPU"
@@ -2387,8 +2317,8 @@ GetCpu() {
 }
 
 GetMemorySizeAndType() {
-    static methodName := RegisterMethod("GetMemorySizeAndType()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "System Management BIOS Type 17 Memory Device - Type.csv")
 
@@ -2408,7 +2338,7 @@ GetMemorySizeAndType() {
     retrievedTheAmountOfRamPhysicallyInstalledSuccessfully := DllCall("Kernel32\GetPhysicallyInstalledSystemMemory", "UInt64*", &installedKilobytes, "Int")
 
     if !retrievedTheAmountOfRamPhysicallyInstalledSuccessfully {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the amount of RAM that is physically installed on the computer. [Kernel32\GetPhysicallyInstalledSystemMemory" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the amount of RAM that is physically installed on the computer. [Kernel32\GetPhysicallyInstalledSystemMemory" . ", System Error Code: " . A_LastError . "]")
     }
 
     installedMemorySizeInGigabytes := (installedKilobytes > 0) ? (installedKilobytes // 1048576) : 0
@@ -2632,8 +2562,8 @@ GetMemorySizeAndType() {
 }
 
 GetSystemDisk() {
-    static methodName := RegisterMethod("GetSystemDisk()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     EXPLORER_SIZE_MAX_CHARACTERS       := 64
     BYTES_PER_WIDE_CHARACTER           := 2
@@ -2736,8 +2666,8 @@ GetSystemDisk() {
 }
 
 GetActiveDisplayGpu() {
-    static methodName := RegisterMethod("GetActiveDisplayGpu()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     ; Prefer Win32 (User32) enumeration - authoritative primary GPU.
     DISPLAY_DEVICE_ACTIVE_FLAG := 0x00000001
@@ -2841,8 +2771,8 @@ GetActiveDisplayGpu() {
 }
 
 GetActiveMonitor() {
-    static methodName := RegisterMethod("GetActiveMonitor()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     DISPLAY_DEVICEW_SIZE  := 840
     OFFSET_DeviceString   := 68
@@ -3051,8 +2981,8 @@ GetActiveMonitor() {
 }
 
 GetBios() {
-    static methodName := RegisterMethod("GetBios()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     biosVersion := ""
     biosDateIso := ""
@@ -3195,13 +3125,13 @@ GetBios() {
 }
 
 GetQueryPerformanceCounterFrequency() {
-    static methodName := RegisterMethod("GetQueryPerformanceCounterFrequency()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
     queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
     if !queryPerformanceCounterFrequencyRetrievedSuccessfully {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
     }
 
     queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
@@ -3210,8 +3140,8 @@ GetQueryPerformanceCounterFrequency() {
 }
 
 GetActiveMonitorRefreshRateHz() {
-    static methodName := RegisterMethod("GetActiveMonitorRefreshRateHz()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     ENUM_CURRENT_SETTINGS := -1
     DEVMODEW_BYTES := 220
@@ -3266,8 +3196,8 @@ GetActiveMonitorRefreshRateHz() {
 }
 
 GetWindowsColorMode() {
-    static methodName := RegisterMethod("GetWindowsColorMode()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
     registryPath := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 

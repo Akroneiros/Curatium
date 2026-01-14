@@ -3,14 +3,14 @@
 #Include Logging Library.ahk
 
 AssignSpreadsheetOperationsTemplateCombined(version := "") {
-    static methodName := RegisterMethod("AssignSpreadsheetOperationsTemplateCombined(version As String [Optional])", A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("version As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := "Assign Spreadsheet Operations Template Code"
     if version = "" {
         overlayValue := overlayValue . " ([Latest])"
     } else {
         overlayValue := overlayValue . " (" . version . ")"
     }
-    logValuesForConclusion := LogInformationBeginning(overlayValue, methodName, [version])
+    logValuesForConclusion := LogBeginning(methodName, [version], overlayValue)
 
     spreadsheetOperationsTemplateDirectory := system["Shared Directory"] . "Spreadsheet Operations Template\"
     versionManifestFilePath := spreadsheetOperationsTemplateDirectory . "Version Manifest.ini"
@@ -40,12 +40,8 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     introHash   := IniRead(versionManifestFilePath, version, "IntroSHA-256", "")
     outroHash   := IniRead(versionManifestFilePath, version, "OutroSHA-256", "")
 
-    try {
-        if releaseDate = "" {
-            throw Error("Version not found: " . version)
-        }
-    } catch as versionNotFoundError {
-        LogInformationConclusion("Failed", logValuesForConclusion, versionNotFoundError)
+    if releaseDate = "" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Version not found: " . version)
     }
 
     templateCombined := Map(
@@ -58,13 +54,13 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     templateCombined["Intro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
     templateCombined["Outro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
     return templateCombined
 }
 
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("ModifyScreenCoordinates(horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")", methodName, [horizontalValue, verticalValue, coordinatePair])
+    static methodName := RegisterMethod("horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [horizontalValue, verticalValue, coordinatePair], "Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")")
 
     widthDisplayResolution  := A_ScreenWidth
     heightDisplayResolution := A_ScreenHeight
@@ -77,30 +73,22 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     newY := originalY + verticalValue
     modifiedCoordinatePair := Format("{}x{}", newX, newY)
 
-    try {
-        if newX < 0 || newX > widthDisplayResolution - 1 {
-            throw Error("X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
-        }
-    } catch as xOutOfBoundsError {
-        LogInformationConclusion("Failed", logValuesForConclusion, xOutOfBoundsError)
+    if newX < 0 || newX > widthDisplayResolution - 1 {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
     }
 
-    try {
-        if newY < 0 || newY > heightDisplayResolution - 1 {
-            throw Error("Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
-        }
-    } catch as yOutOfBoundsError {
-        LogInformationConclusion("Failed", logValuesForConclusion, yOutOfBoundsError)
+    if newY < 0 || newY > heightDisplayResolution - 1 {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
     return modifiedCoordinatePair
 }
 
 PasteText(text, commentPrefix := "") {
-    static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'",  "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("PasteText(text As String [Constraint: Summary], commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Paste Text)", methodName, [text, commentPrefix])
+    static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
+    static methodName := RegisterMethod("text As String [Constraint: Summary], commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [text, commentPrefix], "Paste Text")
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -202,20 +190,16 @@ PasteText(text, commentPrefix := "") {
     }
 
     if !success {
-        try {
-            throw Error("Paste of text failed.")
-        } catch as pasteOfTextFailedError {
-            LogInformationConclusion("Failed", logValuesForConclusion, pasteOfTextFailedError)
-        }
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Paste of text failed.")
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Double", "Left", "Middle", "Move", "Move Smooth", "Right", "Wheel Down", "Wheel Up")
-    static methodName := RegisterMethod("PerformMouseActionAtCoordinates(mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")", methodName, [mouseAction, coordinatePair])
+    static methodName := RegisterMethod("mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [mouseAction, coordinatePair], "Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")")
 
     widthDisplayResolution  := A_ScreenWidth
     heightDisplayResolution := A_ScreenHeight
@@ -261,13 +245,13 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
         OverlayChangeVisibility()
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouseButton := "Left", modifierKeys := "") {
     static mouseActionWhitelist := Format('"{1}", "{2}"', "Left", "Right")
-    static methodName := RegisterMethod("PerformMouseDragBetweenCoordinates(startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")", methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys])
+    static methodName := RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys], "PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")")
 
     modeBeforeAction := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
@@ -323,11 +307,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
             } else if tokenLowercase = "rwin" || tokenLowercase = "rightwin" || tokenLowercase = "winright" {
                 canonical := "RWin"
             } else {
-                try {
-                    Throw Error("Unsupported modifier: " . rawToken)
-                } catch as unsupportedModifierError {
-                    LogInformationConclusion("Failed", logValuesForConclusion, unsupportedModifierError)
-                }
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Unsupported modifier: " . rawToken)
             }
 
             if !seenModifierMap.Has(canonical) {
@@ -357,13 +337,13 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
 
     CoordMode("Mouse", modeBeforeAction)
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 SetAutoHotkeyThreadPriority(threadPriority) {
     static threadPriorityWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Lowest", "Below Normal", "Normal", "Above Normal", "Highest")
-    static methodName := RegisterMethod("SetAutoHotkeyThreadPriority(threadPriority As String [Whitelist: " . threadPriorityWhitelist . "])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Set AutoHotkey Thread Priority (" . threadPriority . ")", methodName, [threadPriority])
+    static methodName := RegisterMethod("threadPriority As String [Whitelist: " . threadPriorityWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [threadPriority], "Set AutoHotkey Thread Priority (" . threadPriority . ")")
 
     switch threadPriority {
         case "Lowest":
@@ -381,34 +361,26 @@ SetAutoHotkeyThreadPriority(threadPriority) {
     autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
     DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", threadPriority)
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ValidateDisplayScaling() {
-    static methodName := RegisterMethod("ValidateDisplayScaling()", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogInformationBeginning("Validate Display Scaling", methodName)
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Validate Display Scaling")
 
     validateDisplayResolution := ValidateDataUsingSpecification(system["Display Resolution"], "String", "Display Resolution")
 
-    try {
-        if validateDisplayResolution != "" {
-            throw Error(validateDisplayResolution)
-        }
-    } catch as invalidDisplayResolutionError {
-        LogInformationConclusion("Failed", logValuesForConclusion, invalidDisplayResolutionError)
+    if validateDisplayResolution != "" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDisplayResolution)
     }
 
     validateDpiScale := ValidateDataUsingSpecification(system["DPI Scale"], "String", "DPI Scale")
 
-    try {
-        if validateDpiScale != "" {
-            throw Error(validateDpiScale)
-        }
-    } catch as invalidDpiScaleError {
-         LogInformationConclusion("Failed", logValuesForConclusion, invalidDpiScaleError)
+    if validateDpiScale != "" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDpiScale)
     }
 
-    LogInformationConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ; **************************** ;
@@ -416,8 +388,8 @@ ValidateDisplayScaling() {
 ; **************************** ;
 
 ActivateWindow(windowTitle, customErrorMessage := "") {
-    static methodName := RegisterMethod("ActivateWindow(windowTitle As String, customErrorMessage As String [Optional])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [windowTitle, customErrorMessage])
+    static methodName := RegisterMethod("windowTitle As String, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [windowTitle, customErrorMessage])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -433,7 +405,7 @@ ActivateWindow(windowTitle, customErrorMessage := "") {
 
     windowHandle := WinWait(windowTitle, , secondsToAttempt)
     if !windowHandle {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to find window after trying for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to find window after trying for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
     }
 
     totalSleep := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
@@ -449,22 +421,22 @@ ActivateWindow(windowTitle, customErrorMessage := "") {
             break
         } catch {
             if A_Index = 10 {
-                LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
             }
         }
     }
 
     windowHandle := WinWaitActive("ahk_id " . windowHandle, , secondsToAttempt)
     if !windowHandle {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
     }
 
     return windowHandle
 }
 
 CombineCode(introCode, mainCode, outroCode := "") {
-    static methodName := RegisterMethod("CombineCode(introCode As String, mainCode As String, outroCode As String [Optional])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [introCode, mainCode, outroCode])
+    static methodName := RegisterMethod("introCode As String, mainCode As String, outroCode As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [introCode, mainCode, outroCode])
 
     combinedCode := introCode . "`r`n`r`n" . mainCode
 
@@ -476,8 +448,8 @@ CombineCode(introCode, mainCode, outroCode := "") {
 }
 
 ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
-    static methodName := RegisterMethod("ComputeMouseSpeed(startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [startCoordinatePair, endCoordinatePair])
+    static methodName := RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair])
 
     startCoordinates := StrSplit(startCoordinatePair, "x")
     startX := startCoordinates[1] + 0
@@ -518,8 +490,8 @@ ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
 }
 
 ConvertArrayIntoCsvString(array) {
-    static methodName := RegisterMethod("ConvertArrayIntoCsvString(array As Object)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [array])
+    static methodName := RegisterMethod("array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [array])
 
     static newLine := "`r`n"
 
@@ -536,8 +508,8 @@ ConvertArrayIntoCsvString(array) {
 }
 
 ConvertHexStringToBase64(hexString, removePadding := true) {
-    static methodName := RegisterMethod("ConvertHexStringToBase64(hexString As String [Constraint: Hexadecimal String], removePadding As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [hexString])
+    static methodName := RegisterMethod("hexString As String [Constraint: Hexadecimal String], removePadding As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [hexString])
 
     byteCount := StrLen(hexString) // 2
     binaryBuffer := Buffer(byteCount)
@@ -555,13 +527,13 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
     requiredCharacterCount := 0
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", 0, "UInt*", &requiredCharacterCount, "Int")
     if !sizeProbeRetrievedSuccessfully {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacterCount * 2)
     encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacterCount, "Int")
     if !encodingSuccessful {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     base64 := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
@@ -573,8 +545,8 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
 }
 
 ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) {
-    static methodName := RegisterMethod("ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps As Object, headerName As String, targetValue As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [rowsAsMaps, headerName, targetValue])
+    static methodName := RegisterMethod("rowsAsMaps As Object, headerName As String, targetValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [rowsAsMaps, headerName, targetValue])
 
     foundRow := unset
     for rowMap in rowsAsMaps {
@@ -589,15 +561,15 @@ ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) 
     }
 
     if !IsSet(foundRow) {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "No row found where '" . headerName . "' = '" . targetValue . "'.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No row found where '" . headerName . "' = '" . targetValue . "'.")
     }
 
     return foundRow
 }
 
 ExtractValuesFromArrayDimension(array, dimension) {
-    static methodName := RegisterMethod("ExtractValuesFromArrayDimension(array As Object, dimension As Integer)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [array, dimension])
+    static methodName := RegisterMethod("array As Object, dimension As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [array, dimension])
 
     arrayDimension := []
 
@@ -609,8 +581,8 @@ ExtractValuesFromArrayDimension(array, dimension) {
 }
 
 ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
-    static methodName := RegisterMethod("ExtractUniqueValuesFromSubMaps(parentMapOfMaps As Object, subMapKeyName As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [parentMapOfMaps, subMapKeyName])
+    static methodName := RegisterMethod("parentMapOfMaps As Object, subMapKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [parentMapOfMaps, subMapKeyName])
 
     uniqueValues := []
 
@@ -641,19 +613,9 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     return uniqueValues
 }
 
-GetAutoHotkeyThreadPriority() {
-    static methodName := RegisterMethod("GetAutoHotkeyThreadPriority()", A_LineFile, A_LineNumber + 1)
-    static logValuesForConclusion := LogHelperValidation(methodName)
-
-    autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
-    threadPriority := DllCall("GetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int")
-
-    return threadPriority
-}
-
 GetBase64FromFile(filePath) {
-    static methodName := RegisterMethod("GetBase64FromFile(filePath As String [Constraint: Absolute Path])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [filePath])
+    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [filePath])
 
     fileContentBuffer := FileRead(filePath, "RAW")
 
@@ -664,13 +626,13 @@ GetBase64FromFile(filePath) {
     requiredCharacters := 0
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
     if !sizeProbeRetrievedSuccessfully {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
     encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
     if !encodingSuccessful {
-        LogHelperError(logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     base64Output := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
@@ -679,8 +641,8 @@ GetBase64FromFile(filePath) {
 }
 
 IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
-    static methodName := RegisterMethod("IfStringIsNotEmptyReturnValue(stringValue As String [Optional], returnValue As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [stringValue, returnValue])
+    static methodName := RegisterMethod("stringValue As String [Optional], returnValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [stringValue, returnValue])
 
     If stringValue = "" {
         returnValue := ""
@@ -691,8 +653,8 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
 
 KeyboardShortcut(modifier, key) {
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
-    static methodName := RegisterMethod("KeyboardShortcut(modifier As String [Whitelist: " . modifierWhitelist . "], key As String)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [modifier, key])
+    static methodName := RegisterMethod("modifier As String [Whitelist: " . modifierWhitelist . "], key As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [modifier, key])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -738,8 +700,8 @@ KeyboardShortcut(modifier, key) {
 }
 
 RemoveDuplicatesFromArray(array) {
-    static methodName := RegisterMethod("RemoveDuplicatesFromArray(array As Array)", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [array])
+    static methodName := RegisterMethod("array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [array])
 
     seen := Map()
     index := array.Length
@@ -759,8 +721,8 @@ RemoveDuplicatesFromArray(array) {
 }
 
 SetMethodSetting(settingMethod, settingName, settingValue, override := true) {
-    static methodName := RegisterMethod("SetMethodSetting(settingMethod As String, settingName As String, settingValue As Variant, override As Boolean [Optional: true])", A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogHelperValidation(methodName, [settingMethod, settingName, settingValue, override])
+    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Variant, override As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, override])
 
     global methodRegistry
 
