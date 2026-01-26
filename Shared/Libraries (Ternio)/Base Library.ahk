@@ -1,6 +1,9 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
+#Include ..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk
 #Include Logging Library.ahk
+
+global methodRegistry := Map()
 
 AssignSpreadsheetOperationsTemplateCombined(version := "") {
     static methodName := RegisterMethod("version As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
@@ -360,6 +363,26 @@ SetAutoHotkeyThreadPriority(threadPriority) {
 
     autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
     DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", threadPriority)
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+ValidateConfiguration(configurationPath) {
+    static methodName := RegisterMethod("configurationPath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Validate Configuration")
+
+    global system
+
+    jsongo.silent_error := false
+    try {
+        system["Configuration"] := jsongo.Parse(FileRead(configurationPath))
+    } catch {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to load Configuration File due to invalid JSON.")
+    }
+
+    if Type(system["Configuration"]) != "Map" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration is unexpectedly not a Map.")
+    }
 
     LogConclusion("Completed", logValuesForConclusion)
 }

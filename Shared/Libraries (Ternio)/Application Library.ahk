@@ -10,21 +10,36 @@ global applicationRegistry := unset
 ; Application Registry         ;
 ; **************************** ;
 
+DefineApplicationRegistry() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Define Application Registry")
+
+    global applicationRegistry
+
+    mappedApplicationsFilePath := system["Mappings Directory"] . "Applications.csv"
+    if !FileExist(mappedApplicationsFilePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
+    }
+
+    applicationRegistry := Map()
+   
+    applications := ConvertCsvToArrayOfMaps(mappedApplicationsFilePath)
+    for application in applications {
+        applicationName    := application["Name"]
+        applicationCounter := application["Counter"] + 0
+
+        applicationRegistry[applicationName] := Map()
+        applicationRegistry[applicationName]["Counter"] := applicationCounter
+    }
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
 RegisterApplications() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [], "Register Applications")
 
     global applicationRegistry
-    applicationRegistry := Map()
-   
-    mappingApplications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
-    for mappingApplication in mappingApplications {
-        applicationName := mappingApplication["Name"]
-
-        applicationRegistry[applicationName] := Map()
-
-        applicationRegistry[applicationName]["Counter"] := mappingApplication["Counter"] + 0
-    }
 
     applicationWhitelist := system["Configuration"]["Application Whitelist"]
     applicationWhitelistLength := applicationWhitelist.Length
@@ -269,7 +284,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                     break
                 }
 
-                applicationDirectoryFileList := GetFilesFromDirectory(baseDirectoryWithName, true)
+                applicationDirectoryFileList := GetFilesFromDirectory(baseDirectoryWithName)
 
                 if applicationDirectoryFileList.Length = 0 {
                     continue

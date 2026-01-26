@@ -7,7 +7,7 @@ CleanOfficeLocksInFolder(directoryPath) {
     logValuesForConclusion := LogBeginning(methodName, [directoryPath], "Clean Office Locks in Folder (" . directoryPath . ")")
 
     deletedCount     := 0
-    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
+    filesInDirectory := GetFilesFromDirectory(directoryPath)
 
     if filesInDirectory.Length = 0 {
         LogConclusion("Skipped", logValuesForConclusion)
@@ -348,10 +348,14 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     }
 }
 
-WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM") {
+WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM", overwrite := true) {
     static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
-    static methodName := RegisterMethod("text As String [Constraint: Summary], filePath As String [Constraint: Absolute Save Path], encoding As String [Whitelist: " . encodingWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding], "Write Text Into File" . " (" . ExtractFilename(filePath) . ")")
+    static methodName := RegisterMethod("text As String [Constraint: Summary], filePath As String [Constraint: Absolute Save Path], encoding As String [Whitelist: " . encodingWhitelist . "], overwrite as Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding, overwrite], "Write Text Into File" . " (" . ExtractFilename(filePath) . ")")
+
+    if overwrite = false && FileExist(filePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File already exists and overwrite parameter is set to false.")
+    }
 
     switch encoding {
         case "UTF-8": encoding := "UTF-8-RAW"
@@ -420,7 +424,7 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     static methodName := RegisterMethod("filename As String [Constraint: Locator], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filename, directoryPath, fileExtension])
 
-    filesInDirectory := GetFilesFromDirectory(directoryPath, true)
+    filesInDirectory := GetFilesFromDirectory(directoryPath)
     if filesInDirectory.Length = 0 {
         return ""
     }
@@ -446,19 +450,23 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     }
 }
 
-GetFilesFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], emptyDirectoryAllowed As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath, emptyDirectoryAllowed])
+GetFilesFromDirectory(directoryPath, filterValue := "") {
+    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], filterValue As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
 
     files := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
-    loop files, pattern, "F" {
-        files.Push(A_LoopFileFullPath)
-    }
-
-    if !emptyDirectoryAllowed && files.Length = 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory exists but contains no files: " directoryPath)
+    if filterValue = "" {
+        loop files, pattern, "F" {
+            files.Push(A_LoopFileFullPath)
+        }
+    } else {
+        loop files, pattern, "F" {
+            if InStr(A_LoopFileFullPath, filterValue) {
+                files.Push(A_LoopFileFullPath)
+            }
+        }
     }
 
     return files

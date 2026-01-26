@@ -1,32 +1,27 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
-#Include "..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk"
+#Include Application Library.ahk
 #Include Base Library.ahk
 #Include Chrono Library.ahk
 #Include Image Library.ahk
 
-global logFilePath := Map(
-    "Execution Log", "",
-    "Operation Log", "",
-    "Runtime Trace", "",
-    "Symbol Ledger", ""
-)
-global methodRegistry := Map()
-global overlayGui := ""
-global overlayLines := Map()
-global overlayOrder := []
+global logEntries    := []
+global logFilePath   := unset
+global overlayGui    := unset
+global overlayLines  := Map()
+global overlayOrder  := []
 global overlayStatus := Map(
-    "Beginning", "... Beginning ▶️",
-    "Skipped",   "... Skipped ➡️",
-    "Completed", "... Completed ✔️",
-    "Failed",    "... Failed ✖️"
+    "Beginning", "... Beginning " . "▶️",
+    "Skipped",   "... Skipped " .   "➡️",
+    "Completed", "... Completed " . "✔️",
+    "Failed",    "... Failed " .    "✖️"
 )
-global symbolLedger := Map()
-global system := Map()
+global symbolLedger  := Map()
+global system        := Map()
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
-    if logFilePath["Execution Log"] != "" && logFilePath["Operation Log"] != "" && logFilePath["Runtime Trace"] != "" && logFilePath["Symbol Ledger"] != "" {
+    if IsSet(logFilePath) {
         Critical "On"
         AbortExecution()
     } else {
@@ -69,34 +64,36 @@ DisplayErrorMessage(logValuesForConclusion, errorLineNumber, errorMessage) {
             "Error Output: " . errorMessage
     }
 
-    LogEngine("Failed", fullErrorText)
+    AppendLineToLog(fullErrorText, "Run Telemetry")
+
+    LogEngine("Failed")
 
     if OverlayIsVisible() {
         WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
     }
 
-    if logValuesForConclusion["Method Name"] != "AbortExecution" {
-        errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
-        errorWindow.SetFont("s10", "Segoe UI")
-        errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", fullErrorText)
-
-        exitButton := errorWindow.AddButton("w60 Default", "Exit")
-        exitButton.OnEvent("Click", (*) => ExitApp())
-        exitButton.Focus()
-        errorWindow.OnEvent("Close", (*) => ExitApp())
-
-        copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
-        copyButton.OnEvent("Click", (*) => A_Clipboard := fullErrorText)
-
-        errorWindow.Show("AutoSize Center")
-        WinWaitClose("ahk_id " errorWindow.Hwnd)
-    } else {
+    if logValuesForConclusion["Method Name"] = "AbortExecution" {
         ExitApp()
     }
+
+    errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
+    errorWindow.SetFont("s10", "Segoe UI")
+    errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", fullErrorText)
+
+    exitButton := errorWindow.AddButton("w60 Default", "Exit")
+    exitButton.OnEvent("Click", (*) => ExitApp())
+    exitButton.Focus()
+    errorWindow.OnEvent("Close", (*) => ExitApp())
+
+    copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
+    copyButton.OnEvent("Click", (*) => A_Clipboard := fullErrorText)
+
+    errorWindow.Show("AutoSize Center")
+    WinWaitClose("ahk_id " . errorWindow.Hwnd)
 }
 
 LogBeginning(methodName, arguments := [], overlayValue := unset) {
-    static lastRuntimeTraceTick := 0
+    static lastRunTelemetryTick := 0
 
     logValuesForConclusion := Map(
         "Method Name",    methodName,
@@ -106,20 +103,16 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         "Context",        ""
     )
 
-    if methodName = "ConvertUtcTimestampToInteger" || methodName = "GetQueryPerformanceCounter" || methodName = "GetUtcTimestamp" || methodName = "GetUtcTimestampInteger" || methodName = "GetUtcTimestampPrecise" {
-        return logValuesForConclusion
-    }
-
     timestamp := LogTimestamp()
 
-    runtimeTraceInterval := 6 * 60 * 1000
-    runtimeTraceTick := A_TickCount
+    runTelemetryInterval := 6 * 60 * 1000
+    runTelemetryTick     := A_TickCount
 
-    if lastRuntimeTraceTick = 0 {
-        lastRuntimeTraceTick := runtimeTraceTick
+    if lastRunTelemetryTick = 0 {
+        lastRunTelemetryTick := runTelemetryTick
     }
 
-    csvBeginning := unset
+    logBeginning := unset
     overlayKey   := unset
     if IsSet(overlayValue) {
         encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
@@ -142,7 +135,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
         logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
 
-        csvBeginning :=
+        logBeginning :=
             encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
             "B" .                                  "|" . ; Status
             encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
@@ -159,7 +152,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         logValuesForConclusion               := LogFormatMethodArguments(logValuesForConclusion, arguments)
 
         if IsSet(overlayValue) {
-            csvBeginning := csvBeginning . "|" . 
+            logBeginning := logBeginning . "|" . 
                 logValuesForConclusion["Arguments Log"] ; Arguments
         }
 
@@ -170,7 +163,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
             logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
 
-            csvBeginning :=
+            logBeginning :=
                 encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
                 "B" .                                  "|" . ; Status
                 encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
@@ -182,21 +175,21 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
     if logValuesForConclusion["Overlay Key"] != 0 {
         if !symbolLedger.Has(overlayValue . "|O") {
-            csvOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
-            AppendCsvLineToLog(csvOverlaySymbolLedgerLine, "Symbol Ledger")
+            logOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
+            AppendLineToLog(logOverlaySymbolLedgerLine, "Symbol Ledger")
         }
 
         if IsSet(overlayValue) {
             encodedOverlayKey := EncodeIntegerToBase(overlayKey, 94)
 
-            csvBeginning := csvBeginning . "|" . 
+            logBeginning := logBeginning . "|" . 
                 encodedOverlayKey . "|" .         ; Overlay Key
                 symbolLedger[overlayValue . "|O"] ; Overlay Value
         }
     }
 
     if IsSet(overlayValue) || logValuesForConclusion["Validation"] != "" {
-        AppendCsvLineToLog(csvBeginning, "Operation Log")
+        AppendLineToLog(logBeginning, "Operation Log")
 
         if logValuesForConclusion["Validation"] != "" {
             LogConclusion("Failed", logValuesForConclusion, A_LineNumber, logValuesForConclusion["Validation"])
@@ -206,8 +199,8 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         logValuesForConclusion["UTC Timestamp Integer"]                   := timestamp["UTC Timestamp Integer"]
     }
 
-    if runtimeTraceTick - lastRuntimeTraceTick >= runtimeTraceInterval {
-        lastRuntimeTraceTick := runtimeTraceTick
+    if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
+        lastRunTelemetryTick := runTelemetryTick
         LogEngine("Intermission")
     }
 
@@ -225,34 +218,34 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
     encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
     encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
 
-    csvConclusion := 
+    logConclusion := 
         encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
         "[[Status]]" .                   "|" . ; Status
         encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
         encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
     if logValuesForConclusion["Context"] != "" {
-        csvConclusion := csvConclusion . "|" . 
+        logConclusion := logConclusion . "|" . 
             logValuesForConclusion["Context"]  ; Method or Context
     }
 
     conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
         switch conclusionStatus {
             case "Skipped":
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "S"), "Operation Log")
+                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "S"), "Operation Log")
 
                 if logValuesForConclusion["Overlay Key"] !== 0 {
                     OverlayUpdateStatus(logValuesForConclusion, "Skipped")
                 }
             case "Completed":
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "C"), "Operation Log")
+                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "C"), "Operation Log")
 
                 if logValuesForConclusion["Overlay Key"] !== 0 {
                     OverlayUpdateStatus(logValuesForConclusion, "Completed")
                 }
             case "Failed":
                 if logValuesForConclusion.Has("Query Performance Counter Midpoint Tick") && logValuesForConclusion.Has("UTC Timestamp Integer") {
-                    csvBeginning :=
+                    logBeginning :=
                         encodedOperationSequenceNumber .       "|" .                                                       ; Operation Sequence Number
                         "B" .                                  "|" .                                                       ; Status
                         EncodeIntegerToBase(logValuesForConclusion["Query Performance Counter Midpoint Tick"], 94) . "|" . ; Query Performance Counter
@@ -260,14 +253,14 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
                         methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"]                                    ; Method or Context
 
                         if logValuesForConclusion["Arguments Log"] != "" {
-                            csvBeginning := csvBeginning . "|" . 
+                            logBeginning := logBeginning . "|" . 
                                 logValuesForConclusion["Arguments Log"]                                                    ; Arguments
                         }
 
-                    AppendCsvLineToLog(csvBeginning, "Operation Log")
+                    AppendLineToLog(logBeginning, "Operation Log")
                 }
 
-                AppendCsvLineToLog(StrReplace(csvConclusion, "[[Status]]", "F"), "Operation Log")
+                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "F"), "Operation Log")
 
                 if logValuesForConclusion["Overlay Key"] != 0 {
                     OverlayUpdateStatus(logValuesForConclusion, "Failed")
@@ -283,80 +276,35 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
         }
 }
 
-LogEngine(status, fullErrorText := "") {
+LogEngine(status) {
+    global logEntries
     global logFilePath
     global system
 
-    runtimeTraceLines := []
+    static newLine := "`r`n"
+
+    runTelemetryLines := []
     if status = "Beginning" {
         SplitPath(A_ScriptFullPath, , , , &projectName)
         SplitPath(A_LineFile, , &librariesFolderPath)
         SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
         SplitPath(sharedFolderPath, , &curatiumFolderPath)
 
-        system["Project Name"]          := projectName
-        system["Curatium Directory"]    := curatiumFolderPath . "\"
-        system["Log Directory"]         := system["Curatium Directory"] . "Log\"
-        system["Project Directory"]     := system["Curatium Directory"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
-        system["Shared Directory"]      := sharedFolderPath . "\"
-        system["Constants Directory"]   := system["Shared Directory"] . "Constants\"
-        system["Images Directory"]      := system["Shared Directory"] . "Images\"
-        system["Mappings Directory"]    := system["Shared Directory"] . "Mappings\"
-        system["Library Release"]       := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
-        system["AutoHotkey Version"]    := A_AhkVersion
+        system["Project Name"]        := projectName
+        system["Curatium Directory"]  := curatiumFolderPath . "\"
+        system["Log Directory"]       := system["Curatium Directory"] . "Log\"
+        system["Project Directory"]   := system["Curatium Directory"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
+        system["Shared Directory"]    := sharedFolderPath . "\"
+        system["Constants Directory"] := system["Shared Directory"] . "Constants\"
+        system["Images Directory"]    := system["Shared Directory"] . "Images\"
+        system["Mappings Directory"]  := system["Shared Directory"] . "Mappings\"
+        system["Library Release"]     := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
+        system["AutoHotkey Version"]  := A_AhkVersion
 
-        if !DirExist(system["Log Directory"]) {
-            DirCreate(system["Log Directory"])
-        }
+        LogTelemetryTimestamp()
 
-        if !DirExist(system["Project Directory"]) {
-            DirCreate(system["Project Directory"])
-        }
-
-        system["Configuration"]         := system["Project Directory"] . "Configuration (" . system["Library Release"] . ").json"
-
-        while true {
-            milliseconds    := A_MSec + 0
-            dateTimeOfToday := FormatTime(A_NowUTC, "yyyy-MM-dd HH.mm.ss")
-            sharedStartName := system["Log Directory"] . projectName . " - " . dateTimeOfToday . " - "
-
-            logFilePath["Execution Log"] := sharedStartName . "Execution Log.csv"
-            logFilePath["Operation Log"] := sharedStartName . "Operation Log.csv"
-            logFilePath["Runtime Trace"] := sharedStartName . "Runtime Trace.csv"
-            logFilePath["Symbol Ledger"] := sharedStartName . "Symbol Ledger.csv"
-
-            if !FileExist(logFilePath["Execution Log"]) && !FileExist(logFilePath["Operation Log"]) && !FileExist(logFilePath["Runtime Trace"]) && !FileExist(logFilePath["Symbol Ledger"]) {
-                if milliseconds >= 400 {
-                    Sleep(1016 - milliseconds)
-                    continue
-                }
-
-                break
-            } else {
-                Sleep(1016 - milliseconds)
-            }
-        }
-
-        executionLogFileHandle := FileOpen(logFilePath["Execution Log"], "w", "UTF-8")
-        executionLogFileHandle.WriteLine("Log")
-        executionLogFileHandle.Close()
-
-        operationLogFileHandle := FileOpen(logFilePath["Operation Log"], "w", "UTF-8")
-        operationLogFileHandle.WriteLine("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value")
-        operationLogFileHandle.Close()
-
-        runtimeTraceFileHandle := FileOpen(logFilePath["Runtime Trace"], "w", "UTF-8")
-        runtimeTraceFileHandle.WriteLine("Log")
-        runtimeTraceFileHandle.Close()
-
-        symbolLedgerFileHandle := FileOpen(logFilePath["Symbol Ledger"], "w", "UTF-8")
-        symbolLedgerFileHandle.WriteLine("Reference|Type|Symbol")
-        symbolLedgerFileHandle.Close()
-
-        warmupUtcTimestamp              := GetUtcTimestamp()
-        warmupUtcTimestampInteger       := GetUtcTimestampInteger()
-
-        LogTimestampPrecise()
+        EnsureDirectoryExists(system["Log Directory"])
+        EnsureDirectoryExists(system["Project Directory"])
 
         system["International"]         := GetInternationalFormatting()
         
@@ -381,6 +329,76 @@ LogEngine(status, fullErrorText := "") {
         system["Refresh Rate"]          := GetActiveMonitorRefreshRateHz()
         system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
         system["Color Mode"]            := GetWindowsColorMode()
+
+        DefineApplicationRegistry()
+
+        configurationPath := system["Project Directory"] . "Configuration (" . system["Project Name"] . ", " . "Library Release" . " " . system["Library Release"] . ").json"
+        if !FileExist(configurationPath) {
+            configurationData := '{' . newLine . 
+                '    "Application Whitelist": [' . newLine . 
+                    '        ' .  newLine . 
+                '    ],' . newLine . 
+                '    "Application Executable Directory Candidates": [' . newLine .
+                    '        '  . newLine . 
+                '    ],' . newLine . 
+                '    "Candidate Base Directories": [' . newLine . 
+                    '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '", ' . newLine . 
+                    '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
+                    '    ],' . newLine . 
+                '    "Settings": {' . newLine . 
+                    '        "Image Variant Preset": "' . system["Constants Directory"] . 'Heroes (2025-09-20).csv' . '"' . newLine . 
+                '    }' . newLine . '}'
+            configurationData := StrReplace(configurationData, "\", "\\")
+            WriteTextIntoFile(configurationData, configurationPath)
+        }
+
+        ValidateConfiguration(configurationPath)
+
+        dateTimeOfToday := FormatTime(StrReplace(StrReplace(StrReplace(StrSplit(system["UTC Timestamp Precise"], ".")[1], "-"), " "), ":"), "yyyy-MM-dd HH.mm.ss")
+        sharedStartName := system["Log Directory"] . projectName . " - " . dateTimeOfToday . " - "
+
+        executionLogFilePath := sharedStartName . "Execution Log.csv"
+        operationLogFilePath := sharedStartName . "Operation Log.csv"
+        runTelemetryFilePath := sharedStartName . "Run Telemetry.csv"
+        symbolLedgerFilePath := sharedStartName . "Symbol Ledger.csv"
+
+        newLine := "`r`n"
+        WriteTextIntoFile("Log" . newLine, executionLogFilePath, "UTF-8-BOM", false)
+        WriteTextIntoFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value" . newLine, operationLogFilePath, "UTF-8-BOM", false)
+        WriteTextIntoFile("Log" . newLine, runTelemetryFilePath, "UTF-8-BOM", false)
+        WriteTextIntoFile("Reference|Type|Symbol" . newLine, symbolLedgerFilePath, "UTF-8-BOM", false)
+
+        logFilePath := Map(
+            "Execution Log", executionLogFilePath,
+            "Operation Log", operationLogFilePath,
+            "Run Telemetry", runTelemetryFilePath,
+            "Symbol Ledger", symbolLedgerFilePath
+        )
+
+        consolidatedOperationLog := ""
+        consolidatedSymbolLedger := ""
+        for logEntry in logEntries {
+            if logEntry[2] = "Operation Log" {
+                if consolidatedOperationLog = "" {
+                    consolidatedOperationLog := logEntry[1]
+                } else {
+                    consolidatedOperationLog := consolidatedOperationLog . newLine . logEntry[1]
+                }
+            }
+
+            if logEntry[2] = "Symbol Ledger" {
+                if consolidatedSymbolLedger = "" {
+                    consolidatedSymbolLedger := logEntry[1]
+                } else {
+                    consolidatedSymbolLedger := consolidatedSymbolLedger . newLine . logEntry[1]
+                }
+            }
+        }
+
+        AppendLineToLog(consolidatedOperationLog, "Operation Log")
+        AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+
+        logEntries := []
 
         executionLogLines := [
             system["Project Name"],
@@ -411,49 +429,27 @@ LogEngine(status, fullErrorText := "") {
 
         BatchAppendExecutionLog("Beginning", executionLogLines)
 
-        runtimeTraceLines.Push(system["Runtime Trace Order"])
-        runtimeTraceLines.Push(system["QPC Before Timestamp"])
-        runtimeTraceLines.Push(system["UTC Timestamp Precise"])
-        runtimeTraceLines.Push(system["QPC After Timestamp"])
-        runtimeTraceLines.Push(system["QPC Midpoint Tick"])
-        runtimeTraceLines.Push(system["UTC Timestamp Integer"])
-        runtimeTraceLines.Push(GetPhysicalMemoryStatus())
-        runtimeTraceLines.Push(GetRemainingFreeDiskSpace())
+        runTelemetryLines.Push(system["Run Telemetry Order"])
+        runTelemetryLines.Push(system["QPC Before Timestamp"])
+        runTelemetryLines.Push(system["UTC Timestamp Precise"])
+        runTelemetryLines.Push(system["QPC After Timestamp"])
+        runTelemetryLines.Push(system["QPC Midpoint Tick"])
+        runTelemetryLines.Push(system["UTC Timestamp Integer"])
+        runTelemetryLines.Push(GetPhysicalMemoryStatus())
+        runTelemetryLines.Push(GetRemainingFreeDiskSpace())
 
-        BatchAppendRuntimeTrace("Beginning", runtimeTraceLines)
-
-        if !FileExist(system["Configuration"]) {
-            newLine := "`r`n"
-            configurationData := '{' . newLine . 
-                '    "Application Whitelist": [' . newLine . 
-                    '        ' .  newLine . 
-                '    ],' . newLine . 
-                '    "Application Executable Directory Candidates": [' . newLine .
-                    '        '  . newLine . 
-                '    ],' . newLine . 
-                '    "Candidate Base Directories": [' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '", ' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
-                    '    ],' . newLine . 
-                '    "Settings": {' . newLine . 
-                    '        "Image Variant Preset": "' . system["Constants Directory"] . 'Heroes (2025-09-20).csv' . '"' . newLine . 
-                '    }' . newLine . '}'
-            configurationData := StrReplace(configurationData, "\", "\\")
-            WriteTextIntoFile(configurationData, system["Configuration"])
-        }
-
-        system["Configuration"] := jsongo.Parse(FileRead(system["Configuration"]))
+        BatchAppendRunTelemetry("Beginning", runTelemetryLines)
     } else {
-        LogTimestampPrecise()
+        LogTelemetryTimestamp()
 
-        runtimeTraceLines.Push(system["Runtime Trace Order"])
-        runtimeTraceLines.Push(system["QPC Before Timestamp"])
-        runtimeTraceLines.Push(system["UTC Timestamp Precise"])
-        runtimeTraceLines.Push(system["QPC After Timestamp"])
-        runtimeTraceLines.Push(system["QPC Midpoint Tick"])
-        runtimeTraceLines.Push(system["UTC Timestamp Integer"])
-        runtimeTraceLines.Push(GetPhysicalMemoryStatus())
-        runtimeTraceLines.Push(GetRemainingFreeDiskSpace())
+        runTelemetryLines.Push(system["Run Telemetry Order"])
+        runTelemetryLines.Push(system["QPC Before Timestamp"])
+        runTelemetryLines.Push(system["UTC Timestamp Precise"])
+        runTelemetryLines.Push(system["QPC After Timestamp"])
+        runTelemetryLines.Push(system["QPC Midpoint Tick"])
+        runTelemetryLines.Push(system["UTC Timestamp Integer"])
+        runTelemetryLines.Push(GetPhysicalMemoryStatus())
+        runTelemetryLines.Push(GetRemainingFreeDiskSpace())
     }
 
     switch status {
@@ -462,16 +458,15 @@ LogEngine(status, fullErrorText := "") {
                 OverlayChangeTransparency(255)
             }
 
-            BatchAppendRuntimeTrace("Completed", runtimeTraceLines)
+            BatchAppendRunTelemetry("Completed", runTelemetryLines)
 
             FinalizeLogs()
         case "Failed":
-            BatchAppendRuntimeTrace("Failed", runtimeTraceLines)
-            AppendCsvLineToLog(fullErrorText, "Runtime Trace")
+            BatchAppendRunTelemetry("Failed", runTelemetryLines)
             
             FinalizeLogs()
         case "Intermission":
-            BatchAppendRuntimeTrace("Intermission", runtimeTraceLines)
+            BatchAppendRunTelemetry("Intermission", runTelemetryLines)
     }
 }
 
@@ -546,8 +541,8 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
             case "String":
                 if argumentsFormatted["Whitelist"].Length != 0 {
                     if !symbolLedger.Has(argument . "|W") {
-                        csvSymbolLedgerLine := RegisterSymbol(argument, "Whitelist", false)
-                        AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                        logSymbolLedgerLine := RegisterSymbol(argument, "Whitelist", false)
+                        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                     }
 
                     argumentValueLog := symbolLedger[argument . "|W"]
@@ -557,13 +552,13 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
                             SplitPath(argument, &filename, &directoryPath)
 
                             if !symbolLedger.Has(directoryPath . "|D") {
-                                csvSymbolLedgerLine := RegisterSymbol(directoryPath, "Directory", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(directoryPath, "Directory", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             if !symbolLedger.Has(filename . "|F") {
-                                csvSymbolLedgerLine := RegisterSymbol(filename, "Filename", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(filename, "Filename", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[directoryPath . "|D"] . "\" . symbolLedger[filename . "|F"]
@@ -571,23 +566,23 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
                             summary := "<Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ">"
 
                             if !symbolLedger.Has(summary . "|S") {
-                                csvSymbolLedgerLine := RegisterSymbol(summary, "Summary", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(summary, "Summary", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueFull := summary
                             argumentValueLog := symbolLedger[summary . "|S"]
                         case "Directory":
                             if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
-                                csvSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[RTrim(argument, "\") . "|D"]
                         case "Filename":
                             if !symbolLedger.Has(argument . "|F") {
-                                csvSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[argument . "|F"]
@@ -596,16 +591,16 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
                             argumentValueFull := "<Key>"
                         case "Locator":
                             if !symbolLedger.Has(argument . "|L") {
-                                csvSymbolLedgerLine := RegisterSymbol(argument, "Locator", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(argument, "Locator", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[argument . "|L"]
                         case "SHA-256":
                             encodedHash := EncodeSha256HexToBase(argument, 86)
                             if !symbolLedger.Has(encodedHash . "|H") {
-                                csvSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
-                                AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+                                logSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
+                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
                             argumentValueLog := symbolLedger[encodedHash . "|H"]
@@ -641,32 +636,14 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
     return logValuesForConclusion
 }
 
-LogTimestamp() {
-    queryPerformanceCounterBefore           := GetQueryPerformanceCounter()
-    utcTimestampInteger                     := GetUtcTimestampInteger()
-    queryPerformanceCounterAfter            := GetQueryPerformanceCounter()
-
-    utcTimestampInteger                     := utcTimestampInteger - system["UTC Timestamp Integer"]
-    queryPerformanceCounterMeasurementDelta := queryPerformanceCounterAfter - queryPerformanceCounterBefore
-    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["QPC Midpoint Tick"]
-
-    logTimestamp := Map(
-        "Query Performance Counter Midpoint Tick", queryPerformanceCounterMidpointTick,
-        "UTC Timestamp Integer",                   utcTimestampInteger
-    )
-
-    return logTimestamp
-}
-
-LogTimestampPrecise() {
+LogTelemetryTimestamp() {
     global system
 
-    static runtimeTraceOrder        := 0
-    runtimeTraceOrder               := runtimeTraceOrder + 1
-    system["Runtime Trace Order"]   := runtimeTraceOrder
+    static runTelemetryOrder        := 0
+    runTelemetryOrder               := runTelemetryOrder + 1
+    system["Run Telemetry Order"]   := runTelemetryOrder
 
-    static maxDurationMilliseconds  := 200
-    startTime                       := A_TickCount
+    maxDurationMilliseconds         := 240
     queryPerformanceCounterReadings := []
     utcTimestampPreciseReadings     := []
     combinedReadings                := []
@@ -677,6 +654,19 @@ LogTimestampPrecise() {
     if originalAutoHotkeyThreadPriority = 0 {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
+
+    while true {
+        milliseconds := A_MSec + 0
+
+        if milliseconds <= 584 {
+            break
+        } else {
+            Sleep(1016 - milliseconds)
+            continue
+        }
+    }
+
+    startTime := A_TickCount
 
     while (A_TickCount - startTime < maxDurationMilliseconds) {
         queryPerformanceCounterReadings.Push(GetQueryPerformanceCounter())
@@ -718,14 +708,31 @@ LogTimestampPrecise() {
     system["QPC After Timestamp"]   := chosen[3]
     system["QPC Measurement Delta"] := chosen[4]
     system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
-    system["UTC Timestamp Integer"] := ConvertUtcTimestampToInteger(system["UTC Timestamp Precise"])
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Log Timestamp Precise")
+    utcTimestampIntegerConversion := StrReplace(StrReplace(StrReplace(StrReplace(system["UTC Timestamp Precise"], "-"), " "), ":"), ".")
+    if StrLen(utcTimestampIntegerConversion) >= 18 {
+        utcTimestampIntegerConversion := SubStr(utcTimestampIntegerConversion, 1, 17)
+    }
+    utcTimestampIntegerConversion := utcTimestampIntegerConversion + 0
 
-    logValuesForConclusion["Context"] := "Runtime Trace Order: " . system["Runtime Trace Order"]
+    system["UTC Timestamp Integer"] := utcTimestampIntegerConversion
+}
 
-    LogConclusion("Completed", logValuesForConclusion)
+LogTimestamp() {
+    queryPerformanceCounterBefore           := GetQueryPerformanceCounter()
+    utcTimestampInteger                     := GetUtcTimestampInteger()
+    queryPerformanceCounterAfter            := GetQueryPerformanceCounter()
+
+    utcTimestampInteger                     := utcTimestampInteger - system["UTC Timestamp Integer"]
+    queryPerformanceCounterMeasurementDelta := queryPerformanceCounterAfter - queryPerformanceCounterBefore
+    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["QPC Midpoint Tick"]
+
+    logTimestamp := Map(
+        "Query Performance Counter Midpoint Tick", queryPerformanceCounterMidpointTick,
+        "UTC Timestamp Integer",                   utcTimestampInteger
+    )
+
+    return logTimestamp
 }
 
 OverlayChangeTransparency(transparencyValue) {
@@ -936,45 +943,44 @@ OverlayUpdateStatus(logValuesForConclusion, newStatus) {
 FinalizeLogs() {
     global logFilePath
 
-    for index, filePath in logFilePath {
-        file := FileOpen(filePath, "rw")
-        if !file {
-            continue
-        }
+    if IsSet(logFilePath) {
+        for index, filePath in logFilePath {
+            file := FileOpen(filePath, "rw")
+            if !file {
+                continue
+            }
 
-        fileSize := file.Length
-        if fileSize = 0 {
+            fileSize := file.Length
+            if fileSize = 0 {
+                file.Close()
+                continue
+            }
+
+            ; Trim last trailing newline.
+            bytesToRead := (fileSize >= 2) ? 2 : 1
+            file.Seek(-bytesToRead, 2)
+            tail := Buffer(bytesToRead)
+            file.RawRead(tail, bytesToRead)
+
+            if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
+                file.Length := fileSize - 2
+            } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
+                file.Length := fileSize - 1
+            }
+
             file.Close()
-            continue
+
+            filePath := ""
         }
 
-        ; Trim last trailing newline.
-        bytesToRead := (fileSize >= 2) ? 2 : 1
-        file.Seek(-bytesToRead, 2)
-        tail := Buffer(bytesToRead)
-        file.RawRead(tail, bytesToRead)
+        timestampNow := A_Now
+        FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
+        FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
+        FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
+        FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
 
-        if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
-            file.Length := fileSize - 2
-        } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
-            file.Length := fileSize - 1
-        }
-
-        file.Close()
-
-        filePath := ""
+        logFilePath := unset
     }
-
-    timestampNow := A_Now
-    FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
-    FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
-    FileSetTime(timestampNow, logFilePath["Runtime Trace"], "M")
-    FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
-
-    logFilePath["Execution Log"] := ""
-    logFilePath["Operation Log"] := ""
-    logFilePath["Runtime Trace"] := ""
-    logFilePath["Symbol Ledger"] := ""
 }
 
 ; **************************** ;
@@ -1292,20 +1298,24 @@ DecodeBaseToSha256Hex(baseText, baseType) {
 ; Helper Methods               ;
 ; **************************** ;
 
-AppendCsvLineToLog(csvLine, logType) {
+AppendLineToLog(line, logType) {
     static newLine := "`r`n"
 
-    callerWasCritical := A_IsCritical
-    if !callerWasCritical {
-        Critical "On"
-    }
-
-    try {
-        FileAppend(csvLine . newLine, logFilePath[logType], "UTF-8-RAW")
-    } finally {
+    if IsSet(logFilePath) {
+        callerWasCritical := A_IsCritical
         if !callerWasCritical {
-            Critical "Off"
+            Critical "On"
         }
+
+        try {
+            FileAppend(line . newLine, logFilePath[logType], "UTF-8-RAW")
+        } finally {
+            if !callerWasCritical {
+                Critical "Off"
+            }
+        }
+    } else {
+        logEntries.Push([line, logType])
     }
 }
 
@@ -1338,10 +1348,10 @@ BatchAppendExecutionLog(executionType, array) {
         }
     }
 
-    AppendCsvLineToLog(consolidatedExecutionLog, "Execution Log")
+    AppendLineToLog(consolidatedExecutionLog, "Execution Log")
 }
 
-BatchAppendRuntimeTrace(appendType, array) {
+BatchAppendRunTelemetry(appendType, array) {
     static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Beginning", "B", "Completed", "C", "Failed", "F", "Intermission", "I")
     static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [appendType, array])
@@ -1359,7 +1369,7 @@ BatchAppendRuntimeTrace(appendType, array) {
             appendType := "I"
     }
 
-    consolidatedRuntimeTrace := ""
+    consolidatedRunTelemetry := ""
 
     arrayLength := array.Length
     for index, value in array {
@@ -1368,13 +1378,13 @@ BatchAppendRuntimeTrace(appendType, array) {
         }
 
         if arrayLength !== index {
-            consolidatedRuntimeTrace := consolidatedRuntimeTrace . value . "|" . appendType . newLine
+            consolidatedRunTelemetry := consolidatedRunTelemetry . value . "|" . appendType . newLine
         } else {
-            consolidatedRuntimeTrace := consolidatedRuntimeTrace . value . "|" . appendType
+            consolidatedRunTelemetry := consolidatedRunTelemetry . value . "|" . appendType
         }
     }
 
-    AppendCsvLineToLog(consolidatedRuntimeTrace, "Runtime Trace")
+    AppendLineToLog(consolidatedRunTelemetry, "Run Telemetry")
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
@@ -1436,7 +1446,7 @@ BatchAppendSymbolLedger(symbolType, array) {
             }
         }
 
-        AppendCsvLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+        AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
     }
 }
 
@@ -1722,11 +1732,11 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
 
     symbol := unset
     if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
-        csvSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
-        AppendCsvLineToLog(csvSymbolLedgerLine, "Symbol Ledger")
+        logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
+        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
 
-        csvParts := StrSplit(csvSymbolLedgerLine, "|")
-        symbol   := csvParts[csvParts.Length]
+        logParts := StrSplit(logSymbolLedgerLine, "|")
+        symbol   := logParts[logParts.Length]
     } else {
         symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
     }
@@ -1815,7 +1825,7 @@ RegisterSymbol(value, type, addNewLine := true) {
 }
 
 ; **************************** ;
-; Helper Methods: System       ;
+; System Methods               ;
 ; **************************** ;
 
 GetInternationalFormatting() {

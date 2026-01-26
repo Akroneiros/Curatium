@@ -443,6 +443,96 @@ WaitUntilFileIsModifiedToday(filePath) {
 }
 
 ; **************************** ;
+; Core Methods                 ;
+; **************************** ;
+
+GetQueryPerformanceCounter() {
+    static queryPerformanceCounterBuffer := Buffer(8, 0)
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
+
+    queryPerformanceCounter := NumGet(queryPerformanceCounterBuffer, 0, "Int64")
+
+    return queryPerformanceCounter
+}
+
+GetUtcTimestamp() {
+    static systemTime := Buffer(16, 0)
+
+    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+
+    year        := NumGet(systemTime,  0, "UShort")
+    month       := NumGet(systemTime,  2, "UShort")
+    day         := NumGet(systemTime,  6, "UShort")
+    hour        := NumGet(systemTime,  8, "UShort")
+    minute      := NumGet(systemTime, 10, "UShort")
+    second      := NumGet(systemTime, 12, "UShort")
+    millisecond := NumGet(systemTime, 14, "UShort")
+
+    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+
+    return utcTimestamp
+}
+
+GetUtcTimestampInteger() {
+    static systemTime := Buffer(16, 0)
+
+    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
+
+    year        := NumGet(systemTime,  0, "UShort")
+    month       := NumGet(systemTime,  2, "UShort")
+    day         := NumGet(systemTime,  6, "UShort")
+    hour        := NumGet(systemTime,  8, "UShort")
+    minute      := NumGet(systemTime, 10, "UShort")
+    second      := NumGet(systemTime, 12, "UShort")
+    millisecond := NumGet(systemTime, 14, "UShort")
+
+    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+
+    return utcTimestampInteger
+}
+
+GetUtcTimestampPrecise() {
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
+
+    static usePreciseSystemTimeFunction := unset
+
+    if !IsSet(usePreciseSystemTimeFunction) {
+        kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
+        preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
+
+        if preciseFunctionAddress != 0 {
+            usePreciseSystemTimeFunction := true
+        } else {
+            usePreciseSystemTimeFunction := false
+        }
+    }
+
+    if usePreciseSystemTimeFunction {
+        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)       
+        DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+        year       := NumGet(systemTimeBuffer,  0, "UShort")
+        month      := NumGet(systemTimeBuffer,  2, "UShort")
+        dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
+        hour       := NumGet(systemTimeBuffer,  8, "UShort")
+        minute     := NumGet(systemTimeBuffer, 10, "UShort")
+        second     := NumGet(systemTimeBuffer, 12, "UShort")
+
+        fileTimeTicks     := NumGet(fileTimeBuffer, 0, "Int64")
+        ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+        microsecond       := ticksWithinSecond // 10
+
+        utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
+    } else {
+        utcTimestampPrecise := GetUtcTimestamp()
+    }
+
+    return utcTimestampPrecise
+}
+
+; **************************** ;
 ; Helper Methods               ;
 ; **************************** ;
 
@@ -611,108 +701,4 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
     }
 
     return localTimeText
-}
-
-GetQueryPerformanceCounter() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    static queryPerformanceCounterBuffer := Buffer(8, 0)
-    queryPerformanceCounterRetrievedSuccessfully := DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
-    if !queryPerformanceCounterRetrievedSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the current value of the performance counter which is a high resolution time stamp that can be used for time-interval measurements. [Kernel32\QueryPerformanceCounter" . ", System Error Code: " . A_LastError . "]")
-    }
-
-    queryPerformanceCounter := NumGet(queryPerformanceCounterBuffer, 0, "Int64")
-
-    return queryPerformanceCounter
-}
-
-GetUtcTimestamp() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    static systemTime := Buffer(16, 0)
-
-    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
-
-    year        := NumGet(systemTime,  0, "UShort")
-    month       := NumGet(systemTime,  2, "UShort")
-    day         := NumGet(systemTime,  6, "UShort")
-    hour        := NumGet(systemTime,  8, "UShort")
-    minute      := NumGet(systemTime, 10, "UShort")
-    second      := NumGet(systemTime, 12, "UShort")
-    millisecond := NumGet(systemTime, 14, "UShort")
-
-    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
-
-    return utcTimestamp
-}
-
-GetUtcTimestampInteger() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    static systemTime := Buffer(16, 0)
-
-    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
-
-    year        := NumGet(systemTime,  0, "UShort")
-    month       := NumGet(systemTime,  2, "UShort")
-    day         := NumGet(systemTime,  6, "UShort")
-    hour        := NumGet(systemTime,  8, "UShort")
-    minute      := NumGet(systemTime, 10, "UShort")
-    second      := NumGet(systemTime, 12, "UShort")
-    millisecond := NumGet(systemTime, 14, "UShort")
-
-    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
-
-    return utcTimestampInteger
-}
-
-GetUtcTimestampPrecise() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    static fileTimeBuffer   := Buffer(8, 0)
-    static systemTimeBuffer := Buffer(16, 0)
-
-    static usePreciseSystemTimeFunction := unset
-
-    if !IsSet(usePreciseSystemTimeFunction) {
-        kernel32ModuleHandle := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
-        preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
-
-        if preciseFunctionAddress != 0 {
-            usePreciseSystemTimeFunction := true
-        } else {
-            usePreciseSystemTimeFunction := false
-        }
-    }
-
-    if usePreciseSystemTimeFunction {
-        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-        fileTimeTicks := NumGet(fileTimeBuffer, 0, "Int64")
-        
-        convertedFileTimeToSystemTimeSuccessfully := DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-        if !convertedFileTimeToSystemTimeSuccessfully {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to convert a file time to system time format. [Kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
-        }
-
-        year       := NumGet(systemTimeBuffer,  0, "UShort")
-        month      := NumGet(systemTimeBuffer,  2, "UShort")
-        dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
-        hour       := NumGet(systemTimeBuffer,  8, "UShort")
-        minute     := NumGet(systemTimeBuffer, 10, "UShort")
-        second     := NumGet(systemTimeBuffer, 12, "UShort")
-
-        ticksWithinSecond := Mod(fileTimeTicks, 10000000)
-        microsecond       := ticksWithinSecond // 10
-
-        utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
-    } else {
-        utcTimestampPrecise := GetUtcTimestamp()
-    }
-
-    return utcTimestampPrecise
 }
