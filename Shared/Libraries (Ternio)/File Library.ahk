@@ -379,6 +379,45 @@ WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM", overwrite := true) {
 ; Helper Methods               ;
 ; **************************** ;
 
+DetermineWindowsBinaryType(executablePath) {
+    static methodName := RegisterMethod("executablePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [executablePath])
+
+    static SCS_32BIT_BINARY := 0
+    static SCS_DOS_BINARY   := 1
+    static SCS_WOW_BINARY   := 2
+    static SCS_PIF_BINARY   := 3
+    static SCS_POSIX_BINARY := 4
+    static SCS_OS2_BINARY   := 5
+    static SCS_64BIT_BINARY := 6
+
+    classificationResult := "N/A"
+    scsCode := 0
+
+    executableSubsystemRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &scsCode, "Int")
+
+    if executableSubsystemRetrievedSuccessfully {
+        switch scsCode {
+            case SCS_32BIT_BINARY:
+                classificationResult := "32-bit"
+            case SCS_64BIT_BINARY:
+                classificationResult := "64-bit"
+            case SCS_DOS_BINARY:
+                classificationResult := "DOS"
+            case SCS_WOW_BINARY:
+                classificationResult := "Windows 16-bit"
+            case SCS_PIF_BINARY:
+                classificationResult := "PIF"
+            case SCS_POSIX_BINARY:
+                classificationResult := "POSIX"
+            case SCS_OS2_BINARY:
+                classificationResult := "OS/2"
+        }
+    }
+
+    return classificationResult
+}
+
 ExtractDirectory(filePath) {
     static methodName := RegisterMethod("filePath As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath])
@@ -488,4 +527,42 @@ GetFoldersFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
     }
 
     return folders
+}
+
+GetLastLineNumberFromTextFile(filePath) {
+    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [filePath])
+
+    lineCount := 0
+
+    try {
+        endsWithTerminator := false
+        fileObject := FileOpen(filePath, "r")
+        if !IsObject(fileObject) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open text file: " . filePath)
+        }
+        
+        while !fileObject.AtEOF {
+            line := fileObject.ReadLine()
+            lineCount++
+        }
+
+        if fileObject.Length > 0 {
+            fileObject.Seek(-1, 2)
+            lastCharacter := fileObject.ReadUChar()
+            if lastCharacter = 10 || lastCharacter = 13 {
+                endsWithTerminator := true
+            }
+        }
+        
+        fileObject.Close()
+
+        if endsWithTerminator {
+            lineCount++
+        }
+    } catch as fileObjectError {
+        LogConclusion("Failed", logValuesForConclusion, fileObjectError.Line, fileObjectError.Message)
+    }
+
+   return lineCount
 }

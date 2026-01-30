@@ -36,60 +36,177 @@ AbortExecution() {
     LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Execution aborted early by pressing escape.")
 }
 
-DisplayErrorMessage(logValuesForConclusion, errorLineNumber, errorMessage) {
-    windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
-    currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
-    newLine := "`r`n"
+OverlayChangeTransparency(transparencyValue) {
+    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
 
-    if logValuesForConclusion["Validation"] != "" {
-        errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
-    }
-    
-    declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
+    WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
 
-    fullErrorText := unset
-    if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
-        fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
-            "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
-            "Arguments: " .    logValuesForConclusion["Arguments Full"] . newLine . 
-            "Line Number: " .  errorLineNumber . newLine . 
-            "Date Runtime: " . currentDateTime . newLine . 
-            "Error Output: " . errorMessage
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+OverlayChangeVisibility() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Change Visibility")
+
+    if DllCall("User32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
+        overlayGui.Hide()
     } else {
-        fullErrorText :=
-            "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
-            "Line Number: " .  errorLineNumber . newLine . 
-            "Date Runtime: " . currentDateTime . newLine . 
-            "Error Output: " . errorMessage
+        overlayGui.Show("NoActivate")
     }
 
-    AppendLineToLog(fullErrorText, "Run Telemetry")
+    LogConclusion("Completed", logValuesForConclusion)
+}
 
-    LogEngine("Failed")
+OverlayHideLogForMethod(methodNameInput) {
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
-    if OverlayIsVisible() {
-        WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
+    global methodRegistry
+    
+    if !methodRegistry.Has(methodNameInput) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
     }
 
-    if logValuesForConclusion["Method Name"] = "AbortExecution" {
-        ExitApp()
+    methodRegistry[methodNameInput]["Overlay Log"] := false
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+OverlayShowLogForMethod(methodNameInput) {
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
+
+    global methodRegistry
+
+    if methodRegistry.Has(methodNameInput) {
+        methodRegistry[methodNameInput]["Overlay Log"] := true
+    } else {
+        methodRegistry[methodNameInput] := Map(
+            "Overlay Log", true
+        )
     }
 
-    errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
-    errorWindow.SetFont("s10", "Segoe UI")
-    errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", fullErrorText)
+    LogConclusion("Completed", logValuesForConclusion)
+}
 
-    exitButton := errorWindow.AddButton("w60 Default", "Exit")
-    exitButton.OnEvent("Click", (*) => ExitApp())
-    exitButton.Focus()
-    errorWindow.OnEvent("Close", (*) => ExitApp())
+OverlayStart() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Start")
 
-    copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
-    copyButton.OnEvent("Click", (*) => A_Clipboard := fullErrorText)
+    global overlayGui
 
-    errorWindow.Show("AutoSize Center")
-    WinWaitClose("ahk_id " . errorWindow.Hwnd)
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Base Logical Width", 960, false)
+        SetMethodSetting(methodName, "Base Logical Height", 920, false)
+        SetMethodSetting(methodName, "Overlay Transparency", 172, false)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings := methodRegistry[methodName]["Settings"]
+    baseLogicalWidth    := settings.Get("Base Logical Width")
+    baseLogicalHeight   := settings.Get("Base Logical Height")
+    overlayTransparency := settings.Get("Overlay Transparency")
+
+    overlayGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +DPIScale")
+    overlayGui.BackColor := "0x000000"
+    overlayGui.SetFont("s11 cWhite", "Consolas")
+    overlayGui.MarginX := 0
+    overlayGui.MarginY := 0
+
+    statusTextControl := overlayGui.Add("Text", "vStatusText w" baseLogicalWidth " h" baseLogicalHeight " +0x1", "")
+
+    measureVisualRectangle := () => (
+        overlayGui.Show("Hide AutoSize"),
+        rectBuffer := Buffer(16, 0),
+        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
+        Map(
+            "left",   NumGet(rectBuffer,  0, "Int"),
+            "top",    NumGet(rectBuffer,  4, "Int"),
+            "right",  NumGet(rectBuffer,  8, "Int"),
+            "bottom", NumGet(rectBuffer, 12, "Int")
+        )
+    )
+
+    visualRectangle := measureVisualRectangle()
+    visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
+    visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
+
+    ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
+    adjustAttemptsForWidth := 0
+    while Mod(visualWidth, 2) && adjustAttemptsForWidth < 6 {
+        baseLogicalWidth += 1
+        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
+        visualRectangle := measureVisualRectangle()
+        visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
+        adjustAttemptsForWidth += 1
+    }
+
+    adjustAttemptsForHeight := 0
+    while Mod(visualHeight, 2) && adjustAttemptsForHeight < 6 {
+        baseLogicalHeight += 1
+        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
+        visualRectangle := measureVisualRectangle()
+        visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
+        adjustAttemptsForHeight += 1
+    }
+
+    MonitorGetWorkArea(1, &workLeft, &workTop, &workRight, &workBottom)
+    workAreaWidth  := workRight  - workLeft
+    workAreaHeight := workBottom - workTop
+
+    centeredX := Round(workLeft + (workAreaWidth  - visualWidth)  / 2)
+    centeredY := Round(workTop  + (workAreaHeight - visualHeight) / 2)
+
+    overlayGui.Show("x" . centeredX . " y" . centeredY . " NoActivate")
+    WinSetTransparent(overlayTransparency, overlayGui.Hwnd)
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+OverlayInsertSpacer() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Insert Spacer")
+    
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+OverlayUpdateCustomLine(overlayKey, overlayValue) {
+    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [overlayKey, overlayValue], "Overlay Update Custom Line")
+
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
+; **************************** ;
+; Core Methods                 ;
+; **************************** ;
+
+AppendLineToLog(line, logType) {
+    static newLine := "`r`n"
+
+    if IsSet(logFilePath) {
+        callerWasCritical := A_IsCritical
+        if !callerWasCritical {
+            Critical "On"
+        }
+
+        try {
+            FileAppend(line . newLine, logFilePath[logType], "UTF-8-RAW")
+        } finally {
+            if !callerWasCritical {
+                Critical "Off"
+            }
+        }
+    } else {
+        logEntries.Push([line, logType])
+    }
 }
 
 LogBeginning(methodName, arguments := [], overlayValue := unset) {
@@ -116,7 +233,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
     overlayKey   := unset
     if IsSet(overlayValue) {
         encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
-        encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+        encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
         encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
 
         if methodName != "OverlayInsertSpacer" && methodName != "OverlayUpdateCustomLine" {
@@ -153,12 +270,12 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
         if IsSet(overlayValue) {
             logBeginning := logBeginning . "|" . 
-                logValuesForConclusion["Arguments Log"] ; Arguments
+                logValuesForConclusion["Arguments Log"]  ; Arguments
         }
 
         if !IsSet(overlayValue) && logValuesForConclusion["Validation"] != "" {
             encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
-            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
             encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
 
             logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
@@ -183,8 +300,8 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
             encodedOverlayKey := EncodeIntegerToBase(overlayKey, 94)
 
             logBeginning := logBeginning . "|" . 
-                encodedOverlayKey . "|" .         ; Overlay Key
-                symbolLedger[overlayValue . "|O"] ; Overlay Value
+                encodedOverlayKey . "|" .                ; Overlay Key
+                symbolLedger[overlayValue . "|O"]        ; Overlay Value
         }
     }
 
@@ -195,8 +312,8 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
             LogConclusion("Failed", logValuesForConclusion, A_LineNumber, logValuesForConclusion["Validation"])
         }
     } else {
-        logValuesForConclusion["Query Performance Counter Midpoint Tick"] := timestamp["Query Performance Counter Midpoint Tick"]
-        logValuesForConclusion["UTC Timestamp Integer"]                   := timestamp["UTC Timestamp Integer"]
+        logValuesForConclusion["QPC Midpoint Tick"]     := timestamp["QPC Midpoint Tick"]
+        logValuesForConclusion["UTC Timestamp Integer"] := timestamp["UTC Timestamp Integer"]
     }
 
     if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
@@ -215,12 +332,15 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
     }
 
     encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
-    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["Query Performance Counter Midpoint Tick"], 94)
+    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
     encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+
+    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
+    status := SubStr(conclusionStatus, 1, 1)
 
     logConclusion := 
         encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
-        "[[Status]]" .                   "|" . ; Status
+        status .                         "|" . ; Status
         encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
         encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
@@ -228,55 +348,102 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
         logConclusion := logConclusion . "|" . 
             logValuesForConclusion["Context"]  ; Method or Context
     }
+    
+    switch conclusionStatus {
+        case "Skipped":
+            AppendLineToLog(logConclusion, "Operation Log")
 
-    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
-        switch conclusionStatus {
-            case "Skipped":
-                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "S"), "Operation Log")
+            if logValuesForConclusion["Overlay Key"] !== 0 {
+                OverlayUpdateStatus(logValuesForConclusion, "Skipped")
+            }
+        case "Completed":
+            AppendLineToLog(logConclusion, "Operation Log")
 
-                if logValuesForConclusion["Overlay Key"] !== 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Skipped")
-                }
-            case "Completed":
-                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "C"), "Operation Log")
+            if logValuesForConclusion["Overlay Key"] !== 0 {
+                OverlayUpdateStatus(logValuesForConclusion, "Completed")
+            }
+        case "Failed":
+            if logValuesForConclusion.Has("QPC Midpoint Tick") && logValuesForConclusion.Has("UTC Timestamp Integer") {
+                logBeginning :=
+                    encodedOperationSequenceNumber .       "|" .                                     ; Operation Sequence Number
+                    "B" .                                  "|" .                                     ; Status
+                    EncodeIntegerToBase(logValuesForConclusion["QPC Midpoint Tick"], 94) . "|" .     ; Query Performance Counter
+                    EncodeIntegerToBase(logValuesForConclusion["UTC Timestamp Integer"], 94) . "|" . ; UTC Timestamp Integer
+                    methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"]                  ; Method or Context
 
-                if logValuesForConclusion["Overlay Key"] !== 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Completed")
-                }
-            case "Failed":
-                if logValuesForConclusion.Has("Query Performance Counter Midpoint Tick") && logValuesForConclusion.Has("UTC Timestamp Integer") {
-                    logBeginning :=
-                        encodedOperationSequenceNumber .       "|" .                                                       ; Operation Sequence Number
-                        "B" .                                  "|" .                                                       ; Status
-                        EncodeIntegerToBase(logValuesForConclusion["Query Performance Counter Midpoint Tick"], 94) . "|" . ; Query Performance Counter
-                        EncodeIntegerToBase(logValuesForConclusion["UTC Timestamp Integer"], 94) . "|" .                   ; UTC Timestamp Integer
-                        methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"]                                    ; Method or Context
+                    if logValuesForConclusion["Arguments Log"] != "" {
+                        logBeginning := logBeginning . "|" . 
+                            logValuesForConclusion["Arguments Log"]                                  ; Arguments
+                    }
 
-                        if logValuesForConclusion["Arguments Log"] != "" {
-                            logBeginning := logBeginning . "|" . 
-                                logValuesForConclusion["Arguments Log"]                                                    ; Arguments
-                        }
+                AppendLineToLog(logBeginning, "Operation Log")
+            }
 
-                    AppendLineToLog(logBeginning, "Operation Log")
-                }
+            AppendLineToLog(logConclusion, "Operation Log")
 
-                AppendLineToLog(StrReplace(logConclusion, "[[Status]]", "F"), "Operation Log")
+            if logValuesForConclusion["Overlay Key"] != 0 {
+                OverlayUpdateStatus(logValuesForConclusion, "Failed")
+            }
 
-                if logValuesForConclusion["Overlay Key"] != 0 {
-                    OverlayUpdateStatus(logValuesForConclusion, "Failed")
-                }
+            if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
+                OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
+            }
 
-                if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
-                    OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
-                }
+            windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
+            currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
+            newLine := "`r`n"
 
-                DisplayErrorMessage(logValuesForConclusion, errorLineNumber, errorMessage)
-            default:
-                DisplayErrorMessage(logValuesForConclusion, A_LineNumber, "Unsupported overlay status: " . conclusionStatus)
-        }
+            if logValuesForConclusion["Validation"] != "" {
+                errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
+            }
+            
+            declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
+
+            constructedErrorMessage := unset
+            if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
+                constructedErrorMessage :=
+                    "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
+                    "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
+                    "Arguments: " .    logValuesForConclusion["Arguments Full"] . newLine . 
+                    "Line Number: " .  errorLineNumber . newLine . 
+                    "Date Runtime: " . currentDateTime . newLine . 
+                    "Error Output: " . errorMessage
+            } else {
+                constructedErrorMessage :=
+                    "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
+                    "Line Number: " .  errorLineNumber . newLine . 
+                    "Date Runtime: " . currentDateTime . newLine . 
+                    "Error Output: " . errorMessage
+            }
+
+            LogEngine("Failed", constructedErrorMessage)
+
+            if OverlayIsVisible() {
+                WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
+            }
+
+            if logValuesForConclusion["Method Name"] = "AbortExecution" {
+                ExitApp()
+            }
+
+            errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
+            errorWindow.SetFont("s10", "Segoe UI")
+            errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", constructedErrorMessage)
+
+            exitButton := errorWindow.AddButton("w60 Default", "Exit")
+            exitButton.OnEvent("Click", (*) => ExitApp())
+            exitButton.Focus()
+            errorWindow.OnEvent("Close", (*) => ExitApp())
+
+            copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
+            copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
+
+            errorWindow.Show("AutoSize Center")
+            WinWaitClose("ahk_id " . errorWindow.Hwnd)
+    }
 }
 
-LogEngine(status) {
+LogEngine(status, constructedErrorMessage := unset) {
     global logEntries
     global logFilePath
     global system
@@ -429,12 +596,7 @@ LogEngine(status) {
 
         BatchAppendExecutionLog("Beginning", executionLogLines)
 
-        runTelemetryLines.Push(system["Run Telemetry Order"])
-        runTelemetryLines.Push(system["QPC Before Timestamp"])
-        runTelemetryLines.Push(system["UTC Timestamp Precise"])
-        runTelemetryLines.Push(system["QPC After Timestamp"])
-        runTelemetryLines.Push(system["QPC Midpoint Tick"])
-        runTelemetryLines.Push(system["UTC Timestamp Integer"])
+        runTelemetryLines.Push(system["Run Telemetry Order"] . "|" . system["Number of Readings"] . "|" . system["Operation Log Line Number"] . "|" . system["UTC Timestamp Precise"] . "|" . system["UTC Timestamp Integer"] . "|" . system["QPC Midpoint Tick"])
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
 
@@ -442,12 +604,7 @@ LogEngine(status) {
     } else {
         LogTelemetryTimestamp()
 
-        runTelemetryLines.Push(system["Run Telemetry Order"])
-        runTelemetryLines.Push(system["QPC Before Timestamp"])
-        runTelemetryLines.Push(system["UTC Timestamp Precise"])
-        runTelemetryLines.Push(system["QPC After Timestamp"])
-        runTelemetryLines.Push(system["QPC Midpoint Tick"])
-        runTelemetryLines.Push(system["UTC Timestamp Integer"])
+        runTelemetryLines.Push(system["Run Telemetry Order"] . "|" . system["Number of Readings"] . "|" . system["Operation Log Line Number"] . "|" . system["UTC Timestamp Precise"] . "|" . system["UTC Timestamp Integer"] . "|" . system["QPC Midpoint Tick"])
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
     }
@@ -459,50 +616,55 @@ LogEngine(status) {
             }
 
             BatchAppendRunTelemetry("Completed", runTelemetryLines)
-
-            FinalizeLogs()
         case "Failed":
             BatchAppendRunTelemetry("Failed", runTelemetryLines)
-            
-            FinalizeLogs()
+
+            AppendLineToLog(constructedErrorMessage, "Run Telemetry")
         case "Intermission":
             BatchAppendRunTelemetry("Intermission", runTelemetryLines)
     }
-}
 
-LogValidateMethodArguments(methodName, arguments) {
-    validation := ""
+    switch status {
+        case "Completed", "Failed":
+            if IsSet(logFilePath) {
+                for index, filePath in logFilePath {
+                    file := FileOpen(filePath, "rw")
+                    if !file {
+                        continue
+                    }
 
-    if methodName = "OverlayInsertSpacer" {
-        return validation
+                    fileSize := file.Length
+                    if fileSize = 0 {
+                        file.Close()
+                        continue
+                    }
+
+                    ; Trim last trailing newline.
+                    bytesToRead := (fileSize >= 2) ? 2 : 1
+                    file.Seek(-bytesToRead, 2)
+                    tail := Buffer(bytesToRead)
+                    file.RawRead(tail, bytesToRead)
+
+                    if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
+                        file.Length := fileSize - 2
+                    } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
+                        file.Length := fileSize - 1
+                    }
+
+                    file.Close()
+
+                    filePath := ""
+                }
+
+                timestampNow := A_Now
+                FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
+                FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
+                FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
+                FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+
+                logFilePath := unset
+            }
     }
-
-    for index, argument in arguments {
-        parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-        optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-        whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
-
-        parameterMissingValue := 'Parameter "' . parameterName . '" has no value passed into it.'
-
-        if dataType = "String" && optional = "" && argument = "" {
-            validation := parameterMissingValue
-        } else if dataType = "String" && optional != "" && argument = "" {
-            ; Skip validation as it's Optional.
-        } else {
-            validation := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
-        }
-
-        if validation = parameterMissingValue {
-            break
-        } else if validation != "" {
-            validation := 'Parameter "' . parameterName . '" failed validation. ' . validation
-            break
-        }
-    }
-
-    return validation
 }
 
 LogFormatMethodArguments(logValuesForConclusion, arguments) {
@@ -643,7 +805,7 @@ LogTelemetryTimestamp() {
     runTelemetryOrder               := runTelemetryOrder + 1
     system["Run Telemetry Order"]   := runTelemetryOrder
 
-    maxDurationMilliseconds         := 240
+    static maxDurationMilliseconds  := 240
     queryPerformanceCounterReadings := []
     utcTimestampPreciseReadings     := []
     combinedReadings                := []
@@ -687,6 +849,8 @@ LogTelemetryTimestamp() {
         combinedReadings.Push([qpcBefore, utcTimestampPrecise, qpcAfter, qpcAfter - qpcBefore])
     }
 
+    system["Number of Readings"] := combinedReadings.Length
+
     bestIndex    := 1
     bestDuration := combinedReadings[1][4]
 
@@ -702,12 +866,15 @@ LogTelemetryTimestamp() {
         }
     }
 
-    chosen := combinedReadings[bestIndex]
-    system["QPC Before Timestamp"]  := chosen[1]
-    system["UTC Timestamp Precise"] := chosen[2]
-    system["QPC After Timestamp"]   := chosen[3]
-    system["QPC Measurement Delta"] := chosen[4]
-    system["QPC Midpoint Tick"]     := system["QPC Before Timestamp"] + (system["QPC Measurement Delta"] // 2)
+    if IsSet(logFilePath) {
+        system["Operation Log Line Number"] := GetLastLineNumberFromTextFile(logFilePath["Operation Log"])
+    } else {
+        system["Operation Log Line Number"] := 2
+    }
+
+    chosenReading                   := combinedReadings[bestIndex]
+    qpcBeforeTimestamp              := chosenReading[1]
+    system["UTC Timestamp Precise"] := chosenReading[2]
 
     utcTimestampIntegerConversion := StrReplace(StrReplace(StrReplace(StrReplace(system["UTC Timestamp Precise"], "-"), " "), ":"), ".")
     if StrLen(utcTimestampIntegerConversion) >= 18 {
@@ -716,6 +883,9 @@ LogTelemetryTimestamp() {
     utcTimestampIntegerConversion := utcTimestampIntegerConversion + 0
 
     system["UTC Timestamp Integer"] := utcTimestampIntegerConversion
+
+    qpcMeasurementDelta             := chosenReading[4]
+    system["QPC Midpoint Tick"]     := qpcBeforeTimestamp + (qpcMeasurementDelta // 2)
 }
 
 LogTimestamp() {
@@ -728,65 +898,63 @@ LogTimestamp() {
     queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["QPC Midpoint Tick"]
 
     logTimestamp := Map(
-        "Query Performance Counter Midpoint Tick", queryPerformanceCounterMidpointTick,
-        "UTC Timestamp Integer",                   utcTimestampInteger
+        "QPC Midpoint Tick",     queryPerformanceCounterMidpointTick,
+        "UTC Timestamp Integer", utcTimestampInteger
     )
 
     return logTimestamp
 }
 
-OverlayChangeTransparency(transparencyValue) {
-    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
+LogValidateMethodArguments(methodName, arguments) {
+    validation := ""
 
-    WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
-
-    LogConclusion("Completed", logValuesForConclusion)
-}
-
-OverlayChangeVisibility() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Change Visibility")
-
-    if DllCall("User32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
-        overlayGui.Hide()
-    } else {
-        overlayGui.Show("NoActivate")
+    if methodName = "OverlayInsertSpacer" {
+        return validation
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
-}
+    for index, argument in arguments {
+        parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+        dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+        dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+        optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+        whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
-OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
+        parameterMissingValue := 'Parameter "' . parameterName . '" has no value passed into it.'
 
-    global methodRegistry
-    
-    if !methodRegistry.Has(methodNameInput) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
+        if dataType = "String" && optional = "" && argument = "" {
+            validation := parameterMissingValue
+        } else if dataType = "String" && optional != "" && argument = "" {
+            ; Skip validation as it's Optional.
+        } else {
+            validation := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
+        }
+
+        if validation = parameterMissingValue {
+            break
+        } else if validation != "" {
+            validation := 'Parameter "' . parameterName . '" failed validation. ' . validation
+            break
+        }
     }
 
-    methodRegistry[methodNameInput]["Overlay Log"] := false
-
-    LogConclusion("Completed", logValuesForConclusion)
+    return validation
 }
 
-OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
+NextOperationSequenceNumber() {
+    static operationSequenceNumber := -1
 
-    global methodRegistry
+    operationSequenceNumber++
 
-    if methodRegistry.Has(methodNameInput) {
-        methodRegistry[methodNameInput]["Overlay Log"] := true
-    } else {
-        methodRegistry[methodNameInput] := Map(
-            "Overlay Log", true
-        )
-    }
+    return operationSequenceNumber
+}
 
-    LogConclusion("Completed", logValuesForConclusion)
+NextSymbolLedgerAlias() {
+    static symbolLedgerIdentifier := -1
+
+    symbolLedgerIdentifier++
+    symbolLedgerAlias := EncodeIntegerToBase(symbolLedgerIdentifier, 86)
+
+    return symbolLedgerAlias
 }
 
 OverlayGenerateNextKey(methodName := unset) {
@@ -809,99 +977,6 @@ OverlayGenerateNextKey(methodName := unset) {
     } else {
         return 0
     }
-}
-
-OverlayIsVisible() {
-    if !IsSet(overlayGui) || !(overlayGui is Gui) {
-        return false
-    }
-
-    windowHandle := overlayGui.Hwnd
-
-    if !DllCall("User32\IsWindow", "Ptr", windowHandle) {
-        return false
-    }
-
-    if DllCall("User32\IsWindowVisible", "Ptr", windowHandle) {
-        return true
-    } else {
-        return false
-    }
-}
-
-OverlayStart(baseLogicalWidth := 960, baseLogicalHeight := 920) {
-    global overlayGui
-
-    overlayGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +DPIScale")
-    overlayGui.BackColor := "0x000000"
-    overlayGui.SetFont("s11 cWhite", "Consolas")
-    overlayGui.MarginX := 0
-    overlayGui.MarginY := 0
-
-    statusTextControl := overlayGui.Add("Text", "vStatusText w" baseLogicalWidth " h" baseLogicalHeight " +0x1", "")
-
-    measureVisualRectangle := () => (
-        overlayGui.Show("Hide AutoSize"),
-        rectBuffer := Buffer(16, 0),
-        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
-        Map(
-            "left",   NumGet(rectBuffer,  0, "Int"),
-            "top",    NumGet(rectBuffer,  4, "Int"),
-            "right",  NumGet(rectBuffer,  8, "Int"),
-            "bottom", NumGet(rectBuffer, 12, "Int")
-        )
-    )
-
-    visualRectangle := measureVisualRectangle()
-    visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
-    visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
-
-    ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
-    adjustAttemptsForWidth  := 0
-    while Mod(visualWidth, 2) && adjustAttemptsForWidth < 6 {
-        baseLogicalWidth += 1
-        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
-        visualRectangle := measureVisualRectangle()
-        visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
-        adjustAttemptsForWidth += 1
-    }
-
-    adjustAttemptsForHeight := 0
-    while Mod(visualHeight, 2) && adjustAttemptsForHeight < 6 {
-        baseLogicalHeight += 1
-        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
-        visualRectangle := measureVisualRectangle()
-        visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
-        adjustAttemptsForHeight += 1
-    }
-
-    MonitorGetWorkArea(1, &workLeft, &workTop, &workRight, &workBottom)
-    workAreaWidth  := workRight  - workLeft
-    workAreaHeight := workBottom - workTop
-
-    centeredX := Round(workLeft + (workAreaWidth  - visualWidth)  / 2)
-    centeredY := Round(workTop  + (workAreaHeight - visualHeight) / 2)
-
-    overlayGui.Show("x" centeredX " y" centeredY " NoActivate")
-    WinSetTransparent(172, overlayGui.Hwnd)
-}
-
-OverlayInsertSpacer() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Overlay Insert Spacer")
-    
-    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
-
-    LogConclusion("Completed", logValuesForConclusion)
-}
-
-OverlayUpdateCustomLine(overlayKey, overlayValue) {
-    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [overlayKey, overlayValue], "Overlay Update Custom Line")
-
-    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
-
-    LogConclusion("Completed", logValuesForConclusion)
 }
 
 OverlayUpdateLine(overlayKey, overlayValue) {
@@ -940,51 +1015,257 @@ OverlayUpdateStatus(logValuesForConclusion, newStatus) {
     }
 }
 
-FinalizeLogs() {
-    global logFilePath
+ParseMethodWithDeclaration(methodWithDeclaration) {
+    atParts     := StrSplit(methodWithDeclaration, "@", , 2)
+    signature   := RTrim(atParts[1])
+    RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
+    library := Trim(regularExpressionMatch[1])
+    lineNumberForValidation := regularExpressionMatch[2] + 0
 
-    if IsSet(logFilePath) {
-        for index, filePath in logFilePath {
-            file := FileOpen(filePath, "rw")
-            if !file {
+    methodParts := StrSplit(signature, "(", , 2)
+    methodName  := methodParts[1]
+    contract    := RTrim(methodParts[2], ")")
+
+    parameters := ""
+    dataTypes  := ""
+    metadata   := ""
+
+    parameterContracts := []
+    parameterParts := []
+    currentParameterText := ""
+
+    if contract != "" {
+        squareBracketDepth := 0
+        inQuotedString := false
+        removeLeadingSpaceAfterComma := false
+
+        loop parse contract {
+            currentCharacter := A_LoopField
+
+            ; While inQuotedString = true, commas and brackets are considered literal characters.
+            if currentCharacter = '"' {
+                inQuotedString := !inQuotedString
+                currentParameterText .= currentCharacter
                 continue
             }
 
-            fileSize := file.Length
-            if fileSize = 0 {
-                file.Close()
+            if !inQuotedString {
+                if currentCharacter = "[" {
+                    squareBracketDepth += 1
+                    currentParameterText .= currentCharacter
+                    continue
+                }
+                if currentCharacter = "]" && squareBracketDepth > 0 {
+                    squareBracketDepth -= 1
+                    currentParameterText .= currentCharacter
+                    continue
+                }
+
+                if currentCharacter = "," && squareBracketDepth = 0 {
+                    parameterParts.Push(Trim(currentParameterText))
+                    currentParameterText := ""
+                    removeLeadingSpaceAfterComma := true
+                    continue
+                }
+            }
+
+            if removeLeadingSpaceAfterComma && currentCharacter = " " {
+                removeLeadingSpaceAfterComma := false
                 continue
             }
+            removeLeadingSpaceAfterComma := false
 
-            ; Trim last trailing newline.
-            bytesToRead := (fileSize >= 2) ? 2 : 1
-            file.Seek(-bytesToRead, 2)
-            tail := Buffer(bytesToRead)
-            file.RawRead(tail, bytesToRead)
-
-            if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
-                file.Length := fileSize - 2
-            } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
-                file.Length := fileSize - 1
-            }
-
-            file.Close()
-
-            filePath := ""
+            currentParameterText .= currentCharacter
         }
 
-        timestampNow := A_Now
-        FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
-        FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
-        FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
-        FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+        parameterParts.Push(Trim(currentParameterText))
 
-        logFilePath := unset
+        for index, parameterClause in parameterParts {
+            RegExMatch(parameterClause, "^[A-Za-z_][A-Za-z0-9_]*", &matchObject)
+            parameterName := matchObject[0]
+            metadataValue := Trim(SubStr(parameterClause, StrLen(parameterName) + 1))
+            metadataValue := RegExReplace(metadataValue, "^(?i)As\s+", "")
+
+            dataTypesValue := StrSplit(metadataValue, " ")[1]
+            metadataValue := SubStr(metadataValue, StrLen(dataTypesValue) + 2)
+
+            dataConstraint := ""
+            optionalValue  := ""
+            whitelist      := []
+
+            for metadataBlock in StrSplit(metadataValue, "]", true) {
+                if metadataBlock = "" {
+                    continue
+                }
+
+                blockContent := Trim(metadataBlock, "[ `t")
+                if blockContent = "" {
+                    continue
+                }
+
+                colonPosition := InStr(blockContent, ":")
+                conceptName   := colonPosition ? Trim(SubStr(blockContent, 1, colonPosition - 1)) : Trim(blockContent)
+                conceptValue  := colonPosition ? Trim(SubStr(blockContent, colonPosition + 1))    : ""
+
+                switch StrLower(conceptName) {
+                    case "optional":
+                        if conceptValue = "" {
+                           optionalValue := conceptName
+                        } else {
+                            optionalValue := conceptValue
+                        }
+                    case "constraint":
+                        dataConstraint := conceptValue
+                    case "whitelist":
+                        for index, piece in StrSplit(conceptValue, '", "')
+                        {
+                            cleanedValue := Trim(piece, '" ')
+                            if cleanedValue != "" {
+                                whitelist.Push(cleanedValue)
+                            }
+                        }
+                }
+            }
+
+            parameterContracts.Push(Map(
+                "Parameter Name",  parameterName,
+                "Data Type",       dataTypesValue,
+                "Data Constraint", dataConstraint,
+                "Optional",        optionalValue,
+                "Whitelist",       whitelist
+            ))
+
+            if index < parameterParts.Length {
+                parameters := parameters . parameterName . ", "
+                dataTypes  := dataTypes . dataTypesValue . ", "
+                metadata   := metadata . metadataValue . ", "
+            } else {
+                parameters := parameters . parameterName
+                dataTypes  := dataTypes . dataTypesValue
+                metadata   := metadata . metadataValue
+            }
+        }
     }
+
+    methodWithDeclarationParsed := Map(
+        "Declaration",         methodWithDeclaration,
+        "Signature",           signature,
+        "Library",             library,
+        "Contract",            contract,
+        "Parameters",          parameters,
+        "Data Types",          dataTypes,
+        "Metadata",            metadata,
+        "Validation Line",     lineNumberForValidation,
+        "Parameter Contracts", parameterContracts
+    )
+
+    return methodWithDeclarationParsed
+}
+
+RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
+    global methodRegistry
+
+    SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
+    libraryTag := " @ " . filenameWithoutExtension
+    validationLineNumber := " " . "<" . validationLineNumber . ">"
+    methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
+
+    symbol := unset
+    if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
+        logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
+        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+
+        logParts := StrSplit(logSymbolLedgerLine, "|")
+        symbol   := logParts[logParts.Length]
+    } else {
+        symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
+    }
+
+    methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
+    if methodRegistry.Has(methodName) {
+        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
+        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
+        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
+        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
+        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
+
+        if !methodRegistry[methodName].Has("Overlay Log") {
+            methodRegistry[methodName]["Overlay Log"]     := false
+        }
+
+        methodRegistry[methodName]["Symbol"]              := symbol
+        
+        if !methodRegistry[methodName].Has("Settings") {
+            methodRegistry[methodName]["Settings"]        := Map()
+        }
+    } else {      
+        methodRegistry[methodName] := Map(
+            "Declaration",         methodWithDeclarationParsed["Declaration"],
+            "Signature",           methodWithDeclarationParsed["Signature"],
+            "Library",             methodWithDeclarationParsed["Library"],
+            "Contract",            methodWithDeclarationParsed["Contract"],
+            "Parameters",          methodWithDeclarationParsed["Parameters"],
+            "Data Types",          methodWithDeclarationParsed["Data Types"],
+            "Metadata",            methodWithDeclarationParsed["Metadata"],
+            "Validation Line",     methodWithDeclarationParsed["Validation Line"],
+            "Parameter Contracts", methodWithDeclarationParsed["Parameter Contracts"],
+            "Overlay Log",         false,
+            "Symbol",              symbol,
+            "Settings",            Map()
+        )
+    }
+
+    return methodName
+}
+
+RegisterSymbol(value, type, addNewLine := true) {
+    global symbolLedger
+
+    static newLine := "`r`n"
+    symbolLine     := ""
+
+    switch StrLower(type) {
+        case "directory", "d":
+            type := "D"
+            value := RTrim(value, "\")
+        case "filename", "f":
+            type := "F"
+        case "hash", "h":
+            type := "H"
+        case "locator", "l":
+            type := "L"
+        case "method", "m":
+            type := "M"
+        case "overlay", "o":
+            type := "O"
+        case "summary", "s":
+            type := "S"
+        case "whitelist", "w":
+            type := "W"
+    }
+
+    if !symbolLedger.Has(value . "|" . type) {
+        symbolLedger[value . "|" . type] := NextSymbolLedgerAlias()
+
+        symbolLine :=
+            value . "|" . 
+            type . "|" . 
+            symbolLedger[value . "|" . type]
+    }
+
+    if addNewLine {
+        symbolLine := symbolLine . newLine
+    }
+
+    return symbolLine
 }
 
 ; **************************** ;
-; Base Encoding & Decoding     ;
+; Encoding & Decoding Methods  ;
 ; **************************** ;
 
 GetBaseCharacterSet(baseType) {
@@ -1298,27 +1579,6 @@ DecodeBaseToSha256Hex(baseText, baseType) {
 ; Helper Methods               ;
 ; **************************** ;
 
-AppendLineToLog(line, logType) {
-    static newLine := "`r`n"
-
-    if IsSet(logFilePath) {
-        callerWasCritical := A_IsCritical
-        if !callerWasCritical {
-            Critical "On"
-        }
-
-        try {
-            FileAppend(line . newLine, logFilePath[logType], "UTF-8-RAW")
-        } finally {
-            if !callerWasCritical {
-                Critical "Off"
-            }
-        }
-    } else {
-        logEntries.Push([line, logType])
-    }
-}
-
 BatchAppendExecutionLog(executionType, array) {
     static executionTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Application", "A", "Beginning", "B")
     static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
@@ -1558,1702 +1818,23 @@ GetRemainingFreeDiskSpace() {
     return resultText
 }
 
-NextOperationSequenceNumber() {
-    static operationSequenceNumber := -1
+OverlayIsVisible() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName)
 
-    operationSequenceNumber++
-
-    return operationSequenceNumber
-}
-
-NextSymbolLedgerAlias() {
-    static symbolLedgerIdentifier := -1
-
-    symbolLedgerIdentifier++
-    symbolLedgerAlias := EncodeIntegerToBase(symbolLedgerIdentifier, 86)
-
-    return symbolLedgerAlias
-}
-
-ParseMethodWithDeclaration(methodWithDeclaration) {
-    atParts     := StrSplit(methodWithDeclaration, "@", , 2)
-    signature   := RTrim(atParts[1])
-    RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
-    library := Trim(regularExpressionMatch[1])
-    lineNumberForValidation := regularExpressionMatch[2] + 0
-
-    methodParts := StrSplit(signature, "(", , 2)
-    methodName  := methodParts[1]
-    contract    := RTrim(methodParts[2], ")")
-
-    parameters := ""
-    dataTypes  := ""
-    metadata   := ""
-
-    parameterContracts := []
-    parameterParts := []
-    currentParameterText := ""
-
-    if contract != "" {
-        squareBracketDepth := 0
-        inQuotedString := false
-        removeLeadingSpaceAfterComma := false
-
-        loop parse contract {
-            currentCharacter := A_LoopField
-
-            ; While inQuotedString = true, commas and brackets are considered literal characters.
-            if currentCharacter = '"' {
-                inQuotedString := !inQuotedString
-                currentParameterText .= currentCharacter
-                continue
-            }
-
-            if !inQuotedString {
-                if currentCharacter = "[" {
-                    squareBracketDepth += 1
-                    currentParameterText .= currentCharacter
-                    continue
-                }
-                if currentCharacter = "]" && squareBracketDepth > 0 {
-                    squareBracketDepth -= 1
-                    currentParameterText .= currentCharacter
-                    continue
-                }
-
-                if currentCharacter = "," && squareBracketDepth = 0 {
-                    parameterParts.Push(Trim(currentParameterText))
-                    currentParameterText := ""
-                    removeLeadingSpaceAfterComma := true
-                    continue
-                }
-            }
-
-            if removeLeadingSpaceAfterComma && currentCharacter = " " {
-                removeLeadingSpaceAfterComma := false
-                continue
-            }
-            removeLeadingSpaceAfterComma := false
-
-            currentParameterText .= currentCharacter
-        }
-
-        parameterParts.Push(Trim(currentParameterText))
-
-        for index, parameterClause in parameterParts {
-            RegExMatch(parameterClause, "^[A-Za-z_][A-Za-z0-9_]*", &matchObject)
-            parameterName := matchObject[0]
-            metadataValue := Trim(SubStr(parameterClause, StrLen(parameterName) + 1))
-            metadataValue := RegExReplace(metadataValue, "^(?i)As\s+", "")
-
-            dataTypesValue := StrSplit(metadataValue, " ")[1]
-            metadataValue := SubStr(metadataValue, StrLen(dataTypesValue) + 2)
-
-            dataConstraint := ""
-            optionalValue  := ""
-            whitelist      := []
-
-            for metadataBlock in StrSplit(metadataValue, "]", true) {
-                if metadataBlock = "" {
-                    continue
-                }
-
-                blockContent := Trim(metadataBlock, "[ `t")
-                if blockContent = "" {
-                    continue
-                }
-
-                colonPosition := InStr(blockContent, ":")
-                conceptName   := colonPosition ? Trim(SubStr(blockContent, 1, colonPosition - 1)) : Trim(blockContent)
-                conceptValue  := colonPosition ? Trim(SubStr(blockContent, colonPosition + 1))    : ""
-
-                switch StrLower(conceptName) {
-                    case "optional":
-                        if conceptValue = "" {
-                           optionalValue := conceptName
-                        } else {
-                            optionalValue := conceptValue
-                        }
-                    case "constraint":
-                        dataConstraint := conceptValue
-                    case "whitelist":
-                        for index, piece in StrSplit(conceptValue, '", "')
-                        {
-                            cleanedValue := Trim(piece, '" ')
-                            if cleanedValue != "" {
-                                whitelist.Push(cleanedValue)
-                            }
-                        }
-                }
-            }
-
-            parameterContracts.Push(Map(
-                "Parameter Name",  parameterName,
-                "Data Type",       dataTypesValue,
-                "Data Constraint", dataConstraint,
-                "Optional",        optionalValue,
-                "Whitelist",       whitelist
-            ))
-
-            if index < parameterParts.Length {
-                parameters := parameters . parameterName . ", "
-                dataTypes  := dataTypes . dataTypesValue . ", "
-                metadata   := metadata . metadataValue . ", "
-            } else {
-                parameters := parameters . parameterName
-                dataTypes  := dataTypes . dataTypesValue
-                metadata   := metadata . metadataValue
-            }
-        }
+    if !IsSet(overlayGui) || !(overlayGui is Gui) {
+        return false
     }
 
-    methodWithDeclarationParsed := Map(
-        "Declaration",         methodWithDeclaration,
-        "Signature",           signature,
-        "Library",             library,
-        "Contract",            contract,
-        "Parameters",          parameters,
-        "Data Types",          dataTypes,
-        "Metadata",            metadata,
-        "Validation Line",     lineNumberForValidation,
-        "Parameter Contracts", parameterContracts
-    )
+    windowHandle := overlayGui.Hwnd
 
-    return methodWithDeclarationParsed
-}
+    if !DllCall("User32\IsWindow", "Ptr", windowHandle) {
+        return false
+    }
 
-RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
-    global methodRegistry
-
-    SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
-    libraryTag := " @ " . filenameWithoutExtension
-    validationLineNumber := " " . "<" . validationLineNumber . ">"
-    methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
-
-    symbol := unset
-    if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
-        logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
-        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-
-        logParts := StrSplit(logSymbolLedgerLine, "|")
-        symbol   := logParts[logParts.Length]
+    if DllCall("User32\IsWindowVisible", "Ptr", windowHandle) {
+        return true
     } else {
-        symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
+        return false
     }
-
-    methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
-    if methodRegistry.Has(methodName) {
-        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
-        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
-        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
-        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
-        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
-        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
-        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
-        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
-        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
-
-        if !methodRegistry[methodName].Has("Overlay Log") {
-            methodRegistry[methodName]["Overlay Log"]     := false
-        }
-
-        methodRegistry[methodName]["Symbol"]              := symbol
-        
-        if !methodRegistry[methodName].Has("Settings") {
-            methodRegistry[methodName]["Settings"]        := Map()
-        }
-    } else {      
-        methodRegistry[methodName] := Map(
-            "Declaration",         methodWithDeclarationParsed["Declaration"],
-            "Signature",           methodWithDeclarationParsed["Signature"],
-            "Library",             methodWithDeclarationParsed["Library"],
-            "Contract",            methodWithDeclarationParsed["Contract"],
-            "Parameters",          methodWithDeclarationParsed["Parameters"],
-            "Data Types",          methodWithDeclarationParsed["Data Types"],
-            "Metadata",            methodWithDeclarationParsed["Metadata"],
-            "Validation Line",     methodWithDeclarationParsed["Validation Line"],
-            "Parameter Contracts", methodWithDeclarationParsed["Parameter Contracts"],
-            "Overlay Log",         false,
-            "Symbol",              symbol,
-            "Settings",            Map()
-        )
-    }
-
-    return methodName
-}
-
-RegisterSymbol(value, type, addNewLine := true) {
-    global symbolLedger
-
-    static newLine := "`r`n"
-    symbolLine     := ""
-
-    switch StrLower(type) {
-        case "directory", "d":
-            type := "D"
-            value := RTrim(value, "\")
-        case "filename", "f":
-            type := "F"
-        case "hash", "h":
-            type := "H"
-        case "locator", "l":
-            type := "L"
-        case "method", "m":
-            type := "M"
-        case "overlay", "o":
-            type := "O"
-        case "summary", "s":
-            type := "S"
-        case "whitelist", "w":
-            type := "W"
-    }
-
-    if !symbolLedger.Has(value . "|" . type) {
-        symbolLedger[value . "|" . type] := NextSymbolLedgerAlias()
-
-        symbolLine :=
-            value . "|" . 
-            type . "|" . 
-            symbolLedger[value . "|" . type]
-    }
-
-    if addNewLine {
-        symbolLine := symbolLine . newLine
-    }
-
-    return symbolLine
-}
-
-; **************************** ;
-; System Methods               ;
-; **************************** ;
-
-GetInternationalFormatting() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
-    registryValueData            := ""
-    internationalFormattingMap   := Map()
-
-    excludedRegistryValueNames := [
-        "iCountry",
-        "iLocale",
-        "iPaperSize",
-        "Locale",
-        "LocaleName",
-        "sIntlCurrency",
-        "sLanguage"
-    ]
-
-    loop reg, internationalRegistryKeyPath, "V" {
-        registryValueName := A_LoopRegName
-        skipValue := false
-
-        for excludedRegistryValueName in excludedRegistryValueNames {
-            if excludedRegistryValueName = registryValueName {
-                skipValue := true
-                break
-            }
-        }
-
-        if skipValue {
-            continue
-        }
-
-        try {
-        	registryValueData := RegRead(internationalRegistryKeyPath, registryValueName)
-        }
-
-        internationalFormattingMap[registryValueName] := registryValueData
-    }
-
-    internationalFormatting := internationalFormattingMap
-    
-    return internationalFormatting
-}
-
-GetOperatingSystem() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
-
-    family := "Unknown Windows"
-    edition := "Unknown Edition"
-    architectureTag := A_Is64bitOS ? "x64" : "x86"
-    currentBuildNumber := ""
-    version := "Unknown Version"
-    updateBuildRevisionNumber := ""
-    releaseDisplay := ""
-
-    try {
-        currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
-        version := "Build " . currentBuildNumber
-    }
-        
-    switch true {
-        case currentBuildNumber >= 22000:
-            family := "Windows 11"
-        case currentBuildNumber >= 10240:
-            family := "Windows 10"
-        case currentBuildNumber >= 9600:
-            family := "Windows 8.1"
-        case currentBuildNumber >= 9200:
-            family := "Windows 8"
-        case currentBuildNumber >= 7600:
-            family := "Windows 7"
-    }
-   
-    try {
-        edition := RegRead(currentVersionRegistryKey, "EditionID")
-    }
-
-    try {
-        updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
-
-        if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
-            version := version . "." . updateBuildRevisionNumber
-        }
-    }
-
-    if family = "Windows 7" {
-        servicePackVersion := ""
-
-        try {
-            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
-        }
-
-        releaseDisplay := (servicePackVersion != "" ? " (" . servicePackVersion . ")" : "")
-    } else {
-        try {
-            releaseDisplay := RegRead(currentVersionRegistryKey, "DisplayVersion")
-        }
-
-        if releaseDisplay = "" {
-            try {
-                releaseDisplay := RegRead(currentVersionRegistryKey, "ReleaseId")
-            }
-        }
-
-        if releaseDisplay != "" {
-            releaseDisplay := " (" . releaseDisplay . ")"
-        }
-    }
-
-    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . releaseDisplay
-
-    return operatingSystem
-}
-
-GetWindowsInstallationDateUtcTimestamp() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    registryKeySystemSetup               := "HKEY_LOCAL_MACHINE\System\Setup"
-    registryKeyCurrentVersionNonWow      := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
-    registryKeyCurrentVersionWow6432Node := "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
-
-    installDateSeconds := unset
-
-    ; Prefer the oldest DWORD InstallDate under SYSTEM\Setup\Source OS (...).
-    oldestSeconds := unset
-    loop reg, registryKeySystemSetup, "K" {
-        subKeyName := A_LoopRegName
-        if !RegExMatch(subKeyName, "^Source OS") {
-            continue
-        }
-
-        fullKey := registryKeySystemSetup . "\" . subKeyName
-        try {
-            candidate := RegRead(fullKey, "InstallDate")
-            candidate := candidate & 0xFFFFFFFF ; Treat as unsigned DWORD.
-        }
-
-        if candidate > 0 && (!IsSet(oldestSeconds) || candidate < oldestSeconds) {
-            oldestSeconds := candidate
-        }
-    }
-
-    if IsSet(oldestSeconds) {
-        installDateSeconds := oldestSeconds
-    }
-
-    ; Fallback: CurrentVersion DWORD InstallDate (prefer non-WOW, then WOW6432Node).
-    if !IsSet(installDateSeconds) {
-        try {
-            installDateSeconds := RegRead(registryKeyCurrentVersionNonWow, "InstallDate")
-        }
-    }
-
-    if !IsSet(installDateSeconds) {
-        try {
-            installDateSeconds := RegRead(registryKeyCurrentVersionWow6432Node, "InstallDate")
-        }
-    }
-
-    if !IsSet(installDateSeconds) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
-    }
-
-    installDateSeconds := installDateSeconds & 0xFFFFFFFF
-    if installDateSeconds <= 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
-    }
-
-    utcTimestamp := ConvertUnixTimeToUtcTimestamp(installDateSeconds)
-
-    return utcTimestamp
-}
-
-GetComputerIdentifier() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    computerIdentifier := "N/A"
-
-    machineGuid := ""
-    try {
-        machineGuid := RegRead("HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography", "MachineGuid")
-    }
-
-    systemUniversallyUniqueIdentifier := ""
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32ComputerSystemProductQuery := "
-        (
-            SELECT
-                UUID
-            FROM
-                Win32_ComputerSystemProduct
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32ComputerSystemProductQuery)
-        for record in queryResults {
-            systemUniversallyUniqueIdentifier := record.UUID
-            break
-        }
-    }
-
-    if machineGuid = "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := systemUniversallyUniqueIdentifier
-    } else if systemUniversallyUniqueIdentifier = "" && machineGuid != "" {
-        computerIdentifier := machineGuid
-    } else if machineGuid != "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := machineGuid . " + " . systemUniversallyUniqueIdentifier
-    }
-
-    return computerIdentifier
-}
-
-GetTimeZoneKeyName() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    timeZoneKeyName := "Unknown"
-
-    dynamicTimeZoneInformationBuffer := Buffer(432, 0)
-    callResult := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
-    if callResult != 0xFFFFFFFF {
-        extractedKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
-
-        if extractedKey != "" {
-            timeZoneKeyName := extractedKey
-        }
-    }
-
-    if timeZoneKeyName = "Unknown" {
-        try {
-            regValue := RegRead("HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
-        }
-
-        if regValue != "" {
-            timeZoneKeyName := regValue
-        }
-    }
-
-    if timeZoneKeyName = "Unknown" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve time zone information.")
-    }
-
-    return timeZoneKeyName
-}
-
-GetRegionFormat() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    LOCALE_NAME_MAX_LENGTH := 85
-    BYTES_PER_WIDE_CHAR    := 2
-    localeNameBuffer       := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-
-    regionFormat := "Unknown"
-
-    regionFormatFromRegistry := ""
-    try {
-        regionFormatFromRegistry := RegRead("HKEY_CURRENT_USER\Control Panel\International", "LocaleName", "")
-    }
-
-    if regionFormatFromRegistry != "" {
-        regionFormat := regionFormatFromRegistry
-    } else {
-        wasLocaleResolved := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
-        if wasLocaleResolved {
-            resolvedLocaleName := StrGet(localeNameBuffer)
-
-            if resolvedLocaleName != "" {
-                regionFormat := resolvedLocaleName
-            }
-        }
-    }
-
-    return regionFormat
-}
-
-GetInputLanguage() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    LOCALE_NAME_MAX_LENGTH := 85
-    BYTES_PER_WIDE_CHAR    := 2
-    localeNameUtf16Buffer  := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-
-    inputLanguageName := "Unknown Language"
-
-    keyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-    if keyboardLayoutHandle {
-        languageIdentifier := keyboardLayoutHandle & 0xFFFF
-        localeIdentifier   := languageIdentifier
-
-        wasLcidToLocaleNameSuccessful := DllCall("Kernel32\LCIDToLocaleName", "UInt", localeIdentifier, "Ptr", localeNameUtf16Buffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
-
-        if wasLcidToLocaleNameSuccessful {
-            resolvedLocaleName := StrGet(localeNameUtf16Buffer)
-
-            if resolvedLocaleName != "" {
-                inputLanguageName := resolvedLocaleName
-            }
-        }
-    }
-
-    return inputLanguageName
-}
-
-GetActiveKeyboardLayout() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS := 9
-    LOCALE_NAME_MAX_LENGTH               := 85
-    MAX_PATH_CHARACTERS                  := 260
-    BYTES_PER_WIDE_CHAR                  := 2
-
-    keyboardLayoutIdBuffer    := Buffer(KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
-    localeNameBuffer          := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-    indirectDisplayNameBuffer := Buffer(MAX_PATH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
-    immDescBuffer             := Buffer(MAX_PATH_CHARACTERS * BYTES_PER_WIDE_CHAR, 0)
-
-    resultLocaleName            := "Unknown Language"
-    resultKeyboardLayoutName    := "Unknown Layout"
-    resultKeyboardLayoutId      := "????????"
-    currentKeyboardLayoutHandle := 0
-
-    wasKeyboardLayoutIdResolved := DllCall("User32\GetKeyboardLayoutNameW", "Ptr", keyboardLayoutIdBuffer.Ptr, "Int")
-    if wasKeyboardLayoutIdResolved {
-        resolvedKeyboardLayoutIdText := StrGet(keyboardLayoutIdBuffer)
-
-        if resolvedKeyboardLayoutIdText != "" {
-            resultKeyboardLayoutId := resolvedKeyboardLayoutIdText
-        }
-    }
-
-    if resultKeyboardLayoutId != "????????" {
-        languageIdentifierHex := SubStr(resultKeyboardLayoutId, 5)
-        if languageIdentifierHex != "" {
-            languageIdentifier := ("0x" . languageIdentifierHex) + 0
-            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", languageIdentifier, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
-            if wasLocaleNameResolved {
-                resolvedLocaleName := StrGet(localeNameBuffer)
-
-                if resolvedLocaleName != "" {
-                    resultLocaleName := resolvedLocaleName
-                } else {
-                    resultLocaleName := languageIdentifierHex
-                }
-            } else {
-                resultLocaleName := languageIdentifierHex
-            }
-        }
-    }
-
-    if resultKeyboardLayoutId != "????????" {
-        baseRegKey := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Keyboard Layouts\" . resultKeyboardLayoutId
-
-        layoutText := ""
-        try {
-            layoutText := RegRead(baseRegKey, "Layout Text")
-        }
-
-        if layoutText = "" {
-            try {
-                layoutText := RegRead(baseRegKey, "Layout Display Name")
-            }
-
-            if layoutText != "" && SubStr(layoutText, 1, 1) = "@" {
-                wasIndirectLoaded := (DllCall("Shlwapi\SHLoadIndirectString", "WStr", layoutText, "Ptr", indirectDisplayNameBuffer.Ptr, "Int", MAX_PATH_CHARACTERS, "Ptr", 0, "Int") = 0)
-
-                if wasIndirectLoaded {
-                    maybeResolved := StrGet(indirectDisplayNameBuffer)
-                    if maybeResolved != "" {
-                        layoutText := maybeResolved
-                    }
-                }
-            }
-        }
-
-        if layoutText != "" {
-            resultKeyboardLayoutName := layoutText
-        }
-    } else {
-        currentKeyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-        if currentKeyboardLayoutHandle {
-            languageIdentifierFromHandle := currentKeyboardLayoutHandle & 0xFFFF
-            wasLocaleNameResolved := DllCall("Kernel32\LCIDToLocaleName", "UInt", languageIdentifierFromHandle, "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
-            if wasLocaleNameResolved {
-                maybeLocale := StrGet(localeNameBuffer)
-                if maybeLocale != "" {
-                    resultLocaleName := maybeLocale
-                }
-            }
-        }
-    }
-
-    if resultKeyboardLayoutName = "Unknown Layout" {
-        if !currentKeyboardLayoutHandle {
-            currentKeyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-        }
-        if currentKeyboardLayoutHandle {
-            immDescriptionLength := DllCall("Imm32\ImmGetDescriptionW", "Ptr", currentKeyboardLayoutHandle, "Ptr", immDescBuffer.Ptr, "UInt", MAX_PATH_CHARACTERS, "UInt")
-            if immDescriptionLength > 0 {
-                maybeImmName := StrGet(immDescBuffer)
-                if maybeImmName != "" {
-                    resultKeyboardLayoutName := maybeImmName
-                }
-            }
-        }
-    }
-
-    keyboardLayoutDescription := resultLocaleName . " - " . resultKeyboardLayoutName . " (" . resultKeyboardLayoutId . ")"
-
-    return keyboardLayoutDescription
-}
-
-GetMotherboard() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    rawManufacturer := ""
-    rawProduct := ""
-
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32BaseBoardQuery := "
-        (
-            SELECT
-                Manufacturer,
-                Product
-            FROM
-                Win32_BaseBoard
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BaseBoardQuery)
-        for record in queryResults {
-            try {
-                rawManufacturer := Trim(record.Manufacturer . "")
-            }
-
-            try {
-                rawProduct := Trim(record.Product . "")
-            }
-            
-            break
-        }
-    }
-
-    if rawManufacturer = "" {
-        rawManufacturer := "Unknown Manufacturer"
-    }
-
-    if rawProduct = "" {
-        rawProduct := "Unknown Product"
-    }
-
-    motherboard := Trim(rawManufacturer . " " . rawProduct)
-
-    return motherboard
-}
-
-GetCpu() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    modelName := ""
-    defaultModelName := "Unknown CPU"
-    registryPath := "HKEY_LOCAL_MACHINE\Hardware\Description\System\CentralProcessor\0"
-    registryValueName := "ProcessorNameString"
-
-    rawName := ""
-    cleanedName := ""
-    try {
-        rawName := RegRead(registryPath, registryValueName)
-        cleanedName := Trim(RegExReplace(rawName, "\s+", " "))
-    }
-
-    if cleanedName != "" {
-        modelName := cleanedName
-    }
-
-    if modelName = "" {
-        modelName := defaultModelName
-    }
-
-    return modelName
-}
-
-GetMemorySizeAndType() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "System Management BIOS Type 17 Memory Device - Type.csv")
-
-    ramValues := Map()
-    for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypes {
-        ramValues[systemManagementBiosType17MemoryDeviceType["Value"] + 0] := systemManagementBiosType17MemoryDeviceType["Meaning"]
-    }
-
-    memoryTypeDetailFlagCounts := Map()
-    memoryTypeCodeCounts := Map()
-    partNumberStrings := []
-    installedMemoryTypeDisplay := ""
-    resolvedLegacySubtype := ""
-    resolvedLegacyCount := -1
-
-    installedKilobytes := 0
-    retrievedTheAmountOfRamPhysicallyInstalledSuccessfully := DllCall("Kernel32\GetPhysicallyInstalledSystemMemory", "UInt64*", &installedKilobytes, "Int")
-
-    if !retrievedTheAmountOfRamPhysicallyInstalledSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the amount of RAM that is physically installed on the computer. [Kernel32\GetPhysicallyInstalledSystemMemory" . ", System Error Code: " . A_LastError . "]")
-    }
-
-    installedMemorySizeInGigabytes := (installedKilobytes > 0) ? (installedKilobytes // 1048576) : 0
-    installedMemorySizeDisplay := installedMemorySizeInGigabytes ? (installedMemorySizeInGigabytes . " GB") : "Unknown Size"
-
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32PhysicalMemoryQuery := "
-        (
-            SELECT
-                SMBIOSMemoryType,
-                PartNumber
-            FROM
-                Win32_PhysicalMemory
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32PhysicalMemoryQuery)
-        for record in queryResults {
-            systemManagementBiosMemoryTypeCode := ""
-            try {
-                systemManagementBiosMemoryTypeCode := record.SMBIOSMemoryType + 0
-            }
-
-            if systemManagementBiosMemoryTypeCode >= 3 {
-                if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCode) {
-                    memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] := 0
-                }
-
-                memoryTypeCodeCounts[systemManagementBiosMemoryTypeCode] += 1
-            }
-
-            partNumberValue := ""
-            try {
-                partNumberValue := Trim(record.PartNumber . "")
-            }
-
-            if partNumberValue != "" {
-                partNumberStrings.Push(partNumberValue)
-            }
-        }
-    }
-
-    if memoryTypeCodeCounts.Count > 0 {
-        mostCommonMemoryTypeCode := ""
-        mostCommonMemoryTypeCount := -1
-        for memoryTypeCode, memoryTypeCount in memoryTypeCodeCounts {
-            if memoryTypeCount > mostCommonMemoryTypeCount {
-                mostCommonMemoryTypeCount := memoryTypeCount
-                mostCommonMemoryTypeCode := memoryTypeCode
-            }
-        }
-
-        if ramValues.Has(mostCommonMemoryTypeCode) {
-            installedMemoryTypeDisplay := ramValues[mostCommonMemoryTypeCode]
-        } else {
-            installedMemoryTypeDisplay := "Unknown Type (code " . mostCommonMemoryTypeCode . ")"
-        }
-    } else {
-        ; No usable rows from Win32_PhysicalMemory. Parse raw SMBIOS (Type 17) to obtain MemoryType.
-        try {
-            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
-
-            mssmBiosRawSMBiosTablesQuery := "
-            (
-                SELECT
-                    SMBiosData
-                FROM
-                    MSSMBios_RawSMBiosTables
-            )"
-
-            rawTablesResults := windowsManagementInstrumentationService.ExecQuery(mssmBiosRawSMBiosTablesQuery)
-
-            rawSmbiosByteArray := ""
-            for rawTablesRecord in rawTablesResults {
-                rawSmbiosByteArray := rawTablesRecord.SMBiosData
-                break
-            }
-
-            if IsSet(rawSmbiosByteArray) && rawSmbiosByteArray != "" {
-                totalByteCount := rawSmbiosByteArray.MaxIndex() + 1
-                if totalByteCount > 0 {
-                    rawSmbiosBuffer := Buffer(totalByteCount, 0)
-                    copyIndex := 0
-                    while copyIndex < totalByteCount {
-                        NumPut("UChar", rawSmbiosByteArray[copyIndex], rawSmbiosBuffer, copyIndex)
-                        copyIndex += 1
-                    }
-
-                    parseOffset := 0
-                    while parseOffset + 4 <= totalByteCount {
-                        structureType   := NumGet(rawSmbiosBuffer, parseOffset + 0, "UChar")
-                        structureLength := NumGet(rawSmbiosBuffer, parseOffset + 1, "UChar")
-                        if structureLength < 4 {
-                            break
-                        }
-
-                        nextStructureOffset := parseOffset + structureLength
-                        while nextStructureOffset + 1 < totalByteCount {
-                            byteA := NumGet(rawSmbiosBuffer, nextStructureOffset + 0, "UChar")
-                            byteB := NumGet(rawSmbiosBuffer, nextStructureOffset + 1, "UChar")
-                            nextStructureOffset += 1
-                            if byteA = 0 && byteB = 0 {
-                                nextStructureOffset += 1
-                                break
-                            }
-                        }
-
-                        if structureType = 17 { ; Memory Device.
-                            if structureLength >= 0x13 {
-                                systemManagementBiosMemoryTypeCodeFromRaw := NumGet(rawSmbiosBuffer, parseOffset + 0x12, "UChar")
-                                if systemManagementBiosMemoryTypeCodeFromRaw >= 3 {
-                                    if !memoryTypeCodeCounts.Has(systemManagementBiosMemoryTypeCodeFromRaw) {
-                                        memoryTypeCodeCounts[systemManagementBiosMemoryTypeCodeFromRaw] := 0
-                                    }
-                                    memoryTypeCodeCounts[systemManagementBiosMemoryTypeCodeFromRaw] += 1
-                                }
-                            }
-
-                            ; Always read TypeDetail if present (even when MemoryType is Unknown/Other/DRAM).
-                            if structureLength >= 0x15 {
-                                memoryTypeDetailWordFromRaw := NumGet(rawSmbiosBuffer, parseOffset + 0x13, "UShort")
-
-                                if memoryTypeDetailWordFromRaw & 0x0100 {
-                                    if !memoryTypeDetailFlagCounts.Has("EDO") {
-                                        memoryTypeDetailFlagCounts["EDO"] := 0
-                                    }
-                                    memoryTypeDetailFlagCounts["EDO"] += 1
-                                }
-                                if memoryTypeDetailWordFromRaw & 0x0004 {
-                                    if !memoryTypeDetailFlagCounts.Has("Fast-paged") {
-                                        memoryTypeDetailFlagCounts["Fast-paged"] := 0
-                                    }
-                                    memoryTypeDetailFlagCounts["Fast-paged"] += 1
-                                }
-                                if memoryTypeDetailWordFromRaw & 0x0040 {
-                                    if !memoryTypeDetailFlagCounts.Has("Synchronous DRAM") {
-                                        memoryTypeDetailFlagCounts["Synchronous DRAM"] := 0
-                                    }
-                                    memoryTypeDetailFlagCounts["Synchronous DRAM"] += 1
-                                }
-                            }
-                        }
-
-                        parseOffset := nextStructureOffset
-                    }
-                }
-            }
-        }
-
-        ; If raw parsing populated counts, resolve the display now.
-        if memoryTypeCodeCounts.Count > 0 {
-            mostCommonMemoryTypeCode := ""
-            mostCommonMemoryTypeCount := -1
-            for memoryTypeCode, memoryTypeCount in memoryTypeCodeCounts {
-                if memoryTypeCount > mostCommonMemoryTypeCount {
-                    mostCommonMemoryTypeCount := memoryTypeCount
-                    mostCommonMemoryTypeCode := memoryTypeCode
-                }
-            }
-
-            if ramValues.Has(mostCommonMemoryTypeCode) {
-                installedMemoryTypeDisplay := ramValues[mostCommonMemoryTypeCode]
-            } else {
-                installedMemoryTypeDisplay := "Unknown Type (code " . mostCommonMemoryTypeCode . ")"
-            }
-        }
-    }
-
-    ; Resolve the most common legacy subtype from TypeDetail counts (EDO vs Fast-paged vs Synchronous DRAM).
-    for legacyLabel, legacyCount in memoryTypeDetailFlagCounts {
-        ; Only consider the three legacy subtypes we actually surface as base types.
-        if legacyLabel = "EDO" || legacyLabel = "Fast-paged" || legacyLabel = "Synchronous DRAM" {
-            if legacyCount > resolvedLegacyCount {
-                resolvedLegacyCount := legacyCount
-                resolvedLegacySubtype := legacyLabel
-            }
-        }
-    }
-
-    if installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") || installedMemoryTypeDisplay = "DRAM" || installedMemoryTypeDisplay = "Other" {
-        combinedPartNumbers := ""
-        for partNumberItem in partNumberStrings {
-            combinedPartNumbers .= partNumberItem . " "
-        }
-        combinedPartNumbersLower := StrLower(combinedPartNumbers)
-
-        switch true {
-            case (installedMemoryTypeDisplay = "" || InStr(installedMemoryTypeDisplay, "Unknown") || installedMemoryTypeDisplay = "DRAM" || installedMemoryTypeDisplay = "Other") && (resolvedLegacySubtype != ""):
-                installedMemoryTypeDisplay := resolvedLegacySubtype
-            case InStr(combinedPartNumbersLower, "lpddr5x"):
-                installedMemoryTypeDisplay := "LPDDR5X"
-            case InStr(combinedPartNumbersLower, "lpddr5"):
-                installedMemoryTypeDisplay := "LPDDR5"
-            case InStr(combinedPartNumbersLower, "ddr5") || InStr(combinedPartNumbersLower, "pc5"):
-                installedMemoryTypeDisplay := "DDR5 SDRAM"
-            case InStr(combinedPartNumbersLower, "lpddr4x"):
-                installedMemoryTypeDisplay := "LPDDR4X"
-            case InStr(combinedPartNumbersLower, "lpddr4"):
-                installedMemoryTypeDisplay := "LPDDR4"
-            case InStr(combinedPartNumbersLower, "ddr4") || InStr(combinedPartNumbersLower, "pc4"):
-                installedMemoryTypeDisplay := "DDR4 SDRAM"
-            case InStr(combinedPartNumbersLower, "ddr3") || InStr(combinedPartNumbersLower, "pc3"):
-                installedMemoryTypeDisplay := "DDR3 SDRAM"
-            case InStr(combinedPartNumbersLower, "ddr2") || InStr(combinedPartNumbersLower, "pc2"):
-                installedMemoryTypeDisplay := "DDR2 SDRAM"
-            case InStr(combinedPartNumbersLower, "ddr "):
-                installedMemoryTypeDisplay := "DDR SDRAM"
-            default:
-                if installedMemoryTypeDisplay = "" {
-                    installedMemoryTypeDisplay := "Unknown Type"
-                }
-        }
-    }
-
-    memorySizeAndType := installedMemorySizeDisplay . " " . installedMemoryTypeDisplay
-
-    return memorySizeAndType
-}
-
-GetSystemDisk() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    EXPLORER_SIZE_MAX_CHARACTERS       := 64
-    BYTES_PER_WIDE_CHARACTER           := 2
-    diskCapacityUtf16Buffer            := Buffer(EXPLORER_SIZE_MAX_CHARACTERS * BYTES_PER_WIDE_CHARACTER, 0)
-    systemPartitionCapacityUtf16Buffer := Buffer(EXPLORER_SIZE_MAX_CHARACTERS * BYTES_PER_WIDE_CHARACTER, 0)
-
-    diskModelText := "Unknown Disk"
-    diskCapacityText := "Unknown"
-    systemPartitionCapacityText := "Unknown"
-
-    try {
-        logicalDriveLetter := SubStr(A_WinDir, 1, 2)
-        systemPartitionByteCount := ""
-
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32LogicalDiskQuery := "
-        (
-        SELECT
-            Size
-        FROM
-            Win32_LogicalDisk
-        WHERE
-            DeviceID='
-        )" . logicalDriveLetter . "
-        (
-        '
-        )"
-
-        for logicalDisk in windowsManagementInstrumentationService.ExecQuery(win32LogicalDiskQuery) {
-            systemPartitionByteCount := logicalDisk.Size + 0
-            break
-        }
-
-        partitionObjectQuery := "
-        (
-        ASSOCIATORS OF
-            {Win32_LogicalDisk.DeviceID='
-        )" . logicalDriveLetter . "
-        (
-        '}
-        WHERE
-            AssocClass=Win32_LogicalDiskToPartition
-        )"
-
-        selectedPartitionDeviceId := ""
-        for partitionObject in windowsManagementInstrumentationService.ExecQuery(partitionObjectQuery) {
-            selectedPartitionDeviceId := partitionObject.DeviceID
-            break
-        }
-
-        diskDriveObjectQuery := "
-        (
-        ASSOCIATORS OF
-            {Win32_DiskPartition.DeviceID='
-        )" . selectedPartitionDeviceId . "
-        (
-        '}
-        WHERE
-            AssocClass=Win32_DiskDriveToDiskPartition
-        )"
-
-        physicalDiskByteCount := ""
-        if selectedPartitionDeviceId != "" {
-            for diskDriveObject in windowsManagementInstrumentationService.ExecQuery(diskDriveObjectQuery) {
-                if Trim(diskDriveObject.Model) != "" {
-                    diskModelText := Trim(diskDriveObject.Model)
-                }
-
-                if diskDriveObject.Size != "" && diskDriveObject.Size >= 0 {
-                    physicalDiskByteCount := diskDriveObject.Size + 0
-                }
-
-                break
-            }
-        }
-
-        if physicalDiskByteCount != "" && physicalDiskByteCount >= 0 {
-            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", physicalDiskByteCount, "Ptr", diskCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
-            diskCapacityText := StrGet(diskCapacityUtf16Buffer)
-        }
-
-        if systemPartitionByteCount != "" && systemPartitionByteCount >= 0 {
-            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", systemPartitionByteCount, "Ptr", systemPartitionCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
-            systemPartitionCapacityText := StrGet(systemPartitionCapacityUtf16Buffer)
-        }
-    }
-
-    if diskCapacityText = systemPartitionCapacityText {
-        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . ")"
-    } else {
-        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . " / " . systemPartitionCapacityText . ")"
-    }
-
-    modelWithDiskCapacityAndSystemPartitionCapacity := diskModelText . diskCapacityAndSystemPartitionCapacity
-    
-    return modelWithDiskCapacityAndSystemPartitionCapacity
-}
-
-GetActiveDisplayGpu() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    ; Prefer Win32 (User32) enumeration - authoritative primary GPU.
-    DISPLAY_DEVICE_ACTIVE_FLAG := 0x00000001
-    DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG := 0x00000004
-    DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES := 840
-
-    primaryAdapterFriendlyName := ""
-    firstActiveAdapterFriendlyName := ""
-
-    displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, 0)
-    displayDeviceIndex  := 0
-    loop {
-        ; Reinitialize the struct for this iteration and set cb (size).
-        DllCall("Msvcrt\memset", "Ptr", displayDeviceBuffer.Ptr, "Int", 0, "UPtr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "Int")
-        NumPut("UInt", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, displayDeviceBuffer, 0)
-
-        enumerationSuccessful := DllCall("User32\EnumDisplayDevicesW", "Ptr", 0, "UInt", displayDeviceIndex, "Ptr", displayDeviceBuffer.Ptr, "UInt", 0, "Int")
-        if enumerationSuccessful = 0 {
-            break
-        }
-
-        displayDeviceStateFlags   := NumGet(displayDeviceBuffer, 68 + 256, "UInt")
-        displayDeviceFriendlyName := StrGet(displayDeviceBuffer.Ptr + 68, "UTF-16")
-
-        if InStr(displayDeviceFriendlyName, "Microsoft Basic Display") || InStr(displayDeviceFriendlyName, "Remote Display") || InStr(displayDeviceFriendlyName, "RDP")
-        {
-            displayDeviceIndex += 1
-            continue
-        }
-
-        if displayDeviceStateFlags & DISPLAY_DEVICE_ACTIVE_FLAG {
-            if firstActiveAdapterFriendlyName = "" {
-                firstActiveAdapterFriendlyName := displayDeviceFriendlyName
-            }
-            if displayDeviceStateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG {
-                primaryAdapterFriendlyName := displayDeviceFriendlyName
-                break
-            }
-        }
-
-        displayDeviceIndex += 1
-    }
-
-    ; Fallback only if no value retrieved from Win32: WMI heuristic.
-    activeModelNameFromWmi := ""
-    firstModelNameFromWmi := ""
-
-    if primaryAdapterFriendlyName = "" && firstActiveAdapterFriendlyName = "" {
-        try {
-            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-            win32VideoControllerQuery := "
-            (
-                SELECT
-                    Name,
-                    ConfigManagerErrorCode,
-                    CurrentHorizontalResolution,
-                    CurrentVerticalResolution
-                FROM
-                    Win32_VideoController
-                WHERE
-                    ConfigManagerErrorCode = 0
-            )"
-
-            queryResults := windowsManagementInstrumentationService.ExecQuery(win32VideoControllerQuery)
-            for record in queryResults {
-                controllerName := record.Name
-
-                if firstModelNameFromWmi = "" {
-                    firstModelNameFromWmi := controllerName
-                }
-
-                ; Ignore virtual or placeholder adapters here as well.
-                if InStr(controllerName, "Microsoft Basic Display") || InStr(controllerName, "Remote Display") || InStr(controllerName, "RDP") {
-                    continue
-                }
-
-                if record.CurrentHorizontalResolution > 0 && record.CurrentVerticalResolution > 0 {
-                    activeModelNameFromWmi := controllerName
-                    break
-                }
-            }
-        }
-    }
-
-    modelName := "Unknown GPU"
-
-    if primaryAdapterFriendlyName != "" {
-        modelName := primaryAdapterFriendlyName
-    } else if firstActiveAdapterFriendlyName != "" {
-        modelName := firstActiveAdapterFriendlyName
-    } else if activeModelNameFromWmi != "" {
-        modelName := activeModelNameFromWmi
-    } else if firstModelNameFromWmi != "" {
-        modelName := firstModelNameFromWmi
-    }
-
-    return modelName
-}
-
-GetActiveMonitor() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    DISPLAY_DEVICEW_SIZE  := 840
-    OFFSET_DeviceString   := 68
-    OFFSET_StateFlags     := 324
-    OFFSET_DeviceID       := 328
-    DISPLAY_DEVICE_ACTIVE := 0x00000001
-
-
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
-
-    plugAndPlayManufacturers := Map()
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
-
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
-
-    monitorNameResult := "Unknown Monitor"
-
-    primaryDisplayDeviceName := ""
-    primaryMonitorIndex := MonitorGetPrimary()
-    if primaryMonitorIndex > 0 {
-        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
-    }
-
-    monitorDeviceInstanceId := ""
-    monitorFriendlyDeviceString := ""
-    if primaryDisplayDeviceName != "" {
-        enumerationIndex := 0
-        displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
-        loop {
-            NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
-            enumerationCallSucceeded := DllCall("User32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr", displayDeviceBuffer, "UInt", 0, "Int")
-            if enumerationCallSucceeded = 0 {
-                break
-            }
-            enumerationIndex += 1
-
-            stateFlags := NumGet(displayDeviceBuffer, OFFSET_StateFlags, "UInt")
-            if stateFlags & DISPLAY_DEVICE_ACTIVE {
-                monitorDeviceInstanceId     := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceID,     128, "UTF-16")
-                monitorFriendlyDeviceString := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceString, 128, "UTF-16")
-                break
-            }
-        }
-    }
-
-    vendorCode := ""
-    productCode := ""
-    if monitorDeviceInstanceId != "" && RegExMatch(monitorDeviceInstanceId, "i)^(?:MONITOR|DISPLAY)\\([A-Z]{3})([0-9A-F]{4})", &matchPnP) {
-        vendorCode := matchPnP[1]
-        productCode := matchPnP[2]
-    }
-
-    if monitorNameResult = "Unknown Monitor" {
-        bestBrand := ""
-        bestModel := ""
-        bestIsPrimaryMatch := false
-
-        try {
-            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
-            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-            wmiMonitorIDQuery := "
-            (
-                SELECT
-                    InstanceName,
-                    ManufacturerName,
-                    UserFriendlyName,
-                    Active
-                FROM
-                    WmiMonitorID
-                WHERE
-                    Active=True
-            )"
-
-            queryResults := windowsManagementInstrumentationService.ExecQuery(wmiMonitorIDQuery)
-            for record in queryResults {
-                instanceName := record.InstanceName
-                manufacturerArray := record.ManufacturerName
-                candidateBrandCode := ""
-                for codePoint in manufacturerArray {
-                    if codePoint = 0 {
-                        break
-                    }
-                    candidateBrandCode .= Chr(codePoint)
-                }
-                candidateBrandCode := StrUpper(Trim(candidateBrandCode))
-                candidateBrand := plugAndPlayManufacturers.Has(candidateBrandCode) ? plugAndPlayManufacturers[candidateBrandCode] : candidateBrandCode
-
-                userFriendlyArray := record.UserFriendlyName
-                candidateModel := ""
-                for codePoint in userFriendlyArray {
-                    if codePoint = 0 {
-                        break
-                    }
-                    candidateModel .= Chr(codePoint)
-                }
-                candidateModel := Trim(candidateModel)
-
-                if candidateModel = "" || RegExMatch(candidateModel, "i)^\s*Generic\b.*\bPnP\b") {
-                    continue
-                }
-
-                instanceMatchesPrimary := vendorCode != "" && productCode != "" && RegExMatch(instanceName, "i)" . vendorCode . productCode)
-
-                if instanceMatchesPrimary {
-                    bestBrand := candidateBrand
-                    bestModel := candidateModel
-                    bestIsPrimaryMatch := true
-                    break
-                } else if !bestIsPrimaryMatch && bestModel = "" {
-                    bestBrand := candidateBrand
-                    bestModel := candidateModel
-                }
-            }
-        }
-        if bestModel != "" {
-            if bestBrand != "" && !RegExMatch(bestModel, "i)^\Q" . bestBrand . "\E\b") {
-                monitorNameResult := bestBrand . " " . bestModel
-            } else {
-                monitorNameResult := bestModel
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
-            try {
-                loop reg, registryBasePath, "K" {
-                    instanceKeyName := A_LoopRegName
-                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
-                    friendlyNameCandidate := ""
-                    try {
-                        friendlyNameCandidate := RegRead(parametersPath, "FriendlyName", "")
-                    }
-                    if friendlyNameCandidate != "" && !RegExMatch(friendlyNameCandidate, "i)^\s*Generic\b.*\bPnP\b") {
-                        monitorNameResult := friendlyNameCandidate
-                        break 2
-                    }
-                }
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
-            try {
-                loop reg, registryBasePath, "K" {
-                    instanceKeyName := A_LoopRegName
-                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
-                    edidBuffer := ""
-                    try {
-                        edidBuffer := RegRead(parametersPath, "EDID")
-                    }
-                    if IsObject(edidBuffer) && edidBuffer.Size >= 128 {
-                        descriptorStart := 54
-                        descriptorLength := 18
-                        loop 4 {
-                            descriptorOffset := descriptorStart + (A_Index - 1) * descriptorLength
-                            byte0 := NumGet(edidBuffer, descriptorOffset + 0, "UChar")
-                            byte1 := NumGet(edidBuffer, descriptorOffset + 1, "UChar")
-                            tag   := NumGet(edidBuffer, descriptorOffset + 3, "UChar")
-                            if byte0 = 0x00 && byte1 = 0x00 && tag = 0xFC {
-                                modelFromEdid := ""
-                                loop 13 {
-                                    edidNameAsciiByte := NumGet(edidBuffer, descriptorOffset + 5 + (A_Index - 1), "UChar")
-                                    if edidNameAsciiByte = 0x00 || edidNameAsciiByte = 0x0A {
-                                        break
-                                    }
-                                    modelFromEdid .= Chr(edidNameAsciiByte)
-                                }
-                                modelFromEdid := Trim(modelFromEdid)
-                                if modelFromEdid != "" {
-                                    brandFromMap := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
-                                    monitorNameResult := (brandFromMap != "" ? brandFromMap . " " : "") . modelFromEdid
-                                }
-                                break
-                            }
-                        }
-                        if monitorNameResult != "Unknown Monitor" {
-                            break 2
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        derivedBrand := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
-        monitorNameResult := derivedBrand . " " . StrUpper(productCode)
-    }
-
-    if monitorNameResult = "Unknown Monitor" && monitorFriendlyDeviceString != "" && !RegExMatch(monitorFriendlyDeviceString, "i)^\s*Generic\b.*\bPnP\b") {
-        monitorNameResult := monitorFriendlyDeviceString
-    }
-
-    return monitorNameResult
-}
-
-GetBios() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    biosVersion := ""
-    biosDateIso := ""
-    uefiIsEnabled := false
-
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32BiosQuery := "
-        (
-            SELECT
-                SMBIOSBIOSVersion,
-                Version,
-                BIOSVersion,
-                ReleaseDate,
-                BiosCharacteristics
-            FROM
-                Win32_BIOS
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BiosQuery)
-        for record in queryResults {
-            biosVersionCandidate := Trim(record.SMBIOSBIOSVersion . "")
-            if biosVersionCandidate = "" {
-                biosVersionCandidate := Trim(record.Version . "")
-            }
-            if biosVersionCandidate = "" {
-                biosVersionField := record.BIOSVersion
-                if IsObject(biosVersionField) {
-                    for index, versionEntry in biosVersionField {
-                        if Trim(versionEntry . "") != "" {
-                            biosVersionCandidate := Trim(versionEntry . "")
-                            break
-                        }
-                    }
-                } else {
-                    candidateString := Trim(biosVersionField . "")
-                    if candidateString != "" {
-                        biosVersionCandidate := candidateString
-                    }
-                }
-            }
-            biosVersion := biosVersionCandidate
-
-            ; UEFI-capable via WMI: 75 = "UEFI specification supported".
-            biosCharacteristics := record.BiosCharacteristics
-            if IsObject(biosCharacteristics) {
-                for index, characteristicCode in biosCharacteristics {
-                    if characteristicCode + 0 = 75 {
-                        uefiIsEnabled := true
-                        break
-                    }
-                }
-            }
-
-            ; BIOS release date (CIM_DATETIME to YYYY-MM-DD).
-            rawBiosReleaseDate := Trim(record.ReleaseDate . "")
-            if StrLen(rawBiosReleaseDate) >= 8 {
-                biosReleaseDateYear  := SubStr(rawBiosReleaseDate, 1, 4)
-                biosReleaseDateMonth := SubStr(rawBiosReleaseDate, 5, 2)
-                biosReleaseDateDay   := SubStr(rawBiosReleaseDate, 7, 2)
-                biosDateIso := biosReleaseDateYear . "-" . biosReleaseDateMonth . "-" . biosReleaseDateDay
-            }
-
-            break
-        }
-    }
-
-    ; Fallback UEFI-capable via RAW SMBIOS. Type 0 (BIOS Information) → Extension Byte 2 at offset 0x13, bit 3 (0x08).
-    if !uefiIsEnabled {
-        try {
-            rawSystemManagementBiosSignature := 0x52534D42
-
-            requiredBufferSize := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", 0, "UInt", 0, "UInt")
-
-            if requiredBufferSize > 0 {
-                systemManagementBiosBuffer := Buffer(requiredBufferSize, 0)
-
-                bytesReturned := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", systemManagementBiosBuffer.Ptr, "UInt", requiredBufferSize, "UInt")
-
-                if bytesReturned >= 8 {
-                    smbiosDataLength  := NumGet(systemManagementBiosBuffer, 4, "UInt")
-                    smbiosDataPointer := systemManagementBiosBuffer.Ptr + 8
-                    smbiosEndPointer  := smbiosDataPointer + smbiosDataLength
-
-                    currentStructurePointer := smbiosDataPointer
-                    while currentStructurePointer + 4 <= smbiosEndPointer {
-                        structureType   := NumGet(currentStructurePointer, 0, "UChar")
-                        structureLength := NumGet(currentStructurePointer, 1, "UChar")
-                        if structureLength < 4 || currentStructurePointer + structureLength > smbiosEndPointer {
-                            break
-                        }
-
-                        if structureType = 0 { ; BIOS Information.
-                            ; Extension Byte 2 is at offset 0x13 (19) when present. Bit 3 (0x08) == "UEFI specification supported".
-                            if structureLength >= 0x14 {
-                                biosCharacteristicsExtensionByte2 := NumGet(currentStructurePointer, 0x13, "UChar")
-                                if biosCharacteristicsExtensionByte2 & 0x08 {
-                                    uefiIsEnabled := true
-                                }
-                            }
-                        }
-
-                        ; Advance to next structure (formatted area + string-set until double NUL).
-                        nextPointer := currentStructurePointer + structureLength
-                        while nextPointer < smbiosEndPointer {
-                            if NumGet(nextPointer, 0, "UChar") = 0 {
-                                if nextPointer + 1 <= smbiosEndPointer && NumGet(nextPointer + 1, 0, "UChar") = 0 {
-                                    nextPointer += 2
-                                    break
-                                }
-                            }
-                            nextPointer += 1
-                        }
-                        currentStructurePointer := nextPointer
-                        if (structureType = 127) { ; End-of-table.
-                            break
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if biosVersion = "" {
-        biosVersion := "Unknown"
-    }
-
-    if biosDateIso = "" {
-        biosDateIso := "Unknown"
-    }
-
-    uefiOrBios := uefiIsEnabled ? "UEFI" : "BIOS"
-
-    biosSummary := biosVersion . " (" . biosDateIso . ") " . uefiOrBios
-
-    return biosSummary
-}
-
-GetQueryPerformanceCounterFrequency() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
-    queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
-    if !queryPerformanceCounterFrequencyRetrievedSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
-    }
-
-    queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
-
-    return queryPerformanceCounterFrequency
-}
-
-GetActiveMonitorRefreshRateHz() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    ENUM_CURRENT_SETTINGS := -1
-    DEVMODEW_BYTES := 220
-    OFFSET_dmSize := 68
-    OFFSET_dmFields := 76
-    OFFSET_dmDisplayFrequency := 120
-    DM_DISPLAYFREQUENCY := 0x00400000
-
-    GDI_VREFRESH_INDEX := 116
-
-    refreshRateHertzResult := 0
-
-    primaryDisplayDeviceName := ""
-    primaryMonitorIndex := MonitorGetPrimary()
-    if primaryMonitorIndex > 0 {
-        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
-    }
-
-    if primaryDisplayDeviceName != "" {
-        deviceModeBuffer := Buffer(DEVMODEW_BYTES, 0)
-        NumPut("UShort", DEVMODEW_BYTES, deviceModeBuffer, OFFSET_dmSize)
-        NumPut("UShort", 0, deviceModeBuffer, 70)
-
-        enumCallSucceeded := DllCall("User32\EnumDisplaySettingsW", "WStr", primaryDisplayDeviceName, "Int", ENUM_CURRENT_SETTINGS, "Ptr", deviceModeBuffer, "Int")
-
-        if enumCallSucceeded {
-            deviceModeFields := NumGet(deviceModeBuffer, OFFSET_dmFields, "UInt")
-            if deviceModeFields & DM_DISPLAYFREQUENCY {
-                candidateFrequencyFromDevMode := NumGet(deviceModeBuffer, OFFSET_dmDisplayFrequency, "UInt")
-                if candidateFrequencyFromDevMode >= 20 && candidateFrequencyFromDevMode <= 1000 {
-                    refreshRateHertzResult := candidateFrequencyFromDevMode
-                }
-            }
-        }
-    }
-
-    ; Fallback: GDI CreateDCW("DISPLAY") + GetDeviceCaps(VREFRESH) for the primary monitor.
-    if refreshRateHertzResult = 0 {
-        primaryDisplayDeviceContextHandle := DllCall("Gdi32\CreateDCW", "WStr", "DISPLAY", "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr")
-
-        if primaryDisplayDeviceContextHandle {
-            candidateFrequencyFromGdi := DllCall("Gdi32\GetDeviceCaps", "Ptr", primaryDisplayDeviceContextHandle, "Int", GDI_VREFRESH_INDEX, "Int")
-            DllCall("Gdi32\DeleteDC", "Ptr", primaryDisplayDeviceContextHandle)
-
-            if candidateFrequencyFromGdi >= 20 && candidateFrequencyFromGdi <= 1000 {
-                refreshRateHertzResult := candidateFrequencyFromGdi
-            }
-        }
-    }
-
-    return refreshRateHertzResult
-}
-
-GetWindowsColorMode() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    registryPath := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-
-    hasAppsUseLightTheme := false
-    hasSystemUsesLightTheme := false
-    appsUseLightThemeFlag := 0
-    systemUsesLightThemeFlag := 0
-
-    try {
-        value := RegRead(registryPath, "AppsUseLightTheme")
-        hasAppsUseLightTheme := true
-        appsUseLightThemeFlag := (value + 0) ? 1 : 0
-    }
-
-    try {
-        value := RegRead(registryPath, "SystemUsesLightTheme")
-        hasSystemUsesLightTheme := true
-        systemUsesLightThemeFlag := (value + 0) ? 1 : 0
-    }
-
-    presentFlagCount := (hasAppsUseLightTheme ? 1 : 0) + (hasSystemUsesLightTheme ? 1 : 0)
-    colorMode := ""
-
-    switch presentFlagCount
-    {
-        case 2:
-            if appsUseLightThemeFlag = systemUsesLightThemeFlag {
-                if appsUseLightThemeFlag = 1 {
-                    colorMode := "Light"
-                } else {
-                    colorMode := "Dark"
-                }
-            } else {
-                colorMode := "Custom"
-            }
-        case 1:
-            onlyFlag := hasAppsUseLightTheme ? appsUseLightThemeFlag : systemUsesLightThemeFlag
-            if onlyFlag = 1 {
-                colorMode := "Light"
-            } else {
-                colorMode := "Dark"
-            }
-        default:
-            ; Keys do not exist, treat as Light (closest equivalent).
-            colorMode := "Light"
-    }
-
-    return colorMode
 }

@@ -1,6 +1,7 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include Base Library.ahk
+#Include File Library.ahk
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
@@ -1331,47 +1332,4 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 
     LogConclusion("Completed", logValuesForConclusion)
-}
-
-; **************************** ;
-; Helper Methods               ;
-; **************************** ;
-
-DetermineWindowsBinaryType(executablePath) {
-    static methodName := RegisterMethod("executablePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [executablePath])
-
-    static SCS_32BIT_BINARY := 0
-    static SCS_DOS_BINARY   := 1
-    static SCS_WOW_BINARY   := 2
-    static SCS_PIF_BINARY   := 3
-    static SCS_POSIX_BINARY := 4
-    static SCS_OS2_BINARY   := 5
-    static SCS_64BIT_BINARY := 6
-
-    classificationResult := "N/A"
-    scsCode := 0
-
-    executableSubsystemRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &scsCode, "Int")
-
-    if executableSubsystemRetrievedSuccessfully {
-        switch scsCode {
-            case SCS_32BIT_BINARY:
-                classificationResult := "32-bit"
-            case SCS_64BIT_BINARY:
-                classificationResult := "64-bit"
-            case SCS_DOS_BINARY:
-                classificationResult := "DOS"
-            case SCS_WOW_BINARY:
-                classificationResult := "Windows 16-bit"
-            case SCS_PIF_BINARY:
-                classificationResult := "PIF"
-            case SCS_POSIX_BINARY:
-                classificationResult := "POSIX"
-            case SCS_OS2_BINARY:
-                classificationResult := "OS/2"
-        }
-    }
-
-    return classificationResult
 }
