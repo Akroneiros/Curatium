@@ -46,10 +46,6 @@ RegisterApplications() {
     applicationWhitelistLength := applicationWhitelist.Length
     if applicationWhitelistLength != 0 {
         for application in applicationWhitelist {
-            if !applicationRegistry.Has(application) {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . application . '" does not exist.')
-            }
-
             applicationRegistry[application]["Whitelisted"] := true
         }
 
@@ -58,6 +54,10 @@ RegisterApplications() {
                 applicationRegistry[application]["Whitelisted"] := false
                 applicationRegistry[application]["Installed"]   := false
             }
+        }
+    } else {
+        for application in applicationRegistry {
+            applicationRegistry[application]["Whitelisted"] := true
         }
     }
 
@@ -140,19 +140,22 @@ ExecutablePathResolve(applicationName) {
     if !IsSet(combinedApplicationExecutableDirectoryCandidates) {
         combinedApplicationExecutableDirectoryCandidates := []
 
-        projectApplicationExecutableDirectoryCandidatesFilePath := system["Project Directory"] . "Application Executable Directory Candidates.csv"
-        if FileExist(projectApplicationExecutableDirectoryCandidatesFilePath) {
-            projectApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(projectApplicationExecutableDirectoryCandidatesFilePath)
-
-            for index, projectApplicationExecutableDirectoryCandidate in projectApplicationExecutableDirectoryCandidates {
-                projectApplicationExecutableDirectoryCandidates[index]["Source"] := "Project"
-                combinedApplicationExecutableDirectoryCandidates.Push(projectApplicationExecutableDirectoryCandidate)
+        for projectApplicationExecutableDirectoryCandidate in system["Configuration"]["Application Executable Directory Candidates"] {
+            if applicationRegistry[projectApplicationExecutableDirectoryCandidate[1]]["Whitelisted"] = false {
+                continue
             }
+
+            combinedApplicationExecutableDirectoryCandidates.Push(Map(
+                "Directory", projectApplicationExecutableDirectoryCandidate[3], "Executable", projectApplicationExecutableDirectoryCandidate[2], "Name", projectApplicationExecutableDirectoryCandidate[1], "Source", "Project"
+            ))
         }
 
         sharedApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Executable Directory Candidates.csv")
-
         for index, sharedApplicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
+            if applicationRegistry[sharedApplicationExecutableDirectoryCandidate["Name"]]["Whitelisted"] = false {
+                continue
+            }
+
             sharedApplicationExecutableDirectoryCandidates[index]["Source"] := "Shared"
             combinedApplicationExecutableDirectoryCandidates.Push(sharedApplicationExecutableDirectoryCandidate)
         }
@@ -220,7 +223,7 @@ ExecutablePathResolve(applicationName) {
 }
 
 ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static candidateBaseDirectories := unset
@@ -234,26 +237,14 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
             }
         }
 
-        programFilesDirectory := EnvGet("ProgramFiles")
-        if programFilesDirectory {
-            candidateBaseDirectories.Push(programFilesDirectory)
+        defaultCandidateBaseDirectories := [EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive") . "\", EnvGet("USERPROFILE")]
+        for defaultCandidateBaseDirectory in defaultCandidateBaseDirectories {
+            if DirExist(defaultCandidateBaseDirectory) {
+                candidateBaseDirectories.Push(defaultCandidateBaseDirectory)
+            }
         }
 
-        programFilesX86Directory := EnvGet("ProgramFiles(x86)")
-        if programFilesX86Directory && programFilesX86Directory != programFilesDirectory {
-            candidateBaseDirectories.Push(programFilesX86Directory)
-        }
-
-        programFilesW6432Directory := EnvGet("ProgramW6432")
-        if programFilesW6432Directory && programFilesW6432Directory != programFilesDirectory && programFilesW6432Directory != programFilesX86Directory {
-            candidateBaseDirectories.Push(programFilesW6432Directory)
-        }
-
-        localApplicationDataDirectory := EnvGet("LOCALAPPDATA")
-        if localApplicationDataDirectory {
-            candidateBaseDirectories.Push(localApplicationDataDirectory)
-            candidateBaseDirectories.Push(localApplicationDataDirectory . "\Programs")
-        }
+        candidateBaseDirectories := RemoveDuplicatesFromArray(candidateBaseDirectories)
     }
 
     executablePathSearchResult := ""
@@ -410,7 +401,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
 }
 
 ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static appPathsBaseRegistryKeys := [
@@ -458,7 +449,7 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
 }
 
 ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandidates) {
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static uninstallBaseKeyPaths := [
@@ -968,27 +959,25 @@ ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication) {
         Sleep(tinyDelay)
     }
 
-    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
-    excelWindowHandle      := ActivateWindow("ahk_id " . excelWindowHandle . " ahk_class XLMAIN")
+    excelWindowSearchResults := SearchForWindow("ahk_id " . excelWindowHandle . " ahk_class XLMAIN")
+    ActivateWindow(excelWindowSearchResults, true)
 
     KeyboardShortcut("ALT", "F11") ; Microsoft Visual Basic for Applications
 
-    visualBasicEditorWindowHandle := ActivateWindow("ahk_pid " . excelProcessIdentifier . " ahk_class wndclass_desked_gsk")
-    if visualBasicEditorWindowHandle {
-        if applicationRegistry["Excel"]["Code Execution"] != "Full" {
-            KeyboardShortcut("ALT", "I") ; Insert
-            Sleep(shortDelay)
-            SendInput("m") ; Module
-            Sleep(mediumDelay)
-        }
-
-        PasteText(code, "'")
-
-        LogConclusion("Completed", logValuesForConclusion)
-        return excelProcessIdentifier
-    } else {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+    excelProcessIdentifier               := WinGetPID("ahk_id " . excelWindowHandle)
+    visualBasicEditorWindowSearchResults := SearchForWindow("ahk_pid " . excelProcessIdentifier . " ahk_class wndclass_desked_gsk", "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
+    ActivateWindow(visualBasicEditorWindowSearchResults, true)
+    if applicationRegistry["Excel"]["Code Execution"] != "Full" {
+        KeyboardShortcut("ALT", "I") ; Insert
+        Sleep(shortDelay)
+        SendInput("m") ; Module
+        Sleep(mediumDelay)
     }
+
+    PasteText(code, "'")
+
+    LogConclusion("Completed", logValuesForConclusion)
+    return excelProcessIdentifier
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
@@ -1115,16 +1104,17 @@ StartSqlServerManagementStudioAndConnect() {
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
-    sqlServerManagementStudioConnectionWindowHandle := ActivateWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], "Connect Dialog Window not found.")
+    sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], "Connect to Server Window not found.")
+    ActivateWindow(sqlServerManagementStudioConnectToServerWindowSearchResults)
+
     SendInput("{Enter}") ; Connect
 
-    if WinWaitClose("Connect ahk_id " . sqlServerManagementStudioConnectionWindowHandle,, 40) {
-    } else {
+    if !WinWaitClose("Connect ahk id " . sqlServerManagementStudioConnectToServerWindowSearchResults["Window Handle"],, 40) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Connection failed.")
     }
 
-    microsoftSqlServerManagementStudioWindowHandle := ActivateWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"])
-    WinMaximize("ahk_id " . microsoftSqlServerManagementStudioWindowHandle)
+    sqlServerManagementStudioMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"])
+    ActivateWindow(sqlServerManagementStudioMainWindowSearchResults, true)
 
     LogConclusion("Completed", logValuesForConclusion)
 }
@@ -1164,7 +1154,8 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindowCoordinates)
     Sleep(mediumDelay)
     SendInput("v") ; Save Results As...
-    saveResultsAsWindowHandle := ActivateWindow("ahk_class #32770")
+    sqlServerManagementStudioSaveResultsWindowSearchResults := SearchForWindow("ahk_class #32770")
+    ActivateWindow(sqlServerManagementStudioSaveResultsWindowSearchResults)
     KeyboardShortcut("ALT", "N") ; File name
     Sleep(mediumDelay)
     PasteText(savePath)
@@ -1241,9 +1232,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
 
     windowCriteria := "ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain"
-    toadForOracleWindowHandle := ActivateWindow(windowCriteria)
-    WinMaximize("ahk_id " . toadForOracleWindowHandle)
-    Sleep(shortDelay)
+    toadForOracleMainWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain")
+    ActivateWindow(toadForOracleMainWindowSearchResults, true)
 
     KeyboardShortcut("ALT", "S") ; Session
     Sleep(shortDelay)

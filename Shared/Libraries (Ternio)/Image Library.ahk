@@ -268,9 +268,19 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     }
 }
 
-SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, variant := "") {
-    static methodName := RegisterMethod("directoryFolder As String, imageName As String, secondsToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, secondsToAttempt, variant], "Search for Directory Image (" . directoryFolder . ", " . imageName . ")")
+SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, variant := "") {
+    static methodName := RegisterMethod("directoryFolder As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, timesToAttempt, variant], "Search for Directory Image (" . directoryFolder . ", " . imageName . ")")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Medium Delay", 1000, false)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+    mediumDelay := settings.Get("Medium Delay")
 
     if !imageRegistry.Has(directoryFolder) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
@@ -280,8 +290,8 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
     }
 
-    if secondsToAttempt = 0 {
-        secondsToAttempt := 1
+    if timesToAttempt = 0 {
+        timesToAttempt := 1
     }
 
     variant := StrLower(variant)
@@ -298,16 +308,6 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
         }
     }
 
-    overlayVisibility := OverLayIsVisible()
-    if overlayVisibility {
-        OverlayChangeVisibility()
-    }
-
-    CoordMode("Pixel", "Screen")
-    static displayResolution := StrSplit(system["Display Resolution"], "x")
-    static screenWidth  := displayResolution[1] + 0
-    static screenHeight := displayResolution[2] + 0
-
     directoryImageVariants := unset
     if variant = "" {
         directoryImageVariants := imageRegistry[directoryFolder][imageName]
@@ -321,40 +321,40 @@ SearchForDirectoryImage(directoryFolder, imageName, secondsToAttempt := 60, vari
         }
     }
 
-    startTime := A_Now
-    endTime   := DateAdd(startTime, secondsToAttempt, "Seconds")
+    imageSearchResults := Map(
+        "Directory", directoryFolder,
+        "Name", imageName,
+        "Times to Attempt", timesToAttempt,
+        "Medium Delay", mediumDelay,
+        "Success", false
+    )
 
-    imageSearchResults := unset
-    while A_Now < endTime && !IsSet(imageSearchResults) {
+    overlayVisibility := OverLayIsVisible()
+    if overlayVisibility {
+        OverlayChangeVisibility()
+    }
+
+    horizontalCoordinate := 0
+    verticalCoordinate   := 0
+
+    CoordMode("Pixel", "Screen")
+    loop timesToAttempt {
+        imageSearchResults["Times Attempted"] := A_Index
+
         for image in directoryImageVariants {
-            horizontalCoordinate := 0
-            verticalCoordinate := 0
-
             if ImageSearch(&horizontalCoordinate, &verticalCoordinate, image["Horizontal Range Start"], image["Vertical Range Start"], image["Horizontal Range End"], image["Vertical Range End"], image["Path"]) {
                 horizontalCoordinate := horizontalCoordinate + Floor(image["Width"] / 2)
                 verticalCoordinate   := verticalCoordinate + Floor(image["Height"] / 2)
 
-                imageSearchResults := Map(
-                    "Directory", directoryFolder,
-                    "Name", imageName,
-                    "Variant", image["Variant"],
-                    "Coordinate Pair", horizontalCoordinate "x" verticalCoordinate,
-                    "Seconds to Attempt", secondsToAttempt
-                )
+                imageSearchResults["Variant"]         := image["Variant"]
+                imageSearchResults["Coordinate Pair"] := horizontalCoordinate "x" verticalCoordinate
+                imageSearchResults["Success"]         := true
+
+                break 2
             }
         }
 
-        Sleep(1000)
-    }
-
-    if !IsSet(imageSearchResults) {
-        imageSearchResults := Map(
-            "Directory", directoryFolder,
-            "Name", imageName,
-            "Variant", "",
-            "Coordinate Pair", "",
-            "Seconds to Attempt", secondsToAttempt
-        )
+        Sleep(mediumDelay)
     }
 
     if overlayVisibility {
@@ -514,11 +514,11 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 }
 
 ExtractScreenCoordinates(imageSearchResults) {
-    static methodName := RegisterMethod("imageSearchResults As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("imageSearchResults As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [imageSearchResults])
 
-    if imageSearchResults["Variant"] = "" && imageSearchResults["Coordinate Pair"] = "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Tried for " . imageSearchResults["Seconds to Attempt"] . " seconds.")
+    if imageSearchResults["Success"] = false {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Failed after " . imageSearchResults["Times Attempted"] . " attempts with " . imageSearchResults["Medium Delay"] . " milliseconds delay between each attempt.")
     }
 
     coordinatePair := imageSearchResults["Coordinate Pair"]

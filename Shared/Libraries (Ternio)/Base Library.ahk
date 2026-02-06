@@ -343,6 +343,36 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     LogConclusion("Completed", logValuesForConclusion)
 }
 
+SearchForWindow(windowTitle, customErrorMessage := "") {
+    static methodName := RegisterMethod("windowTitle As String, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [windowTitle, customErrorMessage], "Search for Window (" . windowTitle . ")")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings         := methodRegistry[methodName]["Settings"]
+    secondsToAttempt := settings.Get("Seconds to Attempt")
+
+    windowSearchResults := Map(
+        "Window Title", windowTitle,
+        "Seconds to Attempt", secondsToAttempt,
+        "Custom Error Message", customErrorMessage,
+        "Success", false
+    )
+
+    windowHandle := WinWait(windowTitle, , secondsToAttempt)
+    if windowHandle {
+        windowSearchResults["Window Handle"] := windowHandle
+        windowSearchResults["Success"]       := true
+    }
+
+    return windowSearchResults
+}
+
 SetAutoHotkeyThreadPriority(threadPriority) {
     static threadPriorityWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Lowest", "Below Normal", "Normal", "Above Normal", "Highest")
     static methodName := RegisterMethod("threadPriority As String [Whitelist: " . threadPriorityWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
@@ -369,7 +399,7 @@ SetAutoHotkeyThreadPriority(threadPriority) {
 
 ValidateConfiguration(configurationPath) {
     static methodName := RegisterMethod("configurationPath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Validate Configuration")
+    logValuesForConclusion := LogBeginning(methodName, [configurationPath], "Validate Configuration")
 
     global system
 
@@ -382,6 +412,75 @@ ValidateConfiguration(configurationPath) {
 
     if Type(system["Configuration"]) != "Map" {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration is unexpectedly not a Map.")
+    }
+
+    rootSettings := [["Application Executable Directory Candidates", "Array"], ["Application Whitelist", "Array"], ["Candidate Base Directories", "Array"], ["Settings", "Map"]]
+    for setting in rootSettings {
+        if !system["Configuration"].Has(setting[1]) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root missing " . setting[1] . ".")
+        }
+
+        if Type(system["Configuration"][setting[1]]) != setting[2] {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+        }
+    }
+
+    subSettings := [["Image Variant Preset", "String"]]
+    for setting in subSettings {
+        if !system["Configuration"]["Settings"].Has(setting[1]) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings missing " . setting[1] . ".")
+        }
+
+        if Type(system["Configuration"]["Settings"][setting[1]]) != setting[2] {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+        }
+    }
+
+    for applicationExecutableDirectoryCandidate in system["Configuration"]["Application Executable Directory Candidates"] {
+        if Type(applicationExecutableDirectoryCandidate) != "Array" {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of Array.")
+        }
+
+        if applicationExecutableDirectoryCandidate.Length != 3 {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected array length of 3.")
+        }
+
+        for index, entry in applicationExecutableDirectoryCandidate {
+            if Type(entry) != "String" {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of String.")
+            }
+
+            if index = 1 {
+                if !applicationRegistry.Has(entry) {
+                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate refers to an application that does not exist.")
+                }
+            }
+        }
+    }
+
+    for applicationWhitelist in system["Configuration"]["Application Whitelist"] {
+        if Type(applicationWhitelist) != "String" {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
+        }
+
+        if !applicationRegistry.Has(applicationWhitelist) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
+        }
+    }
+
+    for candidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
+        if Type(candidateBaseDirectory) != "String" {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
+        }
+    }
+
+    if Type(system["Configuration"]["Settings"]["Image Variant Preset"]) != "String" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset did not return the data type of String.")
+    }
+
+    imageVariantPresetValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"]["Image Variant Preset"], "String", "Absolute Path")
+    if imageVariantPresetValidation != "" {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. " . imageVariantPresetValidation)
     }
 
     LogConclusion("Completed", logValuesForConclusion)
@@ -464,6 +563,10 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " must be between 1601 and 9999."
                         }
                 }
+            }
+        case "Map":
+            if Type(dataValue) != "Map" {
+                validation := "Value must be a Map."
             }
         case "Object":
             ; No validation, but allowed Data Type.
@@ -696,9 +799,9 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 ; Helper Methods               ;
 ; **************************** ;
 
-ActivateWindow(windowTitle, customErrorMessage := "") {
-    static methodName := RegisterMethod("windowTitle As String, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [windowTitle, customErrorMessage])
+ActivateWindow(windowSearchResults, maximizeWindow := false) {
+    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [windowSearchResults, maximizeWindow])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -712,12 +815,19 @@ ActivateWindow(windowTitle, customErrorMessage := "") {
     secondsToAttempt := settings.Get("Seconds to Attempt")
     shortDelay       := settings.Get("Short Delay")
 
-    windowHandle := WinWait(windowTitle, , secondsToAttempt)
-    if !windowHandle {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to find window after trying for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+    windowSearchTerm := "Window search term: " . windowSearchResults["Window Title"] . "."
+    totalSleep       := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
+
+    if windowSearchResults["Success"] = false {
+        errorMessage := "Failed to find window after trying for " . windowSearchResults["Seconds to Attempt"] . " seconds. " . windowSearchTerm
+
+        if windowSearchResults["Custom Error Message"] != "" {
+            errorMessage := windowSearchResults["Custom Error Message"]
+        }
+
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, errorMessage)
     }
 
-    totalSleep := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
     loop 10 {
         loopDelay := shortDelay * A_Index
         if A_Index = 1 {
@@ -726,21 +836,24 @@ ActivateWindow(windowTitle, customErrorMessage := "") {
         Sleep(loopDelay)
 
         try {
-            WinActivate("ahk_id " . windowHandle)
+            WinActivate(windowSearchResults["Window Title"])
             break
         } catch {
             if A_Index = 10 {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds. " . windowSearchTerm)
             }
         }
     }
 
-    windowHandle := WinWaitActive("ahk_id " . windowHandle, , secondsToAttempt)
-    if !windowHandle {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds." . IfStringIsNotEmptyReturnValue(customErrorMessage, " " . customErrorMessage))
+    matchingWindowFound := WinWaitActive(windowSearchResults["Window Title"], , secondsToAttempt)
+    if !matchingWindowFound {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds. " . windowSearchTerm)
     }
 
-    return windowHandle
+    if maximizeWindow {
+        WinMaximize(windowSearchResults["Window Title"])
+        Sleep(shortDelay)
+    }
 }
 
 CombineCode(introCode, mainCode, outroCode := "") {

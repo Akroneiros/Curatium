@@ -210,7 +210,8 @@ AppendLineToLog(line, logType) {
 }
 
 LogBeginning(methodName, arguments := [], overlayValue := unset) {
-    static lastRunTelemetryTick := 0
+    static lastRunTelemetryTick := unset
+    static runTelemetryInterval := 12 * 60 * 1000
 
     logValuesForConclusion := Map(
         "Method Name",    methodName,
@@ -222,10 +223,8 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
     timestamp := LogTimestamp()
 
-    runTelemetryInterval := 6 * 60 * 1000
-    runTelemetryTick     := A_TickCount
-
-    if lastRunTelemetryTick = 0 {
+    runTelemetryTick := A_TickCount
+    if !IsSet(lastRunTelemetryTick) {
         lastRunTelemetryTick := runTelemetryTick
     }
 
@@ -316,9 +315,11 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         logValuesForConclusion["UTC Timestamp Integer"] := timestamp["UTC Timestamp Integer"]
     }
 
-    if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
-        lastRunTelemetryTick := runTelemetryTick
-        LogEngine("Intermission")
+    if IsSet(overlayValue) {
+        if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
+            lastRunTelemetryTick := runTelemetryTick
+            LogEngine("Intermission")
+        }
     }
 
     return logValuesForConclusion
@@ -695,7 +696,7 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
         argumentValueFull := argument
         argumentValueLog  := argument
         switch argumentsFormatted["Data Type"] {
-            case "Array", "Object":
+            case "Array", "Map", "Object":
                 argumentValueFull := "<" . argumentsFormatted["Data Type"] . ">"
                 argumentValueLog  := "<" . argumentsFormatted["Data Type"] . ">"
             case "Boolean":
@@ -817,20 +818,22 @@ LogTelemetryTimestamp() {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
-    while true {
-        milliseconds := A_MSec + 0
+    if !IsSet(logFilePath) {
+        while true {
+            milliseconds := A_MSec + 0
 
-        if milliseconds <= 584 {
-            break
-        } else {
-            Sleep(1016 - milliseconds)
-            continue
+            if milliseconds <= 584 {
+                break
+            } else {
+                Sleep(1016 - milliseconds)
+                continue
+            }
         }
     }
 
     startTime := A_TickCount
 
-    while (A_TickCount - startTime < maxDurationMilliseconds) {
+    while A_TickCount - startTime < maxDurationMilliseconds {
         queryPerformanceCounterReadings.Push(GetQueryPerformanceCounter())
         utcTimestampPreciseReadings.Push(GetUtcTimestampPrecise())
     }
