@@ -21,6 +21,7 @@ Audacity|52
 Audition|104
 AutoCAD|105
 AutoHotkey|204
+Autopsy|401
 AzaharPlus|382
 Azahar|383
 Azure Data Studio|281
@@ -42,6 +43,7 @@ BlueStacks|282
 Brave|58
 Bridge|106
 Broadcaster|344
+Bruno|402
 bsnes|207
 Bulk Rename Utility|208
 Burp Suite Community Edition|155
@@ -50,15 +52,19 @@ calibre|156
 Camera Hub|301
 CapCut|107
 Capture2Text|283
+Cap|403
 Character Animator|108
 Charles Proxy|157
+Chatbox|404
 Chatterino|322
+Cherry Studio|405
 CherryTree|34
 Chrome|6
 ComfyUI|302
 CPU-Z|158
 CrystalDiskInfo|35
 CrystalDiskMark|262
+Cura|406
 CurseForge|303
 Cursor|304
 CyberChef|159
@@ -66,6 +72,7 @@ CyberGhost|109
 darktable|160
 DaVinci Resolve Studio|305
 DaVinci Resolve|60
+DB Browser for SQLite|407
 DBeaver|22
 DbSchema|23
 DC++|263
@@ -88,6 +95,7 @@ Driver Store Explorer|163
 DuckStation|215
 Ecosia Browser|323
 Edge|7
+eDrawings|408
 Elgato Control Center|306
 Emulicious|264
 Epic Games Launcher|111
@@ -107,11 +115,13 @@ Fiddler Classic|164
 Fiddler Everywhere|165
 FileOptimizer|42
 FileZilla|43
+FireAlpaca|409
 Firefox|9
 Fireworks|113
 FL Studio|308
 Flameshot|387
 Flash Professional|114
+FlashPrint|410
 Floorp Browser|324
 Flycast|218
 Focusrite Control|388
@@ -147,6 +157,7 @@ GtkHash|68
 Gyazo|312
 HandBrake|69
 HeidiSQL|223
+HexChat|411
 Hoppscotch|170
 HTTP Toolkit|171
 HWiNFO|45
@@ -194,6 +205,7 @@ LocalSend|229
 LockHunter|230
 Logi Options+|289
 Logitech Options|290
+LosslessCut|412
 MainType|178
 MAME|271
 Math|76
@@ -206,6 +218,7 @@ Merge|233
 Mesen|234
 MeshLab|235
 mGBA|390
+mIRC|413
 Mp3tag|272
 MPC-BE|77
 MPF|368
@@ -244,6 +257,7 @@ Photoshop|128
 Pinokio|241
 PlanMaker|81
 Playnite|369
+Podman Desktop|414
 Portmaster|330
 Postman|82
 Power Automate|331
@@ -263,6 +277,7 @@ Process Explorer|184
 Process Lasso|243
 Proton VPN|133
 Proximity|294
+PrusaSlicer|415
 Publisher|85
 Pulover's Macro Creator|38
 puNES|244
@@ -270,6 +285,7 @@ PureRef|185
 PuTTY|27
 PyCharm|393
 qBittorrent|17
+QGIS|416
 Rainmeter|351
 RapidTyping|394
 REAPER|186
@@ -297,6 +313,7 @@ Shutter Encoder|253
 Slack|87
 SmartFTP|277
 Snes9x|254
+Sniffnet|417
 SoapUI|295
 Social Stream Ninja|315
 Sononym|189
@@ -349,9 +366,11 @@ TypingMaster|397
 UiPath Studio|335
 UltraEdit|258
 UNIFY|143
+UniGetUI|418
 Unity Hub|318
 Unreal Editor|319
 Upscayl|259
+USBDeview|419
 UserBenchmark|354
 VCam|355
 VeraCrypt|30
@@ -395,6 +414,7 @@ WTFast|360
 xemu|398
 Xenia Edge|399
 XnView MP|40
+Yaak|420
 Ymir|400
 Yubico Authenticator|300
 Zen Browser|340
