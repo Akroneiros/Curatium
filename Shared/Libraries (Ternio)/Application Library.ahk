@@ -5,7 +5,7 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-global applicationRegistry := unset
+global applicationRegistry := Map()
 
 ; **************************** ;
 ; Application Registry         ;
@@ -21,8 +21,6 @@ DefineApplicationRegistry() {
     if !FileExist(mappedApplicationsFilePath) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
     }
-
-    applicationRegistry := Map()
    
     applications := ConvertCsvToArrayOfMaps(mappedApplicationsFilePath)
     for application in applications {
@@ -73,9 +71,16 @@ RegisterApplications() {
             applicationRegistry[application]["Executable Path"]   := executablePathSearchResult["Executable Path"]
             applicationRegistry[application]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
             applicationRegistry[application]["Installed"]         := true
-            ResolveFactsForApplication(application, applicationRegistry[application]["Counter"])
         } else {
             applicationRegistry[application]["Installed"]         := false
+        }
+    }
+
+    CreateApplicationImages()
+
+    for application in applicationRegistry {
+        if applicationRegistry[application]["Installed"] = true {
+             ResolveFactsForApplication(application, applicationRegistry[application]["Counter"])
         }
     }
 
@@ -108,16 +113,8 @@ RegisterApplications() {
     for outerKey, innerMap in applicationRegistry {
         if innerMap["Installed"] {
             configuration := outerKey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
-
-            switch outerKey {
-                case "Excel":
-                    configuration := configuration . "|" . "Personal Macro Workbook: " . innerMap["Personal Macro Workbook"] . "|" . "Code Execution: " . innerMap["Code Execution"]
-            }
-
             configuration := configuration . "|" . innerMap["Counter"] . "|" . SubStr(innerMap["Resolution Method"], 1, 1)
-
             installedApplications.Push(configuration)
-
             innerMap["Executable Hash"] := DecodeBaseToSha256Hex(innerMap["Executable Hash"], 86)
         }
     }
@@ -570,7 +567,8 @@ ResolveFactsForApplication(applicationName, counter) {
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
         SetMethodSetting(methodName, "Excel Tiny Delay", 16, false)
-        SetMethodSetting(methodName, "Excel Short Delay", 360, false)
+        SetMethodSetting(methodName, "Excel Short Delay", 208, false)
+        SetMethodSetting(methodName, "Excel Medium Delay", 540, false)
 
         defaultMethodSettingsSet := true
     }
@@ -614,54 +612,107 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry[applicationName]["Executable Version"] := versionMatch[1]
             }
         case "Excel":
-            excelTinyDelay  := settings.Get("Excel Tiny Delay")
-            excelShortDelay := settings.Get("Excel Short Delay")
+            excelTinyDelay   := settings.Get("Excel Tiny Delay")
+            excelShortDelay  := settings.Get("Excel Short Delay")
+            excelMediumDelay := settings.Get("Excel Medium Delay")
 
             CloseApplication("Excel")
 
-            applicationRegistry["Excel"]["Code Execution"] := "Failed"
-            excelMacroCode := 'Sub Run()' . '`r`n' . '    Range("A1").Value = "Cell"' . '`r`n' . 'End Sub'
             excelApplication := ComObject("Excel.Application")
-            excelWorkbook := excelApplication.Workbooks.Add()
+            excelWorkbook    := excelApplication.Workbooks.Add()
+            excelWorksheet   := excelWorkbook.ActiveSheet
             excelApplication.Visible := true
 
+            excelWindowHandle := excelApplication.Hwnd
+            while !excelWindowHandle := excelApplication.Hwnd {
+                Sleep(excelTinyDelay)
+            }
+            excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+
+            excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
+            ActivateWindow(excelMainWindowSearchResults, true)
+
             personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-            if FileExist(personalMacroWorkbookPath) {
-                applicationRegistry["Excel"]["Personal Macro Workbook"] := "Enabled"
-                excelApplication.Workbooks.Open(personalMacroWorkbookPath)
-            } else {
-                applicationRegistry["Excel"]["Personal Macro Workbook"] := "Disabled"
-            }
-            
-            excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(excelMacroCode, excelApplication)
-            Sleep(excelShortDelay)
-            SendInput("{F5}") ; Run Sub/UserForm
-            Sleep(excelShortDelay)
-
-            if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
-                applicationRegistry["Excel"]["Code Execution"] := "Basic"
-                excelApplication.ActiveSheet.Range("A1").Value := ""
-            }
-
-            if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" && applicationRegistry["Excel"]["Code Execution"] = "Basic" {
-                applicationRegistry["Excel"]["Code Execution"] := "Partial"
-
-                KeyboardShortcut("CTRL", "F4") ; Close Window: Module
+            if !FileExist(personalMacroWorkbookPath) {
+                KeyboardShortcut("ALT", "Q") ; Microsoft Search
+                Sleep(excelMediumDelay)
+                PasteText("Record Macro")
+                Sleep(excelMediumDelay)
+                SendInput("{Down}") ; Record Macro: Select
                 Sleep(excelShortDelay)
-                KeyboardShortcut("CTRL", "A") ; Select All
+                SendInput("{Enter}") ; Record Macro: Apply
+                excelRecordMacroWindowSearchResults := SearchForWindow("Record Macro ahk_exe " . applicationRegistry["Excel"]["Executable Filename"], 60)
+                ActivateWindow(excelRecordMacroWindowSearchResults)
+                SendInput("{Tab}") ; Shortcut key:
                 Sleep(excelShortDelay)
-                SendInput("{Delete}") ; Delete
-                A_Clipboard := excelMacroCode
-                KeyboardShortcut("CTRL", "V") ; Paste
+                SendInput("{Tab}") ; Store macro in:
                 Sleep(excelShortDelay)
-                SendInput("{F5}") ; Run Sub/UserForm
+                SendInput("{Up}") ; Activate list
                 Sleep(excelShortDelay)
-                SendInput("{Esc}") ; Close Window Macros
-                Sleep(excelTinyDelay + excelTinyDelay)
+                SendInput("{Up}") ; This Workbook -> New Workbook
+                Sleep(excelShortDelay)
+                SendInput("{Up}") ; New Workbook -> Personal Macro Workbook
+                Sleep(excelShortDelay)
+                SendInput("{Enter}") ; Apply
+                Sleep(excelShortDelay)
+                SendInput("{Tab}") ; Description:
+                Sleep(excelShortDelay)
+                SendInput("{Tab}") ; OK
+                Sleep(excelShortDelay)
+                SendInput("{Enter}") ; OK: Apply
+                Sleep(excelMediumDelay)
+                ActivateWindow(excelMainWindowSearchResults)
+                KeyboardShortcut("ALT", "Q") ; Microsoft Search
+                Sleep(excelMediumDelay)
+                PasteText("Record Macro")
+                Sleep(excelMediumDelay)
+                SendInput("{Down}") ; Record Macro: Select
+                Sleep(excelShortDelay)
+                SendInput("{Enter}") ; Record Macro: Stop Recording
+                Sleep(excelShortDelay)
+                KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
+                visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
+                ActivateWindow(visualBasicEditorWindowSearchResults)
+                Sleep(excelShortDelay)
+                KeyboardShortcut("CTRL", "R") ; Project Explorer
+                Sleep(excelShortDelay)
+                SendInput("{Down}") ; Sheet1 (Sheet1) -> ThisWorkbook
+                Sleep(excelShortDelay)
+                SendInput("{Down}") ; ThisWorkbook -> VBAProject (PERSONAL.XLSB)
+                Sleep(excelShortDelay)
+                SendInput("{Right}") ; VBAProject (PERSONAL.XLSB): Expand
+                Sleep(excelShortDelay)
+                SendInput("{Down}") ; Microsoft Excel Objects
+                Sleep(excelShortDelay)
+                SendInput("{Down}") ; Modules
+                Sleep(excelShortDelay)
+                SendInput("{Right}") ; Modules: Expand
+                Sleep(excelShortDelay)
+                SendInput("{Down}") ; Module1
+                Sleep(excelShortDelay)
+                SendInput("{Enter}") ; Module1: Open
+                Sleep(excelShortDelay)
+                PasteText("Sub Macro()" . "`r`n`r`n" . "End Sub", "'")
 
-                if excelApplication.ActiveSheet.Range("A1").Value = "Cell" {
-                    applicationRegistry["Excel"]["Code Execution"] := "Full"
+                Loop excelApplication.Workbooks.Count {
+                    currentWorkbook := excelApplication.Workbooks.Item(A_Index)
+                    if personalMacroWorkbookPath = currentWorkbook.FullName {
+                        currentWorkbook.Save()
+                        break
+                    }
                 }
+
+                Sleep(excelTinyDelay)
+                KeyboardShortcut("ALT", "Q") ; Close and Return to Microsoft Excel
+                Sleep(excelShortDelay)
+            }
+
+            excelMacroCode := "Sub Run()" . "`r`n" . '    Range("A1").Value = "Cell"' . "`r`n" . "End Sub"
+            OpenVisualBasicEditorAndRunCode(excelMacroCode, excelApplication)
+            Sleep(excelTinyDelay + excelTinyDelay)
+
+            if excelWorksheet.Range("A1").Value != "Cell" {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to execute Excel Macro Code.")
             }
 
             applicationRegistry["Excel"]["International"] := Map()
@@ -675,7 +726,8 @@ ResolveFactsForApplication(applicationName, counter) {
             excelApplication.DisplayAlerts := false
             excelApplication.Quit()
 
-            excelWorkbook := 0
+            excelWorksheet   := 0
+            excelWorkbook    := 0
             excelApplication := 0
             ProcessWaitClose(excelProcessIdentifier, 2)
         case "Word":
@@ -775,9 +827,9 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         defaultMethodSettingsSet := true
     }
 
-    settings   := methodRegistry[methodName]["Settings"]
-    tinyDelay  := settings.Get("Tiny Delay")
-    shortDelay := settings.Get("Short Delay")
+    settings    := methodRegistry[methodName]["Settings"]
+    tinyDelay   := settings.Get("Tiny Delay")
+    shortDelay  := settings.Get("Short Delay")
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
@@ -786,31 +838,35 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     excelApplication := ComObject("Excel.Application")
     excelApplication.Workbooks.Open(excelFilePath, 0)
-    excelWorkbook := excelApplication.ActiveWorkbook 
+    excelWorkbook    := excelApplication.ActiveWorkbook
     excelApplication.Visible := true
 
     static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-    if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
-        excelApplication.Workbooks.Open(personalMacroWorkbookPath)
-    }
+    excelApplication.Workbooks.Open(personalMacroWorkbookPath)
 
     excelApplication.CalculateUntilAsyncQueriesDone()
     while excelApplication.CalculationState != 0 {
         Sleep(tinyDelay + tinyDelay)
     }
 
-    aboutWorksheet := ""
+    excelWindowHandle := excelApplication.Hwnd
+    while !excelWindowHandle := excelApplication.Hwnd {
+        Sleep(tinyDelay)
+    }
+    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+
+    aboutWorksheet      := ""
     aboutWorksheetFound := false
 
-    for sheet in excelWorkbook.Worksheets {
-        if sheet.Name = "About" {
-            aboutWorksheet := sheet
-            sheet := 0
+    for worksheet in excelWorkbook.Worksheets {
+        if worksheet.Name = "About" {
+            aboutWorksheet      := worksheet
+            worksheet           := 0
             aboutWorksheetFound := true
             break
         }
 
-        sheet := 0
+        worksheet := 0
     }
 
     if (aboutRange != "" || aboutCondition != "") && !aboutWorksheetFound {
@@ -851,9 +907,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
 
         if aboutValues[aboutRange] = aboutCondition {
-            excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication)
-            Sleep(shortDelay)
-            SendInput("{F5}") ; Run Sub/UserForm
+            OpenVisualBasicEditorAndRunCode(code, excelApplication)
             WaitForExcelToClose(excelProcessIdentifier)
             aboutWorksheet   := 0
             excelWorkbook    := 0
@@ -882,9 +936,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             }
 
             if matchedIndex > 0 {
-                excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication)
-                Sleep(shortDelay)
-                SendInput("{F5}") ; Run Sub/UserForm
+                OpenVisualBasicEditorAndRunCode(code, excelApplication)
                 WaitForExcelToClose(excelProcessIdentifier)
                 aboutWorksheet   := 0
                 excelWorkbook    := 0
@@ -921,9 +973,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             LogConclusion("Skipped", logValuesForConclusion)
         }
     } else {
-        excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication)
-        Sleep(shortDelay)
-        SendInput("{F5}") ; Run Sub/UserForm
+        OpenVisualBasicEditorAndRunCode(code, excelApplication)
         WaitForExcelToClose(excelProcessIdentifier)
         aboutWorksheet   := 0
         excelWorkbook    := 0
@@ -932,52 +982,6 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
         LogConclusion("Completed", logValuesForConclusion)
     }
-}
-
-ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication) {
-    static methodName := RegisterMethod("code As String [Constraint: Summary], excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [code, excelApplication], "Excel Activate Visual Basic Editor and Paste Code (Length: " . StrLen(code) . ")")
-
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32, false)
-        SetMethodSetting(methodName, "Short Delay", 160, false)
-        SetMethodSetting(methodName, "Medium Delay", 240, false)
-
-        defaultMethodSettingsSet := true
-    }
-
-    settings    := methodRegistry[methodName]["Settings"]
-    tinyDelay   := settings.Get("Tiny Delay")
-    shortDelay  := settings.Get("Short Delay")
-    mediumDelay := settings.Get("Medium Delay")
-
-    excelWindowHandle := excelApplication.Hwnd
-    while !excelWindowHandle := excelApplication.Hwnd {
-        Sleep(tinyDelay)
-    }
-
-    excelWindowSearchResults := SearchForWindow("ahk_id " . excelWindowHandle . " ahk_class XLMAIN")
-    ActivateWindow(excelWindowSearchResults, true)
-
-    KeyboardShortcut("ALT", "F11") ; Microsoft Visual Basic for Applications
-
-    excelProcessIdentifier               := WinGetPID("ahk_id " . excelWindowHandle)
-    visualBasicEditorWindowSearchResults := SearchForWindow("ahk_pid " . excelProcessIdentifier . " ahk_class wndclass_desked_gsk", "Failed to open the Visual Basic Editor via ALT+F11 in Excel.")
-    ActivateWindow(visualBasicEditorWindowSearchResults, true)
-    if applicationRegistry["Excel"]["Code Execution"] != "Full" {
-        KeyboardShortcut("ALT", "I") ; Insert
-        Sleep(shortDelay)
-        SendInput("m") ; Module
-        Sleep(mediumDelay)
-    }
-
-    PasteText(code, "'")
-
-    LogConclusion("Completed", logValuesForConclusion)
-    return excelProcessIdentifier
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
@@ -994,15 +998,17 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Run Attempts", 4, false)
         SetMethodSetting(methodName, "Tiny Delay", 32, false)
         SetMethodSetting(methodName, "Short Delay", 260, false)
 
         defaultMethodSettingsSet := true
     }
 
-    settings   := methodRegistry[methodName]["Settings"]
-    tinyDelay  := settings.Get("Tiny Delay")
-    shortDelay := settings.Get("Short Delay")
+    settings    := methodRegistry[methodName]["Settings"]
+    runAttempts := settings.Get("Run Attempts")
+    tinyDelay   := settings.Get("Tiny Delay")
+    shortDelay  := settings.Get("Short Delay")
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -1021,20 +1027,19 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         LogConclusion("Skipped", logValuesForConclusion)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
-        FileAppend("", sidecarPath, "UTF-8-RAW")
+        WriteTextIntoFile("", sidecarPath, "UTF-8")
 
         excelApplication := ComObject("Excel.Application")
-        excelWorkbook := excelApplication.Workbooks.Add()
+        excelWorkbook    := excelApplication.Workbooks.Add()
         excelApplication.Visible := true
 
-        static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-        if applicationRegistry["Excel"]["Personal Macro Workbook"] = "Enabled" {
-            excelApplication.Workbooks.Open(personalMacroWorkbookPath)
+        excelWindowHandle := excelApplication.Hwnd
+        while !excelWindowHandle := excelApplication.Hwnd {
+            Sleep(tinyDelay)
         }
+        excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
 
-        excelProcessIdentifier := ExcelActivateVisualBasicEditorAndPasteCode(code, excelApplication)
-        Sleep(shortDelay)
-        SendInput("{F5}") ; Run Sub/UserForm
+        OpenVisualBasicEditorAndRunCode(code, excelApplication)
         WaitForExcelToClose(excelProcessIdentifier)
         excelWorkbook    := 0
         excelApplication := 0
@@ -1043,6 +1048,104 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
         LogConclusion("Completed", logValuesForConclusion)
     }
+}
+
+OpenVisualBasicEditorAndRunCode(code, excelApplication) {
+    static methodName := RegisterMethod("code As String [Constraint: Summary], excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Run Attempts", 4, false)
+        SetMethodSetting(methodName, "Tiny Delay", 32, false)
+        SetMethodSetting(methodName, "Short Delay", 320, false)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+    runAttempts := settings.Get("Run Attempts")
+    tinyDelay   := settings.Get("Tiny Delay")
+    shortDelay  := settings.Get("Short Delay")
+
+    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+    excelApplication.Workbooks.Open(personalMacroWorkbookPath)
+
+    worksheets := []
+    Loop excelApplication.Workbooks.Count {
+        currentWorkbook := excelApplication.Workbooks.Item(A_Index)
+        if currentWorkbook.Name = "PERSONAL.XLSB" {
+            continue
+        }
+
+        for worksheet in currentWorkbook.Worksheets {
+            worksheets.Push(worksheet.Name)
+        }
+
+        break
+    }
+
+    excelWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
+    ActivateWindow(excelWindowSearchResults)
+
+    Loop runAttempts {
+        KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
+
+        irregularWorksheetExists := false
+
+        excelApplication.DisplayAlerts := false
+        Loop excelApplication.Workbooks.Count {
+            currentWorkbook := excelApplication.Workbooks.Item(A_Index)
+            if currentWorkbook.Name = "PERSONAL.XLSB" {
+                continue
+            }
+
+            for worksheet in currentWorkbook.Worksheets {
+                worksheetMatch := false
+
+                for worksheetName in worksheets {
+                    if worksheet.Name = worksheetName {
+                        worksheetMatch := true
+
+                        break
+                    }
+                }
+
+                if worksheetMatch {
+                    continue
+                }
+
+                irregularWorksheetExists := true
+
+                worksheet.Delete()
+                Sleep(tinyDelay)
+            }
+
+            break
+        }
+        excelApplication.DisplayAlerts := true
+
+        if irregularWorksheetExists {
+            if methodRegistry["KeyboardShortcut"]["Settings"]["Tiny Delay"] < 160 {
+                SetMethodSetting("KeyboardShortcut", "Tiny Delay", methodRegistry["KeyboardShortcut"]["Settings"]["Tiny Delay"] + 32, true)
+            }
+
+            continue
+        }
+
+        visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
+        ActivateWindow(visualBasicEditorWindowSearchResults, true)
+        Sleep(tinyDelay)
+        PasteText(code, "'")
+        Sleep(shortDelay)
+        SendInput("{F5}") ; Run Sub/UserForm
+        Sleep(tinyDelay)
+        break
+    }
+
+    LogConclusion("Completed", logValuesForConclusion)
 }
 
 WaitForExcelToClose(excelProcessIdentifier) {
@@ -1104,7 +1207,7 @@ StartSqlServerManagementStudioAndConnect() {
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
-    sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], "Connect to Server Window not found.")
+    sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], 60, "Connect to Server Window not found.")
     ActivateWindow(sqlServerManagementStudioConnectToServerWindowSearchResults)
 
     SendInput("{Enter}") ; Connect
@@ -1113,7 +1216,7 @@ StartSqlServerManagementStudioAndConnect() {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Connection failed.")
     }
 
-    sqlServerManagementStudioMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"])
+    sqlServerManagementStudioMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], 60)
     ActivateWindow(sqlServerManagementStudioMainWindowSearchResults, true)
 
     LogConclusion("Completed", logValuesForConclusion)
@@ -1146,15 +1249,15 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     PasteText(code, "--")
     Sleep(mediumDelay)
     SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
-    sqlQuerySuccessfulResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
-    sqlQuerySuccessfulCoordinates := ExtractScreenCoordinates(sqlQuerySuccessfulResults)
-    sqlQueryResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlQuerySuccessfulCoordinates)
-    PerformMouseActionAtCoordinates("Left", sqlQueryResultsWindowCoordinates)
+    sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
+    sqlServerManagentStudioQueryExecutedSuccessfullyImageCoordinates     := ExtractImageCoordinates(sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults)
+    sqlServerManagementStudioResultsWindowCoordinates                    := ModifyScreenCoordinates(80, -80, sqlServerManagentStudioQueryExecutedSuccessfullyImageCoordinates)
+    PerformMouseActionAtCoordinates("Left", sqlServerManagementStudioResultsWindowCoordinates)
     Sleep(mediumDelay)
-    PerformMouseActionAtCoordinates("Right", sqlQueryResultsWindowCoordinates)
+    PerformMouseActionAtCoordinates("Right", sqlServerManagementStudioResultsWindowCoordinates)
     Sleep(mediumDelay)
     SendInput("v") ; Save Results As...
-    sqlServerManagementStudioSaveResultsWindowSearchResults := SearchForWindow("ahk_class #32770")
+    sqlServerManagementStudioSaveResultsWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"] . " ahk_class #32770", 60)
     ActivateWindow(sqlServerManagementStudioSaveResultsWindowSearchResults)
     KeyboardShortcut("ALT", "N") ; File name
     Sleep(mediumDelay)
@@ -1227,12 +1330,12 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Toad for Oracle process is not running.")
     }
 
-    if WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin") {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No server connection is active in Toad for Oracle (login dialog is open).")
+    toadForOracleDatabaseLoginWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin", 1)
+    if toadForOracleDatabaseLoginWindowSearchResults["Success"] = true {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No server connection is active in Toad for Oracle (Database Login window is open).")
     }
 
-    windowCriteria := "ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain"
-    toadForOracleMainWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain")
+    toadForOracleMainWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain", 60)
     ActivateWindow(toadForOracleMainWindowSearchResults, true)
 
     KeyboardShortcut("ALT", "S") ; Session
@@ -1278,9 +1381,9 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     KeyboardShortcut("ALT", "U") ; Utilities
     Sleep(mediumDelay)
     SendInput("{Enter}") ; Automation Designer
-    toadForOracleSearchResults := SearchForDirectoryImage("Toad for Oracle", "Search")
-    toadForOracleSearchCoordinates := ExtractScreenCoordinates(toadForOracleSearchResults)
-    PerformMouseActionAtCoordinates("Left", toadForOracleSearchCoordinates)
+    toadForOracleSearchImageSearchResults := SearchForDirectoryImage("Toad for Oracle", "Search")
+    toadForOracleSearchImageCoordinates   := ExtractImageCoordinates(toadForOracleSearchImageSearchResults)
+    PerformMouseActionAtCoordinates("Left", toadForOracleSearchImageCoordinates)
     Sleep(mediumDelay + longDelay)
     SendInput("{Tab}") ; Text to find:
     Sleep(mediumDelay)
@@ -1290,7 +1393,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(longDelay)
     KeyboardShortcut("SHIFT", "TAB") ; Item
 
-    if toadForOracleSearchResults["Variant"] = "c" || toadForOracleSearchResults["Variant"] = "d" {
+    if toadForOracleSearchImageSearchResults["Variant"] = "c" || toadForOracleSearchImageSearchResults["Variant"] = "d" {
         Sleep(mediumDelay)
         KeyboardShortcut("SHIFT", "TAB") ; Item
     }
@@ -1302,11 +1405,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(mediumDelay)
     SendInput("{Enter}") ; Goto Item
     Sleep(longDelay)
-    toadForOracleRunSelectedAppsResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
-    toadForOracleRunSelectedAppsCoordinates := ExtractScreenCoordinates(toadForOracleRunSelectedAppsResults)
+    toadForOracleRunSelectedAppsImageSearchResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
+    toadForOracleRunSelectedAppsImageCoordinates   := ExtractImageCoordinates(toadForOracleRunSelectedAppsImageSearchResults)
 
     if runtimeDate != "" {
-        PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsCoordinates)
+        PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsImageCoordinates)
 
         while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
             Sleep(shortDelay)
@@ -1317,7 +1420,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         }
     }
 
-    PerformMouseActionAtCoordinates("Left", toadForOracleRunSelectedAppsCoordinates)
+    PerformMouseActionAtCoordinates("Left", toadForOracleRunSelectedAppsImageCoordinates)
     Sleep(tinyDelay)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 

@@ -5,6 +5,67 @@
 
 global methodRegistry := Map()
 
+ActivateWindow(windowSearchResults, maximizeWindow := false) {
+    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [windowSearchResults, maximizeWindow], "Activate Window")
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
+        SetMethodSetting(methodName, "Short Delay", 128, false)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings         := methodRegistry[methodName]["Settings"]
+    secondsToAttempt := settings.Get("Seconds to Attempt")
+    shortDelay       := settings.Get("Short Delay")
+
+    windowSearchTerm := "Window search term: " . windowSearchResults["Window Title"] . "."
+    totalSleep       := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
+
+    if windowSearchResults["Success"] = false {
+        errorMessage := "Failed to find window after trying for " . windowSearchResults["Seconds to Attempt"] . " seconds. " . windowSearchTerm
+
+        if windowSearchResults["Custom Error Message"] != "" {
+            errorMessage := windowSearchResults["Custom Error Message"]
+        }
+
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, errorMessage)
+    }
+
+    loop 10 {
+        loopDelay := shortDelay * A_Index
+        if A_Index = 1 {
+            loopDelay := Round(loopDelay/2)
+        }
+        Sleep(loopDelay)
+
+        try {
+            WinActivate(windowSearchResults["Window Title"])
+            break
+        } catch {
+            if A_Index = 10 {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds. " . windowSearchTerm)
+            }
+        }
+    }
+
+    matchingWindowFound := WinWaitActive(windowSearchResults["Window Title"], , secondsToAttempt)
+    if !matchingWindowFound {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds. " . windowSearchTerm)
+    }
+
+    if maximizeWindow {
+        WinMaximize(windowSearchResults["Window Title"])
+        Sleep(shortDelay)
+    }
+
+    logValuesForConclusion["Context"] := windowSearchTerm
+
+    LogConclusion("Completed", logValuesForConclusion)
+}
+
 AssignSpreadsheetOperationsTemplateCombined(version := "") {
     static methodName := RegisterMethod("version As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := "Assign Spreadsheet Operations Template Code"
@@ -96,10 +157,10 @@ PasteText(text, commentPrefix := "") {
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
         SetMethodSetting(methodName, "Max Attempts", 4, false)
-        SetMethodSetting(methodName, "Short Delay", 120, false)
-        SetMethodSetting(methodName, "Medium Delay", 260, false)
-        SetMethodSetting(methodName, "Short Accumulation", 20, false)
-        SetMethodSetting(methodName, "Medium Accumulation", 40, false)
+        SetMethodSetting(methodName, "Short Delay", 160, false)
+        SetMethodSetting(methodName, "Medium Delay", 320, false)
+        SetMethodSetting(methodName, "Short Accumulation", 24, false)
+        SetMethodSetting(methodName, "Medium Accumulation", 48, false)
 
         defaultMethodSettingsSet := true
     }
@@ -124,7 +185,7 @@ PasteText(text, commentPrefix := "") {
     while attempts < maxAttempts {
         if attempts >= 2 {
             logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
-                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconods."
+                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconds."
         }
 
         attempts++
@@ -132,18 +193,20 @@ PasteText(text, commentPrefix := "") {
         shortDelay  := shortDelay + (attempts * shortAccumulation)
 
         if rows = 1 {
-            SendInput("{End}") ; End of Line.
-            Sleep(mediumDelay)
-            KeyboardShortcut("SHIFT", "HOME") ; Select the full line.
-            Sleep(shortDelay)
-            SendInput("{Delete}") ; Delete
+            if attempts != 1 {
+                SendInput("{End}") ; End of Line.
+                Sleep(mediumDelay)
+                KeyboardShortcut("SHIFT", "HOME") ; Select the full line.
+                Sleep(shortDelay)
+                SendInput("{Delete}") ; Delete
+            }
         } else {
             KeyboardShortcut("CTRL", "A") ; Select All
             Sleep(shortDelay)
             SendInput("{Delete}") ; Delete
         }
 
-        Sleep(shortDelay)
+        Sleep(mediumDelay)
 
         if rows = 1 { 
             if attempts != maxAttempts {
@@ -167,7 +230,7 @@ PasteText(text, commentPrefix := "") {
             }
         } else {
             A_Clipboard := text ; Load combined text into clipboard.
-            Sleep(shortDelay)
+            Sleep(mediumDelay + mediumDelay)
             KeyboardShortcut("CTRL", "V") ; Paste
             Sleep(mediumDelay + mediumDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
@@ -187,14 +250,16 @@ PasteText(text, commentPrefix := "") {
         success := true
         if attempts >= 2 {
             logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
-                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconods."
+                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconds."
         }
         break
     }
 
     if !success {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Paste of text failed.")
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Paste text failed.")
     }
+
+    Sleep(shortDelay)
 
     LogConclusion("Completed", logValuesForConclusion)
 }
@@ -341,36 +406,6 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     CoordMode("Mouse", modeBeforeAction)
 
     LogConclusion("Completed", logValuesForConclusion)
-}
-
-SearchForWindow(windowTitle, customErrorMessage := "") {
-    static methodName := RegisterMethod("windowTitle As String, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [windowTitle, customErrorMessage], "Search for Window (" . windowTitle . ")")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
-
-        defaultMethodSettingsSet := true
-    }
-
-    settings         := methodRegistry[methodName]["Settings"]
-    secondsToAttempt := settings.Get("Seconds to Attempt")
-
-    windowSearchResults := Map(
-        "Window Title", windowTitle,
-        "Seconds to Attempt", secondsToAttempt,
-        "Custom Error Message", customErrorMessage,
-        "Success", false
-    )
-
-    windowHandle := WinWait(windowTitle, , secondsToAttempt)
-    if windowHandle {
-        windowSearchResults["Window Handle"] := windowHandle
-        windowSearchResults["Success"]       := true
-    }
-
-    return windowSearchResults
 }
 
 SetAutoHotkeyThreadPriority(threadPriority) {
@@ -799,63 +834,6 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 ; Helper Methods               ;
 ; **************************** ;
 
-ActivateWindow(windowSearchResults, maximizeWindow := false) {
-    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [windowSearchResults, maximizeWindow])
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
-        SetMethodSetting(methodName, "Short Delay", 128, false)
-
-        defaultMethodSettingsSet := true
-    }
-
-    settings         := methodRegistry[methodName]["Settings"]
-    secondsToAttempt := settings.Get("Seconds to Attempt")
-    shortDelay       := settings.Get("Short Delay")
-
-    windowSearchTerm := "Window search term: " . windowSearchResults["Window Title"] . "."
-    totalSleep       := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
-
-    if windowSearchResults["Success"] = false {
-        errorMessage := "Failed to find window after trying for " . windowSearchResults["Seconds to Attempt"] . " seconds. " . windowSearchTerm
-
-        if windowSearchResults["Custom Error Message"] != "" {
-            errorMessage := windowSearchResults["Custom Error Message"]
-        }
-
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, errorMessage)
-    }
-
-    loop 10 {
-        loopDelay := shortDelay * A_Index
-        if A_Index = 1 {
-            loopDelay := Round(loopDelay/2)
-        }
-        Sleep(loopDelay)
-
-        try {
-            WinActivate(windowSearchResults["Window Title"])
-            break
-        } catch {
-            if A_Index = 10 {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds. " . windowSearchTerm)
-            }
-        }
-    }
-
-    matchingWindowFound := WinWaitActive(windowSearchResults["Window Title"], , secondsToAttempt)
-    if !matchingWindowFound {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds. " . windowSearchTerm)
-    }
-
-    if maximizeWindow {
-        WinMaximize(windowSearchResults["Window Title"])
-        Sleep(shortDelay)
-    }
-}
-
 CombineCode(introCode, mainCode, outroCode := "") {
     static methodName := RegisterMethod("introCode As String, mainCode As String, outroCode As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [introCode, mainCode, outroCode])
@@ -1140,6 +1118,26 @@ RemoveDuplicatesFromArray(array) {
     }
 
     return array
+}
+
+SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
+    static methodName := RegisterMethod("windowTitle As String, secondsToAttempt As Integer, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [windowTitle, secondsToAttempt, customErrorMessage])
+
+    windowSearchResults := Map(
+        "Window Title", windowTitle,
+        "Seconds to Attempt", secondsToAttempt,
+        "Custom Error Message", customErrorMessage,
+        "Success", false
+    )
+
+    windowHandle := WinWait(windowTitle, , secondsToAttempt)
+    if windowHandle {
+        windowSearchResults["Window Handle"] := windowHandle
+        windowSearchResults["Success"]       := true
+    }
+
+    return windowSearchResults
 }
 
 SetMethodSetting(settingMethod, settingName, settingValue, override := true) {
