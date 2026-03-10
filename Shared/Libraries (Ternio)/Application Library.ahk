@@ -1027,7 +1027,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         LogConclusion("Skipped", logValuesForConclusion)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
-        WriteTextIntoFile("", sidecarPath, "UTF-8")
+        WriteTextIntoFile(system["Log Shared Name"], sidecarPath, "UTF-8")
 
         excelApplication := ComObject("Excel.Application")
         excelWorkbook    := excelApplication.Workbooks.Add()
@@ -1045,7 +1045,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         excelApplication := 0
         ProcessWaitClose(excelProcessIdentifier, 2)
 
-        DeleteFile(sidecarPath) ; Remove sidecar after a successful run.
+        DeleteFile(sidecarPath)
         LogConclusion("Completed", logValuesForConclusion)
     }
 }
@@ -1087,8 +1087,8 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
         break
     }
 
-    excelWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
-    ActivateWindow(excelWindowSearchResults)
+    excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
+    ActivateWindow(excelMainWindowSearchResults)
 
     Loop runAttempts {
         KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
@@ -1142,6 +1142,28 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
         Sleep(shortDelay)
         SendInput("{F5}") ; Run Sub/UserForm
         Sleep(tinyDelay)
+
+        visualBasicEditorMacroWindowSearchResults := SearchForWindow("Macros ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", 1)
+        if visualBasicEditorMacroWindowSearchResults["Success"] {
+            settings := methodRegistry[methodName]["Settings"]
+
+            if methodRegistry[methodName]["Settings"]["Tiny Delay"] < 160 {
+                SetMethodSetting(methodName, "Tiny Delay", methodRegistry[methodName]["Settings"]["Tiny Delay"] + 32, true)
+                tinyDelay := settings.Get("Tiny Delay") + 32
+
+            }
+
+            if methodRegistry[methodName]["Settings"]["Short Delay"] < 576 {
+                SetMethodSetting(methodName, "Short Delay", methodRegistry[methodName]["Settings"]["Short Delay"] + 64, true)
+                shortDelay := settings.Get("Short Delay") + 64
+            }
+
+            SendInput("{Esc}") ; Close Macros Window.
+            Sleep(tinyDelay + tinyDelay)
+
+            continue
+        }
+
         break
     }
 

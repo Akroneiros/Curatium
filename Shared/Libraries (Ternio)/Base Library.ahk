@@ -544,6 +544,213 @@ ValidateDisplayScaling() {
 ; Core Methods                 ;
 ; **************************** ;
 
+ParseMethodWithDeclaration(methodWithDeclaration) {
+    atParts     := StrSplit(methodWithDeclaration, "@", , 2)
+    signature   := RTrim(atParts[1])
+    RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
+    library := Trim(regularExpressionMatch[1])
+    lineNumberForValidation := regularExpressionMatch[2] + 0
+
+    methodParts := StrSplit(signature, "(", , 2)
+    methodName  := methodParts[1]
+    contract    := RTrim(methodParts[2], ")")
+
+    parameters := ""
+    dataTypes  := ""
+    metadata   := ""
+
+    parameterContracts := []
+    parameterParts := []
+    currentParameterText := ""
+
+    if contract != "" {
+        squareBracketDepth := 0
+        inQuotedString := false
+        removeLeadingSpaceAfterComma := false
+
+        loop parse contract {
+            currentCharacter := A_LoopField
+
+            ; While inQuotedString = true, commas and brackets are considered literal characters.
+            if currentCharacter = '"' {
+                inQuotedString := !inQuotedString
+                currentParameterText .= currentCharacter
+                continue
+            }
+
+            if !inQuotedString {
+                if currentCharacter = "[" {
+                    squareBracketDepth += 1
+                    currentParameterText .= currentCharacter
+                    continue
+                }
+                if currentCharacter = "]" && squareBracketDepth > 0 {
+                    squareBracketDepth -= 1
+                    currentParameterText .= currentCharacter
+                    continue
+                }
+
+                if currentCharacter = "," && squareBracketDepth = 0 {
+                    parameterParts.Push(Trim(currentParameterText))
+                    currentParameterText := ""
+                    removeLeadingSpaceAfterComma := true
+                    continue
+                }
+            }
+
+            if removeLeadingSpaceAfterComma && currentCharacter = " " {
+                removeLeadingSpaceAfterComma := false
+                continue
+            }
+            removeLeadingSpaceAfterComma := false
+
+            currentParameterText .= currentCharacter
+        }
+
+        parameterParts.Push(Trim(currentParameterText))
+
+        for index, parameterClause in parameterParts {
+            RegExMatch(parameterClause, "^[A-Za-z_][A-Za-z0-9_]*", &matchObject)
+            parameterName := matchObject[0]
+            metadataValue := Trim(SubStr(parameterClause, StrLen(parameterName) + 1))
+            metadataValue := RegExReplace(metadataValue, "^(?i)As\s+", "")
+
+            dataTypesValue := StrSplit(metadataValue, " ")[1]
+            metadataValue := SubStr(metadataValue, StrLen(dataTypesValue) + 2)
+
+            dataConstraint := ""
+            optionalValue  := ""
+            whitelist      := []
+
+            for metadataBlock in StrSplit(metadataValue, "]", true) {
+                if metadataBlock = "" {
+                    continue
+                }
+
+                blockContent := Trim(metadataBlock, "[ `t")
+                if blockContent = "" {
+                    continue
+                }
+
+                colonPosition := InStr(blockContent, ":")
+                conceptName   := colonPosition ? Trim(SubStr(blockContent, 1, colonPosition - 1)) : Trim(blockContent)
+                conceptValue  := colonPosition ? Trim(SubStr(blockContent, colonPosition + 1))    : ""
+
+                switch StrLower(conceptName) {
+                    case "optional":
+                        if conceptValue = "" {
+                           optionalValue := conceptName
+                        } else {
+                            optionalValue := conceptValue
+                        }
+                    case "constraint":
+                        dataConstraint := conceptValue
+                    case "whitelist":
+                        for index, piece in StrSplit(conceptValue, '", "')
+                        {
+                            cleanedValue := Trim(piece, '" ')
+                            if cleanedValue != "" {
+                                whitelist.Push(cleanedValue)
+                            }
+                        }
+                }
+            }
+
+            parameterContracts.Push(Map(
+                "Parameter Name",  parameterName,
+                "Data Type",       dataTypesValue,
+                "Data Constraint", dataConstraint,
+                "Optional",        optionalValue,
+                "Whitelist",       whitelist
+            ))
+
+            if index < parameterParts.Length {
+                parameters := parameters . parameterName . ", "
+                dataTypes  := dataTypes . dataTypesValue . ", "
+                metadata   := metadata . metadataValue . ", "
+            } else {
+                parameters := parameters . parameterName
+                dataTypes  := dataTypes . dataTypesValue
+                metadata   := metadata . metadataValue
+            }
+        }
+    }
+
+    methodWithDeclarationParsed := Map(
+        "Declaration",         methodWithDeclaration,
+        "Signature",           signature,
+        "Library",             library,
+        "Contract",            contract,
+        "Parameters",          parameters,
+        "Data Types",          dataTypes,
+        "Metadata",            metadata,
+        "Validation Line",     lineNumberForValidation,
+        "Parameter Contracts", parameterContracts
+    )
+
+    return methodWithDeclarationParsed
+}
+
+RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
+    global methodRegistry
+
+    SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
+    libraryTag := " @ " . filenameWithoutExtension
+    validationLineNumber := " " . "<" . validationLineNumber . ">"
+    methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
+
+    symbol := unset
+    if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
+        logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
+        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+
+        logParts := StrSplit(logSymbolLedgerLine, "|")
+        symbol   := logParts[logParts.Length]
+    } else {
+        symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
+    }
+
+    methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
+    if methodRegistry.Has(methodName) {
+        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
+        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
+        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
+        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
+        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
+
+        if !methodRegistry[methodName].Has("Overlay Log") {
+            methodRegistry[methodName]["Overlay Log"]     := false
+        }
+
+        methodRegistry[methodName]["Symbol"]              := symbol
+        
+        if !methodRegistry[methodName].Has("Settings") {
+            methodRegistry[methodName]["Settings"]        := Map()
+        }
+    } else {      
+        methodRegistry[methodName] := Map(
+            "Declaration",         methodWithDeclarationParsed["Declaration"],
+            "Signature",           methodWithDeclarationParsed["Signature"],
+            "Library",             methodWithDeclarationParsed["Library"],
+            "Contract",            methodWithDeclarationParsed["Contract"],
+            "Parameters",          methodWithDeclarationParsed["Parameters"],
+            "Data Types",          methodWithDeclarationParsed["Data Types"],
+            "Metadata",            methodWithDeclarationParsed["Metadata"],
+            "Validation Line",     methodWithDeclarationParsed["Validation Line"],
+            "Parameter Contracts", methodWithDeclarationParsed["Parameter Contracts"],
+            "Overlay Log",         false,
+            "Symbol",              symbol,
+            "Settings",            Map()
+        )
+    }
+
+    return methodName
+}
+
 ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitelist := []) {
     validation := ""
 
