@@ -566,9 +566,9 @@ ResolveFactsForApplication(applicationName, counter) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Excel Tiny Delay", 16, false)
-        SetMethodSetting(methodName, "Excel Short Delay", 208, false)
-        SetMethodSetting(methodName, "Excel Medium Delay", 540, false)
+        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16)
+        ConfigureMethodSetting(methodName, "Excel Short Delay", 256)
+        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640)
 
         defaultMethodSettingsSet := true
     }
@@ -612,9 +612,9 @@ ResolveFactsForApplication(applicationName, counter) {
                 applicationRegistry[applicationName]["Executable Version"] := versionMatch[1]
             }
         case "Excel":
-            excelTinyDelay   := settings.Get("Excel Tiny Delay")
-            excelShortDelay  := settings.Get("Excel Short Delay")
-            excelMediumDelay := settings.Get("Excel Medium Delay")
+            excelTinyDelay   := settings["Excel Tiny Delay"].Get("Value")
+            excelShortDelay  := settings["Excel Short Delay"].Get("Value")
+            excelMediumDelay := settings["Excel Medium Delay"].Get("Value")
 
             CloseApplication("Excel")
 
@@ -821,15 +821,15 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32, false)
-        SetMethodSetting(methodName, "Short Delay", 260, false)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32)
+        ConfigureMethodSetting(methodName, "Short Delay", 260)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    tinyDelay   := settings.Get("Tiny Delay")
-    shortDelay  := settings.Get("Short Delay")
+    tinyDelay   := settings["Tiny Delay"].Get("Value")
+    shortDelay  := settings["Short Delay"].Get("Value")
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
@@ -998,17 +998,13 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Run Attempts", 4, false)
-        SetMethodSetting(methodName, "Tiny Delay", 32, false)
-        SetMethodSetting(methodName, "Short Delay", 260, false)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    runAttempts := settings.Get("Run Attempts")
-    tinyDelay   := settings.Get("Tiny Delay")
-    shortDelay  := settings.Get("Short Delay")
+    tinyDelay   := settings["Tiny Delay"].Get("Value")
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -1058,17 +1054,15 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Run Attempts", 4, false)
-        SetMethodSetting(methodName, "Tiny Delay", 32, false)
-        SetMethodSetting(methodName, "Short Delay", 320, false)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 32, 160)
+        ConfigureMethodSetting(methodName, "Short Delay", 320, 64, 640)
 
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
-    runAttempts := settings.Get("Run Attempts")
-    tinyDelay   := settings.Get("Tiny Delay")
-    shortDelay  := settings.Get("Short Delay")
+    settings   := methodRegistry[methodName]["Settings"]
+    tinyDelay  := settings["Tiny Delay"].Get("Value")
+    shortDelay := settings["Short Delay"].Get("Value")
 
     static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
     excelApplication.Workbooks.Open(personalMacroWorkbookPath)
@@ -1090,7 +1084,11 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
     ActivateWindow(excelMainWindowSearchResults)
 
-    Loop runAttempts {
+    Loop 4 {
+        settings   := methodRegistry[methodName]["Settings"]
+        tinyDelay  := settings["Tiny Delay"].Get("Value")
+        shortDelay := settings["Short Delay"].Get("Value")
+
         KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
 
         irregularWorksheetExists := false
@@ -1128,9 +1126,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
         excelApplication.DisplayAlerts := true
 
         if irregularWorksheetExists {
-            if methodRegistry["KeyboardShortcut"]["Settings"]["Tiny Delay"] < 160 {
-                SetMethodSetting("KeyboardShortcut", "Tiny Delay", methodRegistry["KeyboardShortcut"]["Settings"]["Tiny Delay"] + 32, true)
-            }
+            IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
 
             continue
         }
@@ -1145,19 +1141,8 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
         visualBasicEditorMacroWindowSearchResults := SearchForWindow("Macros ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", 1)
         if visualBasicEditorMacroWindowSearchResults["Success"] {
-            settings := methodRegistry[methodName]["Settings"]
-
-            if methodRegistry[methodName]["Settings"]["Tiny Delay"] < 160 {
-                SetMethodSetting(methodName, "Tiny Delay", methodRegistry[methodName]["Settings"]["Tiny Delay"] + 32, true)
-                tinyDelay := settings.Get("Tiny Delay") + 32
-
-            }
-
-            if methodRegistry[methodName]["Settings"]["Short Delay"] < 576 {
-                SetMethodSetting(methodName, "Short Delay", methodRegistry[methodName]["Settings"]["Short Delay"] + 64, true)
-                shortDelay := settings.Get("Short Delay") + 64
-            }
-
+            IncreaseMethodSetting(methodName, "Tiny Delay")
+            IncreaseMethodSetting(methodName, "Short Delay")
             SendInput("{Esc}") ; Close Macros Window.
             Sleep(tinyDelay + tinyDelay)
 
@@ -1178,17 +1163,17 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Long Delay", 1000, false)
-        SetMethodSetting(methodName, "Total Seconds to Wait", 240 * 60, false)
-        SetMethodSetting(methodName, "Mouse Move Interval Seconds", 120, false)
+        ConfigureMethodSetting(methodName, "Long Delay", 1000)
+        ConfigureMethodSetting(methodName, "Total Seconds to Wait", 240 * 60)
+        ConfigureMethodSetting(methodName, "Mouse Move Interval Seconds", 120)
 
         defaultMethodSettingsSet := true
     }
 
     settings                 := methodRegistry[methodName]["Settings"]
-    longDelay                := settings.Get("Long Delay")
-    totalSecondsToWait       := settings.Get("Total Seconds to Wait")
-    mouseMoveIntervalSeconds := settings.Get("Mouse Move Interval Seconds")
+    longDelay                := settings["Long Delay"].Get("Value")
+    totalSecondsToWait       := settings["Total Seconds to Wait"].Get("Value")
+    mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"].Get("Value")
 
     secondsSinceLastMouseMove := 0
 
@@ -1252,17 +1237,17 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Short Delay", 100, false)
-        SetMethodSetting(methodName, "Medium Delay", 480, false)
-        SetMethodSetting(methodName, "Long Delay", 1000, false)
+        ConfigureMethodSetting(methodName, "Short Delay", 100)
+        ConfigureMethodSetting(methodName, "Medium Delay", 480)
+        ConfigureMethodSetting(methodName, "Long Delay", 1000)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    shortDelay  := settings.Get("Short Delay")
-    mediumDelay := settings.Get("Medium Delay")
-    longDelay   := settings.Get("Long Delay")
+    shortDelay  := settings["Short Delay"].Get("Value")
+    mediumDelay := settings["Medium Delay"].Get("Value")
+    longDelay   := settings["Long Delay"].Get("Value")
 
     savePath := saveDirectory . filename . ".csv"
 
@@ -1330,21 +1315,21 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 16, false)
-        SetMethodSetting(methodName, "Short Delay", 400, false)
-        SetMethodSetting(methodName, "Medium Delay", 880, false)
-        SetMethodSetting(methodName, "Long Delay", 1280, false)
-        SetMethodSetting(methodName, "Massive Delay", 30000, false)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 16)
+        ConfigureMethodSetting(methodName, "Short Delay", 400)
+        ConfigureMethodSetting(methodName, "Medium Delay", 880)
+        ConfigureMethodSetting(methodName, "Long Delay", 1280)
+        ConfigureMethodSetting(methodName, "Massive Delay", 30000)
 
         defaultMethodSettingsSet := true
     }
 
     settings     := methodRegistry[methodName]["Settings"]
-    tinyDelay    := settings.Get("Tiny Delay")
-    shortDelay   := settings.Get("Short Delay")
-    mediumDelay  := settings.Get("Medium Delay")
-    longDelay    := settings.Get("Long Delay")
-    massiveDelay := settings.Get("Massive Delay")
+    tinyDelay    := settings["Tiny Delay"].Get("Value")
+    shortDelay   := settings["Short Delay"].Get("Value")
+    mediumDelay  := settings["Medium Delay"].Get("Value")
+    longDelay    := settings["Long Delay"].Get("Value")
+    massiveDelay := settings["Massive Delay"].Get("Value")
 
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 

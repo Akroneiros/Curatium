@@ -403,21 +403,21 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Check Interval", 4000, false)
-        SetMethodSetting(methodName, "Mouse Interval", 120000, false)
-        SetMethodSetting(methodName, "Max Wait Minutes", 360, false)
+        ConfigureMethodSetting(methodName, "Check Interval", 4000)
+        ConfigureMethodSetting(methodName, "Mouse Interval", 120000)
+        ConfigureMethodSetting(methodName, "Max Wait Minutes", 360)
 
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
 
-    checkInterval  := settings.Get("Check Interval")
-    mouseInterval  := settings.Get("Mouse Interval")
-    maxWaitMinutes := settings.Get("Max Wait Minutes")
+    checkInterval  := settings["Check Interval"].Get("Value")
+    mouseInterval  := settings["Mouse Interval"].Get("Value")
+    maxWaitMinutes := settings["Max Wait Minutes"].Get("Value")
 
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-    maxLoops := (maxWaitMinutes * 60000) // checkInterval
+    maxLoops    := (maxWaitMinutes * 60000) // checkInterval
     timeSinceLastMouse := 0
 
     loop maxLoops {

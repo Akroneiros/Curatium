@@ -98,17 +98,17 @@ OverlayStart() {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Base Logical Width", 960, false)
-        SetMethodSetting(methodName, "Base Logical Height", 920, false)
-        SetMethodSetting(methodName, "Overlay Transparency", 172, false)
+        ConfigureMethodSetting(methodName, "Base Logical Width", 960)
+        ConfigureMethodSetting(methodName, "Base Logical Height", 920)
+        ConfigureMethodSetting(methodName, "Overlay Transparency", 172)
 
         defaultMethodSettingsSet := true
     }
 
     settings := methodRegistry[methodName]["Settings"]
-    baseLogicalWidth    := settings.Get("Base Logical Width")
-    baseLogicalHeight   := settings.Get("Base Logical Height")
-    overlayTransparency := settings.Get("Overlay Transparency")
+    baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
+    baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
+    overlayTransparency := settings["Overlay Transparency"].Get("Value")
 
     overlayGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +DPIScale")
     overlayGui.BackColor := "0x000000"

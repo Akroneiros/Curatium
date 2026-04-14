@@ -11,15 +11,15 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Seconds to Attempt", 60, false)
-        SetMethodSetting(methodName, "Short Delay", 128, false)
+        ConfigureMethodSetting(methodName, "Seconds to Attempt", 60)
+        ConfigureMethodSetting(methodName, "Short Delay", 128)
 
         defaultMethodSettingsSet := true
     }
 
     settings         := methodRegistry[methodName]["Settings"]
-    secondsToAttempt := settings.Get("Seconds to Attempt")
-    shortDelay       := settings.Get("Short Delay")
+    secondsToAttempt := settings["Seconds to Attempt"].Get("Value")
+    shortDelay       := settings["Short Delay"].Get("Value")
 
     windowSearchTerm := "Window search term: " . windowSearchResults["Window Title"] . "."
     totalSleep       := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
@@ -156,21 +156,21 @@ PasteText(text, commentPrefix := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Max Attempts", 4, false)
-        SetMethodSetting(methodName, "Short Delay", 160, false)
-        SetMethodSetting(methodName, "Medium Delay", 320, false)
-        SetMethodSetting(methodName, "Short Accumulation", 24, false)
-        SetMethodSetting(methodName, "Medium Accumulation", 48, false)
+        ConfigureMethodSetting(methodName, "Max Attempts", 4)
+        ConfigureMethodSetting(methodName, "Short Delay", 160)
+        ConfigureMethodSetting(methodName, "Medium Delay", 320)
+        ConfigureMethodSetting(methodName, "Short Accumulation", 24)
+        ConfigureMethodSetting(methodName, "Medium Accumulation", 48)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    maxAttempts := settings.Get("Max Attempts")
-    shortDelay  := settings.Get("Short Delay")
-    mediumDelay := settings.Get("Medium Delay")
-    shortAccumulation  := settings.Get("Short Accumulation")
-    mediumAccumulation := settings.Get("Medium Accumulation")
+    maxAttempts := settings["Max Attempts"].Get("Value")
+    shortDelay  := settings["Short Delay"].Get("Value")
+    mediumDelay := settings["Medium Delay"].Get("Value")
+    shortAccumulation  := settings["Short Accumulation"].Get("Value")
+    mediumAccumulation := settings["Medium Accumulation"].Get("Value")
 
     rows := StrSplit(text, "`n").Length
 
@@ -1265,13 +1265,13 @@ KeyboardShortcut(modifier, key) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Tiny Delay", 32, false)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 32, 256)
 
         defaultMethodSettingsSet := true
     }
 
     settings  := methodRegistry[methodName]["Settings"]
-    tinyDelay := settings.Get("Tiny Delay")
+    tinyDelay := settings["Tiny Delay"].Get("Value")
 
     if StrLen(key) > 1 {
         key := "{" . key . "}"
@@ -1347,9 +1347,13 @@ SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
     return windowSearchResults
 }
 
-SetMethodSetting(settingMethod, settingName, settingValue, override := true) {
-    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Variant, override As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, override])
+; **************************** ;
+; Settings                     ;
+; **************************** ;
+
+ConfigureMethodSetting(settingMethod, settingName, settingValue, increase := 0, ceiling := 0) {
+    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, increase As Integer [Optional], ceiling As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, increase, ceiling])
 
     global methodRegistry
 
@@ -1362,8 +1366,82 @@ SetMethodSetting(settingMethod, settingName, settingValue, override := true) {
         methodRegistry[settingMethod]["Settings"] := Map()
     }
 
-    if !methodRegistry[settingMethod]["Settings"].Has(settingName) || override {
-        methodRegistry[settingMethod]["Settings"][settingName] := settingValue
+    if !methodRegistry[settingMethod]["Settings"].Has(settingName) {
+        methodRegistry[settingMethod]["Settings"][settingName] := Map()
+    }
+
+    if increase != 0 {
+        methodRegistry[settingMethod]["Settings"][settingName]["Increase"] := increase
+    }
+
+    if ceiling != 0 {
+        methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] := ceiling
+    }
+
+    methodRegistry[settingMethod]["Settings"][settingName]["Floor"] := settingValue
+
+    if !methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
+        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
+    } else {
+        if methodRegistry[settingMethod]["Settings"][settingName]["Value"] > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
+            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
+        }
+    }
+}
+
+DecreaseMethodSetting(settingMethod, settingName) {
+    static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName])
+
+    global methodRegistry
+
+    if methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
+        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] - methodRegistry[settingMethod]["Settings"][settingName]["Increase"]
+
+        if newSettingValue >= methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
+            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
+        }
+    }
+}
+
+IncreaseMethodSetting(settingMethod, settingName) {
+    static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName])
+
+    global methodRegistry
+
+    if methodRegistry[settingMethod]["Settings"][settingName].Has("Ceiling") {
+        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] + methodRegistry[settingMethod]["Settings"][settingName]["Increase"]
+
+        if newSettingValue <= methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
+            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
+        }
+    }
+}
+
+SetMethodSetting(settingMethod, settingName, settingValue) {
+    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue])
+
+    global methodRegistry
+
+    if !methodRegistry.Has(settingMethod) {
+        methodRegistry[settingMethod] := Map()
+        methodRegistry[settingMethod]["Symbol"] := ""
+    }
+
+    if !methodRegistry[settingMethod].Has("Settings") {
+        methodRegistry[settingMethod]["Settings"] := Map()
+    }
+
+    if methodRegistry[settingMethod]["Settings"][settingName].Has("Ceiling") {
+        if methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] != 0 {
+            if settingValue > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
+                methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
+            }
+        }
+    } else {
+        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
     }
 }
 

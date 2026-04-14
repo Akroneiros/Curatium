@@ -528,13 +528,13 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        SetMethodSetting(methodName, "Medium Delay", 1000, false)
+        ConfigureMethodSetting(methodName, "Medium Delay", 1000)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    mediumDelay := settings.Get("Medium Delay")
+    mediumDelay := settings["Medium Delay"].Get("Value")
 
     if !imageRegistry.Has(directoryFolder) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
