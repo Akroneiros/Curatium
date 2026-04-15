@@ -98,9 +98,9 @@ OverlayStart() {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Base Logical Width", 960)
-        ConfigureMethodSetting(methodName, "Base Logical Height", 920)
-        ConfigureMethodSetting(methodName, "Overlay Transparency", 172)
+        ConfigureMethodSetting(methodName, "Base Logical Width", 960, 640, 7680)
+        ConfigureMethodSetting(methodName, "Base Logical Height", 920, 480, 4320)
+        ConfigureMethodSetting(methodName, "Overlay Transparency", 172, 0, 255)
 
         defaultMethodSettingsSet := true
     }
@@ -116,7 +116,7 @@ OverlayStart() {
     overlayGui.MarginX := 0
     overlayGui.MarginY := 0
 
-    statusTextControl := overlayGui.Add("Text", "vStatusText w" baseLogicalWidth " h" baseLogicalHeight " +0x1", "")
+    statusTextControl := overlayGui.Add("Text", "vStatusText w" . baseLogicalWidth . " h" . baseLogicalHeight . " +0x1", "")
 
     measureVisualRectangle := () => (
         overlayGui.Show("Hide AutoSize"),

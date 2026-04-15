@@ -528,7 +528,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Medium Delay", 1000)
+        ConfigureMethodSetting(methodName, "Medium Delay", 1000, 100, 10000)
 
         defaultMethodSettingsSet := true
     }

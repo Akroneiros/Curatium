@@ -566,9 +566,9 @@ ResolveFactsForApplication(applicationName, counter) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16)
-        ConfigureMethodSetting(methodName, "Excel Short Delay", 256)
-        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640)
+        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
+        ConfigureMethodSetting(methodName, "Excel Short Delay", 256, 64, 2048)
+        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640, 160, 5120)
 
         defaultMethodSettingsSet := true
     }
@@ -821,8 +821,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32)
-        ConfigureMethodSetting(methodName, "Short Delay", 260)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 128)
+        ConfigureMethodSetting(methodName, "Short Delay", 256, 128, 1536)
 
         defaultMethodSettingsSet := true
     }
@@ -998,7 +998,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 128)
 
         defaultMethodSettingsSet := true
     }
@@ -1054,8 +1054,8 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 32, 160)
-        ConfigureMethodSetting(methodName, "Short Delay", 320, 64, 640)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 64, 16, 192, 32)
+        ConfigureMethodSetting(methodName, "Short Delay", 384, 128, 1280, 64)
 
         defaultMethodSettingsSet := true
     }
@@ -1133,18 +1133,18 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
         visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
         ActivateWindow(visualBasicEditorWindowSearchResults, true)
-        Sleep(tinyDelay)
+        Sleep(tinyDelay + tinyDelay)
         PasteText(code, "'")
         Sleep(shortDelay)
         SendInput("{F5}") ; Run Sub/UserForm
-        Sleep(tinyDelay)
+        Sleep(shortDelay)
 
         visualBasicEditorMacroWindowSearchResults := SearchForWindow("Macros ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", 1)
         if visualBasicEditorMacroWindowSearchResults["Success"] {
             IncreaseMethodSetting(methodName, "Tiny Delay")
             IncreaseMethodSetting(methodName, "Short Delay")
             SendInput("{Esc}") ; Close Macros Window.
-            Sleep(tinyDelay + tinyDelay)
+            Sleep(shortDelay)
 
             continue
         }
@@ -1163,25 +1163,24 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Long Delay", 1000)
-        ConfigureMethodSetting(methodName, "Total Seconds to Wait", 240 * 60)
-        ConfigureMethodSetting(methodName, "Mouse Move Interval Seconds", 120)
+        ConfigureMethodSetting(methodName, "Total Seconds to Wait", 14400, 10, 43200)
+        ConfigureMethodSetting(methodName, "Mouse Move Interval Seconds", 120, 1, 840)
 
         defaultMethodSettingsSet := true
     }
 
     settings                 := methodRegistry[methodName]["Settings"]
-    longDelay                := settings["Long Delay"].Get("Value")
     totalSecondsToWait       := settings["Total Seconds to Wait"].Get("Value")
     mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"].Get("Value")
 
+    secondDelay               := 1000
     secondsSinceLastMouseMove := 0
 
     userInterfaceIsGone := false
     loop totalSecondsToWait {
         windowCount := WinGetList("ahk_pid " . excelProcessIdentifier).Length
         if windowCount = 0 {
-            Sleep(longDelay)
+            Sleep(secondDelay)
             userInterfaceIsGone := true
             break
         }
@@ -1193,7 +1192,7 @@ WaitForExcelToClose(excelProcessIdentifier) {
             secondsSinceLastMouseMove := 0
         }
 
-        Sleep(longDelay)
+        Sleep(secondDelay)
     }
 
     if !userInterfaceIsGone {
@@ -1237,9 +1236,9 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Short Delay", 100)
-        ConfigureMethodSetting(methodName, "Medium Delay", 480)
-        ConfigureMethodSetting(methodName, "Long Delay", 1000)
+        ConfigureMethodSetting(methodName, "Short Delay", 128, 32, 1280)
+        ConfigureMethodSetting(methodName, "Medium Delay", 512, 128, 3072)
+        ConfigureMethodSetting(methodName, "Long Delay", 1024, 256, 6144)
 
         defaultMethodSettingsSet := true
     }
@@ -1315,11 +1314,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 16)
-        ConfigureMethodSetting(methodName, "Short Delay", 400)
-        ConfigureMethodSetting(methodName, "Medium Delay", 880)
-        ConfigureMethodSetting(methodName, "Long Delay", 1280)
-        ConfigureMethodSetting(methodName, "Massive Delay", 30000)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 16, 16, 128)
+        ConfigureMethodSetting(methodName, "Short Delay", 448, 128, 1536)
+        ConfigureMethodSetting(methodName, "Medium Delay", 896, 256, 3584)
+        ConfigureMethodSetting(methodName, "Long Delay", 1280, 640, 5120)
+        ConfigureMethodSetting(methodName, "Massive Delay", 30000, 10000, 60000)
 
         defaultMethodSettingsSet := true
     }

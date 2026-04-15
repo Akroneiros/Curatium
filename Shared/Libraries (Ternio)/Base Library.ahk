@@ -11,8 +11,8 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Seconds to Attempt", 60)
-        ConfigureMethodSetting(methodName, "Short Delay", 128)
+        ConfigureMethodSetting(methodName, "Seconds to Attempt", 60, 1, 3600)
+        ConfigureMethodSetting(methodName, "Short Delay", 128, 64, 1280)
 
         defaultMethodSettingsSet := true
     }
@@ -156,23 +156,18 @@ PasteText(text, commentPrefix := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Max Attempts", 4)
-        ConfigureMethodSetting(methodName, "Short Delay", 160)
-        ConfigureMethodSetting(methodName, "Medium Delay", 320)
-        ConfigureMethodSetting(methodName, "Short Accumulation", 24)
-        ConfigureMethodSetting(methodName, "Medium Accumulation", 48)
+        ConfigureMethodSetting(methodName, "Short Delay", 192, 64, 1024, 24)
+        ConfigureMethodSetting(methodName, "Medium Delay", 416, 128, 2080, 48)
 
         defaultMethodSettingsSet := true
     }
 
     settings    := methodRegistry[methodName]["Settings"]
-    maxAttempts := settings["Max Attempts"].Get("Value")
     shortDelay  := settings["Short Delay"].Get("Value")
     mediumDelay := settings["Medium Delay"].Get("Value")
-    shortAccumulation  := settings["Short Accumulation"].Get("Value")
-    mediumAccumulation := settings["Medium Accumulation"].Get("Value")
 
-    rows := StrSplit(text, "`n").Length
+    maxAttempts := 4
+    rows        := StrSplit(text, "`n").Length
 
     pasteSentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
     if rows != 1 {
@@ -184,13 +179,13 @@ PasteText(text, commentPrefix := "") {
 
     while attempts < maxAttempts {
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
-                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconds."
+            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds."
+
+            mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
+            shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
         }
 
         attempts++
-        mediumDelay := mediumDelay + (attempts * mediumAccumulation)
-        shortDelay  := shortDelay + (attempts * shortAccumulation)
 
         if rows = 1 {
             if attempts != 1 {
@@ -249,8 +244,10 @@ PasteText(text, commentPrefix := "") {
 
         success := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds. " . 
-                "Short Accumulation is currently " . shortAccumulation . " milliseconds. Medium Accumulation is currently " . mediumAccumulation . " milliseconds."
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds."
+
+            IncreaseMethodSetting(methodName, "Short Delay")
+            IncreaseMethodSetting(methodName, "Medium Delay")
         }
         break
     }
@@ -1265,7 +1262,7 @@ KeyboardShortcut(modifier, key) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 32, 256)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 256, 32)
 
         defaultMethodSettingsSet := true
     }
@@ -1351,9 +1348,9 @@ SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
 ; Settings                     ;
 ; **************************** ;
 
-ConfigureMethodSetting(settingMethod, settingName, settingValue, increase := 0, ceiling := 0) {
-    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, increase As Integer [Optional], ceiling As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, increase, ceiling])
+ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling, delta := 0) {
+    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, floor As Integer, ceiling As Integer, delta As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, floor, ceiling, delta])
 
     global methodRegistry
 
@@ -1370,22 +1367,22 @@ ConfigureMethodSetting(settingMethod, settingName, settingValue, increase := 0, 
         methodRegistry[settingMethod]["Settings"][settingName] := Map()
     }
 
-    if increase != 0 {
-        methodRegistry[settingMethod]["Settings"][settingName]["Increase"] := increase
-    }
+    methodRegistry[settingMethod]["Settings"][settingName]["Floor"] := floor
 
     if ceiling != 0 {
         methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] := ceiling
     }
 
-    methodRegistry[settingMethod]["Settings"][settingName]["Floor"] := settingValue
+    methodRegistry[settingMethod]["Settings"][settingName]["Delta"] := delta
 
     if !methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
         methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
-    } else {
-        if methodRegistry[settingMethod]["Settings"][settingName]["Value"] > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
-            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
-        }
+    }
+
+    if methodRegistry[settingMethod]["Settings"][settingName]["Value"] > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
+        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
+    } else if methodRegistry[settingMethod]["Settings"][settingName]["Value"] < methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
+        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Floor"]
     }
 }
 
