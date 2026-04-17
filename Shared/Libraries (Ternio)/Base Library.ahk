@@ -179,10 +179,11 @@ PasteText(text, commentPrefix := "") {
 
     while attempts < maxAttempts {
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds."
-
+            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay wasa " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
+            
             mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
             shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+            IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
 
         attempts++
@@ -227,7 +228,33 @@ PasteText(text, commentPrefix := "") {
             A_Clipboard := text ; Load combined text into clipboard.
             Sleep(mediumDelay + mediumDelay)
             KeyboardShortcut("CTRL", "V") ; Paste
-            Sleep(mediumDelay + mediumDelay)
+            Sleep(shortDelay + mediumDelay)
+            A_Clipboard := "" ; Clear clipboard.
+            Sleep(shortDelay + mediumDelay)
+            KeyboardShortcut("CTRL", "A") ; Select All
+            Sleep(mediumDelay)
+            KeyboardShortcut("CTRL", "C") ; Copy
+            Sleep(shortDelay + mediumDelay)
+
+            if SubStr(A_Clipboard, -3) = "'`r`n" { ; Modify selection to not include final carriage return and line feed.
+                A_Clipboard := "" ; Clear clipboard.
+                Sleep(shortDelay + mediumDelay)
+                KeyboardShortcut("SHIFT", "LEFT") ; Contract selection by one character to the left.
+                Sleep(mediumDelay)
+                KeyboardShortcut("CTRL", "C") ; Copy
+                Sleep(shortDelay + mediumDelay)
+            }
+
+            linesInClipboard := StrSplit(A_Clipboard, ["`r`n", "`n"])
+            linesInText      := StrSplit(text, ["`r`n", "`n"])
+
+            if linesInClipboard[1] != linesInText[1] || linesInClipboard[linesInClipboard.Length] != linesInText[linesInText.Length] {
+                continue ; Clipboard doesn't match with the expected contents of the first or last line of the paste text.
+            }
+
+            Sleep(shortDelay + mediumDelay)
+            SendInput("{Right}") ; End of line for the last row in the selection.
+            Sleep(shortDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
             Sleep(shortDelay)
             KeyboardShortcut("SHIFT", "LEFT") ; Select one character more to the left.
@@ -244,7 +271,7 @@ PasteText(text, commentPrefix := "") {
 
         success := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is currently " . shortDelay . " milliseconds. Medium delay is currently " . mediumDelay . " milliseconds."
+            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds."
 
             IncreaseMethodSetting(methodName, "Short Delay")
             IncreaseMethodSetting(methodName, "Medium Delay")
@@ -1255,20 +1282,22 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
     return returnValue
 }
 
-KeyboardShortcut(modifier, key) {
+KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
-    static methodName := RegisterMethod("modifier As String [Whitelist: " . modifierWhitelist . "], key As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [modifier, key])
+    static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [primaryModifier, key, secondaryModifier])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 256, 32)
+        ConfigureMethodSetting(methodName, "Tiny Delay", 64, 16, 256, 32)
+        ConfigureMethodSetting(methodName, "Legacy Threshold", 128, 16, 256)
 
         defaultMethodSettingsSet := true
     }
 
-    settings  := methodRegistry[methodName]["Settings"]
-    tinyDelay := settings["Tiny Delay"].Get("Value")
+    settings        := methodRegistry[methodName]["Settings"]
+    tinyDelay       := settings["Tiny Delay"].Get("Value")
+    legacyThreshold := settings["Legacy Threshold"].Get("Value")
 
     if StrLen(key) > 1 {
         key := "{" . key . "}"
@@ -1276,31 +1305,71 @@ KeyboardShortcut(modifier, key) {
         key := StrLower(key)
     }
 
-    switch modifier, false {
-        case "ALT":
-            SendInput("{Alt down}")
-        case "CTRL", "CONTROL":
-            SendInput("{Ctrl down}")
-        case "SHIFT":
-            SendInput("{Shift down}")
-        case "WIN", "WINDOWS":
-            SendInput("{LWin down}")
+    SendMode("Input")
+
+    if tinyDelay >= legacyThreshold {
+        SendMode("Event")
+        SetKeyDelay(0, tinyDelay)
     }
 
-    Sleep(tinyDelay + tinyDelay)
-    SendInput(key)
+    switch primaryModifier, false {
+        case "ALT":
+            Send("{Alt down}")
+        case "CTRL", "CONTROL":
+            Send("{Ctrl down}")
+        case "SHIFT":
+            Send("{Shift down}")
+        case "WIN", "WINDOWS":
+            Send("{LWin down}")
+    }    
+
     Sleep(tinyDelay)
 
-    switch modifier, false {
-        case "ALT":
-            SendInput("{Alt up}")
-        case "CTRL", "CONTROL":
-            SendInput("{Ctrl up}")
-        case "SHIFT":
-            SendInput("{Shift up}")
-        case "WIN", "WINDOWS":
-            SendInput("{LWin up}")
+    if secondaryModifier != "" {
+        switch secondaryModifier, false {
+            case "ALT":
+                Send("{Alt down}")
+            case "CTRL", "CONTROL":
+                Send("{Ctrl down}")
+            case "SHIFT":
+                Send("{Shift down}")
+            case "WIN", "WINDOWS":
+                Send("{LWin down}")
+        }
+
+        Sleep(tinyDelay)
     }
+
+    Send(key)
+    Sleep(tinyDelay)
+
+    if secondaryModifier != "" {
+        switch secondaryModifier, false {
+            case "ALT":
+                Send("{Alt up}")
+            case "CTRL", "CONTROL":
+                Send("{Ctrl up}")
+            case "SHIFT":
+                Send("{Shift up}")
+            case "WIN", "WINDOWS":
+                Send("{LWin up}")
+        }
+
+        Sleep(tinyDelay)
+    }
+
+    switch primaryModifier, false {
+        case "ALT":
+            Send("{Alt up}")
+        case "CTRL", "CONTROL":
+            Send("{Ctrl up}")
+        case "SHIFT":
+            Send("{Shift up}")
+        case "WIN", "WINDOWS":
+            Send("{LWin up}")
+    }
+
+    Sleep(tinyDelay)
 }
 
 RemoveDuplicatesFromArray(array) {
@@ -1367,6 +1436,8 @@ ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling,
         methodRegistry[settingMethod]["Settings"][settingName] := Map()
     }
 
+    methodRegistry[settingMethod]["Settings"][settingName]["Default"] := settingValue
+
     methodRegistry[settingMethod]["Settings"][settingName]["Floor"] := floor
 
     if ceiling != 0 {
@@ -1393,7 +1464,7 @@ DecreaseMethodSetting(settingMethod, settingName) {
     global methodRegistry
 
     if methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
-        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] - methodRegistry[settingMethod]["Settings"][settingName]["Increase"]
+        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] - methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
 
         if newSettingValue >= methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
             methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
@@ -1408,7 +1479,7 @@ IncreaseMethodSetting(settingMethod, settingName) {
     global methodRegistry
 
     if methodRegistry[settingMethod]["Settings"][settingName].Has("Ceiling") {
-        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] + methodRegistry[settingMethod]["Settings"][settingName]["Increase"]
+        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] + methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
 
         if newSettingValue <= methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
             methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
