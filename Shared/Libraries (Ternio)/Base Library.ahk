@@ -179,7 +179,7 @@ PasteText(text, commentPrefix := "") {
 
     while attempts < maxAttempts {
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay wasa " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
+            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
             
             mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
             shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
@@ -216,7 +216,7 @@ PasteText(text, commentPrefix := "") {
             }
 
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
-            Sleep(mediumDelay)
+            Sleep(shortDelay)
             KeyboardShortcut("CTRL", "C") ; Copy
             ClipWait()
             Sleep(mediumDelay)
@@ -226,33 +226,37 @@ PasteText(text, commentPrefix := "") {
             }
         } else {
             A_Clipboard := text ; Load combined text into clipboard.
-            Sleep(mediumDelay + mediumDelay)
+            Sleep(shortDelay + mediumDelay)
             KeyboardShortcut("CTRL", "V") ; Paste
             Sleep(shortDelay + mediumDelay)
             A_Clipboard := "" ; Clear clipboard.
-            Sleep(shortDelay + mediumDelay)
+            Sleep(shortDelay)
             KeyboardShortcut("CTRL", "A") ; Select All
             Sleep(mediumDelay)
             KeyboardShortcut("CTRL", "C") ; Copy
-            Sleep(shortDelay + mediumDelay)
+            Sleep(mediumDelay)
 
-            if SubStr(A_Clipboard, -3) = "'`r`n" { ; Modify selection to not include final carriage return and line feed.
+            loop 2 {
+                if SubStr(A_Clipboard, -1) = SubStr(text, -1) {
+                    break
+                }
+
                 A_Clipboard := "" ; Clear clipboard.
-                Sleep(shortDelay + mediumDelay)
+                Sleep(shortDelay)
                 KeyboardShortcut("SHIFT", "LEFT") ; Contract selection by one character to the left.
-                Sleep(mediumDelay)
+                Sleep(shortDelay)
                 KeyboardShortcut("CTRL", "C") ; Copy
-                Sleep(shortDelay + mediumDelay)
+                Sleep(mediumDelay)
             }
 
             linesInClipboard := StrSplit(A_Clipboard, ["`r`n", "`n"])
             linesInText      := StrSplit(text, ["`r`n", "`n"])
 
-            if linesInClipboard[1] != linesInText[1] || linesInClipboard[linesInClipboard.Length] != linesInText[linesInText.Length] {
-                continue ; Clipboard doesn't match with the expected contents of the first or last line of the paste text.
+            if linesInClipboard[1] != linesInText[1] || linesInClipboard[linesInClipboard.Length] != linesInText[linesInText.Length] || linesInClipboard.Length != linesInText.Length {
+                continue ; Clipboard doesn't match with the expected length or comparison of first and last line.
             }
 
-            Sleep(shortDelay + mediumDelay)
+            Sleep(shortDelay)
             SendInput("{Right}") ; End of line for the last row in the selection.
             Sleep(shortDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
