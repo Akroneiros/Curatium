@@ -156,18 +156,21 @@ PasteText(text, commentPrefix := "") {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
+        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
+        ConfigureMethodSetting(methodName, "Clipboard Timeout in Seconds", 4, 1, 16, 1)
         ConfigureMethodSetting(methodName, "Short Delay", 192, 64, 1024, 24)
         ConfigureMethodSetting(methodName, "Medium Delay", 416, 128, 2080, 48)
 
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
-    shortDelay  := settings["Short Delay"].Get("Value")
-    mediumDelay := settings["Medium Delay"].Get("Value")
+    settings                  := methodRegistry[methodName]["Settings"]
+    maxAttempts               := settings["Max Attempts"].Get("Value")
+    clipboardTimeoutInSeconds := settings["Clipboard Timeout in Seconds"].Get("Value")
+    shortDelay                := settings["Short Delay"].Get("Value")
+    mediumDelay               := settings["Medium Delay"].Get("Value")
 
-    maxAttempts := 4
-    rows        := StrSplit(text, "`n").Length
+    rows := StrSplit(text, "`n").Length
 
     pasteSentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
     if rows != 1 {
@@ -178,20 +181,25 @@ PasteText(text, commentPrefix := "") {
     success  := false
 
     while attempts < maxAttempts {
+        shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+        mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
+
+        attempts++
+
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Failed on attempt " attempts " of " maxAttempts ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
+            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds was " . clipboardTimeoutInSeconds .
+                ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
             
-            mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
-            shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
 
-        attempts++
+        A_Clipboard := "" ; Clear clipboard.
+        Sleep(shortDelay)
 
         if rows = 1 {
             if attempts != 1 {
                 SendInput("{End}") ; End of Line.
-                Sleep(mediumDelay)
+                Sleep(shortDelay)
                 KeyboardShortcut("SHIFT", "HOME") ; Select the full line.
                 Sleep(shortDelay)
                 SendInput("{Delete}") ; Delete
@@ -218,8 +226,11 @@ PasteText(text, commentPrefix := "") {
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line
             Sleep(shortDelay)
             KeyboardShortcut("CTRL", "C") ; Copy
-            ClipWait()
-            Sleep(mediumDelay)
+
+            clipboardHasData := ClipWait(clipboardTimeoutInSeconds)
+            if !clipboardHasData {
+                continue ; Clipboard doesn't have data, go to next attempt.
+            }
 
             if A_Clipboard !== text {
                 continue ; Clipboard does not match, go to next attempt.
@@ -234,7 +245,11 @@ PasteText(text, commentPrefix := "") {
             KeyboardShortcut("CTRL", "A") ; Select All
             Sleep(mediumDelay)
             KeyboardShortcut("CTRL", "C") ; Copy
-            Sleep(mediumDelay)
+
+            clipboardHasData := ClipWait(clipboardTimeoutInSeconds)
+            if !clipboardHasData {
+                continue ; Clipboard doesn't have data, go to next attempt.
+            }
 
             loop 2 {
                 if SubStr(A_Clipboard, -1) = SubStr(text, -1) {
@@ -246,7 +261,11 @@ PasteText(text, commentPrefix := "") {
                 KeyboardShortcut("SHIFT", "LEFT") ; Contract selection by one character to the left.
                 Sleep(shortDelay)
                 KeyboardShortcut("CTRL", "C") ; Copy
-                Sleep(mediumDelay)
+
+                clipboardHasData := ClipWait(clipboardTimeoutInSeconds)
+                if !clipboardHasData {
+                    continue ; Clipboard doesn't have data, go to next attempt.
+                }
             }
 
             linesInClipboard := StrSplit(A_Clipboard, ["`r`n", "`n"])
@@ -256,7 +275,6 @@ PasteText(text, commentPrefix := "") {
                 continue ; Clipboard doesn't match with the expected length or comparison of first and last line.
             }
 
-            Sleep(shortDelay)
             SendInput("{Right}") ; End of line for the last row in the selection.
             Sleep(shortDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
@@ -264,10 +282,13 @@ PasteText(text, commentPrefix := "") {
             KeyboardShortcut("SHIFT", "LEFT") ; Select one character more to the left.
             Sleep(shortDelay)
             KeyboardShortcut("CTRL", "X") ; Cut
-            ClipWait()
-            Sleep(mediumDelay)
-            clipboardSentinel := StrReplace(StrReplace(A_Clipboard, "`r", ""), "`n", "")
 
+            clipboardHasData := ClipWait(clipboardTimeoutInSeconds)
+            if !clipboardHasData {
+                continue ; Clipboard doesn't have data, go to next attempt.
+            }
+
+            clipboardSentinel := StrReplace(StrReplace(A_Clipboard, "`r", ""), "`n", "")
             if clipboardSentinel !== pasteSentinel {
                 continue ; Paste Sentinel not copied, go to next attempt.
             }
@@ -275,11 +296,13 @@ PasteText(text, commentPrefix := "") {
 
         success := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " attempts " of " maxAttempts ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds."
+            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds is " . clipboardTimeoutInSeconds .
+                ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds."
 
             IncreaseMethodSetting(methodName, "Short Delay")
             IncreaseMethodSetting(methodName, "Medium Delay")
         }
+        
         break
     }
 

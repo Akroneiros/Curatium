@@ -903,7 +903,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
         aboutValues["ProgressionStatus"] := StrReplace(aboutValues["ProgressionStatus"], "Progression Status: ", "")
         aboutValues["AugmentationModules"] := StrReplace(aboutValues["AugmentationModules"], "Augmentation Modules: ", "")
-        aboutValues["RetrievedDate"] := str := SubStr(StrReplace(aboutValues["RetrievedDate"], "Retrieved Date: ", ""), 1, -1)
+        aboutValues["RetrievedDate"] := SubStr(StrReplace(aboutValues["RetrievedDate"], "Retrieved Date: ", ""), 1, -1)
         aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
 
         if aboutValues[aboutRange] = aboutCondition {
@@ -1054,82 +1054,83 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
+        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
         ConfigureMethodSetting(methodName, "Tiny Delay", 64, 16, 192, 32)
         ConfigureMethodSetting(methodName, "Short Delay", 384, 128, 1280, 64)
 
         defaultMethodSettingsSet := true
     }
 
-    settings   := methodRegistry[methodName]["Settings"]
-    tinyDelay  := settings["Tiny Delay"].Get("Value")
-    shortDelay := settings["Short Delay"].Get("Value")
+    settings    := methodRegistry[methodName]["Settings"]
+    maxAttempts := settings["Max Attempts"].Get("Value")
+    tinyDelay   := settings["Tiny Delay"].Get("Value")
+    shortDelay  := settings["Short Delay"].Get("Value")
+
+    attempts := 0
+    success  := false
 
     static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
     excelApplication.Workbooks.Open(personalMacroWorkbookPath)
 
-    worksheets := []
-    Loop excelApplication.Workbooks.Count {
-        currentWorkbook := excelApplication.Workbooks.Item(A_Index)
-        if currentWorkbook.Name = "PERSONAL.XLSB" {
+    excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
+    ActivateWindow(excelMainWindowSearchResults)
+    excelApplication.DisplayAlerts := false
+
+    activeWorkbook := unset
+    for workbook in excelApplication.Workbooks {
+        if workbook.Name = "PERSONAL.XLSB" {
             continue
         }
 
-        for worksheet in currentWorkbook.Worksheets {
-            worksheets.Push(worksheet.Name)
-        }
+        activeWorkbook := workbook
 
         break
     }
 
-    excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
-    ActivateWindow(excelMainWindowSearchResults)
+    originalSheets := []
+    for sheet in activeWorkbook.Sheets {
+        originalSheets.Push(sheet.Name)
+    }
 
-    Loop 4 {
-        settings   := methodRegistry[methodName]["Settings"]
-        tinyDelay  := settings["Tiny Delay"].Get("Value")
-        shortDelay := settings["Short Delay"].Get("Value")
+    while attempts < maxAttempts {
+        tinyDelay  := tinyDelay + (attempts * methodRegistry[methodName]["Settings"]["Tiny Delay"]["Delta"])
+        shortDelay := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+
+        attempts++
+
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Tiny delay was " . tinyDelay . " milliseconds. Short delay was " . shortDelay . " milliseconds."
+            
+            IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
+        }
 
         KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
 
-        irregularWorksheetExists := false
+        sheetsBoundForDeletion := []
+        for sheet in activeWorkbook.Sheets {
+            isOriginalSheet := false
 
-        excelApplication.DisplayAlerts := false
-        Loop excelApplication.Workbooks.Count {
-            currentWorkbook := excelApplication.Workbooks.Item(A_Index)
-            if currentWorkbook.Name = "PERSONAL.XLSB" {
-                continue
+            for originalSheet in originalSheets {
+                if originalSheet = sheet.Name {
+                    isOriginalSheet := true
+                }
             }
 
-            for worksheet in currentWorkbook.Worksheets {
-                worksheetMatch := false
+            if !isOriginalSheet {
+                sheetsBoundForDeletion.Push(sheet.Name)
+            }
+        }
 
-                for worksheetName in worksheets {
-                    if worksheet.Name = worksheetName {
-                        worksheetMatch := true
-
-                        break
-                    }
-                }
-
-                if worksheetMatch {
-                    continue
-                }
-
-                irregularWorksheetExists := true
-
-                worksheet.Delete()
+        if sheetsBoundForDeletion.Length != 0 {
+            for sheetBoundForDeletion in sheetsBoundForDeletion {
+                activeWorkbook.Sheets(sheetBoundForDeletion).Delete()
                 Sleep(tinyDelay)
             }
 
-            break
-        }
-        excelApplication.DisplayAlerts := true
-
-        if irregularWorksheetExists {
-            IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
-
             continue
         }
+
+        excelApplication.DisplayAlerts := true
 
         visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
         ActivateWindow(visualBasicEditorWindowSearchResults, true)
@@ -1147,6 +1148,13 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
             Sleep(shortDelay)
 
             continue
+        }
+
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Tiny delay is " . tinyDelay . " milliseconds. Short delay is " . shortDelay . " milliseconds."
+
+            IncreaseMethodSetting(methodName, "Tiny Delay")
+            IncreaseMethodSetting(methodName, "Short Delay")
         }
 
         break
