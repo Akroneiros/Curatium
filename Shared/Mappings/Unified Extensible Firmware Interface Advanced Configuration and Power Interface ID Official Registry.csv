@@ -4,6 +4,7 @@
 AANT|AAEON Technology Inc.|2016-09-01
 AAVA|Aava Mobile Oy|2014-04-02
 ACPI|Intel Corporation|2011-11-18
+AHCL|Advantech Co., Ltd.|2025-10-23
 AMDI|AMD|2014-08-06
 AMPC|Ampere Computing|2018-03-29
 AMZN|Amazon Corporation|2019-02-06
@@ -77,7 +78,10 @@ JMIC|Shenzhen Jaguar Microsystems Co.,Ltd.|2022-09-23
 JPMC|JP Morgan Chase N.A.|2025-05-30
 JSYS|Juniper Systems, Inc.|2021-03-18
 JUMP|JUMPtec GmbH|2025-04-22
+KAYA|KAYA N CO., LTD.|2026-01-06
 KIOX|Kionix, Inc.|2013-12-23
+KOMF|Kontron France|2025-12-09
+LECA|Theo End (Shenzhen) Computing Technology Co., Ltd.|2026-02-27
 LNRO|Linaro, Ltd.|2013-11-26
 LNUX|The Linux Foundation|2014-04-04
 LOON|Loongson Technology Corporation Limited|2020-09-10
@@ -85,6 +89,8 @@ LTSC|Lontium Semiconductor Corporation|2021-07-21
 MCHP|Microchip Technology Inc|2016-08-03
 MCRY|Micro Crystal AG|2022-11-10
 MIPI|MIPI Alliance|2015-04-17
+MITH|Mesiontech|2026-01-30
+MPTR|Megapolis-Telecom Region LLC|2026-02-23
 MRVL|Marvell Technology Group Ltd.|2017-05-25
 MSAY|Microsoft Corporation|2012-03-01
 MSFT|Microsoft Corporation|2010-01-01
@@ -95,11 +101,13 @@ NOLO|NOLO Co., Ltd.|2022-03-28
 NVDA|Nvidia|2010-01-01
 NVTN|Nuvoton Technology Corporation|2014-11-14
 NXGO|Nexstgo Company Limited|2017-11-13
+NXHP|Nexthop Systems Inc.|2026-02-23
 OBDA|REALTEK Semiconductor Corp.|2013-11-07
 OMPS|OmniPreSense|2016-05-25
 OVTI|OmniVision Technologies, Inc.|2014-02-26
 PEGA|Pegatron Corporation|2013-08-27
 PHYT|Phytium Technology Co. Ltd.|2020-02-14
+PICO|Picoheart (SG) Pte. Ltd.|2025-10-30
 PIXA|PixArt imaging inc.|2020-07-15
 PNSO|Pensando Systems, Inc.|2021-03-24
 PURI|Purism SPC|2021-06-10
@@ -117,6 +125,7 @@ SECC|Seiko Epson Corporation|2021-02-16
 SGSN|SigmaSense, LLC|2024-06-13
 SHRP|Sharp Corporation|2015-01-27
 SILC|Silicom Ltd. Connectivity Solutions|2022-03-28
+SIPL|SIPEARL|2026-04-08
 SNSL|Sensel, Inc.|2018-08-20
 SONY|Sony Corporation|2012-09-12
 SOPH|Sophgo Technologies Ltd.|2025-04-07
@@ -125,11 +134,14 @@ ST86|Shenzhen South-Top Computer Co., Ltd.|2013-12-06
 SUNW|Wuxi Institute of Advanced Technology|2025-01-28
 SWEM|Sierra Wireless|2013-01-22
 SYNA|Synaptics Inc|2011-11-17
+SYNC|SYNCS / Aviot Systems Pte Ltd|2025-10-21
 TCAG|Teracue AG|2012-12-07
 TOSB|Dynabook Inc.|2015-07-07
 TXNW|Texas Instruments|2010-01-01
+TYHX|Nanjing Tianyihexin Electronics Ltd|2026-02-27
 UBLX|u-blox AG|2015-12-08
 UBOO|Das U-Boot|2024-02-14
+UBTI|Ubiquiti Inc.|2025-12-10
 ULRV|UltraRISC Technology (Shanghai) Co., Ltd|2025-09-15
 VAIO|VAIO Corporation|2014-04-18
 VFSI|Validity Sensors, Inc|2013-06-17
