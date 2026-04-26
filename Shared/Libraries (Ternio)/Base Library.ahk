@@ -177,16 +177,16 @@ PasteText(text, commentPrefix := "") {
         text := text . "`r`n" . pasteSentinel
     }
     
-    attempts := 0
-    success  := false
+    attempts          := 0
+    loopWasSuccessful := false
 
     while attempts < maxAttempts {
-        shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
-        mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
-
         attempts++
 
         if attempts >= 2 {
+            shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+            mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
+
             logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds was " . clipboardTimeoutInSeconds .
                 ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
             
@@ -194,7 +194,6 @@ PasteText(text, commentPrefix := "") {
         }
 
         A_Clipboard := "" ; Clear clipboard.
-        Sleep(shortDelay)
 
         if rows = 1 {
             if attempts != 1 {
@@ -210,7 +209,7 @@ PasteText(text, commentPrefix := "") {
             SendInput("{Delete}") ; Delete
         }
 
-        Sleep(mediumDelay)
+        Sleep(shortDelay)
 
         if rows = 1 { 
             if attempts != maxAttempts {
@@ -232,6 +231,8 @@ PasteText(text, commentPrefix := "") {
                 continue ; Clipboard doesn't have data, go to next attempt.
             }
 
+            Sleep(mediumDelay)
+
             if A_Clipboard !== text {
                 continue ; Clipboard does not match, go to next attempt.
             }
@@ -241,7 +242,6 @@ PasteText(text, commentPrefix := "") {
             KeyboardShortcut("CTRL", "V") ; Paste
             Sleep(shortDelay + mediumDelay)
             A_Clipboard := "" ; Clear clipboard.
-            Sleep(shortDelay)
             KeyboardShortcut("CTRL", "A") ; Select All
             Sleep(mediumDelay)
             KeyboardShortcut("CTRL", "C") ; Copy
@@ -251,13 +251,14 @@ PasteText(text, commentPrefix := "") {
                 continue ; Clipboard doesn't have data, go to next attempt.
             }
 
+            Sleep(mediumDelay)
+
             loop 2 {
                 if SubStr(A_Clipboard, -1) = SubStr(text, -1) {
                     break
                 }
 
                 A_Clipboard := "" ; Clear clipboard.
-                Sleep(shortDelay)
                 KeyboardShortcut("SHIFT", "LEFT") ; Contract selection by one character to the left.
                 Sleep(shortDelay)
                 KeyboardShortcut("CTRL", "C") ; Copy
@@ -266,15 +267,22 @@ PasteText(text, commentPrefix := "") {
                 if !clipboardHasData {
                     continue ; Clipboard doesn't have data, go to next attempt.
                 }
+
+                Sleep(mediumDelay)
             }
 
             linesInClipboard := StrSplit(A_Clipboard, ["`r`n", "`n"])
             linesInText      := StrSplit(text, ["`r`n", "`n"])
 
+            if linesInClipboard.Length = 0 {
+                continue ; Copy somehow failed, go to next attempt.
+            }
+
             if linesInClipboard[1] != linesInText[1] || linesInClipboard[linesInClipboard.Length] != linesInText[linesInText.Length] || linesInClipboard.Length != linesInText.Length {
                 continue ; Clipboard doesn't match with the expected length or comparison of first and last line.
             }
 
+            A_Clipboard := "" ; Clear clipboard.
             SendInput("{Right}") ; End of line for the last row in the selection.
             Sleep(shortDelay)
             KeyboardShortcut("SHIFT", "HOME") ; Select the whole last line which should be the sentintel.
@@ -288,13 +296,15 @@ PasteText(text, commentPrefix := "") {
                 continue ; Clipboard doesn't have data, go to next attempt.
             }
 
+            Sleep(mediumDelay)
+
             clipboardSentinel := StrReplace(StrReplace(A_Clipboard, "`r", ""), "`n", "")
             if clipboardSentinel !== pasteSentinel {
                 continue ; Paste Sentinel not copied, go to next attempt.
             }
         }
 
-        success := true
+        loopWasSuccessful := true
         if attempts >= 2 {
             logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds is " . clipboardTimeoutInSeconds .
                 ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds."
@@ -306,8 +316,8 @@ PasteText(text, commentPrefix := "") {
         break
     }
 
-    if !success {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Paste text failed.")
+    if !loopWasSuccessful {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to paste text in " . maxAttempts . " attempts.")
     }
 
     Sleep(shortDelay)

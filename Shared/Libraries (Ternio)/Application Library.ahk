@@ -1066,8 +1066,8 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     tinyDelay   := settings["Tiny Delay"].Get("Value")
     shortDelay  := settings["Short Delay"].Get("Value")
 
-    attempts := 0
-    success  := false
+    attempts          := 0
+    loopWasSuccessful := false
 
     static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
     excelApplication.Workbooks.Open(personalMacroWorkbookPath)
@@ -1093,12 +1093,12 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     }
 
     while attempts < maxAttempts {
-        tinyDelay  := tinyDelay + (attempts * methodRegistry[methodName]["Settings"]["Tiny Delay"]["Delta"])
-        shortDelay := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
-
         attempts++
 
         if attempts >= 2 {
+            tinyDelay  := tinyDelay + (attempts * methodRegistry[methodName]["Settings"]["Tiny Delay"]["Delta"])
+            shortDelay := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+
             logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Tiny delay was " . tinyDelay . " milliseconds. Short delay was " . shortDelay . " milliseconds."
             
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
@@ -1150,6 +1150,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
             continue
         }
 
+        loopWasSuccessful := true
         if attempts >= 2 {
             logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Tiny delay is " . tinyDelay . " milliseconds. Short delay is " . shortDelay . " milliseconds."
 
@@ -1158,6 +1159,10 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
         }
 
         break
+    }
+
+    if !loopWasSuccessful {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open visual basic editor and run code in " . maxAttempts . " attempts.")
     }
 
     LogConclusion("Completed", logValuesForConclusion)
@@ -1244,67 +1249,133 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Short Delay", 128, 32, 1280)
-        ConfigureMethodSetting(methodName, "Medium Delay", 512, 128, 3072)
-        ConfigureMethodSetting(methodName, "Long Delay", 1024, 256, 6144)
+        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
+        ConfigureMethodSetting(methodName, "Times to Attempt", 120, 1, 7200)
+        ConfigureMethodSetting(methodName, "Short Delay", 128, 32, 1280, 32)
+        ConfigureMethodSetting(methodName, "Medium Delay", 512, 128, 3072, 48)
+        ConfigureMethodSetting(methodName, "Long Delay", 1024, 256, 6144, 96)
 
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
-    shortDelay  := settings["Short Delay"].Get("Value")
-    mediumDelay := settings["Medium Delay"].Get("Value")
-    longDelay   := settings["Long Delay"].Get("Value")
+    settings       := methodRegistry[methodName]["Settings"]
+    maxAttempts    := settings["Max Attempts"].Get("Value")
+    timesToAttempt := settings["Times to Attempt"].Get("Value")
+    shortDelay     := settings["Short Delay"].Get("Value")
+    mediumDelay    := settings["Medium Delay"].Get("Value")
+    longDelay      := settings["Long Delay"].Get("Value")
 
-    savePath := saveDirectory . filename . ".csv"
+    attempts          := 0
+    loopWasSuccessful := false
+    savePath          := saveDirectory . filename . ".csv"
 
-    KeyboardShortcut("CTRL", "N") ; Query with Current Connection
-    Sleep(longDelay)
-    PasteText(code, "--")
-    Sleep(mediumDelay)
-    SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
-    sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 360)
-    sqlServerManagentStudioQueryExecutedSuccessfullyImageCoordinates     := ExtractImageCoordinates(sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults)
-    sqlServerManagementStudioResultsWindowCoordinates                    := ModifyScreenCoordinates(80, -80, sqlServerManagentStudioQueryExecutedSuccessfullyImageCoordinates)
-    PerformMouseActionAtCoordinates("Left", sqlServerManagementStudioResultsWindowCoordinates)
-    Sleep(mediumDelay)
-    PerformMouseActionAtCoordinates("Right", sqlServerManagementStudioResultsWindowCoordinates)
-    Sleep(mediumDelay)
-    SendInput("v") ; Save Results As...
-    sqlServerManagementStudioSaveResultsWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"] . " ahk_class #32770", 60)
-    ActivateWindow(sqlServerManagementStudioSaveResultsWindowSearchResults)
-    KeyboardShortcut("ALT", "N") ; File name
-    Sleep(mediumDelay)
-    PasteText(savePath)
-    Sleep(shortDelay)
-    SendInput("{Enter}") ; Save
+    while attempts < maxAttempts {
+        attempts++
 
-    maximumWaitMilliseconds := longDelay * 10
-    startTickCount := A_TickCount
+        if attempts >= 2 {
+            shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
+            mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
+            longDelay   := longDelay + (attempts * methodRegistry[methodName]["Settings"]["Long Delay"]["Delta"])
 
-    fileExistsAlready := !!FileExist(savePath)
-
-    if !fileExistsAlready {
-        while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
-            Sleep(shortDelay)
+            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds. Long delay was " . longDelay . " milliseconds."
+            
+            IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
+
+        KeyboardShortcut("CTRL", "N") ; Query with Current Connection
+        Sleep(longDelay)
+
+        sqlServerManagementStudioConnectedImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Connected", 4)
+        if !sqlServerManagementStudioConnectedImageSearchResults["Success"] {
+            continue ; Failed to open a New Query window with the current connection, go to next attempt.
+        }
+
+        PasteText(code, "--")
+        Sleep(mediumDelay)
+        SendInput("{F5}") ; Run the selected portion of the query editor or the entire query editor if nothing is selected
+        Sleep(longDelay)
+
+        sqlServerManagementStudioConnectedImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Connected", 2)
+        if sqlServerManagementStudioConnectedImageSearchResults["Success"] {
+            continue ; Failed to run the query, go to next attempt.
+        }
+
+        sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates := unset
+        loop timesToAttempt {
+            sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 2)
+            if sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults["Success"] {
+                sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates := ExtractImageCoordinates(sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults)
+
+                break
+            }
+
+            sqlServerManagementStudioQueryCompletedWithErrorsImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Query completed with errors", 2)
+            if sqlServerManagementStudioQueryCompletedWithErrorsImageSearchResults["Success"] {
+                break
+            }
+        }
+
+        if !IsSet(sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates) {
+            continue ; Query failed, go to next attempt.
+        }
+        
+        sqlServerManagementStudioResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates)
+        
+        PerformMouseActionAtCoordinates("Left", sqlServerManagementStudioResultsWindowCoordinates)
+        Sleep(mediumDelay)
+        PerformMouseActionAtCoordinates("Right", sqlServerManagementStudioResultsWindowCoordinates)
+        Sleep(mediumDelay)
+        SendInput("v") ; Save Results As...
+        sqlServerManagementStudioSaveResultsWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"] . " ahk_class #32770", 60)
+        ActivateWindow(sqlServerManagementStudioSaveResultsWindowSearchResults)
+        KeyboardShortcut("ALT", "N") ; File name
+        Sleep(mediumDelay)
+        PasteText(savePath)
+        Sleep(shortDelay)
+        SendInput("{Enter}") ; Save
+
+        maximumWaitMilliseconds := longDelay * 10
+        startTickCount          := A_TickCount
+
+        fileExistsAlready := !!FileExist(savePath)
+
+        if !fileExistsAlready {
+            while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+                Sleep(shortDelay)
+            }
+        }
+
+        if fileExistsAlready {
+            previousModifiedTime := FileGetTime(savePath, "M")
+            Sleep(longDelay)
+            SendInput("y") ; Yes
+            startTickCount := A_TickCount
+            Sleep(longDelay)
+            while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+                Sleep(shortDelay)
+            }
+
+            if FileGetTime(savePath, "M") = previousModifiedTime {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Timed out waiting for overwrite: " . savePath)
+            }
+
+            Sleep(mediumDelay)
+        }
+
+        loopWasSuccessful := true
+        if attempts >= 2 {
+            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds. Long delay is " . longDelay . " milliseconds."
+
+            IncreaseMethodSetting(methodName, "Short Delay")
+            IncreaseMethodSetting(methodName, "Medium Delay")
+            IncreaseMethodSetting(methodName, "Long Delay")
+        }
+        
+        break
     }
 
-    if fileExistsAlready {
-        previousModifiedTime := FileGetTime(savePath, "M")
-        Sleep(longDelay)
-        SendInput("y") ; Yes
-        startTickCount := A_TickCount
-        Sleep(longDelay)
-        while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
-            Sleep(shortDelay)
-        }
-
-        if FileGetTime(savePath, "M") = previousModifiedTime {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Timed out waiting for overwrite: " . savePath)
-        }
-
-        Sleep(mediumDelay)
+    if !loopWasSuccessful {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to execute SQL query and save as CSV in " . maxAttempts . " attempts.")
     }
 
     LogConclusion("Completed", logValuesForConclusion)
