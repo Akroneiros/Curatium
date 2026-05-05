@@ -4,7 +4,7 @@
 
 AssignFileTimeAsLocalIso(filePath, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath, timeType], "Assign File Times As Local ISO")
 
     switch StrLower(timeType) {
@@ -320,7 +320,7 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
 
 SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
-    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Path], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("filePath As String [Constraint: Path], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath, localIsoDateTime, timeType], "Set File Time From Local ISO Date Time")
 
     if AssignFileTimeAsLocalIso(filePath, timeType) = localIsoDateTime {
@@ -398,7 +398,7 @@ ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
 }
 
 WaitUntilFileIsModifiedToday(filePath) {
-    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Save Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath], "Wait Until File is Modified Today: " . ExtractFilename(filePath, true))
 
     static defaultMethodSettingsSet := unset

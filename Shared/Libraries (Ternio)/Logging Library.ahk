@@ -346,8 +346,63 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
         encodedUtcTimestampInteger             ; UTC Timestamp Integer
 
     if logValuesForConclusion["Context"] != "" {
+        if !symbolLedger.Has(logValuesForConclusion["Context"] . "|C") {
+            logSymbolLedgerLine := RegisterSymbol(logValuesForConclusion["Context"], "Context", false)
+            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+        }
+
+        logValuesForConclusion["Context"] := symbolLedger[logValuesForConclusion["Context"] . "|C"]
+    }
+
+    logConclusion := logConclusion . "|" . 
+        logValuesForConclusion["Context"]  ; Method or Context
+
+    errorWindow := unset
+    if IsSet(errorMessage) {
+        windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
+        currentDateTime := ConvertIntegerToUtcTimestamp(system["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
+        newLine := "`r`n"
+
+        if logValuesForConclusion["Validation"] != "" {
+            errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
+        }
+        
+        declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
+
+        constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine
+        if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
+            constructedErrorMessage := constructedErrorMessage .
+                "Parameters: " . methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
+                "Arguments: " . logValuesForConclusion["Arguments Full"] . newLine
+        }
+
+        constructedErrorMessage := constructedErrorMessage . 
+            "Line Number: " . errorLineNumber . newLine
+
+        logErrorMessage := StrReplace(constructedErrorMessage . "Error Output: " . errorMessage, newLine, "|")
+        if !symbolLedger.Has(logErrorMessage . "|E") {
+            logSymbolLedgerLine := RegisterSymbol(logErrorMessage, "Error", false)
+            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+        }
+
         logConclusion := logConclusion . "|" . 
-            logValuesForConclusion["Context"]  ; Method or Context
+            symbolLedger[logErrorMessage . "|E"] ; Arguments or Error Message
+
+        constructedErrorMessage := constructedErrorMessage . 
+            "Date Runtime: " . currentDateTime . newLine . 
+            "Error Output: " . errorMessage
+
+        errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
+        errorWindow.SetFont("s10", "Segoe UI")
+        errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", constructedErrorMessage)
+
+        exitButton := errorWindow.AddButton("w60 Default", "Exit")
+        exitButton.OnEvent("Click", (*) => ExitApp())
+        exitButton.Focus()
+        errorWindow.OnEvent("Close", (*) => ExitApp())
+
+        copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
+        copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
     }
     
     switch conclusionStatus {
@@ -374,7 +429,7 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
 
                     if logValuesForConclusion["Arguments Log"] != "" {
                         logBeginning := logBeginning . "|" . 
-                            logValuesForConclusion["Arguments Log"]                                  ; Arguments
+                            logValuesForConclusion["Arguments Log"]                                  ; Arguments or Error Message
                     }
 
                 AppendLineToLog(logBeginning, "Operation Log")
@@ -390,34 +445,7 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
                 OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
             }
 
-            windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
-            currentDateTime := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
-            newLine := "`r`n"
-
-            if logValuesForConclusion["Validation"] != "" {
-                errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
-            }
-            
-            declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
-
-            constructedErrorMessage := unset
-            if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
-                constructedErrorMessage :=
-                    "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
-                    "Parameters: " .   methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
-                    "Arguments: " .    logValuesForConclusion["Arguments Full"] . newLine . 
-                    "Line Number: " .  errorLineNumber . newLine . 
-                    "Date Runtime: " . currentDateTime . newLine . 
-                    "Error Output: " . errorMessage
-            } else {
-                constructedErrorMessage :=
-                    "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine . 
-                    "Line Number: " .  errorLineNumber . newLine . 
-                    "Date Runtime: " . currentDateTime . newLine . 
-                    "Error Output: " . errorMessage
-            }
-
-            LogEngine("Failed", constructedErrorMessage)
+            LogEngine("Failed")
 
             if OverlayIsVisible() {
                 WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
@@ -427,24 +455,12 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
                 ExitApp()
             }
 
-            errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
-            errorWindow.SetFont("s10", "Segoe UI")
-            errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", constructedErrorMessage)
-
-            exitButton := errorWindow.AddButton("w60 Default", "Exit")
-            exitButton.OnEvent("Click", (*) => ExitApp())
-            exitButton.Focus()
-            errorWindow.OnEvent("Close", (*) => ExitApp())
-
-            copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
-            copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
-
             errorWindow.Show("AutoSize Center")
             WinWaitClose("ahk_id " . errorWindow.Hwnd)
     }
 }
 
-LogEngine(status, constructedErrorMessage := unset) {
+LogEngine(status) {
     global logEntries
     global logFilePath
     global system
@@ -532,7 +548,7 @@ LogEngine(status, constructedErrorMessage := unset) {
 
         newLine := "`r`n"
         WriteTextIntoFile("Log" . newLine, executionLogFilePath, "UTF-8-BOM", false)
-        WriteTextIntoFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments|Overlay Key|Overlay Value" . newLine, operationLogFilePath, "UTF-8-BOM", false)
+        WriteTextIntoFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value" . newLine, operationLogFilePath, "UTF-8-BOM", false)
         WriteTextIntoFile("Log" . newLine, runTelemetryFilePath, "UTF-8-BOM", false)
         WriteTextIntoFile("Reference|Type|Symbol" . newLine, symbolLedgerFilePath, "UTF-8-BOM", false)
 
@@ -610,61 +626,55 @@ LogEngine(status, constructedErrorMessage := unset) {
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
     }
 
-    switch status {
-        case "Completed":
-            if OverlayIsVisible() {
-                OverlayChangeTransparency(255)
-            }
-
-            BatchAppendRunTelemetry("Completed", runTelemetryLines)
-        case "Failed":
-            BatchAppendRunTelemetry("Failed", runTelemetryLines)
-
-            AppendLineToLog(constructedErrorMessage, "Run Telemetry")
-        case "Intermission":
-            BatchAppendRunTelemetry("Intermission", runTelemetryLines)
+    if status = "Completed" {
+        if OverlayIsVisible() {
+            OverlayChangeTransparency(255)
+        }
     }
 
-    switch status {
-        case "Completed", "Failed":
-            if IsSet(logFilePath) {
-                for index, filePath in logFilePath {
-                    file := FileOpen(filePath, "rw")
-                    if !file {
-                        continue
-                    }
+    if status != "Beginning" {
+        BatchAppendRunTelemetry(status, runTelemetryLines)
+    }
 
-                    fileSize := file.Length
-                    if fileSize = 0 {
-                        file.Close()
-                        continue
-                    }
-
-                    ; Trim last trailing newline.
-                    bytesToRead := (fileSize >= 2) ? 2 : 1
-                    file.Seek(-bytesToRead, 2)
-                    tail := Buffer(bytesToRead)
-                    file.RawRead(tail, bytesToRead)
-
-                    if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
-                        file.Length := fileSize - 2
-                    } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
-                        file.Length := fileSize - 1
-                    }
-
-                    file.Close()
-
-                    filePath := ""
+    if status = "Completed" || status = "Failed" {
+        if IsSet(logFilePath) {
+            for index, filePath in logFilePath {
+                file := FileOpen(filePath, "rw")
+                if !file {
+                    continue
                 }
 
-                timestampNow := A_Now
-                FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
-                FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
-                FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
-                FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+                fileSize := file.Length
+                if fileSize = 0 {
+                    file.Close()
+                    continue
+                }
 
-                logFilePath := unset
+                ; Trim last trailing newline.
+                bytesToRead := (fileSize >= 2) ? 2 : 1
+                file.Seek(-bytesToRead, 2)
+                tail := Buffer(bytesToRead)
+                file.RawRead(tail, bytesToRead)
+
+                if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
+                    file.Length := fileSize - 2
+                } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
+                    file.Length := fileSize - 1
+                }
+
+                file.Close()
+
+                filePath := ""
             }
+
+            timestampNow := A_Now
+            FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
+            FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
+            FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
+            FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+
+            logFilePath := unset
+        }
     }
 }
 
@@ -711,7 +721,7 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
                     argumentValueLog := symbolLedger[argument . "|W"]
                 } else {
                     switch argumentsFormatted["Data Constraint"] {
-                        case "Absolute Path", "Absolute Save Path":
+                        case "Path", "Valid Path":
                             SplitPath(argument, &filename, &directoryPath)
 
                             if !symbolLedger.Has(directoryPath . "|D") {
@@ -735,7 +745,7 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
 
                             argumentValueFull := summary
                             argumentValueLog := symbolLedger[summary . "|S"]
-                        case "Directory":
+                        case "Directory", "Valid Directory":
                             if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
                                 logSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
                                 AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
@@ -1025,9 +1035,13 @@ RegisterSymbol(value, type, addNewLine := true) {
     symbolLine     := ""
 
     switch StrLower(type) {
+        case "context", "c":
+            type := "C"
         case "directory", "d":
             type := "D"
             value := RTrim(value, "\")
+        case "error", "e":
+            type := "E"
         case "filename", "f":
             type := "F"
         case "hash", "h":
@@ -1452,8 +1466,12 @@ BatchAppendSymbolLedger(symbolType, array) {
     static newLine := "`r`n"
 
     switch StrLower(symbolType) {
+        case "context", "c":
+            symbolType := "C"
         case "directory", "d":
             symbolType := "D"
+        case "error", "e":
+            symbolType := "E"
         case "file", "f":
             symbolType := "F"
         case "hash", "h":

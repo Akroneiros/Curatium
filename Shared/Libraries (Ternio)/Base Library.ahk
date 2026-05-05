@@ -494,7 +494,7 @@ SetAutoHotkeyThreadPriority(threadPriority) {
 }
 
 ValidateConfiguration(configurationPath) {
-    static methodName := RegisterMethod("configurationPath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("configurationPath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [configurationPath], "Validate Configuration")
 
     global system
@@ -574,7 +574,7 @@ ValidateConfiguration(configurationPath) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset did not return the data type of String.")
     }
 
-    imageVariantPresetValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"]["Image Variant Preset"], "String", "Absolute Path")
+    imageVariantPresetValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"]["Image Variant Preset"], "String", "Path")
     if imageVariantPresetValidation != "" {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. " . imageVariantPresetValidation)
     }
@@ -891,16 +891,22 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 validation := "Value must be a String."
             } else {
                 switch dataConstraint {
-                    case "Absolute Path", "Absolute Save Path":
-                        isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
-                        isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+                    case "Path", "Valid Path":
+                        SplitPath(dataValue, &filename, &directoryPath)
+                        directoryPath := directoryPath . "\"
 
-                        if !(isDrive || isUNC) {
-                            validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."
-                        } else if !DirExist(ExtractDirectory(dataValue)) {
-                            validation := dataConstraint . " Directory doesn't exist."
-                        } else if !FileExist(dataValue) && dataConstraint = "Absolute Path" {
-                            validation := dataConstraint . " File doesn't exist."
+                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
+
+                        if validation = "" {
+                            if dataConstraint = "Path" {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
+                            } else {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
+                            }
+                        }
+
+                        if validation != "" {
+                            validation := dataConstraint . " " . validation
                         }
                     case "Base64":
                         if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
@@ -925,16 +931,16 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := dataConstraint . " has Y out of bounds. Valid 0 to " . (heightDisplayResolution - 1) . "."
                             }
                         }
-                    case "Directory":
+                    case "Directory", "Valid Directory":
                         isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
                         isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
 
                         if !(isDrive || isUNC) {
                             validation := dataConstraint . " path must start with a drive (C:\) or UNC path (\\server\share\)."
-                        } else if !DirExist(dataValue) {
-                            validation := dataConstraint . " doesn't exist."
                         } else if SubStr(dataValue, -1) != "\" {
                             validation := dataConstraint . " path must end with a backslash \."
+                        } else if !DirExist(dataValue) && dataConstraint = "Directory" {
+                            validation := dataConstraint . " doesn't exist."
                         }
                     case "Display Resolution":
                         if !IsSet(resolutions) {
@@ -1282,7 +1288,7 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
 }
 
 GetBase64FromFile(filePath) {
-    static methodName := RegisterMethod("filePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath])
 
     fileContentBuffer := FileRead(filePath, "RAW")

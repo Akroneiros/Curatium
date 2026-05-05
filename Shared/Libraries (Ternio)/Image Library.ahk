@@ -425,9 +425,9 @@ ExtractImageCoordinates(imageSearchResults) {
     return coordinatePair
 }
 
-GetImageDimensions(imageAbsolutePath) {
-    static methodName := RegisterMethod("imageAbsolutePath As String [Constraint: Absolute Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [imageAbsolutePath])
+GetImageDimensions(imagePath) {
+    static methodName := RegisterMethod("imagePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [imagePath])
 
     static gdiPlusStartupInputSize := (A_PtrSize = 8) ? 24 : 16
     static gdiPlusStartupInputBuffer := Buffer(gdiPlusStartupInputSize, 0)
@@ -445,7 +445,7 @@ GetImageDimensions(imageAbsolutePath) {
     }
 
     gdiPlusBitmapPointer := 0
-    gdiPlusCreateBitmapStatus := DllCall("GdiPlus\GdipCreateBitmapFromFile", "WStr", imageAbsolutePath, "Ptr*", &gdiPlusBitmapPointer, "UInt")
+    gdiPlusCreateBitmapStatus := DllCall("GdiPlus\GdipCreateBitmapFromFile", "WStr", imagePath, "Ptr*", &gdiPlusBitmapPointer, "UInt")
     if gdiPlusCreateBitmapStatus != 0 || !gdiPlusBitmapPointer {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to create a bitmap object based on the image. [GdiPlus\GdipCreateBitmapFromFile" . ", GDI+ Status Code: " . gdiPlusCreateBitmapStatus . "]")
     }
