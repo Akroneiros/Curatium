@@ -59,7 +59,7 @@ OverlayChangeVisibility() {
 }
 
 OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("methodNameInput As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
@@ -74,7 +74,7 @@ OverlayHideLogForMethod(methodNameInput) {
 }
 
 OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("methodNameInput As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
@@ -213,14 +213,6 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
     static lastRunTelemetryTick := unset
     static runTelemetryInterval := 12 * 60 * 1000
 
-    logValuesForConclusion := Map(
-        "Method Name",    methodName,
-        "Arguments Full", "",
-        "Arguments Log",  "",
-        "Validation",     "",
-        "Context",        ""
-    )
-
     timestamp := LogTimestamp()
 
     runTelemetryTick := A_TickCount
@@ -228,13 +220,23 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         lastRunTelemetryTick := runTelemetryTick
     }
 
+    logValuesForConclusion := Map(
+        "Method Name", methodName
+    )
+
+    if IsSet(overlayValue) {
+        logValuesForConclusion["Operation Sequence Number"] := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
+        logValuesForConclusion["Query Performance Counter"] := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
+        logValuesForConclusion["UTC Timestamp Integer"]     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+    } else {
+        logValuesForConclusion["Operation Sequence Number"] := NextOperationSequenceNumber()
+        logValuesForConclusion["Query Performance Counter"] := timestamp["QPC Midpoint Tick"]
+        logValuesForConclusion["UTC Timestamp Integer"]     := timestamp["UTC Timestamp Integer"]
+    }
+
     logBeginning := unset
     overlayKey   := unset
     if IsSet(overlayValue) {
-        encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
-        encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
-        encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
         if methodName != "OverlayInsertSpacer" && methodName != "OverlayUpdateCustomLine" {
             overlayKey := OverlayGenerateNextKey(methodName)
 
@@ -249,70 +251,51 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
             }
         }
 
-        logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
-
         logBeginning :=
-            encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
-            "B" .                                  "|" . ; Status
-            encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
-            encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
-            methodRegistry[methodName]["Symbol"]         ; Method or Context
+            logValuesForConclusion["Operation Sequence Number"] . "|" . ; Operation Sequence Number
+            "B" .                                                 "|" . ; Status
+            logValuesForConclusion["Query Performance Counter"] . "|" . ; Query Performance Counter
+            logValuesForConclusion["UTC Timestamp Integer"] .     "|" . ; UTC Timestamp Integer
+            methodRegistry[methodName]["Symbol"]                        ; Method or Context
     } else {
-        overlayKey := 0
+        overlayKey := -1
     }
 
     logValuesForConclusion["Overlay Key"] := overlayKey
 
     if arguments.Length != 0 {
-        logValuesForConclusion["Validation"] := LogValidateMethodArguments(methodName, arguments)
-        logValuesForConclusion               := LogFormatMethodArguments(logValuesForConclusion, arguments)
-
-        if IsSet(overlayValue) {
-            logBeginning := logBeginning . "|" . 
-                logValuesForConclusion["Arguments Log"]  ; Arguments
+        validation := LogValidateMethodArguments(methodName, arguments)
+        if validation != "" {
+            logValuesForConclusion["Validation"] := validation
         }
 
-        if !IsSet(overlayValue) && logValuesForConclusion["Validation"] != "" {
-            encodedOperationSequenceNumber := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
-            encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
-            encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
+        if logValuesForConclusion["Overlay Key"] != -1 {
+            logValuesForConclusion := LogFormatMethodArguments(logValuesForConclusion, arguments)
 
-            logValuesForConclusion["Operation Sequence Number"] := encodedOperationSequenceNumber
-
-            logBeginning :=
-                encodedOperationSequenceNumber .       "|" . ; Operation Sequence Number
-                "B" .                                  "|" . ; Status
-                encodedQueryPerformanceCounter .       "|" . ; Query Performance Counter
-                encodedUtcTimestampInteger .           "|" . ; UTC Timestamp Integer
-                methodRegistry[methodName]["Symbol"] . "|" . ; Method or Context
-                logValuesForConclusion["Arguments Log"]      ; Arguments
+            logBeginning := logBeginning . "|" . 
+                logValuesForConclusion["Arguments Log"] ; Arguments or Error Message
+        } else {
+            logValuesForConclusion["Arguments"] := arguments
         }
     }
 
-    if logValuesForConclusion["Overlay Key"] != 0 {
+    if logValuesForConclusion["Overlay Key"] >= 1 {
         if !symbolLedger.Has(overlayValue . "|O") {
             logOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
             AppendLineToLog(logOverlaySymbolLedgerLine, "Symbol Ledger")
         }
 
-        if IsSet(overlayValue) {
-            encodedOverlayKey := EncodeIntegerToBase(overlayKey, 94)
-
-            logBeginning := logBeginning . "|" . 
-                encodedOverlayKey . "|" .                ; Overlay Key
-                symbolLedger[overlayValue . "|O"]        ; Overlay Value
-        }
+        logBeginning := logBeginning . "|" . 
+            EncodeIntegerToBase(overlayKey, 94) . "|" . ; Overlay Key
+            symbolLedger[overlayValue . "|O"]           ; Overlay Value
     }
 
-    if IsSet(overlayValue) || logValuesForConclusion["Validation"] != "" {
+    if IsSet(logBeginning) {
         AppendLineToLog(logBeginning, "Operation Log")
+    }
 
-        if logValuesForConclusion["Validation"] != "" {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, logValuesForConclusion["Validation"])
-        }
-    } else {
-        logValuesForConclusion["QPC Midpoint Tick"]     := timestamp["QPC Midpoint Tick"]
-        logValuesForConclusion["UTC Timestamp Integer"] := timestamp["UTC Timestamp Integer"]
+    if logValuesForConclusion.Has("Validation") {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, logValuesForConclusion["Validation"])
     }
 
     if IsSet(overlayValue) {
@@ -328,47 +311,67 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset, errorMessage := unset) {
     timestamp := LogTimestamp()
 
-    if !logValuesForConclusion.Has("Operation Sequence Number") {
-        logValuesForConclusion["Operation Sequence Number"] := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
+    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
+
+    logConclusion := unset
+    if conclusionStatus = "Failed" && logValuesForConclusion["Overlay Key"] = -1 {
+        logValuesForConclusion["Operation Sequence Number"] := EncodeIntegerToBase(logValuesForConclusion["Operation Sequence Number"], 94)
+        logValuesForConclusion["Query Performance Counter"] := EncodeIntegerToBase(logValuesForConclusion["Query Performance Counter"], 94)
+        logValuesForConclusion["UTC Timestamp Integer"]     := EncodeIntegerToBase(logValuesForConclusion["UTC Timestamp Integer"], 94)
+
+        logBeginning :=
+            logValuesForConclusion["Operation Sequence Number"] . "|" .     ; Operation Sequence Number
+            "B" .                                                 "|" .     ; Status
+            logValuesForConclusion["Query Performance Counter"] . "|" .     ; Query Performance Counter
+            logValuesForConclusion["UTC Timestamp Integer"] .     "|" .     ; UTC Timestamp Integer
+            methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"] ; Method or Context
+
+            if logValuesForConclusion.Has("Arguments") {
+                logValuesForConclusion := LogFormatMethodArguments(logValuesForConclusion, logValuesForConclusion["Arguments"])
+
+                logBeginning := logBeginning . "|" . 
+                    logValuesForConclusion["Arguments Log"] ; Arguments or Error Message
+            }
+
+            AppendLineToLog(logBeginning, "Operation Log")
     }
 
-    encodedOperationSequenceNumber := logValuesForConclusion["Operation Sequence Number"]
-    encodedQueryPerformanceCounter := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
-    encodedUtcTimestampInteger     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-
-    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
-    status := SubStr(conclusionStatus, 1, 1)
-
     logConclusion := 
-        encodedOperationSequenceNumber . "|" . ; Operation Sequence Number
-        status .                         "|" . ; Status
-        encodedQueryPerformanceCounter . "|" . ; Query Performance Counter
-        encodedUtcTimestampInteger             ; UTC Timestamp Integer
+        logValuesForConclusion["Operation Sequence Number"] .     "|" . ; Operation Sequence Number
+        SubStr(conclusionStatus, 1, 1) .                          "|" . ; Status
+        EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94) . "|" . ; Query Performance Counter
+        EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)     ; UTC Timestamp Integer
 
-    if logValuesForConclusion["Context"] != "" {
+    if !logValuesForConclusion.Has("Context") && IsSet(errorMessage) {
+        logValuesForConclusion["Context"] := ""
+    }
+
+    if logValuesForConclusion.Has("Context") {
         if !symbolLedger.Has(logValuesForConclusion["Context"] . "|C") {
             logSymbolLedgerLine := RegisterSymbol(logValuesForConclusion["Context"], "Context", false)
             AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
         }
 
         logValuesForConclusion["Context"] := symbolLedger[logValuesForConclusion["Context"] . "|C"]
+
+        logConclusion := logConclusion . "|" . 
+            logValuesForConclusion["Context"] ; Method or Context
     }
 
-    logConclusion := logConclusion . "|" . 
-        logValuesForConclusion["Context"]  ; Method or Context
-
-    errorWindow := unset
+    errorWindow             := unset
+    constructedErrorMessage := unset
     if IsSet(errorMessage) {
-        windowTitle := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
-        currentDateTime := ConvertIntegerToUtcTimestamp(system["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
-        newLine := "`r`n"
+        windowTitle          := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
+        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
+        currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Time Zone Key Name"])
 
-        if logValuesForConclusion["Validation"] != "" {
+        if logValuesForConclusion.Has("Validation") {
             errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
         }
         
         declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
 
+        newLine := "`r`n"
         constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine
         if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
             constructedErrorMessage := constructedErrorMessage .
@@ -389,7 +392,7 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
             symbolLedger[logErrorMessage . "|E"] ; Arguments or Error Message
 
         constructedErrorMessage := constructedErrorMessage . 
-            "Date Runtime: " . currentDateTime . newLine . 
+            "Date Runtime: " . currentLocalDateTime . newLine . 
             "Error Output: " . errorMessage
 
         errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
@@ -404,59 +407,26 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
         copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
         copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
     }
-    
-    switch conclusionStatus {
-        case "Skipped":
-            AppendLineToLog(logConclusion, "Operation Log")
 
-            if logValuesForConclusion["Overlay Key"] !== 0 {
-                OverlayUpdateStatus(logValuesForConclusion, "Skipped")
-            }
-        case "Completed":
-            AppendLineToLog(logConclusion, "Operation Log")
+    AppendLineToLog(logConclusion, "Operation Log")
 
-            if logValuesForConclusion["Overlay Key"] !== 0 {
-                OverlayUpdateStatus(logValuesForConclusion, "Completed")
-            }
-        case "Failed":
-            if logValuesForConclusion.Has("QPC Midpoint Tick") && logValuesForConclusion.Has("UTC Timestamp Integer") {
-                logBeginning :=
-                    encodedOperationSequenceNumber .       "|" .                                     ; Operation Sequence Number
-                    "B" .                                  "|" .                                     ; Status
-                    EncodeIntegerToBase(logValuesForConclusion["QPC Midpoint Tick"], 94) . "|" .     ; Query Performance Counter
-                    EncodeIntegerToBase(logValuesForConclusion["UTC Timestamp Integer"], 94) . "|" . ; UTC Timestamp Integer
-                    methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"]                  ; Method or Context
+    if logValuesForConclusion["Overlay Key"] >= 1 {
+        OverlayUpdateStatus(logValuesForConclusion, conclusionStatus)
+    }
 
-                    if logValuesForConclusion["Arguments Log"] != "" {
-                        logBeginning := logBeginning . "|" . 
-                            logValuesForConclusion["Arguments Log"]                                  ; Arguments or Error Message
-                    }
+    if IsSet(errorMessage) {
+        if OverlayIsVisible() {
+            WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
+        }
 
-                AppendLineToLog(logBeginning, "Operation Log")
-            }
+        LogEngine("Failed")
 
-            AppendLineToLog(logConclusion, "Operation Log")
+        if logValuesForConclusion["Method Name"] = "AbortExecution" {
+            ExitApp()
+        }
 
-            if logValuesForConclusion["Overlay Key"] != 0 {
-                OverlayUpdateStatus(logValuesForConclusion, "Failed")
-            }
-
-            if logValuesForConclusion["Method Name"] = "ValidateApplicationFact" || logValuesForConclusion["Method Name"] = "ValidateApplicationInstalled" {
-                OverlayUpdateLine(overlayOrder.Length, StrReplace(overlayLines[overlayOrder.Length], overlayStatus["Beginning"], overlayStatus["Failed"]))
-            }
-
-            LogEngine("Failed")
-
-            if OverlayIsVisible() {
-                WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
-            }
-
-            if logValuesForConclusion["Method Name"] = "AbortExecution" {
-                ExitApp()
-            }
-
-            errorWindow.Show("AutoSize Center")
-            WinWaitClose("ahk_id " . errorWindow.Hwnd)
+        errorWindow.Show("AutoSize Center")
+        WinWaitClose("ahk_id " . errorWindow.Hwnd)
     }
 }
 
@@ -638,7 +608,7 @@ LogEngine(status) {
 
     if status = "Completed" || status = "Failed" {
         if IsSet(logFilePath) {
-            for index, filePath in logFilePath {
+            for logType, filePath in logFilePath {
                 file := FileOpen(filePath, "rw")
                 if !file {
                     continue
@@ -684,6 +654,9 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
     methodName := logValuesForConclusion["Method Name"]
 
     if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
+        logValuesForConclusion["Arguments Full"] := ""
+        logValuesForConclusion["Arguments Log"]  := ""
+
         return logValuesForConclusion
     }
 
@@ -763,12 +736,12 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
                             argumentValueLog  := "<Key>"
                             argumentValueFull := "<Key>"
                         case "Locator":
-                            if !symbolLedger.Has(argument . "|L") {
-                                logSymbolLedgerLine := RegisterSymbol(argument, "Locator", false)
+                            if !symbolLedger.Has(argument . "|R") {
+                                logSymbolLedgerLine := RegisterSymbol(argument, "Reference", false)
                                 AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
-                            argumentValueLog := symbolLedger[argument . "|L"]
+                            argumentValueLog := symbolLedger[argument . "|R"]
                         case "SHA-256":
                             encodedHash := EncodeSha256HexToBase(argument, 86)
                             if !symbolLedger.Has(encodedHash . "|H") {
@@ -1003,7 +976,7 @@ OverlayUpdateLine(overlayKey, overlayValue) {
     overlayLines[overlayKey] := overlayValue
 
     newText := ""
-    for index, lineKey in overlayOrder {
+    for lineKey in overlayOrder {
         newText .= (newText != "" ? "`n" : "") . overlayLines[lineKey]
     }
     overlayGui["StatusText"].Text := newText
@@ -1046,12 +1019,12 @@ RegisterSymbol(value, type, addNewLine := true) {
             type := "F"
         case "hash", "h":
             type := "H"
-        case "locator", "l":
-            type := "L"
         case "method", "m":
             type := "M"
         case "overlay", "o":
             type := "O"
+        case "reference", "r":
+            type := "R"
         case "summary", "s":
             type := "S"
         case "whitelist", "w":
@@ -1458,8 +1431,8 @@ BatchAppendRunTelemetry(appendType, array) {
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
-    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}"',
-        "Directory", "D", "File", "F", "Hash", "H", "Locator", "L", "Overlay", "O", "Summary", "S", "Whitelist", "W")
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}", "{15}", "{16}", "{17}", "{18}"',
+        "Context", "C", "Directory", "D", "Error", "E", "File", "F", "Hash", "H", "Overlay", "O", "Reference", "R", "Summary", "S", "Whitelist", "W")
     static methodName := RegisterMethod("symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [symbolType, array])
 
@@ -1476,10 +1449,10 @@ BatchAppendSymbolLedger(symbolType, array) {
             symbolType := "F"
         case "hash", "h":
             symbolType := "H"
-        case "locator", "l":
-            symbolType := "L"
         case "overlay", "o":
             symbolType := "O"
+        case "reference", "r":
+            symbolType := "R"
         case "summary", "s":
             symbolType := "S"
         case "whitelist", "w":
@@ -1489,7 +1462,7 @@ BatchAppendSymbolLedger(symbolType, array) {
     consolidatedSymbolLedger := ""
 
     symbolLedgerArray := []
-    for index, value in array {
+    for value in array {
         if value = "" {
             continue
         }

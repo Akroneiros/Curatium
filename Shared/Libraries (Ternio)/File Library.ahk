@@ -12,7 +12,7 @@ CleanOfficeLocksInFolder(directoryPath) {
     if filesInDirectory.Length = 0 {
         LogConclusion("Skipped", logValuesForConclusion)
     } else {
-        for index, filePath in filesInDirectory {
+        for filePath in filesInDirectory {
             SplitPath(filePath, &fileName)
 
             if SubStr(fileName, 1, 2) = "~$" {
@@ -36,10 +36,10 @@ CleanOfficeLocksInFolder(directoryPath) {
 
 ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], delimiter As String [Optional: |]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath], "Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")")
+    logValuesForConclusion := LogBeginning(methodName, [filePath, delimiter], "Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")")
 
-    hashValue := Hash.File("SHA256", filePath)
-    fileText  := ReadFileOnHashMatch(filePath, hashValue)
+    fileHash := GetFileHash(filePath, "SHA-256")
+    fileText := ReadFileOnHashMatch(filePath, fileHash)
 
     fileText := StrReplace(StrReplace(fileText, "`r`n", "`n"), "`r", "`n")
     allLines := StrSplit(fileText, "`n")
@@ -187,21 +187,9 @@ ReadFileOnHashMatch(filePath, expectedHash) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath, expectedHash], "Read File on Hash Match (" . ExtractFilename(filePath) . ")")
 
-    if !FileExist(filePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Missing file: " . filePath)
-    }
-
-    if StrLen(expectedHash) != 64 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Invalid SHA-256 hash length (" . StrLen(expectedHash) . " characters): " . filePath)
-    }
-
-    try {
-        fileHash := Hash.File("SHA256", filePath)
-        if fileHash != expectedHash {
-            throw Error("Hash mismatch in " . filePath . "`n`nExpected: " . expectedHash . "`nResults: " . fileHash)
-        }
-    } catch as hashMismatchError {
-        LogConclusion("Failed", logValuesForConclusion, hashMismatchError.Line, hashMismatchError.Message)
+    fileHash := GetFileHash(filePath, "SHA-256")
+    if fileHash != expectedHash {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Hash mismatch in " . filePath . ". Expected: " . expectedHash . ". Results: " . fileHash)
     }
 
     fileBuffer := FileRead(filePath, "RAW")
@@ -222,8 +210,8 @@ ReadFileOnHashMatch(filePath, expectedHash) {
     } else if totalSize >= 2 && byte1=0xFF && byte2=0xFE {
         fileText := StrGet(fileBuffer.Ptr + 2, (totalSize - 2) // 2, "UTF-16")
     } else if totalSize >= 2 && byte1=0xFE && byte2=0xFF {
-        beSize := totalSize - 2
-        swapped := Buffer(beSize)
+        beSize    := totalSize - 2
+        swapped   := Buffer(beSize)
         sourcePtr := fileBuffer.Ptr + 2
 
         loop beSize // 2 {
@@ -231,6 +219,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
             NumPut("UChar", NumGet(sourcePtr + offset, 1, "UChar"), swapped.Ptr + offset, 0)
             NumPut("UChar", NumGet(sourcePtr + offset, 0, "UChar"), swapped.Ptr + offset, 1)
         }
+
         fileText := StrGet(swapped.Ptr, beSize // 2, "UTF-16")
     } else if (totalSize >= 4 && ((byte1=0x00 && byte2=0x00 && byte3=0xFE && byte4=0xFF) || (byte1=0xFF && byte2=0xFE && byte3=0x00 && byte4=0x00))) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "UTF-32 encoded text for file " . filePath . " is not supported.")
@@ -505,6 +494,30 @@ GetFilesFromDirectory(directoryPath, filterValue := "") {
     }
 
     return files
+}
+
+GetFileHash(filePath, algorithm) {
+    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
+    static methodName := RegisterMethod("filePath as String, algorithm As String [Whitelist: " . appendTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [filePath, algorithm])
+
+    switch algorithm {
+        case "MD2": algorithm := "MD2"
+        case "MD4": algorithm := "MD4"
+        case "MD5": algorithm := "MD5"
+        case "SHA-1": algorithm := "SHA1"
+        case "SHA-256": algorithm := "SHA256"
+        case "SHA-384": algorithm := "SHA384"
+        case "SHA-512": algorithm := "SHA512"
+    }
+
+    try {
+        fileHash := Hash.File(algorithm, filePath)
+    } catch as fileHashError {
+        LogConclusion("Failed", logValuesForConclusion, fileHashError.Line, fileHashError.Message)
+    }
+
+    return fileHash
 }
 
 GetFoldersFromDirectory(directoryPath, emptyDirectoryAllowed := false) {

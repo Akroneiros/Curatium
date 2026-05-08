@@ -90,7 +90,7 @@ RegisterApplications() {
             readMeFilePath      := executableDirectory . "Documents\ReadMe.html"
 
             if FileExist(readMeFilePath) {
-                readMeFileContents := ReadFileOnHashMatch(readMeFilePath, Hash.File("SHA256", readMeFilePath))
+                readMeFileContents := ReadFileOnHashMatch(readMeFilePath, GetFileHash(readMeFilePath, "SHA-256"))
 
                 notInstalledApplication := "DaVinci Resolve Studio"
                 if InStr(readMeFileContents, "About DaVinci Resolve Studio") {
@@ -110,12 +110,12 @@ RegisterApplications() {
     }
 
     installedApplications := []
-    for outerKey, innerMap in applicationRegistry {
-        if innerMap["Installed"] {
-            configuration := outerKey . "|" . innerMap["Executable Path"] . "|" . innerMap["Executable Hash"] . "|" . innerMap["Executable Version"] . "|" . innerMap["Binary Type"]
-            configuration := configuration . "|" . innerMap["Counter"] . "|" . SubStr(innerMap["Resolution Method"], 1, 1)
+    for outerKey, innerValue in applicationRegistry {
+        if innerValue["Installed"] {
+            configuration := outerKey . "|" . innerValue["Executable Path"] . "|" . innerValue["Executable Hash"] . "|" . innerValue["Executable Version"] . "|" . innerValue["Binary Type"]
+            configuration := configuration . "|" . innerValue["Counter"] . "|" . SubStr(innerValue["Resolution Method"], 1, 1)
             installedApplications.Push(configuration)
-            innerMap["Executable Hash"] := DecodeBaseToSha256Hex(innerMap["Executable Hash"], 86)
+            innerValue["Executable Hash"] := DecodeBaseToSha256Hex(innerValue["Executable Hash"], 86)
         }
     }
 
@@ -359,7 +359,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                         }
 
                         versionKey := ""
-                        for versionPartIndex, versionPart in StrSplit(versionText, ".") {
+                        for versionPart in StrSplit(versionText, ".") {
                             versionKey .= Format("{:06}", Number(versionPart))
                         }
 
@@ -575,7 +575,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    executableHash := Hash.File("SHA256", applicationRegistry[applicationName]["Executable Path"])
+    executableHash := GetFileHash(applicationRegistry[applicationName]["Executable Path"], "SHA-256")
     executableHash := EncodeSha256HexToBase(executableHash, 86)
 
     executableVersion := "N/A"
@@ -748,7 +748,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
 ValidateApplicationFact(applicationName, factName, factValue) {
     static methodName := RegisterMethod("applicationName As String, factName As String, factValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, factName, factValue], "Validate Application Fact (" . applicationName . ", " . factName . ", " . factValue . ")")
+    logValuesForConclusion := LogBeginning(methodName, [applicationName, factName, factValue])
 
     if !applicationRegistry[applicationName].Has(factName) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" does not have a valid fact name: ' . factName)
@@ -757,13 +757,11 @@ ValidateApplicationFact(applicationName, factName, factValue) {
     if applicationRegistry[applicationName][factName] !== factValue {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
     }
-
-    LogConclusion("Completed", logValuesForConclusion)
 }
 
 ValidateApplicationInstalled(applicationName) {
     static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName], "Validate Application Installed (" . applicationName . ")")
+    logValuesForConclusion := LogBeginning(methodName, [applicationName])
 
     if !applicationRegistry.Has(applicationName) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application doesn't exist: " . applicationName)
@@ -775,7 +773,6 @@ ValidateApplicationInstalled(applicationName) {
 
     applicationIsInstalled := true
 
-    LogConclusion("Completed", logValuesForConclusion)
     return applicationIsInstalled
 }
 
@@ -917,18 +914,17 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             LogConclusion("Completed", logValuesForConclusion)
         } else if aboutRange = "ProgressionStatus" {
             conditionParts := StrSplit(aboutCondition, ", ")
-            builtPrefix := ""
-            matchedIndex := 0
-            conditionPartsCount := conditionParts.Length
+            builtPrefix    := ""
+            matchedIndex   := 0
 
             for index, currentPart in conditionParts {
                 if index = 1 {
                     builtPrefix := currentPart
                 } else {
-                    builtPrefix := builtPrefix ", " currentPart
+                    builtPrefix := builtPrefix . ", " . currentPart
                 }
 
-                candidateValue := builtPrefix "."
+                candidateValue := builtPrefix . "."
                 if aboutValues[aboutRange] = candidateValue {
                     matchedIndex := index
                     break

@@ -122,33 +122,6 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     return templateCombined
 }
 
-ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
-    static methodName := RegisterMethod("horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [horizontalValue, verticalValue, coordinatePair], "Modify Screen Coordinates (" . horizontalValue . "x" . verticalValue . ", " . coordinatePair . ")")
-
-    widthDisplayResolution  := A_ScreenWidth
-    heightDisplayResolution := A_ScreenHeight
-
-    coordinates := StrSplit(Trim(coordinatePair), "x")
-    originalX := coordinates[1] + 0
-    originalY := coordinates[2] + 0
-
-    newX := originalX + horizontalValue
-    newY := originalY + verticalValue
-    modifiedCoordinatePair := Format("{}x{}", newX, newY)
-
-    if newX < 0 || newX > widthDisplayResolution - 1 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
-    }
-
-    if newY < 0 || newY > heightDisplayResolution - 1 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
-    }
-
-    LogConclusion("Completed", logValuesForConclusion)
-    return modifiedCoordinatePair
-}
-
 PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
     static methodName := RegisterMethod("text As String [Constraint: Summary], commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
@@ -447,8 +420,8 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     }
 
     ; Press modifiers down.
-    for index, modifierName in normalizedModifierList {
-        Send "{" modifierName " down}"
+    for modifierName in normalizedModifierList {
+        Send("{" . modifierName . " down}")
     }
 
     originalSendMode := A_SendMode
@@ -461,7 +434,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     ; Release modifiers in reverse order.
     loop normalizedModifierList.Length {
         reverseIndex := normalizedModifierList.Length - A_Index + 1
-        Send "{" normalizedModifierList[reverseIndex] " up}"
+        Send("{" . normalizedModifierList[reverseIndex] . " up}")
     }
 
     CoordMode("Mouse", modeBeforeAction)
@@ -620,13 +593,13 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
     dataTypes  := ""
     metadata   := ""
 
-    parameterContracts := []
-    parameterParts := []
+    parameterContracts   := []
+    parameterParts       := []
     currentParameterText := ""
 
     if contract != "" {
-        squareBracketDepth := 0
-        inQuotedString := false
+        squareBracketDepth           := 0
+        inQuotedString               := false
         removeLeadingSpaceAfterComma := false
 
         loop parse contract {
@@ -707,9 +680,9 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
                     case "constraint":
                         dataConstraint := conceptValue
                     case "whitelist":
-                        for index, piece in StrSplit(conceptValue, '", "')
-                        {
+                        for piece in StrSplit(conceptValue, '", "') {
                             cleanedValue := Trim(piece, '" ')
+
                             if cleanedValue != "" {
                                 whitelist.Push(cleanedValue)
                             }
@@ -877,7 +850,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
             if whitelist.Length != 0 {
                 valueIsWhitelisted := false
 
-                for index, whitelistEntry in whitelist {
+                for whitelistEntry in whitelist {
                     if dataValue = whitelistEntry {
                         valueIsWhitelisted := true
                         break
@@ -885,29 +858,12 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 }
 
                 if !valueIsWhitelisted {
-                    validation := "Whitelisted values did not match value."
+                    validation := "Value did not match whitelisted values."
                 }
             } else if Type(dataValue) != "String" {
                 validation := "Value must be a String."
             } else {
                 switch dataConstraint {
-                    case "Path", "Valid Path":
-                        SplitPath(dataValue, &filename, &directoryPath)
-                        directoryPath := directoryPath . "\"
-
-                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
-
-                        if validation = "" {
-                            if dataConstraint = "Path" {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
-                            } else {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
-                            }
-                        }
-
-                        if validation != "" {
-                            validation := dataConstraint . " " . validation
-                        }
                     case "Base64":
                         if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
                             validation := dataConstraint . " invalid characters. Only A–Z, a–z, 0–9, +, /, and = allowed."
@@ -1089,6 +1045,31 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         } else if !RegExMatch(dataValue, "^[0-9a-fA-F]+$") {
                             validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
+                    case "Path", "Valid Path":
+                        SplitPath(dataValue, &filename, &directoryPath)
+                        directoryPath := directoryPath . "\"
+
+                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
+
+                        if validation = "" {
+                            if dataConstraint = "Path" {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
+                            }
+                            
+                            if dataConstraint = "Valid Path" {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
+                            }
+                        }
+
+                        if validation != "" {
+                            validation := dataConstraint . " " . validation
+                        }
+
+                        if validation = "" && dataConstraint = "Path" {
+                            if !FileExist(dataValue) {
+                                validation := dataConstraint . " invalid as the file doesn't exist."
+                            }
+                        }
                 }
             }
         case "Variant":
@@ -1247,8 +1228,8 @@ ExtractValuesFromArrayDimension(array, dimension) {
 
     arrayDimension := []
 
-    for outerIndex, innerArray in array {
-        arrayDimension.Push(innerArray[dimension])
+    for subArray in array {
+        arrayDimension.Push(subArray[dimension])
     }
 
     return arrayDimension
@@ -1260,19 +1241,19 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
 
     uniqueValues := []
 
-    for outerMapKey, innerMap in parentMapOfMaps {
-        if !innerMap.Has(subMapKeyName) {
+    for outerKey, innerValue in parentMapOfMaps {
+        if !innerValue.Has(subMapKeyName) {
             continue
         }
 
-        currentValue := innerMap[subMapKeyName]
+        currentValue := innerValue[subMapKeyName]
 
         if currentValue = "" {
             continue
         }
 
         valueExists := false
-        for index, existingValue in uniqueValues {
+        for existingValue in uniqueValues {
             if existingValue = currentValue {
                 valueExists := true
                 break
@@ -1413,6 +1394,32 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     }
 
     Sleep(tinyDelay)
+}
+
+ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
+    static methodName := RegisterMethod("horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [horizontalValue, verticalValue, coordinatePair])
+
+    widthDisplayResolution  := A_ScreenWidth
+    heightDisplayResolution := A_ScreenHeight
+
+    coordinates := StrSplit(Trim(coordinatePair), "x")
+    originalX := coordinates[1] + 0
+    originalY := coordinates[2] + 0
+
+    newX := originalX + horizontalValue
+    newY := originalY + verticalValue
+    modifiedCoordinatePair := Format("{}x{}", newX, newY)
+
+    if newX < 0 || newX > widthDisplayResolution - 1 {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
+    }
+
+    if newY < 0 || newY > heightDisplayResolution - 1 {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
+    }
+
+    return modifiedCoordinatePair
 }
 
 RemoveDuplicatesFromArray(array) {
@@ -2756,7 +2763,7 @@ GetBios() {
             if biosVersionCandidate = "" {
                 biosVersionField := record.BIOSVersion
                 if IsObject(biosVersionField) {
-                    for index, versionEntry in biosVersionField {
+                    for versionEntry in biosVersionField {
                         if Trim(versionEntry . "") != "" {
                             biosVersionCandidate := Trim(versionEntry . "")
                             break
@@ -2774,7 +2781,7 @@ GetBios() {
             ; UEFI-capable via WMI: 75 = "UEFI specification supported".
             biosCharacteristics := record.BiosCharacteristics
             if IsObject(biosCharacteristics) {
-                for index, characteristicCode in biosCharacteristics {
+                for characteristicCode in biosCharacteristics {
                     if characteristicCode + 0 = 75 {
                         uefiIsEnabled := true
                         break

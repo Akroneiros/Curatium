@@ -23,8 +23,8 @@ CreateApplicationImages() {
     }
 
     installedApplicationsWithImageLibraryDataCount := 0
-    for outerKey, innerMap in applicationRegistry {
-        if innermap["Installed"] {
+    for outerKey, innerValue in applicationRegistry {
+        if innerValue["Installed"] {
             for applicationName in applicationImageLibraryDataFiles {
                 if outerKey = applicationName {
                     installedApplicationsWithImageLibraryDataCount := installedApplicationsWithImageLibraryDataCount + 1
@@ -119,18 +119,18 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         }
 
         fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
-        for index, rowMap in fileSignatures {
-            rowMap["Maximum Base64 Signature"] := ConvertHexStringToBase64(rowMap["Maximum Hex Signature"])
+        for fileSignature in fileSignatures {
+            fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
         }
 
         resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
-        for index, rowMap in resolutions {
-            rowMap["Counter"] := index
+        for outerKey, innerValue in resolutions {
+            innerValue["Counter"] := outerKey
         }
 
         scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
-        for index, rowMap in scales {
-            rowMap["Counter"] := index
+        for outerKey, innerValue in scales {
+            innerValue["Counter"] := outerKey
         }
 
         displayResolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", system["Display Resolution"])["Counter"] . ""
@@ -240,7 +240,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         for image in pendingBase64ImageWriteQueue {
             filePath := system["Images Directory"] . image["Directory"] . "\" . image["Filename"]
             if FileExist(filePath) {
-                if image["SHA-256"] != Hash.File("SHA256", filePath) {
+                if image["SHA-256"] != GetFileHash(filePath, "SHA-256") {
                     DeleteFile(filePath)
                 }
             }
@@ -279,7 +279,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
     if !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) {
         fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
-        for index, rowMap in fileSignatures {
+        for rowMap in fileSignatures {
             rowMap["Maximum Base64 Signature"] := ConvertHexStringToBase64(rowMap["Maximum Hex Signature"])
         }
 
@@ -300,7 +300,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
     SplitPath(RTrim(directoryPath, "\/"), &referenceDirectoryName)
     referenceIsApplication := false
-    for index, application in applications {
+    for application in applications {
         if application["Name"] = referenceDirectoryName {
             referenceIsApplication := true
             break
@@ -325,7 +325,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     if FileExist(imageLibraryDataReferenceFilePath) {
         imageLibraryDataReferenceFile := ConvertCsvToArrayOfMaps(imageLibraryDataReferenceFilePath)
 
-        for index, rowMap in imageLibraryDataReferenceFile {
+        for rowMap in imageLibraryDataReferenceFile {
             if counter < rowMap["Counter"] {
                 counter := rowMap["Counter"]
             }
@@ -339,7 +339,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     dataEntries     := []
 
     actionImageDirectories := GetFoldersFromDirectory(directoryPath)
-    for index, actionFolderPath in actionImageDirectories {
+    for actionFolderPath in actionImageDirectories {
         SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
 
         if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
@@ -374,12 +374,12 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
             resolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", parts[1])["Counter"]
             scale      := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", parts[2])["Counter"]
 
-            fileHash    := Hash.File("SHA256", A_LoopFileFullPath)
+            fileHash    := GetFileHash(A_LoopFileFullPath, "SHA-256")
             encodedHash := EncodeSha256HexToBase(fileHash, 86)
             base64Data  := GetBase64FromFile(A_LoopFileFullPath)
 
             extension := ""
-            for index, rowMap in fileSignatures {
+            for rowMap in fileSignatures {
                 maximumBase64Signature := rowMap["Maximum Base64 Signature"]
                 if SubStr(base64Data, 1, StrLen(maximumBase64Signature)) = maximumBase64Signature {
                     extension  := rowMap["Extension"]
