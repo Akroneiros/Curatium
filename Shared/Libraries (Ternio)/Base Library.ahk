@@ -1,9 +1,35 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include ..\jsongo_AHKv2 (2025-02-26)\jsongo.v2.ahk
+#Include Application Library.ahk
+#Include Chrono Library.ahk
+#Include File Library.ahk
+#Include Image Library.ahk
 #Include Logging Library.ahk
 
+global applicationRegistry := Map()
+global imageRegistry  := Map()
 global methodRegistry := Map()
+global overlay        := Map(
+    "GUI",    Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
+    "Lines",  Map(),
+    "Order",  [],
+    "Status", Map(
+        "Beginning", "... Beginning " . "▶️",
+        "Skipped",   "... Skipped " .   "➡️",
+        "Completed", "... Completed " . "✔️",
+        "Failed",    "... Failed " .    "✖️"
+    )
+)
+global symbolLedger := Map()
+global system       := Map(
+    "Configuration", Map(),
+    "Directories",   Map(),
+    "Environment",   Map(),
+    "Logging",       Map(),
+    "Runtime",       Map(),
+    "Snapshot",      Map()
+)
 
 ActivateWindow(windowSearchResults, maximizeWindow := false) {
     static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
@@ -76,8 +102,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     }
     logValuesForConclusion := LogBeginning(methodName, [version], overlayValue)
 
-    spreadsheetOperationsTemplateDirectory := system["Shared Directory"] . "Spreadsheet Operations Template\"
-    versionManifestFilePath := spreadsheetOperationsTemplateDirectory . "Version Manifest.ini"
+    versionManifestFilePath := system["Directories"]["Spreadsheet Operations Template"] . "Version Manifest.ini"
     version := StrReplace(version, "v", "")
 
     if version = "" {
@@ -115,8 +140,8 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         "Outro SHA-256", outroHash
     )
 
-    templateCombined["Intro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
-    templateCombined["Outro Code"] := ReadFileOnHashMatch(spreadsheetOperationsTemplateDirectory . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
+    templateCombined["Intro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
+    templateCombined["Outro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
 
     LogConclusion("Completed", logValuesForConclusion)
     return templateCombined
@@ -303,9 +328,6 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static methodName := RegisterMethod("mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [mouseAction, coordinatePair], "Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")")
 
-    widthDisplayResolution  := A_ScreenWidth
-    heightDisplayResolution := A_ScreenHeight
-
     coordinates := StrSplit(coordinatePair, "x")
     x := coordinates[1] + 0
     y := coordinates[2] + 0
@@ -357,9 +379,6 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
 
     modeBeforeAction := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
-
-    widthDisplayResolution  := A_ScreenWidth
-    heightDisplayResolution := A_ScreenHeight
 
     startCoordinates := StrSplit(startCoordinatePair, "x")
     startX := startCoordinates[1] + 0
@@ -494,14 +513,13 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    subSettings := [["Image Variant Preset", "String"]]
-    for setting in subSettings {
-        if !system["Configuration"]["Settings"].Has(setting[1]) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings missing " . setting[1] . ".")
+    for applicationWhitelist in system["Configuration"]["Application Whitelist"] {
+        if Type(applicationWhitelist) != "String" {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
         }
 
-        if Type(system["Configuration"]["Settings"][setting[1]]) != setting[2] {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+        if !applicationRegistry.Has(applicationWhitelist) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
         }
     }
 
@@ -527,29 +545,48 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    for applicationWhitelist in system["Configuration"]["Application Whitelist"] {
-        if Type(applicationWhitelist) != "String" {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
-        }
-
-        if !applicationRegistry.Has(applicationWhitelist) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
-        }
-    }
-
     for candidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
         if Type(candidateBaseDirectory) != "String" {
             LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
         }
     }
 
-    if Type(system["Configuration"]["Settings"]["Image Variant Preset"]) != "String" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset did not return the data type of String.")
+    subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"]]
+    for setting in subSettings {
+        if !system["Configuration"]["Settings"].Has(setting[1]) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
+        }
+
+        if Type(system["Configuration"]["Settings"][setting[1]]) != setting[2] {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+        }
+
+        if system["Configuration"]["Settings"][setting[1]] != "" {
+            settingValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"][setting[1]], setting[2], setting[3])
+            if settingValidation != "" {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " failed validation. " . settingValidation)
+            }
+        }
     }
 
-    imageVariantPresetValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"]["Image Variant Preset"], "String", "Path")
-    if imageVariantPresetValidation != "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. " . imageVariantPresetValidation)
+    if system["Configuration"]["Settings"]["Application Image Override Directory"] != "" {
+        filesInDirectory := GetFilesFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        if filesInDirectory.Length != 0 {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Expected no files in directory but found " . filesInDirectory.Length . ".")
+        }
+
+        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        for applicationFolder in applicationFolders {
+            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
+
+            if !applicationRegistry.Has(applicationName) {
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Application " . applicationName . " doesn't exist.")
+            }
+        }
+
+        if applicationFolders.Length != 0 {
+            system["Directories"]["Application Image Override Directory"] := system["Configuration"]["Settings"]["Application Image Override Directory"]
+        }
     }
 
     LogConclusion("Completed", logValuesForConclusion)
@@ -559,13 +596,13 @@ ValidateDisplayScaling() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [], "Validate Display Scaling")
 
-    validateDisplayResolution := ValidateDataUsingSpecification(system["Display Resolution"], "String", "Display Resolution")
+    validateDisplayResolution := ValidateDataUsingSpecification(system["Environment"]["Display Resolution"], "String", "Display Resolution")
 
     if validateDisplayResolution != "" {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDisplayResolution)
     }
 
-    validateDpiScale := ValidateDataUsingSpecification(system["DPI Scale"], "String", "DPI Scale")
+    validateDpiScale := ValidateDataUsingSpecification(system["Environment"]["DPI Scale"], "String", "DPI Scale")
 
     if validateDpiScale != "" {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDpiScale)
@@ -605,7 +642,6 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
         loop parse contract {
             currentCharacter := A_LoopField
 
-            ; While inQuotedString = true, commas and brackets are considered literal characters.
             if currentCharacter = '"' {
                 inQuotedString := !inQuotedString
                 currentParameterText .= currentCharacter
@@ -793,6 +829,11 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
 
+    static base52CharacterSet := unset
+    static base66CharacterSet := unset
+    static base86CharacterSet := unset
+    static base94CharacterSet := unset
+
     static resolutions := unset
     static scales      := unset
 
@@ -864,6 +905,28 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 validation := "Value must be a String."
             } else {
                 switch dataConstraint {
+                    case "Base52", "Base66", "Base86", "Base94":
+                        if !IsSet(base52CharacterSet) {
+                            base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
+                            base66CharacterSet := GetBaseCharacterSet(66)["Digit Map"]
+                            base86CharacterSet := GetBaseCharacterSet(86)["Digit Map"]
+                            base94CharacterSet := GetBaseCharacterSet(94)["Digit Map"]
+                        }
+
+                        baseCharacterSet := unset
+                        switch dataConstraint {
+                            case "Base52": baseCharacterSet := base52CharacterSet
+                            case "Base66": baseCharacterSet := base66CharacterSet
+                            case "Base86": baseCharacterSet := base86CharacterSet
+                            case "Base94": baseCharacterSet := base94CharacterSet
+                        }
+
+                        Loop Parse dataValue {
+                            if !baseCharacterSet.Has(A_LoopField) {
+                                validation := dataConstraint . " has invalid character: " . A_LoopField
+                                break
+                            }
+                        }
                     case "Base64":
                         if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
                             validation := dataConstraint . " invalid characters. Only A–Z, a–z, 0–9, +, /, and = allowed."
@@ -878,9 +941,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 
                         if !RegExMatch(dataValue, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
                             validation := dataConstraint . " is not formatted correctly."
-                        } else if (
-                            (x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)
-                        ) {
+                        } else if ((x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)) {
                             if x < 0 || x >= widthDisplayResolution {
                                 validation := dataConstraint . " has X out of bounds. Valid 0 to " . (widthDisplayResolution - 1) . "."
                             } else {
@@ -900,7 +961,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
                     case "Display Resolution":
                         if !IsSet(resolutions) {
-                            resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
+                            resolutions := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Resolutions (2025-09-20).csv")
                         }
 
                         validation := dataConstraint . " is invalid."
@@ -912,7 +973,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
                     case "DPI Scale":
                         if !IsSet(scales) {
-                            scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
+                            scales := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Scales (2025-09-20).csv")
                         }
 
                         validation := dataConstraint . " is invalid."
@@ -1788,6 +1849,30 @@ GetComputerIdentifier() {
     return computerIdentifier
 }
 
+GetTextHash(text, algorithm) {
+    static algorithmWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
+    static methodName := RegisterMethod("text as String, algorithm As String [Whitelist: " . algorithmWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [text, algorithm])
+
+    switch algorithm {
+        case "MD2": algorithm := "MD2"
+        case "MD4": algorithm := "MD4"
+        case "MD5": algorithm := "MD5"
+        case "SHA-1": algorithm := "SHA1"
+        case "SHA-256": algorithm := "SHA256"
+        case "SHA-384": algorithm := "SHA384"
+        case "SHA-512": algorithm := "SHA512"
+    }
+
+    try {
+        textHash := Hash.String(algorithm, text)
+    } catch as textHashError {
+        LogConclusion("Failed", logValuesForConclusion, textHashError.Line, textHashError.Message)
+    }
+
+    return textHash
+}
+
 GetTimeZoneKeyName() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName)
@@ -2069,7 +2154,7 @@ GetMemorySizeAndType() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName)
 
-    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "System Management BIOS Type 17 Memory Device - Type.csv")
+    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv")
 
     ramValues := Map()
     for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypes {
@@ -2530,8 +2615,8 @@ GetActiveMonitor() {
     DISPLAY_DEVICE_ACTIVE := 0x00000001
 
 
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
 
     plugAndPlayManufacturers := Map()
     for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {

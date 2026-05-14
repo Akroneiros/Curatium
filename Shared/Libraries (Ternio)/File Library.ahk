@@ -1,5 +1,9 @@
 #Requires AutoHotkey v2.0
 #Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
+#Include Application Library.ahk
+#Include Base Library.ahk
+#Include Chrono Library.ahk
+#Include Image Library.ahk
 #Include Logging Library.ahk
 
 CleanOfficeLocksInFolder(directoryPath) {
@@ -239,14 +243,14 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     static methodName := RegisterMethod("base64Text As String [Constraint: Base64], filePath As String [Constraint: Valid Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . ExtractFilename(filePath) . ")")
     
-    requiredSizeInBytes := 0
-    decodedByteCount := 0
+    requiredSizeInBytes   := 0
+    decodedByteCount      := 0
     cryptStringBase64Flag := 0x1
-    decodedBinaryBuffer := unset
+    decodedBinaryBuffer   := unset
 
     needsWrite := true
     if FileExist(filePath) {
-        fileHash := Hash.File("SHA256", filePath)
+        fileHash := GetFileHash(filePath, "SHA-256")
 
         if !(StrUpper(fileHash) = StrUpper(expectedHash)) {
             DeleteFile(filePath)
@@ -306,7 +310,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
             }
         }
 
-        temporaryFilePath := filePath ".part"
+        temporaryFilePath := filePath . ".part"
         try {
             fileHandle := FileOpen(temporaryFilePath, "w")
             if !IsObject(fileHandle) {
@@ -333,13 +337,18 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     }
 }
 
-WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM", overwrite := true) {
+WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
-    static methodName := RegisterMethod("text As String [Constraint: Summary], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], overwrite as Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding, overwrite], "Write Text Into File" . " (" . ExtractFilename(filePath) . ")")
+    static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
+    static methodName := RegisterMethod("text As String [Constraint: Summary], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding, mode], "Write Text Into File" . " (" . ExtractFilename(filePath) . ") with Mode: " . mode)
 
-    if overwrite = false && FileExist(filePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File already exists and overwrite parameter is set to false.")
+    if mode = "Create" && FileExist(filePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File already exists.")
+    }
+
+    if !FileExist(filePath) && (mode = "Append" || mode = "Append Break") {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File doesn't exist.")
     }
 
     switch encoding {
@@ -348,14 +357,22 @@ WriteTextIntoFile(text, filePath, encoding := "UTF-8-BOM", overwrite := true) {
         case "UTF-16 LE BOM": encoding := "UTF-16"
     }
     
-    fileHandle := unset
+    if mode = "Append Break" {
+        text := "`r`n" . text
+    }
+
+    switch mode {
+        case "Append", "Append Break": mode := "a"
+        case "Create", "Overwrite": mode := "w"
+    }
+
     try {
-        fileHandle := FileOpen(filePath, "w", encoding)
+        fileHandle := FileOpen(filePath, mode, encoding)
         fileHandle.Write(text)
         fileHandle.Close()
     } catch as fileWriteError {
         LogConclusion("Failed", logValuesForConclusion, fileWriteError.Line, fileWriteError.Message)
-    }    
+    }
 
     LogConclusion("Completed", logValuesForConclusion)
 }
@@ -497,8 +514,8 @@ GetFilesFromDirectory(directoryPath, filterValue := "") {
 }
 
 GetFileHash(filePath, algorithm) {
-    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
-    static methodName := RegisterMethod("filePath as String, algorithm As String [Whitelist: " . appendTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static algorithmWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
+    static methodName := RegisterMethod("filePath as String, algorithm As String [Whitelist: " . algorithmWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filePath, algorithm])
 
     switch algorithm {
@@ -520,19 +537,15 @@ GetFileHash(filePath, algorithm) {
     return fileHash
 }
 
-GetFoldersFromDirectory(directoryPath, emptyDirectoryAllowed := false) {
-    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], emptyDirectoryAllowed As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath, emptyDirectoryAllowed])
+GetFoldersFromDirectory(directoryPath) {
+    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
 
     folders := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
     loop files, pattern, "D" {
         folders.Push(A_LoopFileFullPath . "\")
-    }
-
-    if !emptyDirectoryAllowed && folders.Length = 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory exists but contains no folders: " . directoryPath)
     }
 
     return folders

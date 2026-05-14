@@ -1,27 +1,13 @@
 #Requires AutoHotkey v2.0
-#Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include Application Library.ahk
 #Include Base Library.ahk
 #Include Chrono Library.ahk
+#Include File Library.ahk
 #Include Image Library.ahk
-
-global logEntries    := []
-global logFilePath   := unset
-global overlayGui    := unset
-global overlayLines  := Map()
-global overlayOrder  := []
-global overlayStatus := Map(
-    "Beginning", "... Beginning " . "▶️",
-    "Skipped",   "... Skipped " .   "➡️",
-    "Completed", "... Completed " . "✔️",
-    "Failed",    "... Failed " .    "✖️"
-)
-global symbolLedger  := Map()
-global system        := Map()
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
-    if IsSet(logFilePath) {
+    if !system["Logging"].Has("Log to Array") {
         Critical "On"
         AbortExecution()
     } else {
@@ -40,7 +26,7 @@ OverlayChangeTransparency(transparencyValue) {
     static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
 
-    WinSetTransparent(transparencyValue, "ahk_id " . overlayGui.Hwnd)
+    WinSetTransparent(transparencyValue, "ahk_id " . overlay["GUI"].Hwnd)
 
     LogConclusion("Completed", logValuesForConclusion)
 }
@@ -49,10 +35,10 @@ OverlayChangeVisibility() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [], "Overlay Change Visibility")
 
-    if DllCall("User32\IsWindowVisible", "Ptr", overlayGui.Hwnd) {
-        overlayGui.Hide()
+    if DllCall("User32\IsWindowVisible", "Ptr", overlay["GUI"].Hwnd) {
+        overlay["GUI"].Hide()
     } else {
-        overlayGui.Show("NoActivate")
+        overlay["GUI"].Show("NoActivate")
     }
 
     LogConclusion("Completed", logValuesForConclusion)
@@ -94,13 +80,14 @@ OverlayStart() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [], "Overlay Start")
 
-    global overlayGui
+    global overlay
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
         ConfigureMethodSetting(methodName, "Base Logical Width", 960, 640, 7680)
         ConfigureMethodSetting(methodName, "Base Logical Height", 920, 480, 4320)
         ConfigureMethodSetting(methodName, "Overlay Transparency", 172, 0, 255)
+        ConfigureMethodSetting(methodName, "Font Size", 10, 6, 24)
 
         defaultMethodSettingsSet := true
     }
@@ -109,19 +96,19 @@ OverlayStart() {
     baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
     baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
     overlayTransparency := settings["Overlay Transparency"].Get("Value")
+    fontSize            := settings["Font Size"].Get("Value")
 
-    overlayGui := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +DPIScale")
-    overlayGui.BackColor := "0x000000"
-    overlayGui.SetFont("s11 cWhite", "Consolas")
-    overlayGui.MarginX := 0
-    overlayGui.MarginY := 0
+    overlay["GUI"].BackColor := "0x000000"
+    overlay["GUI"].SetFont("s" . fontSize . " cWhite", "Consolas")
+    overlay["GUI"].MarginX := 0
+    overlay["GUI"].MarginY := 0
 
-    statusTextControl := overlayGui.Add("Text", "vStatusText w" . baseLogicalWidth . " h" . baseLogicalHeight . " +0x1", "")
+    statusTextControl := overlay["GUI"].Add("Text", "vStatusText w" . baseLogicalWidth . " h" . baseLogicalHeight . " +0x1", "")
 
     measureVisualRectangle := () => (
-        overlayGui.Show("Hide AutoSize"),
+        overlay["GUI"].Show("Hide AutoSize"),
         rectBuffer := Buffer(16, 0),
-        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlayGui.Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
+        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlay["GUI"].Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
         Map(
             "left",   NumGet(rectBuffer,  0, "Int"),
             "top",    NumGet(rectBuffer,  4, "Int"),
@@ -131,8 +118,8 @@ OverlayStart() {
     )
 
     visualRectangle := measureVisualRectangle()
-    visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
-    visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
+    visualWidth     := visualRectangle["right"]  - visualRectangle["left"]
+    visualHeight    := visualRectangle["bottom"] - visualRectangle["top"]
 
     ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
     adjustAttemptsForWidth := 0
@@ -140,7 +127,7 @@ OverlayStart() {
         baseLogicalWidth += 1
         statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
         visualRectangle := measureVisualRectangle()
-        visualWidth  := visualRectangle["right"]  - visualRectangle["left"]
+        visualWidth := visualRectangle["right"] - visualRectangle["left"]
         adjustAttemptsForWidth += 1
     }
 
@@ -160,8 +147,8 @@ OverlayStart() {
     centeredX := Round(workLeft + (workAreaWidth  - visualWidth)  / 2)
     centeredY := Round(workTop  + (workAreaHeight - visualHeight) / 2)
 
-    overlayGui.Show("x" . centeredX . " y" . centeredY . " NoActivate")
-    WinSetTransparent(overlayTransparency, overlayGui.Hwnd)
+    overlay["GUI"].Show("x" . centeredX . " y" . centeredY . " NoActivate")
+    WinSetTransparent(overlayTransparency, overlay["GUI"].Hwnd)
 
     LogConclusion("Completed", logValuesForConclusion)
 }
@@ -191,21 +178,21 @@ OverlayUpdateCustomLine(overlayKey, overlayValue) {
 AppendLineToLog(line, logType) {
     static newLine := "`r`n"
 
-    if IsSet(logFilePath) {
+    if !system["Logging"].Has("Log to Array") {
         callerWasCritical := A_IsCritical
         if !callerWasCritical {
             Critical "On"
         }
 
         try {
-            FileAppend(line . newLine, logFilePath[logType], "UTF-8-RAW")
+            FileAppend(line . newLine, system["Logging"]["Log File Path"][logType], "UTF-8-RAW")
         } finally {
             if !callerWasCritical {
                 Critical "Off"
             }
         }
     } else {
-        logEntries.Push([line, logType])
+        system["Logging"]["Log Entries"].Push([line, logType])
     }
 }
 
@@ -241,7 +228,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
             overlayKey := OverlayGenerateNextKey(methodName)
 
             if overlayKey != 0 {
-                OverlayUpdateLine(overlayKey, overlayValue . overlayStatus["Beginning"])
+                OverlayUpdateLine(overlayKey, overlayValue . overlay["Status"]["Beginning"])
             }
         } else {
             if methodName = "OverlayInsertSpacer" {
@@ -361,9 +348,9 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
     errorWindow             := unset
     constructedErrorMessage := unset
     if IsSet(errorMessage) {
-        windowTitle          := "AutoHotkey v" . system["AutoHotkey Version"] . ": " . A_ScriptName
-        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
-        currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Time Zone Key Name"])
+        windowTitle          := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
+        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Snapshot"]["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
+        currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone Key Name"])
 
         if logValuesForConclusion.Has("Validation") {
             errorLineNumber := methodRegistry[logValuesForConclusion["Method Name"]]["Validation Line"]
@@ -372,7 +359,7 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
         declaration := RegExReplace(methodRegistry[logValuesForConclusion["Method Name"]]["Declaration"], " <\d+>$", "")
 
         newLine := "`r`n"
-        constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Library Release"] . ")" . newLine
+        constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Runtime"]["Library Release"] . ")" . newLine
         if methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] != "" {
             constructedErrorMessage := constructedErrorMessage .
                 "Parameters: " . methodRegistry[logValuesForConclusion["Method Name"]]["Parameters"] . newLine . 
@@ -416,7 +403,7 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
 
     if IsSet(errorMessage) {
         if OverlayIsVisible() {
-            WinSetTransparent(255, "ahk_id " . overlayGui.Hwnd)
+            WinSetTransparent(255, "ahk_id " . overlay["GUI"].Hwnd)
         }
 
         LogEngine("Failed")
@@ -431,62 +418,84 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
 }
 
 LogEngine(status) {
-    global logEntries
-    global logFilePath
     global system
 
-    static newLine := "`r`n"
+    static directories := "Directories"
+    static environment := "Environment"
+    static logging     := "Logging"
+    static runtime     := "Runtime"
+    static snapshot    := "Snapshot"
+
+    static newLine           := "`r`n"
+    static runTelemetryOrder := 0
+
+    runTelemetryOrder := runTelemetryOrder + 1
 
     runTelemetryLines := []
     if status = "Beginning" {
+        system["Logging"] := Map(
+            "Log Entries",  [],
+            "Log to Array", true
+        )
+
         SplitPath(A_ScriptFullPath, , , , &projectName)
         SplitPath(A_LineFile, , &librariesFolderPath)
         SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
         SplitPath(sharedFolderPath, , &curatiumFolderPath)
 
-        system["Project Name"]        := projectName
-        system["Curatium Directory"]  := curatiumFolderPath . "\"
-        system["Log Directory"]       := system["Curatium Directory"] . "Log\"
-        system["Project Directory"]   := system["Curatium Directory"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
-        system["Shared Directory"]    := sharedFolderPath . "\"
-        system["Constants Directory"] := system["Shared Directory"] . "Constants\"
-        system["Images Directory"]    := system["Shared Directory"] . "Images\"
-        system["Mappings Directory"]  := system["Shared Directory"] . "Mappings\"
-        system["Library Release"]     := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
-        system["AutoHotkey Version"]  := A_AhkVersion
+        system[runtime]["Project Name"]       := projectName
+        system[runtime]["Library Release"]    := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
+        system[runtime]["AutoHotkey Version"] := A_AhkVersion
 
-        LogTelemetryTimestamp()
+        system[directories]["Curatium"]  := curatiumFolderPath . "\"
+        system[directories]["Log"]       := system[directories]["Curatium"] . "Log\"
+        system[directories]["Project"]   := system[directories]["Curatium"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
+        system[directories]["Shared"]    := sharedFolderPath . "\"
+        system[directories]["Constants"] := system[directories]["Shared"] . "Constants\"
+        system[directories]["Images"]    := system[directories]["Shared"] . "Images\"
+        system[directories]["Mappings"]  := system[directories]["Shared"] . "Mappings\"
+        system[directories]["Spreadsheet Operations Template"] := system[directories]["Shared"] . "Spreadsheet Operations Template\"
 
-        EnsureDirectoryExists(system["Log Directory"])
-        EnsureDirectoryExists(system["Project Directory"])
+        system[snapshot] := LogTelemetryTimestamp()
+        system[snapshot]["Run Telemetry Order"] := runTelemetryOrder
 
-        system["International"]         := GetInternationalFormatting()
+        system[logging]["Log Shared Name"] := system["Directories"]["Log"] . projectName . " - " . FormatTime(StrReplace(StrReplace(StrReplace(StrSplit(system[snapshot]["UTC Timestamp Precise"], ".")[1], "-"), " "), ":"), "yyyy-MM-dd HH.mm.ss")
+        system[logging]["Log File Path"]   := Map(
+            "Execution Log", system[logging]["Log Shared Name"] . " - Execution Log.csv",
+            "Operation Log", system[logging]["Log Shared Name"] . " - Operation Log.csv",
+            "Run Telemetry", system[logging]["Log Shared Name"] . " - Run Telemetry.csv",
+            "Symbol Ledger", system[logging]["Log Shared Name"] . " - Symbol Ledger.csv"
+        )
+
+        system[environment]["International"] := GetInternationalFormatting()
+        EnsureDirectoryExists(system["Directories"]["Log"])
+        EnsureDirectoryExists(system["Directories"]["Project"])
         
-        system["Operating System"]      := GetOperatingSystem()
-        system["OS Installation Date"]  := GetWindowsInstallationDateUtcTimestamp()
-        system["Computer Name"]         := A_ComputerName
-        system["Computer Identifier"]   := Hash.String("SHA256", GetComputerIdentifier())
-        system["Username"]              := A_UserName
-        system["Time Zone Key Name"]    := GetTimeZoneKeyName()
-        system["Region Format"]         := GetRegionFormat()
-        system["Input Language"]        := GetInputLanguage()
-        system["Keyboard Layout"]       := GetActiveKeyboardLayout()
-        system["Motherboard"]           := GetMotherboard()
-        system["CPU"]                   := GetCpu()
-        system["Memory Size and Type"]  := GetMemorySizeAndType()
-        system["System Disk"]           := GetSystemDisk()
-        system["Display GPU"]           := GetActiveDisplayGpu()
-        system["Monitor"]               := GetActiveMonitor()
-        system["BIOS"]                  := GetBios()
-        system["QPC Frequency"]         := GetQueryPerformanceCounterFrequency()
-        system["Display Resolution"]    := A_ScreenWidth . "x" . A_ScreenHeight
-        system["Refresh Rate"]          := GetActiveMonitorRefreshRateHz()
-        system["DPI Scale"]             := Round(A_ScreenDPI / 96 * 100) . "%"
-        system["Color Mode"]            := GetWindowsColorMode()
+        system[environment]["Operating System"]     := GetOperatingSystem()
+        system[environment]["OS Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
+        system[environment]["Computer Name"]        := A_ComputerName
+        system[environment]["Computer Identifier"]  := GetTextHash(GetComputerIdentifier(), "SHA-256")
+        system[environment]["Username"]             := A_UserName
+        system[environment]["Time Zone Key Name"]   := GetTimeZoneKeyName()
+        system[environment]["Region Format"]        := GetRegionFormat()
+        system[environment]["Input Language"]       := GetInputLanguage()
+        system[environment]["Keyboard Layout"]      := GetActiveKeyboardLayout()
+        system[environment]["Motherboard"]          := GetMotherboard()
+        system[environment]["CPU"]                  := GetCpu()
+        system[environment]["Memory Size and Type"] := GetMemorySizeAndType()
+        system[environment]["System Disk"]          := GetSystemDisk()
+        system[environment]["Display GPU"]          := GetActiveDisplayGpu()
+        system[environment]["Monitor"]              := GetActiveMonitor()
+        system[environment]["BIOS"]                 := GetBios()
+        system[environment]["QPC Frequency"]        := GetQueryPerformanceCounterFrequency()
+        system[environment]["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
+        system[environment]["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
+        system[environment]["DPI Scale"]            := Round(A_ScreenDPI / 96 * 100) . "%"
+        system[environment]["Color Mode"]           := GetWindowsColorMode()
 
         DefineApplicationRegistry()
 
-        configurationPath := system["Project Directory"] . "Configuration (" . system["Project Name"] . ", " . "Library Release" . " " . system["Library Release"] . ").json"
+        configurationPath := system["Directories"]["Project"] . "Configuration (" . system[runtime]["Project Name"] . ", " . "Library Release" . " " . system[runtime]["Library Release"] . ").json"
         if !FileExist(configurationPath) {
             configurationData := '{' . newLine . 
                 '    "Application Whitelist": [' . newLine . 
@@ -496,42 +505,28 @@ LogEngine(status) {
                     '        '  . newLine . 
                 '    ],' . newLine . 
                 '    "Candidate Base Directories": [' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '", ' . newLine . 
+                    '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '",' . newLine . 
                     '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
                     '    ],' . newLine . 
                 '    "Settings": {' . newLine . 
-                    '        "Image Variant Preset": "' . system["Constants Directory"] . 'Heroes (2025-09-20).csv' . '"' . newLine . 
+                    '        "Image Variant Preset": "' . system["Directories"]["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
+                    '        "Application Image Override Directory": "' . '"' . newline . 
                 '    }' . newLine . '}'
             configurationData := StrReplace(configurationData, "\", "\\")
-            WriteTextIntoFile(configurationData, configurationPath)
+            WriteTextToFile(configurationData, configurationPath, "UTF-8", "Create")
         }
 
         ValidateConfiguration(configurationPath)
 
-        dateTimeOfToday := FormatTime(StrReplace(StrReplace(StrReplace(StrSplit(system["UTC Timestamp Precise"], ".")[1], "-"), " "), ":"), "yyyy-MM-dd HH.mm.ss")
-        system["Log Shared Name"] := system["Log Directory"] . projectName . " - " . dateTimeOfToday
-
-        executionLogFilePath := system["Log Shared Name"] . " - Execution Log.csv"
-        operationLogFilePath := system["Log Shared Name"] . " - Operation Log.csv"
-        runTelemetryFilePath := system["Log Shared Name"] . " - Run Telemetry.csv"
-        symbolLedgerFilePath := system["Log Shared Name"] . " - Symbol Ledger.csv"
-
         newLine := "`r`n"
-        WriteTextIntoFile("Log" . newLine, executionLogFilePath, "UTF-8-BOM", false)
-        WriteTextIntoFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value" . newLine, operationLogFilePath, "UTF-8-BOM", false)
-        WriteTextIntoFile("Log" . newLine, runTelemetryFilePath, "UTF-8-BOM", false)
-        WriteTextIntoFile("Reference|Type|Symbol" . newLine, symbolLedgerFilePath, "UTF-8-BOM", false)
-
-        logFilePath := Map(
-            "Execution Log", executionLogFilePath,
-            "Operation Log", operationLogFilePath,
-            "Run Telemetry", runTelemetryFilePath,
-            "Symbol Ledger", symbolLedgerFilePath
-        )
+        WriteTextToFile("Log" . newLine, system[logging]["Log File Path"]["Execution Log"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value" . newLine, system[logging]["Log File Path"]["Operation Log"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Log" . newLine, system[logging]["Log File Path"]["Run Telemetry"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Reference|Type|Symbol" . newLine, system[logging]["Log File Path"]["Symbol Ledger"], "UTF-8-BOM", "Create")
 
         consolidatedOperationLog := ""
         consolidatedSymbolLedger := ""
-        for logEntry in logEntries {
+        for logEntry in system["Logging"]["Log Entries"] {
             if logEntry[2] = "Operation Log" {
                 if consolidatedOperationLog = "" {
                     consolidatedOperationLog := logEntry[1]
@@ -552,99 +547,98 @@ LogEngine(status) {
         AppendLineToLog(consolidatedOperationLog, "Operation Log")
         AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
 
-        logEntries := []
+        system[logging].Delete("Log to Array")
+        system[logging].Delete("Log Entries")
 
         executionLogLines := [
-            system["Project Name"],
-            system["Library Release"],
-            system["AutoHotkey Version"],
-            system["Operating System"],
-            system["OS Installation Date"],
-            system["Computer Name"],
-            system["Computer Identifier"],
-            system["Username"],
-            system["Time Zone Key Name"],
-            system["Region Format"],
-            system["Input Language"],
-            system["Keyboard Layout"],
-            system["Motherboard"],
-            system["CPU"],
-            system["Memory Size and Type"],
-            system["System Disk"],
-            system["Display GPU"],
-            system["Monitor"],
-            system["BIOS"],
-            system["QPC Frequency"],
-            system["Display Resolution"],
-            system["Refresh Rate"],
-            system["DPI Scale"],
-            system["Color Mode"]
+            system[runtime]["Project Name"],
+            system[runtime]["Library Release"],
+            system[runtime]["AutoHotkey Version"],
+            system[environment]["Operating System"],
+            system[environment]["OS Installation Date"],
+            system[environment]["Computer Name"],
+            system[environment]["Computer Identifier"],
+            system[environment]["Username"],
+            system[environment]["Time Zone Key Name"],
+            system[environment]["Region Format"],
+            system[environment]["Input Language"],
+            system[environment]["Keyboard Layout"],
+            system[environment]["Motherboard"],
+            system[environment]["CPU"],
+            system[environment]["Memory Size and Type"],
+            system[environment]["System Disk"],
+            system[environment]["Display GPU"],
+            system[environment]["Monitor"],
+            system[environment]["BIOS"],
+            system[environment]["QPC Frequency"],
+            system[environment]["Display Resolution"],
+            system[environment]["Refresh Rate"],
+            system[environment]["DPI Scale"],
+            system[environment]["Color Mode"]
         ]
 
         BatchAppendExecutionLog("Beginning", executionLogLines)
 
-        runTelemetryLines.Push(system["Run Telemetry Order"] . "|" . system["Number of Readings"] . "|" . system["Operation Log Line Number"] . "|" . system["UTC Timestamp Precise"] . "|" . system["UTC Timestamp Integer"] . "|" . system["QPC Midpoint Tick"])
+        runTelemetryLines.Push(system[snapshot]["Run Telemetry Order"] . "|" . system[snapshot]["Number of Readings"] . "|" . system[snapshot]["Operation Log Line Number"] . 
+            "|" . system[snapshot]["UTC Timestamp Precise"] . "|" . system[snapshot]["UTC Timestamp Integer"] . "|" . system[snapshot]["QPC Midpoint Tick"])
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
 
         BatchAppendRunTelemetry("Beginning", runTelemetryLines)
     } else {
-        LogTelemetryTimestamp()
+        system[snapshot] := LogTelemetryTimestamp()
+        system[snapshot]["Run Telemetry Order"] := runTelemetryOrder
 
-        runTelemetryLines.Push(system["Run Telemetry Order"] . "|" . system["Number of Readings"] . "|" . system["Operation Log Line Number"] . "|" . system["UTC Timestamp Precise"] . "|" . system["UTC Timestamp Integer"] . "|" . system["QPC Midpoint Tick"])
+        runTelemetryLines.Push(system[snapshot]["Run Telemetry Order"] . "|" . system[snapshot]["Number of Readings"] . "|" . system[snapshot]["Operation Log Line Number"] . 
+            "|" . system[snapshot]["UTC Timestamp Precise"] . "|" . system[snapshot]["UTC Timestamp Integer"] . "|" . system[snapshot]["QPC Midpoint Tick"])
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
-    }
 
-    if status = "Completed" {
-        if OverlayIsVisible() {
-            OverlayChangeTransparency(255)
+        if status = "Completed" {
+            if OverlayIsVisible() {
+                OverlayChangeTransparency(255)
+            }
         }
-    }
 
-    if status != "Beginning" {
         BatchAppendRunTelemetry(status, runTelemetryLines)
     }
 
     if status = "Completed" || status = "Failed" {
-        if IsSet(logFilePath) {
-            for logType, filePath in logFilePath {
-                file := FileOpen(filePath, "rw")
-                if !file {
-                    continue
-                }
+        timestampNow := A_Now
 
-                fileSize := file.Length
-                if fileSize = 0 {
-                    file.Close()
-                    continue
-                }
-
-                ; Trim last trailing newline.
-                bytesToRead := (fileSize >= 2) ? 2 : 1
-                file.Seek(-bytesToRead, 2)
-                tail := Buffer(bytesToRead)
-                file.RawRead(tail, bytesToRead)
-
-                if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
-                    file.Length := fileSize - 2
-                } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
-                    file.Length := fileSize - 1
-                }
-
-                file.Close()
-
-                filePath := ""
+        for logType, filePath in system["Logging"]["Log File Path"] {
+            if !FileExist(filePath) {
+                continue
             }
 
-            timestampNow := A_Now
-            FileSetTime(timestampNow, logFilePath["Execution Log"], "M")
-            FileSetTime(timestampNow, logFilePath["Operation Log"], "M")
-            FileSetTime(timestampNow, logFilePath["Run Telemetry"], "M")
-            FileSetTime(timestampNow, logFilePath["Symbol Ledger"], "M")
+            file := FileOpen(filePath, "rw")
 
-            logFilePath := unset
+            fileSize := file.Length
+            if fileSize = 0 {
+                file.Close()
+                continue
+            }
+            
+            bytesToRead := (fileSize >= 2) ? 2 : 1
+            file.Seek(-bytesToRead, 2)
+            tail := Buffer(bytesToRead)
+            file.RawRead(tail, bytesToRead)
+
+            if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
+                file.Length := fileSize - 2
+            } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
+                file.Length := fileSize - 1
+            }
+
+            file.Close()
+
+            FileSetTime(timestampNow, system["Logging"]["Log File Path"][logType], "M")
         }
+
+        system["Logging"]["Log Entries"]  := []
+        system["Logging"]["Log to Array"] := true
+        system["Logging"].Delete("Log File Path")
+        system["Logging"].Delete("Log Shared Name")
     }
 }
 
@@ -785,11 +779,9 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
 LogTelemetryTimestamp() {
     global system
 
-    static runTelemetryOrder        := 0
-    runTelemetryOrder               := runTelemetryOrder + 1
-    system["Run Telemetry Order"]   := runTelemetryOrder
+    static maxDurationMilliseconds := 240
 
-    static maxDurationMilliseconds  := 240
+    snapshot                        := Map()
     queryPerformanceCounterReadings := []
     utcTimestampPreciseReadings     := []
     combinedReadings                := []
@@ -815,7 +807,6 @@ LogTelemetryTimestamp() {
     }
 
     startTime := A_TickCount
-
     while A_TickCount - startTime < maxDurationMilliseconds {
         queryPerformanceCounterReadings.Push(GetQueryPerformanceCounter())
         utcTimestampPreciseReadings.Push(GetUtcTimestampPrecise())
@@ -830,12 +821,13 @@ LogTelemetryTimestamp() {
         if index = utcTimestampPreciseReadingsLength {
             continue
         }
+
         qpcBefore := queryPerformanceCounterReadings[index]
         qpcAfter  := queryPerformanceCounterReadings[index + 1]
         combinedReadings.Push([qpcBefore, utcTimestampPrecise, qpcAfter, qpcAfter - qpcBefore])
     }
 
-    system["Number of Readings"] := combinedReadings.Length
+    snapshot["Number of Readings"] := combinedReadings.Length
 
     bestIndex    := 1
     bestDuration := combinedReadings[1][4]
@@ -853,25 +845,27 @@ LogTelemetryTimestamp() {
     }
 
     if IsSet(logFilePath) {
-        system["Operation Log Line Number"] := GetLastLineNumberFromTextFile(logFilePath["Operation Log"])
+        snapshot["Operation Log Line Number"] := GetLastLineNumberFromTextFile(logFilePath["Operation Log"])
     } else {
-        system["Operation Log Line Number"] := 2
+        snapshot["Operation Log Line Number"] := 2
     }
 
-    chosenReading                   := combinedReadings[bestIndex]
-    qpcBeforeTimestamp              := chosenReading[1]
-    system["UTC Timestamp Precise"] := chosenReading[2]
+    chosenReading                     := combinedReadings[bestIndex]
+    qpcBeforeTimestamp                := chosenReading[1]
+    snapshot["UTC Timestamp Precise"] := chosenReading[2]
 
-    utcTimestampIntegerConversion := StrReplace(StrReplace(StrReplace(StrReplace(system["UTC Timestamp Precise"], "-"), " "), ":"), ".")
+    utcTimestampIntegerConversion := StrReplace(StrReplace(StrReplace(StrReplace(snapshot["UTC Timestamp Precise"], "-"), " "), ":"), ".")
     if StrLen(utcTimestampIntegerConversion) >= 18 {
         utcTimestampIntegerConversion := SubStr(utcTimestampIntegerConversion, 1, 17)
     }
     utcTimestampIntegerConversion := utcTimestampIntegerConversion + 0
 
-    system["UTC Timestamp Integer"] := utcTimestampIntegerConversion
+    snapshot["UTC Timestamp Integer"] := utcTimestampIntegerConversion
 
-    qpcMeasurementDelta             := chosenReading[4]
-    system["QPC Midpoint Tick"]     := qpcBeforeTimestamp + (qpcMeasurementDelta // 2)
+    qpcMeasurementDelta               := chosenReading[4]
+    snapshot["QPC Midpoint Tick"]     := qpcBeforeTimestamp + (qpcMeasurementDelta // 2)
+
+    return snapshot
 }
 
 LogTimestamp() {
@@ -879,9 +873,9 @@ LogTimestamp() {
     utcTimestampInteger                     := GetUtcTimestampInteger()
     queryPerformanceCounterAfter            := GetQueryPerformanceCounter()
 
-    utcTimestampInteger                     := utcTimestampInteger - system["UTC Timestamp Integer"]
+    utcTimestampInteger                     := utcTimestampInteger - system["Snapshot"]["UTC Timestamp Integer"]
     queryPerformanceCounterMeasurementDelta := queryPerformanceCounterAfter - queryPerformanceCounterBefore
-    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["QPC Midpoint Tick"]
+    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["Snapshot"]["QPC Midpoint Tick"]
 
     logTimestamp := Map(
         "QPC Midpoint Tick",     queryPerformanceCounterMidpointTick,
@@ -966,37 +960,35 @@ OverlayGenerateNextKey(methodName := unset) {
 }
 
 OverlayUpdateLine(overlayKey, overlayValue) {
-    global overlayGui
-    global overlayLines
-    global overlayOrder
+    global overlay
 
-    if !overlayLines.Has(overlayKey) {
-        overlayOrder.Push(overlayKey)
+    if !overlay["Lines"].Has(overlayKey) {
+        overlay["Order"].Push(overlayKey)
     }
-    overlayLines[overlayKey] := overlayValue
+    overlay["Lines"][overlayKey] := overlayValue
 
     newText := ""
-    for lineKey in overlayOrder {
-        newText .= (newText != "" ? "`n" : "") . overlayLines[lineKey]
+    for lineKey in overlay["Order"] {
+        newText .= (newText != "" ? "`n" : "") . overlay["Lines"][lineKey]
     }
-    overlayGui["StatusText"].Text := newText
+    overlay["GUI"]["StatusText"].Text := newText
 }
 
 OverlayUpdateStatus(logValuesForConclusion, newStatus) {
-    global overlayLines
+    global overlay
 
     overlaykey := logValuesForConclusion["Overlay Key"]
 
-    currentText := overlayLines[overlayKey]
+    currentText := overlay["Lines"][overlayKey]
 
     if logValuesForConclusion["Method Name"] !== "OverlayInsertSpacer" && logValuesForConclusion["Method Name"] !== "OverlayUpdateCustomLine" {
         switch newStatus {
             case "Skipped":
-                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlayStatus["Beginning"], overlayStatus["Skipped"]))
+                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlay["Status"]["Beginning"], overlay["Status"]["Skipped"]))
             case "Completed":
-                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlayStatus["Beginning"], overlayStatus["Completed"]))
+                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlay["Status"]["Beginning"], overlay["Status"]["Completed"]))
             case "Failed":
-                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlayStatus["Beginning"], overlayStatus["Failed"]))
+                OverlayUpdateLine(overlayKey, StrReplace(currentText, overlay["Status"]["Beginning"], overlay["Status"]["Failed"]))
         }
     }
 }
@@ -1609,19 +1601,14 @@ OverlayIsVisible() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName)
 
-    if !IsSet(overlayGui) || !(overlayGui is Gui) {
-        return false
-    }
-
-    windowHandle := overlayGui.Hwnd
-
-    if !DllCall("User32\IsWindow", "Ptr", windowHandle) {
-        return false
-    }
+    windowHandle  := overlay["GUI"].Hwnd
+    windowVisible := unset
 
     if DllCall("User32\IsWindowVisible", "Ptr", windowHandle) {
-        return true
+        windowVisible := true
     } else {
-        return false
+        windowVisible := false
     }
+
+    return windowVisible
 }

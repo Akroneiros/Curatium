@@ -1,294 +1,33 @@
 #Requires AutoHotkey v2.0
-#Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include Application Library.ahk
 #Include Base Library.ahk
+#Include Chrono Library.ahk
 #Include File Library.ahk
 #Include Logging Library.ahk
 
-global imageRegistry := Map()
-
-CreateApplicationImages() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Create Application Images")
-
-    imagesFileList := GetFilesFromDirectory(system["Images Directory"])
-    applicationImageLibraryDataFiles := []
-    for filePath in imagesFileList {
-        if InStr(filePath, "Image Library Data") {
-            filename := ExtractFilename(filePath, true)
-            if RegExMatch(filename, "\((.*)\)\s*$", &capturedGroups) {
-                applicationImageLibraryDataFiles.Push(capturedGroups[1])
-            }
-        }
-    }
-
-    installedApplicationsWithImageLibraryDataCount := 0
-    for outerKey, innerValue in applicationRegistry {
-        if innerValue["Installed"] {
-            for applicationName in applicationImageLibraryDataFiles {
-                if outerKey = applicationName {
-                    installedApplicationsWithImageLibraryDataCount := installedApplicationsWithImageLibraryDataCount + 1
-                }
-            }
-        }
-    }
-
-    if installedApplicationsWithImageLibraryDataCount = 0 {
-        LogConclusion("Skipped", logValuesForConclusion)
-    } else {
-        switch system["Display Resolution"] {
-            case "1920x1080":
-                switch system["DPI Scale"] {
-                    case "100%", "125%", "150%":
-                        CreateImagesFromCatalog("Full High Definition")
-                    default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
-                }
-            case "2560x1440":
-                switch system["DPI Scale"] {
-                    case "100%", "125%", "150%":
-                        CreateImagesFromCatalog("Quad High Definition")
-                    default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
-                }
-            case "3840x2160":
-                switch system["DPI Scale"] {
-                    case "100%", "125%", "150%", "175%":
-                        CreateImagesFromCatalog("Ultra High Definition")
-                    default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
-                }
-            default:
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Display resolution unsupported: " . system["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
-        }
-
-        LogConclusion("Completed", logValuesForConclusion)
-    }
-}
-
-CreateImagesFromCatalog(imageLibraryCatalogName) {
-    static methodName := RegisterMethod("imageCatalogName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
-
-    global imageRegistry
-
-    projectImageCatalogFilePath  := system["Project Directory"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
-    sharedImageCatalogFilePath   := system["Images Directory"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
-    catalogDirectory             := unset
-    imageLibraryCatalog          := unset
-
-    if !IsSet(applicationRegistry) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application Registry has not yet been initialized. Need to run RegisterApplications first.")
-    }
-
-    if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
-    }
-
-    if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
-    }
-    
-    if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-        catalogDirectory := system["Project Directory"]
-        imageLibraryCatalog := ConvertCsvToArrayOfMaps(projectImageCatalogFilePath)
-    } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-        catalogDirectory := system["Images Directory"]
-        imageLibraryCatalog := ConvertCsvToArrayOfMaps(sharedImageCatalogFilePath)
-    }
-
-    static applications      := unset
-    static variants          := unset
-    static fileSignatures    := unset
-    static resolutions       := unset
-    static scales            := unset
-    static displayResolution := unset
-    static dpiScale          := unset
-
-    if !IsSet(applications) && !IsSet(variants) && !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) && !IsSet(displayResolution) && !IsSet(dpiScale) {
-        applications := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
-
-        configurationImageVariantPreset := ConvertCsvToArrayOfMaps(system["Configuration"]["Settings"]["Image Variant Preset"])
-
-        variants := Map()
-        for name in configurationImageVariantPreset {
-            variantName    := name["Name"]
-            firstCharacter := StrLower(SubStr(variantName, 1, 1))
-
-            variants[firstCharacter] := variantName
-        }
-
-        fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
-        for fileSignature in fileSignatures {
-            fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
-        }
-
-        resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
-        for outerKey, innerValue in resolutions {
-            innerValue["Counter"] := outerKey
-        }
-
-        scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
-        for outerKey, innerValue in scales {
-            innerValue["Counter"] := outerKey
-        }
-
-        displayResolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", system["Display Resolution"])["Counter"] . ""
-        dpiScale          := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", system["DPI Scale"])["Counter"] . ""
-    }
-
-    relevantImages       := []
-    uniqueDataReferences := []
-
-    for image in imageLibraryCatalog {
-        if IsInteger(image["Image Library Data Reference"]) {
-            image["Image Library Data Reference"] := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Counter", image["Image Library Data Reference"])["Name"]
-
-            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] && applicationRegistry[image["Image Library Data Reference"]]["Installed"] {
-                relevantImages.Push(image)
-                uniqueDataReferences.Push(image["Image Library Data Reference"])
-            }
-        } else {
-            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] {
-                relevantImages.Push(image)
-                uniqueDataReferences.Push(image["Image Library Data Reference"])
-            }
-        }
-    }
-
-    if relevantImages.Length = 0 {
-        LogConclusion("Skipped", logValuesForConclusion)
-    } else {
-        pendingBase64ImageWriteQueue := []
-        uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
-
-        uniqueDataReferencesDirectories := uniqueDataReferences.Clone()
-        for index, uniqueDataReferenceDirectory in uniqueDataReferencesDirectories {
-            uniqueDataReferencesDirectories[index] := system["Images Directory"] . uniqueDataReferenceDirectory . "\"
-        }
-
-        BatchAppendSymbolLedger("D", uniqueDataReferencesDirectories)
-
-        static screenWidth  := A_ScreenWidth
-        static screenHeight := A_ScreenHeight
-        for uniqueDataReference in uniqueDataReferences {
-            libraryDataEntries := unset
-
-            libraryDataEntries := ConvertCsvToArrayOfMaps(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
-            EnsureDirectoryExists(system["Images Directory"] . uniqueDataReference . "\")
-
-            for image in relevantImages {
-                for libraryData in libraryDataEntries {
-                    if image["Counter Reference"] = libraryData["Counter"] && uniqueDataReference = image["Image Library Data Reference"] {
-                        if !libraryData.Has("Directory") {
-                            libraryData["Directory"] := image["Image Library Data Reference"]
-                            libraryData["Filename"]  := libraryData["Name"] . " (" . variants[libraryData["Variant"]] . ")." . libraryData["Extension"]
-                            libraryData["SHA-256"]   := DecodeBaseToSha256Hex(libraryData["SHA-256"], 86)
-                            libraryData["Base64"]    := ExtractRowFromArrayOfMapsOnHeaderCondition(fileSignatures, "Extension", libraryData["Extension"])["Maximum Base64 Signature"] . libraryData["Base64"]
-                            pendingBase64ImageWriteQueue.Push(libraryData)
-
-                            if !imageRegistry.Has(libraryData["Directory"]) {
-                                imageRegistry[libraryData["Directory"]] := Map()
-                            }
-
-                            if !imageRegistry[libraryData["Directory"]].Has(libraryData["Name"]) {
-                                imageRegistry[libraryData["Directory"]][libraryData["Name"]] := []
-                            }
-
-                            path := system["Images Directory"] . libraryData["Directory"] . "\" . libraryData["Filename"]
-
-                            horizontalRange      := StrReplace(image["Horizontal Range"], ",", ".")
-                            horizontalParts      := StrSplit(horizontalRange, "-")
-                            horizontalRangeStart := Floor(screenWidth * horizontalParts[1] / 100)
-                            horizontalRangeEnd   := Ceil(screenWidth * horizontalParts[2] / 100) - 1
-
-                            verticalRange        := StrReplace(image["Vertical Range"], ",", ".")
-                            verticalParts        := StrSplit(verticalRange, "-")
-                            verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
-                            verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
-
-                            imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(Map(
-                                "Path", path,
-                                "Name", libraryData["Name"],
-                                "Variant", StrLower(libraryData["Variant"]),
-                                "Extension", libraryData["Extension"],
-                                "Horizontal Range", horizontalRange,
-                                "Horizontal Range Start", horizontalRangeStart,
-                                "Horizontal Range End", horizontalRangeEnd,
-                                "Vertical Range", verticalRange,
-                                "Vertical Range Start", verticalRangeStart,
-                                "Vertical Range End", verticalRangeEnd
-                            ))
-
-                            
-                        }
-                    }
-                }
-            }
-        }
-
-        filenameValues := []
-        hashValues := []
-        for image in pendingBase64ImageWriteQueue {
-            filenameValues.Push(image["Filename"])
-            hashValues.Push(image["SHA-256"])
-        }
-
-        BatchAppendSymbolLedger("F", filenameValues)
-        BatchAppendSymbolLedger("H", hashValues)
-
-        for image in pendingBase64ImageWriteQueue {
-            filePath := system["Images Directory"] . image["Directory"] . "\" . image["Filename"]
-            if FileExist(filePath) {
-                if image["SHA-256"] != GetFileHash(filePath, "SHA-256") {
-                    DeleteFile(filePath)
-                }
-            }
-
-            WriteBase64IntoFileWithHash(image["Base64"], filePath, image["SHA-256"])
-        }
-
-        for uniqueDataReference in uniqueDataReferences {
-            for image in imageRegistry[uniqueDataReference] {
-                directoryImages := imageRegistry[uniqueDataReference][image]
-
-                for directoryImage in directoryImages {
-                    imageDimensions := StrSplit(GetImageDimensions(directoryImage["Path"]), "x")
-                    directoryImage["Width"]  := imageDimensions[1] + 0
-                    directoryImage["Height"] := imageDimensions[2] + 0
-                }
-            }
-        }
-
-        LogConclusion("Completed", logValuesForConclusion)
-    }
-}
-
-; **************************** ;
-; Helper Methods               ;
-; **************************** ;
-
 ConvertImagesToBase64ImageLibrary(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
+    logValuesForConclusion := LogBeginning(methodName, [directoryPath], "Convert Images to Base64 Image Library (" . directoryPath . ")")
 
-    static applications   := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Applications.csv")
+    static applications   := unset
     static fileSignatures := unset
     static resolutions    := unset
     static scales         := unset
 
-    if !IsSet(fileSignatures) && !IsSet(resolutions) && !IsSet(scales) {
-        fileSignatures := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "File Signatures.csv")
+    if !IsSet(applications) {
+        applications := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Applications.csv")
+
+        fileSignatures := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "File Signatures.csv")
         for rowMap in fileSignatures {
             rowMap["Maximum Base64 Signature"] := ConvertHexStringToBase64(rowMap["Maximum Hex Signature"])
         }
 
-        resolutions := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Resolutions (2025-09-20).csv")
+        resolutions := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Resolutions (2025-09-20).csv")
         for index, rowMap in resolutions {
             rowMap["Counter"] := index
         }
 
-        scales := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Scales (2025-09-20).csv")
+        scales := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Scales (2025-09-20).csv")
         for index, rowMap in scales {
             rowMap["Counter"] := index
         }
@@ -320,7 +59,6 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
     }
 
-    hashToCounter := Map()
     counter := 1
     if FileExist(imageLibraryDataReferenceFilePath) {
         imageLibraryDataReferenceFile := ConvertCsvToArrayOfMaps(imageLibraryDataReferenceFilePath)
@@ -334,16 +72,20 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         counter := counter + 1
     }
 
-    originalCounter := counter
+    counterModified := false
+    if counter != 1 {
+        counterModified := true
+    }
+
     catalogEntries  := []
     dataEntries     := []
 
     actionImageDirectories := GetFoldersFromDirectory(directoryPath)
     for actionFolderPath in actionImageDirectories {
-        SplitPath(RTrim(actionFolderPath, "\/"), &lastActionDirectoryName)
+        SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
 
-        if !RegExMatch(lastActionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . lastActionDirectoryName)
+        if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
+            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
         }
 
         actionName   := Trim(matchResults[1])
@@ -388,6 +130,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
                 }
             }               
 
+            hashToCounter := Map()
             if !hashToCounter.Has(fileHash) {
                 hashToCounter[fileHash] := counter
                 counter := counter + 1
@@ -399,18 +142,212 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         }
     }
 
-    csvDataString := unset
-    if originalCounter = 1 {
-        csvDataString := headerData . ConvertArrayIntoCsvString(dataEntries)
+    WriteTextToFile(headerCatalog . ConvertArrayIntoCsvString(catalogEntries), imageLibraryCatalogFilePath, "UTF-8-BOM")
+
+    if counterModified {
+        WriteTextToFile(ConvertArrayIntoCsvString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM", "Append Break")
     } else {
-        csvDataString := newLine . ConvertArrayIntoCsvString(dataEntries)
+        WriteTextToFile(headerData . ConvertArrayIntoCsvString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM")
     }
 
-    FileAppend(csvDataString, imageLibraryDataReferenceFilePath, "UTF-8")
-
-    csvCatalogString := headerCatalog . ConvertArrayIntoCsvString(catalogEntries)
-    FileAppend(csvCatalogString, imageLibraryCatalogFilePath, "UTF-8")
+    LogConclusion("Completed", logValuesForConclusion)
 }
+
+CreateImagesFromCatalog(imageLibraryCatalogName) {
+    static methodName := RegisterMethod("imageCatalogName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
+
+    global imageRegistry
+
+    projectImageCatalogFilePath  := system["Directories"]["Project"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
+    sharedImageCatalogFilePath   := system["Directories"]["Images"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
+    catalogDirectory             := unset
+    imageLibraryCatalog          := unset
+
+    if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
+    }
+
+    if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
+        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
+    }
+    
+    if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
+        catalogDirectory := system["Directories"]["Project"]
+        imageLibraryCatalog := ConvertCsvToArrayOfMaps(projectImageCatalogFilePath)
+    } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
+        catalogDirectory := system["Directories"]["Images"]
+        imageLibraryCatalog := ConvertCsvToArrayOfMaps(sharedImageCatalogFilePath)
+    }
+
+    static applications      := unset
+    static variants          := unset
+    static fileSignatures    := unset
+    static resolutions       := unset
+    static scales            := unset
+    static displayResolution := unset
+    static dpiScale          := unset
+
+    if !IsSet(applications) {
+        applications := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Applications.csv")
+
+        configurationImageVariantPreset := ConvertCsvToArrayOfMaps(system["Configuration"]["Settings"]["Image Variant Preset"])
+
+        variants := Map()
+        for name in configurationImageVariantPreset {
+            variantName    := name["Name"]
+            firstCharacter := StrLower(SubStr(variantName, 1, 1))
+
+            variants[firstCharacter] := variantName
+        }
+
+        fileSignatures := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "File Signatures.csv")
+        for fileSignature in fileSignatures {
+            fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
+        }
+
+        resolutions := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Resolutions (2025-09-20).csv")
+        for outerKey, innerValue in resolutions {
+            innerValue["Counter"] := outerKey
+        }
+
+        scales := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Scales (2025-09-20).csv")
+        for outerKey, innerValue in scales {
+            innerValue["Counter"] := outerKey
+        }
+
+        displayResolution := ExtractRowFromArrayOfMapsOnHeaderCondition(resolutions, "Resolution", system["Environment"]["Display Resolution"])["Counter"] . ""
+        dpiScale          := ExtractRowFromArrayOfMapsOnHeaderCondition(scales, "Scale", system["Environment"]["DPI Scale"])["Counter"] . ""
+    }
+
+    relevantImages       := []
+    uniqueDataReferences := []
+
+    for image in imageLibraryCatalog {
+        if IsInteger(image["Image Library Data Reference"]) {
+            image["Image Library Data Reference"] := ExtractRowFromArrayOfMapsOnHeaderCondition(applications, "Counter", image["Image Library Data Reference"])["Name"]
+
+            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] && applicationRegistry[image["Image Library Data Reference"]]["Installed"] {
+                relevantImages.Push(image)
+                uniqueDataReferences.Push(image["Image Library Data Reference"])
+            }
+        } else {
+            if displayResolution = image["Display Resolution"] && dpiScale = image["DPI Scale"] {
+                relevantImages.Push(image)
+                uniqueDataReferences.Push(image["Image Library Data Reference"])
+            }
+        }
+    }
+
+    if relevantImages.Length = 0 {
+        LogConclusion("Skipped", logValuesForConclusion)
+    } else {
+        pendingBase64ImageWriteQueue := []
+        uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
+
+        uniqueDataReferencesDirectories := uniqueDataReferences.Clone()
+        for index, uniqueDataReferenceDirectory in uniqueDataReferencesDirectories {
+            uniqueDataReferencesDirectories[index] := system["Directories"]["Images"] . uniqueDataReferenceDirectory . "\"
+        }
+
+        BatchAppendSymbolLedger("D", uniqueDataReferencesDirectories)
+
+        static screenWidth  := A_ScreenWidth
+        static screenHeight := A_ScreenHeight
+        for uniqueDataReference in uniqueDataReferences {
+            libraryDataEntries := ConvertCsvToArrayOfMaps(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
+            EnsureDirectoryExists(system["Directories"]["Images"] . uniqueDataReference . "\")
+
+            for image in relevantImages {
+                for libraryData in libraryDataEntries {
+                    if image["Counter Reference"] = libraryData["Counter"] && uniqueDataReference = image["Image Library Data Reference"] {
+                        if !libraryData.Has("Directory") {
+                            libraryData["Directory"] := image["Image Library Data Reference"]
+                            libraryData["Filename"]  := libraryData["Name"] . " (" . variants[libraryData["Variant"]] . ")." . libraryData["Extension"]
+                            libraryData["SHA-256"]   := DecodeBaseToSha256Hex(libraryData["SHA-256"], 86)
+                            libraryData["Base64"]    := ExtractRowFromArrayOfMapsOnHeaderCondition(fileSignatures, "Extension", libraryData["Extension"])["Maximum Base64 Signature"] . libraryData["Base64"]
+                            pendingBase64ImageWriteQueue.Push(libraryData)
+
+                            if !imageRegistry.Has(libraryData["Directory"]) {
+                                imageRegistry[libraryData["Directory"]] := Map()
+                            }
+
+                            if !imageRegistry[libraryData["Directory"]].Has(libraryData["Name"]) {
+                                imageRegistry[libraryData["Directory"]][libraryData["Name"]] := []
+                            }
+
+                            path := system["Directories"]["Images"] . libraryData["Directory"] . "\" . libraryData["Filename"]
+
+                            horizontalRange      := StrReplace(image["Horizontal Range"], ",", ".")
+                            horizontalParts      := StrSplit(horizontalRange, "-")
+                            horizontalRangeStart := Floor(screenWidth * horizontalParts[1] / 100)
+                            horizontalRangeEnd   := Ceil(screenWidth * horizontalParts[2] / 100) - 1
+
+                            verticalRange        := StrReplace(image["Vertical Range"], ",", ".")
+                            verticalParts        := StrSplit(verticalRange, "-")
+                            verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
+                            verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
+
+                            imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(Map(
+                                "Path", path,
+                                "Name", libraryData["Name"],
+                                "Variant", StrLower(libraryData["Variant"]),
+                                "Extension", libraryData["Extension"],
+                                "Horizontal Range", horizontalRange,
+                                "Horizontal Range Start", horizontalRangeStart,
+                                "Horizontal Range End", horizontalRangeEnd,
+                                "Vertical Range", verticalRange,
+                                "Vertical Range Start", verticalRangeStart,
+                                "Vertical Range End", verticalRangeEnd
+                            ))
+
+                            
+                        }
+                    }
+                }
+            }
+        }
+
+        filenameValues := []
+        hashValues     := []
+        for image in pendingBase64ImageWriteQueue {
+            filenameValues.Push(image["Filename"])
+            hashValues.Push(image["SHA-256"])
+        }
+
+        BatchAppendSymbolLedger("F", filenameValues)
+        BatchAppendSymbolLedger("H", hashValues)
+
+        for image in pendingBase64ImageWriteQueue {
+            filePath := system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"]
+            if FileExist(filePath) {
+                if image["SHA-256"] != GetFileHash(filePath, "SHA-256") {
+                    DeleteFile(filePath)
+                }
+            }
+
+            WriteBase64IntoFileWithHash(image["Base64"], filePath, image["SHA-256"])
+        }
+
+        for uniqueDataReference in uniqueDataReferences {
+            for image in imageRegistry[uniqueDataReference] {
+                directoryImages := imageRegistry[uniqueDataReference][image]
+
+                for directoryImage in directoryImages {
+                    imageDimensions := StrSplit(GetImageDimensions(directoryImage["Path"]), "x")
+                    directoryImage["Width"]  := imageDimensions[1] + 0
+                    directoryImage["Height"] := imageDimensions[2] + 0
+                }
+            }
+        }
+
+        LogConclusion("Completed", logValuesForConclusion)
+    }
+}
+
+; **************************** ;
+; Helper Methods               ;
+; **************************** ;
 
 ExtractImageCoordinates(imageSearchResults) {
     static methodName := RegisterMethod("imageSearchResults As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
@@ -494,7 +431,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
     }
 
-    static displayResolution := StrSplit(system["Display Resolution"], "x")
+    static displayResolution := StrSplit(system["Environment"]["Display Resolution"], "x")
     static screenWidth  := displayResolution[1] + 0
     static screenHeight := displayResolution[2] + 0
 
@@ -576,11 +513,11 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     }
 
     imageSearchResults := Map(
-        "Directory", directoryFolder,
-        "Name", imageName,
+        "Directory",        directoryFolder,
+        "Name",             imageName,
         "Times to Attempt", timesToAttempt,
-        "Medium Delay", mediumDelay,
-        "Success", false
+        "Medium Delay",     mediumDelay,
+        "Success",          false
     )
 
     overlayVisibility := OverLayIsVisible()

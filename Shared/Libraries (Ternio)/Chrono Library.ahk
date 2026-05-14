@@ -1,5 +1,8 @@
 #Requires AutoHotkey v2.0
+#Include Application Library.ahk
+#Include Base Library.ahk
 #Include File Library.ahk
+#Include Image Library.ahk
 #Include Logging Library.ahk
 
 AssignFileTimeAsLocalIso(filePath, timeType) {

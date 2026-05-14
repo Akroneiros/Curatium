@@ -1,11 +1,9 @@
 #Requires AutoHotkey v2.0
-#Include ..\AHK_CNG (2021-11-03)\Class_CNG.ahk
 #Include Base Library.ahk
+#Include Chrono Library.ahk
 #Include File Library.ahk
 #Include Image Library.ahk
 #Include Logging Library.ahk
-
-global applicationRegistry := Map()
 
 ; **************************** ;
 ; Application Registry         ;
@@ -16,8 +14,9 @@ DefineApplicationRegistry() {
     logValuesForConclusion := LogBeginning(methodName, [], "Define Application Registry")
 
     global applicationRegistry
+    global system
 
-    mappedApplicationsFilePath := system["Mappings Directory"] . "Applications.csv"
+    mappedApplicationsFilePath := system["Directories"]["Mappings"] . "Applications.csv"
     if !FileExist(mappedApplicationsFilePath) {
         LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
     }
@@ -31,12 +30,21 @@ DefineApplicationRegistry() {
         applicationRegistry[applicationName]["Counter"] := applicationCounter
     }
 
+    applicationsWithSharedImageLibraryData := GetFilesFromDirectory(system["Directories"]["Images"], "Image Library Data (")
+    for imageLibraryDataFile in applicationsWithSharedImageLibraryData {
+        applicationName := ExtractFilename(imageLibraryDataFile, true)
+        applicationName := SubStr(applicationName, StrLen("Image Library Data (") + 1)
+        applicationName := SubStr(applicationName, 1, -1)
+
+        applicationRegistry[applicationName]["Shared Images"] := true
+    }
+
     LogConclusion("Completed", logValuesForConclusion)
 }
 
-RegisterApplications() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Register Applications")
+RegisterApplications(createApplicationImages := true) {
+    static methodName := RegisterMethod("createApplicationImages As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logValuesForConclusion := LogBeginning(methodName, [createApplicationImages], "Register Applications")
 
     global applicationRegistry
 
@@ -76,7 +84,101 @@ RegisterApplications() {
         }
     }
 
-    CreateApplicationImages()
+    imagesFileList := GetFilesFromDirectory(system["Directories"]["Images"])
+    applicationImageLibraryDataFiles := []
+    for filePath in imagesFileList {
+        if InStr(filePath, "Image Library Data") {
+            filename := ExtractFilename(filePath, true)
+            if RegExMatch(filename, "\((.*)\)\s*$", &capturedGroups) {
+                applicationImageLibraryDataFiles.Push(capturedGroups[1])
+            }
+        }
+    }
+
+    installedApplicationsWithImageLibraryDataCount := 0
+    for outerKey, innerValue in applicationRegistry {
+        if innerValue["Installed"] {
+            for applicationName in applicationImageLibraryDataFiles {
+                if outerKey = applicationName {
+                    installedApplicationsWithImageLibraryDataCount := installedApplicationsWithImageLibraryDataCount + 1
+                }
+            }
+        }
+    }
+
+    if installedApplicationsWithImageLibraryDataCount != 0 && createApplicationImages = true {
+        switch system["Environment"]["Display Resolution"] {
+            case "1920x1080":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%":
+                        CreateImagesFromCatalog("Full High Definition")
+                    default:
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
+                }
+            case "2560x1440":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%":
+                        CreateImagesFromCatalog("Quad High Definition")
+                    default:
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
+                }
+            case "3840x2160":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%", "175%":
+                        CreateImagesFromCatalog("Ultra High Definition")
+                    default:
+                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
+                }
+            default:
+                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Display resolution unsupported: " . system["Environment"]["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
+        }
+    }
+
+    if system["Directories"].Has("Application Image Override Directory") {
+        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        for applicationFolder in applicationFolders {
+            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
+
+            actionImageDirectories := GetFoldersFromDirectory(applicationFolder)
+            for actionFolderPath in actionImageDirectories {
+                SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
+
+                if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
+                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+                }
+
+                if !imageRegistry[applicationName].Has(matchResults[1]) {
+                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                }
+
+                variantFound := false
+                overridePath := actionFolderPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
+                for variant in imageRegistry[applicationName][matchResults[1]] {
+                    if variant["Variant"] = matchResults[2] {
+                        overridePath := overridePath . variant["Extension"]
+                        if FileExist(overridePath) {
+                            variantFound := true
+                            break
+                        }
+                    }
+                }
+
+                if !variantFound {
+                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                }
+
+                for variant in imageRegistry[applicationName][matchResults[1]] {
+                    if variant["Variant"] = matchResults[2] {
+                        variant["Path"] := overridePath
+
+                        imageDimensions   := StrSplit(GetImageDimensions(variant["Path"]), "x")
+                        variant["Width"]  := imageDimensions[1] + 0
+                        variant["Height"] := imageDimensions[2] + 0
+                    }
+                }
+            }
+        }
+    }
 
     for application in applicationRegistry {
         if applicationRegistry[application]["Installed"] = true {
@@ -147,7 +249,7 @@ ExecutablePathResolve(applicationName) {
             ))
         }
 
-        sharedApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Application Executable Directory Candidates.csv")
+        sharedApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv")
         for index, sharedApplicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
             if applicationRegistry[sharedApplicationExecutableDirectoryCandidate["Name"]]["Whitelisted"] = false {
                 continue
@@ -183,7 +285,7 @@ ExecutablePathResolve(applicationName) {
             }
 
             filteredApplicationExecutableDirectoryCandidate := Map()
-            filteredApplicationExecutableDirectoryCandidate["Directory"] := applicationExecutableDirectoryCandidate["Directory"]
+            filteredApplicationExecutableDirectoryCandidate["Directory"]  := applicationExecutableDirectoryCandidate["Directory"]
             filteredApplicationExecutableDirectoryCandidate["Executable"] := applicationExecutableDirectoryCandidate["Executable"]
 
             relevantApplicationExecutableDirectoryCandidates.Push(filteredApplicationExecutableDirectoryCandidate)
@@ -246,7 +348,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
 
     executablePathSearchResult := ""
     for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
-        directoryName := applicationExecutableDirectoryCandidate["Directory"]
+        directoryName  := applicationExecutableDirectoryCandidate["Directory"]
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         baseDirectoriesWithDirectoryNames := []
@@ -293,8 +395,8 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
         StrReplace(directoryName, ".", "", , &dotOccurrencesInDirectoryNameCount)
         if executablePathSearchResult = "" && dotOccurrencesInDirectoryNameCount >= 2 {
             directoryNameSegments := StrSplit(directoryName, "\")
-            versionSegmentIndex := 0
-            versionSegment := ""
+            versionSegmentIndex   := 0
+            versionSegment        := ""
 
             for index, directoryNameSegment in directoryNameSegments {
                 StrReplace(directoryNameSegment, ".", "", , &dotOccurrencesInDirectoryNameSegmentCount)
@@ -304,7 +406,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                 }
 
                 versionSegmentIndex := index
-                versionSegment := directoryNameSegment
+                versionSegment      := directoryNameSegment
                 break
             }
 
@@ -326,7 +428,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                     }
                 }
 
-                highestVersionKey := ""
+                highestVersionKey            := ""
                 highestVersionExecutablePath := ""
 
                 for candidateBaseDirectory in candidateBaseDirectories {
@@ -409,7 +511,6 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
 
     executablePathSearchResult := ""
     for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
-        directoryName := applicationExecutableDirectoryCandidate["Directory"]
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
@@ -457,7 +558,6 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
 
     executablePathSearchResult := ""
     for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
-        directoryName := applicationExecutableDirectoryCandidate["Directory"]
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
@@ -592,7 +692,7 @@ ResolveFactsForApplication(applicationName, counter) {
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
-    static commandLineExecutables := ConvertCsvToArrayOfMaps(system["Mappings Directory"] . "Command Line Executables.csv")
+    static commandLineExecutables := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Command Line Executables.csv")
     for commandLineExecutable in commandLineExecutables {
         if applicationName = commandLineExecutable["Name"] {
             directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
@@ -717,7 +817,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Excel"]["International"] := Map()
 
-            excelInternational := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Excel International (2025-09-26).csv")
+            excelInternational := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv")
             for international in excelInternational {
                 applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
             }
@@ -735,7 +835,7 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Word"]["International"] := Map()
 
-            wordInternational := ConvertCsvToArrayOfMaps(system["Constants Directory"] . "Word International (2025-09-26).csv")
+            wordInternational := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Word International (2025-09-26).csv")
 
             for international in wordInternational {
                 applicationRegistry["Word"]["International"][international["Label"]] := wordApplication.International[international["Value"]]
@@ -1019,7 +1119,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         LogConclusion("Skipped", logValuesForConclusion)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
-        WriteTextIntoFile(system["Log Shared Name"], sidecarPath, "UTF-8")
+        WriteTextToFile(system["Logging"]["Log Shared Name"], sidecarPath, "UTF-8")
 
         excelApplication := ComObject("Excel.Application")
         excelWorkbook    := excelApplication.Workbooks.Add()
