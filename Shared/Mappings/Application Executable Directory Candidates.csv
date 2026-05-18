@@ -26,6 +26,7 @@ AutoCAD|acad.exe|Autodesk\AutoCAD 2025
 AutoCAD|acad.exe|Autodesk\AutoCAD 2026
 AutoHotkey|AutoHotkey64.exe|AutoHotkey\v2
 Autopsy|autopsy64.exe|Autopsy-4.22.1\bin
+AVerMedia Streaming Center|StreamingCenter.exe|AVerMedia\AVerMedia Streaming Center
 AzaharPlus|azahar.exe|azaharplus-2123.3-A-windows
 Azahar|azahar.exe|Azahar
 Azure Data Studio|azuredatastudio.exe|Azure Data Studio
@@ -35,6 +36,7 @@ Bandizip|Bandizip.exe|Bandizip
 Base|sbase.exe|LibreOffice\program
 BasicMaker|BasicMaker.exe|SoftMaker Office NX
 Battle.net|Battle.net.exe|Battle.net
+BEACN App|BEACN.exe|BEACN\BEACN App
 Beyond Compare|BCompare.exe|Beyond Compare 5
 BGB|bgb64.exe|BGB
 BigPEmu|BigPEmu.exe|BigPEmu
@@ -100,6 +102,7 @@ draw.io|draw.io.exe|draw.io
 Draw|sdraw.exe|LibreOffice\program
 Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver 2021
 Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver CS6
+Driver Easy|DriverEasy.exe|Easeware\DriverEasy
 Driver Store Explorer|Rapr.exe|Driver Store Explorer
 DuckStation|duckstation-qt-x64-ReleaseLTCG.exe|DuckStation
 Ecosia Browser|ecosiabrowser.exe|EcosiaBrowser\Application
@@ -122,6 +125,8 @@ FastStone Image Viewer|FSViewer.exe|FastStone Image Viewer
 Ferdium|Ferdium.exe|Ferdium
 Fiddler Classic|Fiddler.exe|Fiddler
 Fiddler Everywhere|Fiddler Everywhere.exe|Fiddler Everywhere
+File Juggler|FileJuggler.exe|File Juggler 3
+FileLocator Pro|FileLocatorPro.exe|Mythicsoft\FileLocator Pro
 FileOptimizer|FileOptimizer64.exe|FileOptimizer
 FileZilla|filezilla.exe|FileZilla FTP Client
 FireAlpaca|FireAlpaca.exe|FireAlpaca\FireAlpaca64\FireAlpaca20
@@ -169,6 +174,7 @@ HeidiSQL|heidisql.exe|HeidiSQL
 HexChat|hexchat.exe|HexChat
 Hoppscotch|hoppscotch-desktop.exe|Hoppscotch
 HTTP Toolkit|HTTP Toolkit.exe|HTTP Toolkit
+HudSight|HudSightApp64.exe|HudSight 2
 HWiNFO|HWiNFO32.EXE|HWiNFO32
 HWiNFO|HWiNFO64.EXE|HWiNFO64
 HWMonitor|HWMonitor.exe|CPUID\HWMonitor
@@ -186,6 +192,7 @@ InDesign|InDesign.exe|Adobe\Adobe InDesign 2025
 InDesign|InDesign.exe|Adobe\Adobe InDesign CS6
 Inkscape|inkscape.exe|Inkscape\bin
 Inno Setup|Compil32.exe|Inno Setup 6
+Insights Capture|Insights Capture.exe|Insights Capture V3
 Insomnia|Insomnia.exe|insomnia
 Internet Download Manager|IDMan.exe|Internet Download Manager
 IObit Unlocker|IObitUnlocker.exe|IObit\IObit Unlocker
@@ -202,7 +209,10 @@ Joplin|Joplin.exe|Joplin
 JRomManager|JRomManager.exe|JRomManager
 KeePass|KeePass.exe|KeePass Password Safe 2
 Keyboard Chatter Blocker|KeyboardChatterBlocker.exe|Keyboard Chatter Blocker
+KiCad|kicad.exe|KiCad\10.0\bin
+klogg|klogg.exe|klogg
 KoboldCpp|koboldcpp.exe|KoboldCpp
+Kodi|kodi.exe|Kodi
 Krita|krita.exe|Krita (x64)\bin
 Krita|krita.exe|Krita (x86)\bin
 Kyno|Kyno.exe|Lesspain\Kyno
@@ -218,6 +228,7 @@ Lightworks|lightworks.exe|Lightworks
 LM Studio|LM Studio.exe|LM Studio
 LocalSend|localsend_app.exe|LocalSend
 LockHunter|LockHunter.exe|LockHunter
+LogExpert|LogExpert.exe|LogExpert
 Logi Options+|logioptionsplus.exe|LogiOptionsPlus
 Logitech Options|LogiOptions.exe|Logitech\LogiOptions
 LosslessCut|LosslessCut.exe|LosslessCut
@@ -235,6 +246,7 @@ Mesen|Mesen.exe|Mesen
 MeshLab|meshlab.exe|VCG\MeshLab
 mGBA|mGBA.exe|mGBA
 mIRC|mirc.exe|mIRC
+MobaXterm|MobaXterm.exe|Mobatek\MobaXterm
 Mp3tag|Mp3tag.exe|Mp3tag
 MPC-BE|mpc-be64.exe|MPC-BE
 MPF|MPF.exe|MPF
@@ -242,6 +254,7 @@ Msty Studio|MstyStudio.exe|MstyStudio
 Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
 Mullvad VPN|Mullvad VPN.exe|Mullvad VPN
 Mumble|mumble.exe|Mumble\client
+MusicBee|MusicBee.exe|MusicBee
 Nestopia UE|nestopia.exe|Nestopia UE
 NetLimiter|NLClientApp.exe|Locktime Software\NetLimiter
 Newsbin Pro|NewsbinPro64.exe|Newsbin
@@ -252,10 +265,12 @@ Notepad++|notepad++.exe|Notepad++
 Notion|Notion.exe|Notion
 NSIS|NSIS.exe|NSIS
 NVIDIA App|NVIDIA App.exe|NVIDIA Corporation\NVIDIA App\CEF
+NZXT CAM|NZXT CAM.exe|NZXT CAM
 O&O ShutUp10++|OOSU10.exe|O&O ShutUp10++
 OBS Studio|obs32.exe|obs-studio\bin\32bit
 OBS Studio|obs64.exe|obs-studio\bin\64bit
 Obsidian|Obsidian.exe|Obsidian
+ocenaudio|ocenaudio.exe|ocenaudio
 Ollama|ollama app.exe|Ollama
 OneNote|ONENOTE.EXE|Microsoft Office\root\Office16
 OpenToonz|OpenToonz.exe|OpenToonz
@@ -266,6 +281,7 @@ Paint Shop Pro|Paint Shop Pro 9.exe|Jasc Software Inc\Paint Shop Pro 9
 Paint Shop Pro|Paint Shop Pro.exe|Jasc Software Inc\Paint Shop Pro 8
 Paint.NET|paintdotnet.exe|Paint.NET
 Pale Moon|palemoon.exe|Pale Moon
+Parsec|parsecd.exe|Parsec
 PCSX2|pcsx2-qt.exe|PCSX2
 PeaZip|peazip.exe|PeaZip
 Pencil2D Animation|pencil2d.exe|Pencil2D
@@ -321,6 +337,7 @@ RetroArch|retroarch.exe|RetroArch-Win64
 RetroBat|RetroBat.exe|RetroBat
 Retrom|Retrom.exe|Retrom
 Roblox Studio|RobloxStudioBeta.exe|Roblox\Versions\version-34c9847319974d28
+RoboTask|RoboTask.exe|RoboTask
 RODECaster App|RODECaster App.exe|RØDE Microphones\RODECaster App
 Rominator|Rominator.exe|Rominator for Windows
 RomVault|ROMVault37.exe|RomVault
@@ -377,6 +394,7 @@ TextMaker|TextMaker.exe|SoftMaker Office NX
 Thunderbird|thunderbird.exe|Mozilla Thunderbird
 TIDAL|TIDAL.exe|TIDAL
 TightVNC|tvnviewer.exe|TightVNC
+TikTok LIVE Studio|TikTok LIVE Studio.exe|TikTok LIVE Studio\1.12.0
 TinyWiiBackupManager|TinyWiiBackupManager.exe|TinyWiiBackupManager
 Toad for Oracle|Toad.exe|Quest Software\Toad for Oracle Subscription Edition\Toad for Oracle Subscription
 Toad for SQL Server|toad.exe|Quest Software\Toad for SQL Server Subscription Edition\Toad for SQL Server Subscription
@@ -391,6 +409,7 @@ TrueCrypt|TrueCrypt.exe|TrueCrypt
 TypingMaster|TypingMaster.exe|TypingMaster12
 UiPath Studio|UiPath.Studio.exe|UiPath\Studio
 UltraEdit|uedit64.exe|IDM Computer Solutions\UltraEdit
+UltraSearch|UltraSearch.exe|JAM Software\UltraSearch
 UNIFY|RODE UNIFY.exe|RØDE Microphones\RØDE UNIFY
 UniGetUI|UniGetUI.exe|UniGetUI
 Unity Hub|Unity Hub.exe|Unity Hub
@@ -432,6 +451,7 @@ Wireshark|Wireshark.exe|Wireshark
 WizFile|WizFile64.exe|WizFile
 WizTree|WizTree64.exe|WizTree
 WMI Explorer|WmiExplorer.exe|WMI Explorer
+Wootility|Wootility.exe|wootility
 Word|WINWORD.EXE|Microsoft Office\root\Office16
 Workstation Pro|vmware.exe|VMware\VMware Workstation
 WPS Office|wps.exe|Kingsoft\WPS Office\12.2.0.23131\office6

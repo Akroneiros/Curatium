@@ -22,6 +22,7 @@ Audition|104
 AutoCAD|105
 AutoHotkey|204
 Autopsy|401
+AVerMedia Streaming Center|421
 AzaharPlus|382
 Azahar|383
 Azure Data Studio|281
@@ -31,6 +32,7 @@ Bandizip|53
 Base|54
 BasicMaker|55
 Battle.net|56
+BEACN App|422
 Beyond Compare|33
 BGB|261
 BigPEmu|384
@@ -91,6 +93,7 @@ DOSBox|362
 draw.io|162
 Draw|61
 Dreamweaver|110
+Driver Easy|423
 Driver Store Explorer|163
 DuckStation|215
 Ecosia Browser|323
@@ -113,6 +116,8 @@ FastStone Image Viewer|62
 Ferdium|345
 Fiddler Classic|164
 Fiddler Everywhere|165
+File Juggler|424
+FileLocator Pro|425
 FileOptimizer|42
 FileZilla|43
 FireAlpaca|409
@@ -160,6 +165,7 @@ HeidiSQL|223
 HexChat|411
 Hoppscotch|170
 HTTP Toolkit|171
+HudSight|426
 HWiNFO|45
 HWMonitor|267
 HxD|268
@@ -173,6 +179,7 @@ InCopy|117
 InDesign|118
 Inkscape|46
 Inno Setup|347
+Insights Capture|427
 Insomnia|173
 Internet Download Manager|47
 IObit Unlocker|224
@@ -188,7 +195,10 @@ Joplin|226
 JRomManager|366
 KeePass|14
 Keyboard Chatter Blocker|73
+KiCad|428
+klogg|429
 KoboldCpp|348
+Kodi|430
 Krita|74
 Kyno|175
 LatencyMon|176
@@ -203,6 +213,7 @@ Lightworks|122
 LM Studio|177
 LocalSend|229
 LockHunter|230
+LogExpert|431
 Logi Options+|289
 Logitech Options|290
 LosslessCut|412
@@ -219,6 +230,7 @@ Mesen|234
 MeshLab|235
 mGBA|390
 mIRC|413
+MobaXterm|432
 Mp3tag|272
 MPC-BE|77
 MPF|368
@@ -226,6 +238,7 @@ Msty Studio|179
 Mullvad Browser|124
 Mullvad VPN|125
 Mumble|349
+MusicBee|433
 Nestopia UE|236
 NetLimiter|180
 Newsbin Pro|328
@@ -236,9 +249,11 @@ Notepad++|2
 Notion|237
 NSIS|350
 NVIDIA App|181
+NZXT CAM|434
 O&O ShutUp10++|238
 OBS Studio|15
 Obsidian|127
+ocenaudio|435
 Ollama|182
 OneNote|78
 OpenToonz|239
@@ -248,6 +263,7 @@ Outlook|25
 Paint Shop Pro|16
 Paint.NET|26
 Pale Moon|391
+Parsec|436
 PCSX2|240
 PeaZip|80
 Pencil2D Animation|292
@@ -298,6 +314,7 @@ RetroArch|247
 RetroBat|371
 Retrom|372
 Roblox Studio|373
+RoboTask|437
 RODECaster App|248
 Rominator|374
 RomVault|375
@@ -352,6 +369,7 @@ TextMaker|93
 Thunderbird|142
 TIDAL|396
 TightVNC|94
+TikTok LIVE Studio|438
 TinyWiiBackupManager|378
 Toad for Oracle|4
 Toad for SQL Server|299
@@ -365,6 +383,7 @@ TrueCrypt|11
 TypingMaster|397
 UiPath Studio|335
 UltraEdit|258
+UltraSearch|439
 UNIFY|143
 UniGetUI|418
 Unity Hub|318
@@ -406,6 +425,7 @@ Wireshark|198
 WizFile|339
 WizTree|39
 WMI Explorer|260
+Wootility|440
 Word|12
 Workstation Pro|20
 WPS Office|199
