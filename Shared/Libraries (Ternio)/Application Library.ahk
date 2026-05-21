@@ -562,86 +562,90 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
 
         if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
             continue
-        } else {
-            requiredLength := 4
-            applicationNamePartiallyMatchesExecutableNameCondition := false
-            
-            executableNameWithoutExtension := ExtractFilename(executableName, true)
-            shorterText   := StrLower(applicationName)
-            longerText    := StrLower(executableNameWithoutExtension)
+        }
+
+        requiredLength := 4
+        applicationNamePartiallyMatchesExecutableNameCondition := false
+        
+        executableNameWithoutExtension := ExtractFilename(executableName, true)
+        shorterText   := StrLower(applicationName)
+        longerText    := StrLower(executableNameWithoutExtension)
+        shorterLength := StrLen(shorterText)
+        longerLength  := StrLen(longerText)
+        if shorterLength > longerLength {
+            temporarySwapHolder := shorterText
+            shorterText := longerText
+            longerText  := temporarySwapHolder
             shorterLength := StrLen(shorterText)
             longerLength  := StrLen(longerText)
-            if shorterLength > longerLength {
-                temporarySwapHolder := shorterText
-                shorterText := longerText
-                longerText  := temporarySwapHolder
-                shorterLength := StrLen(shorterText)
-                longerLength  := StrLen(longerText)
-            }
+        }
 
-            maximumStartIndex := shorterLength - requiredLength + 1
-            loop maximumStartIndex {
-                currentStartIndex := A_Index
-                substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
-                if InStr(longerText, substringToSearch) {
-                    applicationNamePartiallyMatchesExecutableNameCondition := true
-                    break
+        maximumStartIndex := shorterLength - requiredLength + 1
+        loop maximumStartIndex {
+            currentStartIndex := A_Index
+            substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
+            if InStr(longerText, substringToSearch) {
+                applicationNamePartiallyMatchesExecutableNameCondition := true
+                break
+            }
+        }
+
+        if !applicationNamePartiallyMatchesExecutableNameCondition {
+            continue
+        }
+
+        for uninstallBaseKeyPath in uninstallBaseKeyPaths {
+            loop reg, uninstallBaseKeyPath, "K" {
+                uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
+
+                displayName := ""
+                try {
+                    displayName := RegRead(uninstallSubKeyPath, "DisplayName")
                 }
-            }
 
-            if !applicationNamePartiallyMatchesExecutableNameCondition {
-                continue
-            }
+                if !displayName || !InStr(displayName, executableNameWithoutExtension) {
+                    continue
+                }
 
-            for uninstallBaseKeyPath in uninstallBaseKeyPaths {
-                loop reg, uninstallBaseKeyPath, "K" {
-                    uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
+                displayIcon := ""
+                try {
+                    displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
+                }
 
-                    displayName := ""
-                    try {
-                        displayName := RegRead(uninstallSubKeyPath, "DisplayName")
-                    }
-
-                    if !(displayName && InStr(StrLower(displayName), StrLower(executableNameWithoutExtension))) {
-                        continue
-                    }
-
-                    displayIcon := ""
-                    try {
-                        displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
-                    }
-
-                    if displayIcon {
-                        pathToExecutable := Trim(StrSplit(displayIcon, ",")[1], ' "')
-                        if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -StrLen(executableName)) = StrLower(executableName)) {
-                            if applicationRegistry[applicationName].Has("Executable Collision") {
-                                if !InStr(pathToExecutable, applicationName) {
-                                    continue
-                                }
+                if displayIcon {
+                    pathToExecutable := RegExReplace(displayIcon, ",-?\d+$")
+                    pathToExecutable := StrReplace(pathToExecutable, "/", "\")
+                    
+                    if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -StrLen(executableName)) = StrLower(executableName)) {
+                        if applicationRegistry[applicationName].Has("Executable Collision") {
+                            if !InStr(pathToExecutable, applicationName) {
+                                continue
                             }
-
-                            executablePathSearchResult := pathToExecutable
-                            break 2
                         }
-                    }
 
-                    installLocation := ""
-                    try {
-                        installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
+                        executablePathSearchResult := pathToExecutable
+                        break 2
                     }
+                }
 
-                    if installLocation {
-                        pathToExecutable := RTrim(installLocation, "\/") . "\" . executableName
-                        if FileExist(pathToExecutable) {
-                            if applicationRegistry[applicationName].Has("Executable Collision") {
-                                if !InStr(pathToExecutable, applicationName) {
-                                    continue
-                                }
+                installLocation := ""
+                try {
+                    installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
+                }
+
+                if installLocation {
+                    pathToExecutable := RTrim(installLocation, "\/")
+                    pathToExecutable := pathToExecutable . "\" . executableName
+
+                    if FileExist(pathToExecutable) {
+                        if applicationRegistry[applicationName].Has("Executable Collision") {
+                            if !InStr(pathToExecutable, applicationName) {
+                                continue
                             }
-
-                            executablePathSearchResult := pathToExecutable
-                            break 2
                         }
+
+                        executablePathSearchResult := pathToExecutable
+                        break 2
                     }
                 }
             }
@@ -881,7 +885,7 @@ ValidateApplicationInstalled(applicationName) {
 ; **************************** ;
 
 CloseApplication(applicationName) {
-    static methodName := RegisterMethod("applicationName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [applicationName], "Close Application (" . applicationName . ")")
 
     if !applicationRegistry.Has(applicationName) {
@@ -905,7 +909,7 @@ CloseApplication(applicationName) {
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional], aboutRange As String [Optional] [Constraint: Locator], aboutCondition As String [Optional] [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Extension Run"
@@ -1081,7 +1085,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("documentName As String [Constraint: Locator], saveDirectory As String [Constraint: Directory], code As String [Constraint: Summary], displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
     overlayValue := ""
     if displayName = "" {
         overlayValue := documentName . " Excel Starting Run"
@@ -1143,7 +1147,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 }
 
 OpenVisualBasicEditorAndRunCode(code, excelApplication) {
-    static methodName := RegisterMethod("code As String [Constraint: Summary], excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("code As String, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
@@ -1338,7 +1342,7 @@ StartSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static methodName := RegisterMethod("code As String [Constraint: Summary], saveDirectory As String [Constraint: Directory], filename As String [Constraint: Locator]",  A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
@@ -1482,7 +1486,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static methodName := RegisterMethod("appName As String [Constraint: Locator], runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")

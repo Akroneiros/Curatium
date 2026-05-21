@@ -154,7 +154,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 }
 
 CreateImagesFromCatalog(imageLibraryCatalogName) {
-    static methodName := RegisterMethod("imageCatalogName As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("imageCatalogName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
 
     global imageRegistry
@@ -250,7 +250,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             uniqueDataReferencesDirectories[index] := system["Directories"]["Images"] . uniqueDataReferenceDirectory . "\"
         }
 
-        BatchAppendSymbolLedger("D", uniqueDataReferencesDirectories)
+        BatchAppendSymbolLedger("R", uniqueDataReferencesDirectories)
 
         static screenWidth  := A_ScreenWidth
         static screenHeight := A_ScreenHeight
@@ -308,15 +308,12 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             }
         }
 
-        filenameValues := []
         hashValues     := []
         for image in pendingBase64ImageWriteQueue {
-            filenameValues.Push(image["Filename"])
             hashValues.Push(image["SHA-256"])
         }
 
-        BatchAppendSymbolLedger("F", filenameValues)
-        BatchAppendSymbolLedger("H", hashValues)
+        BatchAppendSymbolLedger("R", hashValues)
 
         for image in pendingBase64ImageWriteQueue {
             filePath := system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"]

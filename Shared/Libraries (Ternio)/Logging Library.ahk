@@ -45,7 +45,7 @@ OverlayChangeVisibility() {
 }
 
 OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
@@ -60,7 +60,7 @@ OverlayHideLogForMethod(methodNameInput) {
 }
 
 OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String [Constraint: Locator]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
@@ -211,6 +211,8 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
         "Method Name", methodName
     )
 
+    customOverlayMethod := (methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine")
+
     if IsSet(overlayValue) {
         logValuesForConclusion["Operation Sequence Number"] := EncodeIntegerToBase(NextOperationSequenceNumber(), 94)
         logValuesForConclusion["Query Performance Counter"] := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
@@ -224,7 +226,7 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
     logBeginning := unset
     overlayKey   := unset
     if IsSet(overlayValue) {
-        if methodName != "OverlayInsertSpacer" && methodName != "OverlayUpdateCustomLine" {
+        if !customOverlayMethod {
             overlayKey := OverlayGenerateNextKey(methodName)
 
             if overlayKey != 0 {
@@ -251,30 +253,62 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
     logValuesForConclusion["Overlay Key"] := overlayKey
 
     if arguments.Length != 0 {
-        validation := LogValidateMethodArguments(methodName, arguments)
+        validation := ""
+
+        for index, argument in arguments {
+            parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+            dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+            dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+            optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+            whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+
+            validationOfArgument := ""
+            if dataType = "String" && optional = "" && argument = "" {
+                validationOfArgument := "No value passed as argument when required."
+            } else if dataType = "String" && optional = "Optional" && argument = "" {
+                ; Skip validation as it's optional.
+            } else {
+                validationOfArgument := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
+            }
+
+            if validationOfArgument != "" {
+                if validation != "" {
+                    validation := validation . " "
+                }
+
+                validation := validation . 'Parameter "' . parameterName . '" failed validation. ' . validationOfArgument
+            }
+        }
+
         if validation != "" {
             logValuesForConclusion["Validation"] := validation
+
         }
 
         if logValuesForConclusion["Overlay Key"] != -1 {
-            logValuesForConclusion := LogFormatMethodArguments(logValuesForConclusion, arguments)
+            if !customOverlayMethod {
+                logValuesForConclusion := LogProcessArguments(logValuesForConclusion, arguments)
 
-            logBeginning := logBeginning . "|" . 
-                logValuesForConclusion["Arguments Log"] ; Arguments or Error Message
+                logBeginning := logBeginning . "|" . 
+                    logValuesForConclusion["Arguments Log"]             ; Arguments or Error Message
+            } else {
+                logBeginning := logBeginning . "|" . 
+                    ""                                                  ; Arguments or Error Message
+            }
         } else {
             logValuesForConclusion["Arguments"] := arguments
         }
     }
 
     if logValuesForConclusion["Overlay Key"] >= 1 {
-        if !symbolLedger.Has(overlayValue . "|O") {
+        if !symbolLedger["Overlay"].Has(overlayValue) {
             logOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
             AppendLineToLog(logOverlaySymbolLedgerLine, "Symbol Ledger")
         }
 
         logBeginning := logBeginning . "|" . 
-            EncodeIntegerToBase(overlayKey, 94) . "|" . ; Overlay Key
-            symbolLedger[overlayValue . "|O"]           ; Overlay Value
+            EncodeIntegerToBase(overlayKey, 94) . "|" .                 ; Overlay Key
+            symbolLedger["Overlay"][overlayValue]                       ; Overlay Value
     }
 
     if IsSet(logBeginning) {
@@ -314,35 +348,35 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
             methodRegistry[logValuesForConclusion["Method Name"]]["Symbol"] ; Method or Context
 
             if logValuesForConclusion.Has("Arguments") {
-                logValuesForConclusion := LogFormatMethodArguments(logValuesForConclusion, logValuesForConclusion["Arguments"])
+                logValuesForConclusion := LogProcessArguments(logValuesForConclusion, logValuesForConclusion["Arguments"])
 
                 logBeginning := logBeginning . "|" . 
-                    logValuesForConclusion["Arguments Log"] ; Arguments or Error Message
+                    logValuesForConclusion["Arguments Log"]                 ; Arguments or Error Message
             }
 
             AppendLineToLog(logBeginning, "Operation Log")
     }
 
     logConclusion := 
-        logValuesForConclusion["Operation Sequence Number"] .     "|" . ; Operation Sequence Number
-        SubStr(conclusionStatus, 1, 1) .                          "|" . ; Status
-        EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94) . "|" . ; Query Performance Counter
-        EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)     ; UTC Timestamp Integer
+        logValuesForConclusion["Operation Sequence Number"] .     "|" .     ; Operation Sequence Number
+        SubStr(conclusionStatus, 1, 1) .                          "|" .     ; Status
+        EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94) . "|" .     ; Query Performance Counter
+        EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)         ; UTC Timestamp Integer
 
     if !logValuesForConclusion.Has("Context") && IsSet(errorMessage) {
         logValuesForConclusion["Context"] := ""
     }
 
     if logValuesForConclusion.Has("Context") {
-        if !symbolLedger.Has(logValuesForConclusion["Context"] . "|C") {
+        if !symbolLedger["Context"].Has(logValuesForConclusion["Context"]) {
             logSymbolLedgerLine := RegisterSymbol(logValuesForConclusion["Context"], "Context", false)
             AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
         }
 
-        logValuesForConclusion["Context"] := symbolLedger[logValuesForConclusion["Context"] . "|C"]
+        logValuesForConclusion["Context"] := symbolLedger["Context"][logValuesForConclusion["Context"]]
 
         logConclusion := logConclusion . "|" . 
-            logValuesForConclusion["Context"] ; Method or Context
+            logValuesForConclusion["Context"]                               ; Method or Context
     }
 
     errorWindow             := unset
@@ -370,13 +404,13 @@ LogConclusion(conclusionStatus, logValuesForConclusion, errorLineNumber := unset
             "Line Number: " . errorLineNumber . newLine
 
         logErrorMessage := StrReplace(constructedErrorMessage . "Error Output: " . errorMessage, newLine, "|")
-        if !symbolLedger.Has(logErrorMessage . "|E") {
+        if !symbolLedger["Error"].Has(logErrorMessage) {
             logSymbolLedgerLine := RegisterSymbol(logErrorMessage, "Error", false)
             AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
         }
 
         logConclusion := logConclusion . "|" . 
-            symbolLedger[logErrorMessage . "|E"] ; Arguments or Error Message
+            symbolLedger["Error"][logErrorMessage]                          ; Arguments or Error Message
 
         constructedErrorMessage := constructedErrorMessage . 
             "Date Runtime: " . currentLocalDateTime . newLine . 
@@ -430,10 +464,22 @@ LogEngine(status) {
     static runTelemetryOrder := 0
 
     runTelemetryOrder := runTelemetryOrder + 1
+    system[snapshot]  := LogTelemetryTimestamp()
+    system[snapshot]["Run Telemetry Order"] := runTelemetryOrder
+    snapshotCombined  := system[snapshot]["Run Telemetry Order"] . "|" . system[snapshot]["Number of Readings"] . "|" . system[snapshot]["Operation Log Line Number"] . 
+            "|" . system[snapshot]["UTC Timestamp Precise"] . "|" . system[snapshot]["UTC Timestamp Integer"] . "|" . system[snapshot]["QPC Midpoint Tick"]
 
     runTelemetryLines := []
     if status = "Beginning" {
         system["Logging"] := Map(
+            "Identifiers", Map(
+                "Context",   0,
+                "Error",     0,
+                "Method",    0,
+                "Overlay",   0,
+                "Reference", 0,
+                "Whitelist", 0
+            ),
             "Log Entries",  [],
             "Log to Array", true
         )
@@ -456,9 +502,6 @@ LogEngine(status) {
         system[directories]["Mappings"]  := system[directories]["Shared"] . "Mappings\"
         system[directories]["Spreadsheet Operations Template"] := system[directories]["Shared"] . "Spreadsheet Operations Template\"
 
-        system[snapshot] := LogTelemetryTimestamp()
-        system[snapshot]["Run Telemetry Order"] := runTelemetryOrder
-
         system[logging]["Log Shared Name"] := system["Directories"]["Log"] . projectName . " - " . FormatTime(StrReplace(StrReplace(StrReplace(StrSplit(system[snapshot]["UTC Timestamp Precise"], ".")[1], "-"), " "), ":"), "yyyy-MM-dd HH.mm.ss")
         system[logging]["Log File Path"]   := Map(
             "Execution Log", system[logging]["Log Shared Name"] . " - Execution Log.csv",
@@ -471,6 +514,12 @@ LogEngine(status) {
         EnsureDirectoryExists(system["Directories"]["Log"])
         EnsureDirectoryExists(system["Directories"]["Project"])
         
+        newLine := "`r`n"
+        WriteTextToFile("Log" . newLine, system[logging]["Log File Path"]["Execution Log"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value" . newLine, system[logging]["Log File Path"]["Operation Log"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Log" . newLine . snapshotCombined . "|B" . newLine, system[logging]["Log File Path"]["Run Telemetry"], "UTF-8-BOM", "Create")
+        WriteTextToFile("Reference|Type|Symbol" . newLine, system[logging]["Log File Path"]["Symbol Ledger"], "UTF-8-BOM", "Create")
+
         system[environment]["Operating System"]     := GetOperatingSystem()
         system[environment]["OS Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
         system[environment]["Computer Name"]        := A_ComputerName
@@ -492,6 +541,31 @@ LogEngine(status) {
         system[environment]["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
         system[environment]["DPI Scale"]            := Round(A_ScreenDPI / 96 * 100) . "%"
         system[environment]["Color Mode"]           := GetWindowsColorMode()
+
+        consolidatedOperationLog := ""
+        consolidatedSymbolLedger := ""
+        for logEntry in system["Logging"]["Log Entries"] {
+            if logEntry[2] = "Operation Log" {
+                if consolidatedOperationLog = "" {
+                    consolidatedOperationLog := logEntry[1]
+                } else {
+                    consolidatedOperationLog := consolidatedOperationLog . newLine . logEntry[1]
+                }
+            }
+
+            if logEntry[2] = "Symbol Ledger" {
+                if consolidatedSymbolLedger = "" {
+                    consolidatedSymbolLedger := logEntry[1]
+                } else {
+                    consolidatedSymbolLedger := consolidatedSymbolLedger . newLine . logEntry[1]
+                }
+            }
+        }
+
+        system[logging].Delete("Log to Array")
+        AppendLineToLog(consolidatedOperationLog, "Operation Log")
+        AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+        system[logging].Delete("Log Entries")
 
         DefineApplicationRegistry()
 
@@ -517,38 +591,6 @@ LogEngine(status) {
         }
 
         ValidateConfiguration(configurationPath)
-
-        newLine := "`r`n"
-        WriteTextToFile("Log" . newLine, system[logging]["Log File Path"]["Execution Log"], "UTF-8-BOM", "Create")
-        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value" . newLine, system[logging]["Log File Path"]["Operation Log"], "UTF-8-BOM", "Create")
-        WriteTextToFile("Log" . newLine, system[logging]["Log File Path"]["Run Telemetry"], "UTF-8-BOM", "Create")
-        WriteTextToFile("Reference|Type|Symbol" . newLine, system[logging]["Log File Path"]["Symbol Ledger"], "UTF-8-BOM", "Create")
-
-        consolidatedOperationLog := ""
-        consolidatedSymbolLedger := ""
-        for logEntry in system["Logging"]["Log Entries"] {
-            if logEntry[2] = "Operation Log" {
-                if consolidatedOperationLog = "" {
-                    consolidatedOperationLog := logEntry[1]
-                } else {
-                    consolidatedOperationLog := consolidatedOperationLog . newLine . logEntry[1]
-                }
-            }
-
-            if logEntry[2] = "Symbol Ledger" {
-                if consolidatedSymbolLedger = "" {
-                    consolidatedSymbolLedger := logEntry[1]
-                } else {
-                    consolidatedSymbolLedger := consolidatedSymbolLedger . newLine . logEntry[1]
-                }
-            }
-        }
-
-        AppendLineToLog(consolidatedOperationLog, "Operation Log")
-        AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
-
-        system[logging].Delete("Log to Array")
-        system[logging].Delete("Log Entries")
 
         executionLogLines := [
             system[runtime]["Project Name"],
@@ -579,18 +621,12 @@ LogEngine(status) {
 
         BatchAppendExecutionLog("Beginning", executionLogLines)
 
-        runTelemetryLines.Push(system[snapshot]["Run Telemetry Order"] . "|" . system[snapshot]["Number of Readings"] . "|" . system[snapshot]["Operation Log Line Number"] . 
-            "|" . system[snapshot]["UTC Timestamp Precise"] . "|" . system[snapshot]["UTC Timestamp Integer"] . "|" . system[snapshot]["QPC Midpoint Tick"])
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
 
         BatchAppendRunTelemetry("Beginning", runTelemetryLines)
     } else {
-        system[snapshot] := LogTelemetryTimestamp()
-        system[snapshot]["Run Telemetry Order"] := runTelemetryOrder
-
-        runTelemetryLines.Push(system[snapshot]["Run Telemetry Order"] . "|" . system[snapshot]["Number of Readings"] . "|" . system[snapshot]["Operation Log Line Number"] . 
-            "|" . system[snapshot]["UTC Timestamp Precise"] . "|" . system[snapshot]["UTC Timestamp Integer"] . "|" . system[snapshot]["QPC Midpoint Tick"])
+        runTelemetryLines.Push(snapshotCombined)
         runTelemetryLines.Push(GetPhysicalMemoryStatus())
         runTelemetryLines.Push(GetRemainingFreeDiskSpace())
 
@@ -642,27 +678,15 @@ LogEngine(status) {
     }
 }
 
-LogFormatMethodArguments(logValuesForConclusion, arguments) {
+LogProcessArguments(logValuesForConclusion, arguments) {
     global symbolLedger
 
-    methodName := logValuesForConclusion["Method Name"]
-
-    if methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine" {
-        logValuesForConclusion["Arguments Full"] := ""
-        logValuesForConclusion["Arguments Log"]  := ""
-
-        return logValuesForConclusion
-    }
-
     argumentsFormatted := Map(
-        "Arguments Full",  "",
-        "Arguments Log",   "",
-        "Parameter",       "",
-        "Argument",        "",
-        "Data Type",       "",
-        "Data Constraint", ""
+        "Arguments Full", "",
+        "Arguments Log",  ""
     )
 
+    methodName := logValuesForConclusion["Method Name"]
     for index, argument in arguments {
         argumentsFormatted["Parameter"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
         argumentsFormatted["Argument"]        := argument
@@ -676,79 +700,63 @@ LogFormatMethodArguments(logValuesForConclusion, arguments) {
             case "Array", "Map", "Object":
                 argumentValueFull := "<" . argumentsFormatted["Data Type"] . ">"
                 argumentValueLog  := "<" . argumentsFormatted["Data Type"] . ">"
+
+                if Type(argument) != argumentsFormatted["Data Type"] {
+                    argumentValueFull := "\"
+                    argumentValueLog  := "\"
+                }
             case "Boolean":
+                if argument != 0 || argument != 1 {
+                    argumentValueFull := "\"
+                    argumentValueLog  := "\"
+                }
             case "Integer":
+                if Type(argument) != argumentsFormatted["Data Type"] {
+                    argumentValueFull := "\"
+                    argumentValueLog  := "\"
+                }
             case "String":
-                if argumentsFormatted["Whitelist"].Length != 0 {
-                    if !symbolLedger.Has(argument . "|W") {
+                if Type(argument) != argumentsFormatted["Data Type"] {
+                    argumentValueFull := "\"
+                    argumentValueLog  := "\"
+                } else if argumentsFormatted["Whitelist"].Length != 0 {
+                    if !symbolLedger["Whitelist"].Has(argument) {
                         logSymbolLedgerLine := RegisterSymbol(argument, "Whitelist", false)
                         AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                     }
 
-                    argumentValueLog := symbolLedger[argument . "|W"]
+                    argumentValueLog := symbolLedger["Whitelist"][argument]
                 } else {
-                    switch argumentsFormatted["Data Constraint"] {
-                        case "Path", "Valid Path":
-                            SplitPath(argument, &filename, &directoryPath)
+                    if InStr(argument, "`n") || InStr(argument, "`r") {
+                        summary := "Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length
 
-                            if !symbolLedger.Has(directoryPath . "|D") {
-                                logSymbolLedgerLine := RegisterSymbol(directoryPath, "Directory", false)
+                        if !symbolLedger["Reference"].Has(summary) {
+                            logSymbolLedgerLine := RegisterSymbol(summary, "Reference", false)
+                            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+                        }
+
+                        argumentValueFull := summary
+                        argumentValueLog  := symbolLedger["Reference"][summary]
+                    } else {
+                        if StrLen(argument) >= 255 || logValuesForConclusion.Has("Validation") {
+                            if StrLen(argument) >= 255 {
+                                argumentValueFull := SubStr(argument, 1, 255) . "…"
+                            }
+
+                            if !symbolLedger["Reference"].Has(argumentValueFull) {
+                                logSymbolLedgerLine := RegisterSymbol(argumentValueFull, "Reference", false)
                                 AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
-                            if !symbolLedger.Has(filename . "|F") {
-                                logSymbolLedgerLine := RegisterSymbol(filename, "Filename", false)
-                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[directoryPath . "|D"] . "\" . symbolLedger[filename . "|F"]
-                        case "Base64", "Summary":
-                            summary := "<Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ">"
-
-                            if !symbolLedger.Has(summary . "|S") {
-                                logSymbolLedgerLine := RegisterSymbol(summary, "Summary", false)
-                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueFull := summary
-                            argumentValueLog := symbolLedger[summary . "|S"]
-                        case "Directory", "Valid Directory":
-                            if !symbolLedger.Has(RTrim(argument, "\") . "|D") {
-                                logSymbolLedgerLine := RegisterSymbol(argument, "Directory", false)
-                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[RTrim(argument, "\") . "|D"]
-                        case "Filename":
-                            if !symbolLedger.Has(argument . "|F") {
-                                logSymbolLedgerLine := RegisterSymbol(argument, "Filename", false)
-                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[argument . "|F"]
-                        case "Key":
-                            argumentValueLog  := "<Key>"
-                            argumentValueFull := "<Key>"
-                        case "Locator":
-                            if !symbolLedger.Has(argument . "|R") {
+                            argumentValueLog := symbolLedger["Reference"][argumentValueFull]
+                        } else {
+                            if !symbolLedger["Reference"].Has(argument) {
                                 logSymbolLedgerLine := RegisterSymbol(argument, "Reference", false)
                                 AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
                             }
 
-                            argumentValueLog := symbolLedger[argument . "|R"]
-                        case "SHA-256":
-                            encodedHash := EncodeSha256HexToBase(argument, 86)
-                            if !symbolLedger.Has(encodedHash . "|H") {
-                                logSymbolLedgerLine := RegisterSymbol(encodedHash, "Hash", false)
-                                AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-                            }
-
-                            argumentValueLog := symbolLedger[encodedHash . "|H"]
-                        default:
-                            if StrLen(argument) > 192 {
-                                argumentValueFull := SubStr(argument, 1, 224) . "…"
-                                argumentValueLog  := SubStr(argument, 1, 192) . "…"
-                            }
+                            argumentValueLog := symbolLedger["Reference"][argument]
+                        }
                     }
                 }
                 
@@ -885,56 +893,12 @@ LogTimestamp() {
     return logTimestamp
 }
 
-LogValidateMethodArguments(methodName, arguments) {
-    validation := ""
-
-    if methodName = "OverlayInsertSpacer" {
-        return validation
-    }
-
-    for index, argument in arguments {
-        parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-        optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-        whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
-
-        parameterMissingValue := 'Parameter "' . parameterName . '" has no value passed into it.'
-
-        if dataType = "String" && optional = "" && argument = "" {
-            validation := parameterMissingValue
-        } else if dataType = "String" && optional != "" && argument = "" {
-            ; Skip validation as it's Optional.
-        } else {
-            validation := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
-        }
-
-        if validation = parameterMissingValue {
-            break
-        } else if validation != "" {
-            validation := 'Parameter "' . parameterName . '" failed validation. ' . validation
-            break
-        }
-    }
-
-    return validation
-}
-
 NextOperationSequenceNumber() {
     static operationSequenceNumber := -1
 
     operationSequenceNumber++
 
     return operationSequenceNumber
-}
-
-NextSymbolLedgerAlias() {
-    static symbolLedgerIdentifier := -1
-
-    symbolLedgerIdentifier++
-    symbolLedgerAlias := EncodeIntegerToBase(symbolLedgerIdentifier, 86)
-
-    return symbolLedgerAlias
 }
 
 OverlayGenerateNextKey(methodName := unset) {
@@ -997,39 +961,33 @@ RegisterSymbol(value, type, addNewLine := true) {
     global symbolLedger
 
     static newLine := "`r`n"
-    symbolLine     := ""
 
     switch StrLower(type) {
         case "context", "c":
-            type := "C"
-        case "directory", "d":
-            type := "D"
-            value := RTrim(value, "\")
+            type := "Context"
         case "error", "e":
-            type := "E"
-        case "filename", "f":
-            type := "F"
-        case "hash", "h":
-            type := "H"
+            type := "Error"
         case "method", "m":
-            type := "M"
+            type := "Method"
         case "overlay", "o":
-            type := "O"
+            type := "Overlay"
         case "reference", "r":
-            type := "R"
-        case "summary", "s":
-            type := "S"
+            type := "Reference"
         case "whitelist", "w":
-            type := "W"
+            type := "Whitelist"
     }
 
-    if !symbolLedger.Has(value . "|" . type) {
-        symbolLedger[value . "|" . type] := NextSymbolLedgerAlias()
+    symbolLine := ""
+    if !symbolLedger[type].Has(value) {
+        system["Logging"]["Identifiers"][type]++
+        symbolLedger[type][value] := EncodeIntegerToBase(system["Logging"]["Identifiers"][type], 92)
+
+        typeCharacter := SubStr(type, 1, 1)
 
         symbolLine :=
             value . "|" . 
-            type . "|" . 
-            symbolLedger[value . "|" . type]
+            typeCharacter . "|" . 
+            symbolLedger[type][value]
     }
 
     if addNewLine {
@@ -1046,8 +1004,10 @@ RegisterSymbol(value, type, addNewLine := true) {
 GetBaseCharacterSet(baseType) {
     ; https://www.utf8-chartable.de
     static cachedBase52Result := unset
+    static cachedBase62Result := unset
     static cachedBase66Result := unset
     static cachedBase86Result := unset
+    static cachedBase92Result := unset
     static cachedBase94Result := unset
 
     cachedResult := unset
@@ -1057,6 +1017,10 @@ GetBaseCharacterSet(baseType) {
             if IsSet(cachedBase52Result) {
                 cachedResult := cachedBase52Result
             }
+        case 62:
+            if IsSet(cachedBase62Result) {
+                cachedResult := cachedBase62Result
+            }
         case 66:
             if IsSet(cachedBase66Result) {
                 cachedResult := cachedBase66Result
@@ -1064,6 +1028,10 @@ GetBaseCharacterSet(baseType) {
         case 86:
             if IsSet(cachedBase86Result) {
                 cachedResult := cachedBase86Result
+            }
+        case 92:
+            if IsSet(cachedBase92Result) {
+                cachedResult := cachedBase92Result
             }
         case 94:
             if IsSet(cachedBase94Result) {
@@ -1074,22 +1042,26 @@ GetBaseCharacterSet(baseType) {
     if !IsSet(cachedResult) {
         excludedAsciiCodePoints := Map()
 
-       if baseType <= 94 {
+        if baseType <= 94 {
             excludedAsciiCodePoints[0x7C] := true ; | VERTICAL LINE
-       }
+        }
 
-       if baseType <= 86 {
+        if baseType <= 92 {
             excludedAsciiCodePoints[0x22] := true ; " QUOTATION MARK
+            excludedAsciiCodePoints[0x5C] := true ; \ REVERSE SOLIDUS
+        }
+
+        if baseType <= 86 {
             excludedAsciiCodePoints[0x2A] := true ; * ASTERISK
             excludedAsciiCodePoints[0x2F] := true ; / SOLIDUS
             excludedAsciiCodePoints[0x3A] := true ; : COLON
             excludedAsciiCodePoints[0x3C] := true ; < LESS-THAN SIGN
             excludedAsciiCodePoints[0x3E] := true ; > GREATER-THAN SIGN
             excludedAsciiCodePoints[0x3F] := true ; ? QUESTION MARK
-            excludedAsciiCodePoints[0x5C] := true ; \ REVERSE SOLIDUS
-       }
 
-       if baseType <= 66 {
+        }
+
+        if baseType <= 66 {
             excludedAsciiCodePoints[0x20] := true ;   SPACE
             excludedAsciiCodePoints[0x21] := true ; ! EXCLAMATION MARK
             excludedAsciiCodePoints[0x23] := true ; # NUMBER SIGN
@@ -1110,11 +1082,16 @@ GetBaseCharacterSet(baseType) {
             excludedAsciiCodePoints[0x60] := true ; ` GRAVE ACCENT
             excludedAsciiCodePoints[0x7B] := true ; { LEFT CURLY BRACKET
             excludedAsciiCodePoints[0x7D] := true ; } RIGHT CURLY BRACKET
-       }
+        }    
 
-       if baseType <= 52 {
+        if baseType <= 62 {
             excludedAsciiCodePoints[0x2D] := true ; - HYPHEN-MINUS
             excludedAsciiCodePoints[0x2E] := true ; . FULL STOP
+            excludedAsciiCodePoints[0x5F] := true ; _ LOW LINE
+            excludedAsciiCodePoints[0x7E] := true ; ~ TILDE
+        }
+
+        if baseType <= 52 {
             excludedAsciiCodePoints[0x30] := true ; 0 DIGIT ZERO
             excludedAsciiCodePoints[0x31] := true ; 1 DIGIT ONE
             excludedAsciiCodePoints[0x32] := true ; 2 DIGIT TWO
@@ -1125,9 +1102,8 @@ GetBaseCharacterSet(baseType) {
             excludedAsciiCodePoints[0x37] := true ; 7 DIGIT SEVEN
             excludedAsciiCodePoints[0x38] := true ; 8 DIGIT EIGHT
             excludedAsciiCodePoints[0x39] := true ; 9 DIGIT NINE
-            excludedAsciiCodePoints[0x5F] := true ; _ LOW LINE
-            excludedAsciiCodePoints[0x7E] := true ; ~ TILDE
-       }
+
+        }
 
         baseCharacters := ""
         loop 0x7E - 0x20 + 1 {
@@ -1178,16 +1154,14 @@ GetBaseCharacterSet(baseType) {
         )
 
         switch baseType {
-            case 52:
-                cachedBase52Result := cachedResult
-            case 66:
-                cachedBase66Result := cachedResult
-            case 86:
-                cachedBase86Result := cachedResult
-            case 94:
-                cachedBase94Result := cachedResult
+            case 52: cachedBase52Result := cachedResult
+            case 62: cachedBase62Result := cachedResult
+            case 66: cachedBase66Result := cachedResult
+            case 86: cachedBase86Result := cachedResult
+            case 92: cachedBase92Result := cachedResult
+            case 94: cachedBase94Result := cachedResult
         }
-    }   
+    }
 
     return cachedResult
 }
@@ -1423,35 +1397,25 @@ BatchAppendRunTelemetry(appendType, array) {
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
-    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}", "{13}", "{14}", "{15}", "{16}", "{17}", "{18}"',
-        "Context", "C", "Directory", "D", "Error", "E", "File", "F", "Hash", "H", "Overlay", "O", "Reference", "R", "Summary", "S", "Whitelist", "W")
-    static methodName := RegisterMethod("symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}", "{11}", "{12}"',
+        "Context", "C", "Error", "E", "Method", "M", "Overlay", "O", "Reference", "R", "Whitelist", "W")
+    static methodName := RegisterMethod("symbolType As String [Whitelist: " . symbolTypeWhitelist . "], array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [symbolType, array])
-
-    static newLine := "`r`n"
 
     switch StrLower(symbolType) {
         case "context", "c":
-            symbolType := "C"
-        case "directory", "d":
-            symbolType := "D"
+            symbolType := "Context"
         case "error", "e":
-            symbolType := "E"
-        case "file", "f":
-            symbolType := "F"
-        case "hash", "h":
-            symbolType := "H"
+            symbolType := "Error"
+        case "method", "m":
+            symbolType := "Method"
         case "overlay", "o":
-            symbolType := "O"
+            symbolType := "Overlay"
         case "reference", "r":
-            symbolType := "R"
-        case "summary", "s":
-            symbolType := "S"
+            symbolType := "Reference"
         case "whitelist", "w":
-            symbolType := "W"
+            symbolType := "Whitelist"
     }
-
-    consolidatedSymbolLedger := ""
 
     symbolLedgerArray := []
     for value in array {
@@ -1459,23 +1423,16 @@ BatchAppendSymbolLedger(symbolType, array) {
             continue
         }
 
-        if symbolType = "D" {
-            value := RTrim(value, "\")
-        } else if symbolType = "H" {
-            value := EncodeSha256HexToBase(value, 86)
-        } else if symbolType = "S" {
-            value := "<Length: " . StrLen(value) . ", Rows: " . StrSplit(value, "`n").Length . ">"
-        }
-
-        if !symbolLedger.Has(value . "|" . symbolType) {
+        if !symbolLedger[symbolType].Has(value) {
             symbolLedgerArray.Push(value)
         }
     }
   
-    arrayLength := symbolLedgerArray.Length
+    arrayLength              := symbolLedgerArray.Length
+    consolidatedSymbolLedger := ""
     if arrayLength !== 0 {
         symbolLedgerArray := RemoveDuplicatesFromArray(symbolLedgerArray)
-        arrayLength := symbolLedgerArray.Length
+        arrayLength       := symbolLedgerArray.Length
 
         for index, value in symbolLedgerArray {
             if arrayLength !== index {

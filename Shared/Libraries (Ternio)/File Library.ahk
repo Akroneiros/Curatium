@@ -340,7 +340,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
 WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
     static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
-    static methodName := RegisterMethod("text As String [Constraint: Summary], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("text As String, filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding, mode], "Write Text Into File" . " (" . ExtractFilename(filePath) . ") with Mode: " . mode)
 
     if mode = "Create" && FileExist(filePath) {
@@ -462,7 +462,7 @@ ExtractParentDirectory(filePath) {
 }
 
 FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
-    static methodName := RegisterMethod("filename As String [Constraint: Locator], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("filename As String [Constraint: Filename], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [filename, directoryPath, fileExtension])
 
     filesInDirectory := GetFilesFromDirectory(directoryPath)

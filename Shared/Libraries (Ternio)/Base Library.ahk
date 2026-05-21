@@ -21,7 +21,14 @@ global overlay        := Map(
         "Failed",    "... Failed " .    "✖️"
     )
 )
-global symbolLedger := Map()
+global symbolLedger := Map(
+    "Context",   Map(),
+    "Error",     Map(),
+    "Method",    Map(),
+    "Overlay",   Map(),
+    "Reference", Map(),
+    "Whitelist", Map()
+)
 global system       := Map(
     "Configuration", Map(),
     "Directories",   Map(),
@@ -149,7 +156,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
 
 PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("text As String [Constraint: Summary], commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [text, commentPrefix], "Paste Text")
 
     static defaultMethodSettingsSet := unset
@@ -770,14 +777,14 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
     methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
 
     symbol := unset
-    if !symbolLedger.Has(methodWithDeclaration . "|" . "M") {
+    if !symbolLedger["Method"].Has(methodWithDeclaration) {
         logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
         AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
 
         logParts := StrSplit(logSymbolLedgerLine, "|")
         symbol   := logParts[logParts.Length]
     } else {
-        symbol   := symbolLedger[methodWithDeclaration . "|" . "M"]
+        symbol   := symbolLedger["Method"][methodWithDeclaration]
     }
 
     methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
@@ -830,8 +837,10 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
 
     static base52CharacterSet := unset
+    static base62CharacterSet := unset
     static base66CharacterSet := unset
     static base86CharacterSet := unset
+    static base92CharacterSet := unset
     static base94CharacterSet := unset
 
     static resolutions := unset
@@ -908,16 +917,20 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                     case "Base52", "Base66", "Base86", "Base94":
                         if !IsSet(base52CharacterSet) {
                             base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
+                            base62CharacterSet := GetBaseCharacterSet(62)["Digit Map"]
                             base66CharacterSet := GetBaseCharacterSet(66)["Digit Map"]
                             base86CharacterSet := GetBaseCharacterSet(86)["Digit Map"]
+                            base92CharacterSet := GetBaseCharacterSet(92)["Digit Map"]
                             base94CharacterSet := GetBaseCharacterSet(94)["Digit Map"]
                         }
 
                         baseCharacterSet := unset
                         switch dataConstraint {
                             case "Base52": baseCharacterSet := base52CharacterSet
+                            case "Base62": baseCharacterSet := base62CharacterSet
                             case "Base66": baseCharacterSet := base66CharacterSet
                             case "Base86": baseCharacterSet := base86CharacterSet
+                            case "Base92": baseCharacterSet := base92CharacterSet
                             case "Base94": baseCharacterSet := base94CharacterSet
                         }
 
@@ -1077,10 +1090,6 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             if validation != "" {
                                 validation := dataConstraint . " " . validation
                             }
-                        }
-                    case "Locator":
-                        if InStr(dataValue, "|") {
-                            validation := dataConstraint . " contains the character |."
                         }
                     case "Percent Range":
                         dataValue := StrReplace(dataValue, ",", ".")
@@ -1284,7 +1293,7 @@ ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) 
 }
 
 ExtractValuesFromArrayDimension(array, dimension) {
-    static methodName := RegisterMethod("array As Object, dimension As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("array As Array, dimension As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logValuesForConclusion := LogBeginning(methodName, [array, dimension])
 
     arrayDimension := []
