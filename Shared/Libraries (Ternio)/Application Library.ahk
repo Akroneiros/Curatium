@@ -11,14 +11,14 @@
 
 DefineApplicationRegistry() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Define Application Registry")
+    logConclusionData := LogBeginning(methodName, [], "Define Application Registry")
 
     global applicationRegistry
     global system
 
     mappedApplicationsFilePath := system["Directories"]["Mappings"] . "Applications.csv"
     if !FileExist(mappedApplicationsFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
     }
    
     applications := ConvertCsvToArrayOfMaps(mappedApplicationsFilePath)
@@ -39,12 +39,12 @@ DefineApplicationRegistry() {
         applicationRegistry[applicationName]["Shared Images"] := true
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 RegisterApplications(createApplicationImages := true) {
     static methodName := RegisterMethod("createApplicationImages As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [createApplicationImages], "Register Applications")
+    logConclusionData := LogBeginning(methodName, [createApplicationImages], "Register Applications")
 
     global applicationRegistry
 
@@ -113,24 +113,24 @@ RegisterApplications(createApplicationImages := true) {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Full High Definition")
                     default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
+                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "2560x1440":
                 switch system["Environment"]["DPI Scale"] {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Quad High Definition")
                     default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
+                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "3840x2160":
                 switch system["Environment"]["DPI Scale"] {
                     case "100%", "125%", "150%", "175%":
                         CreateImagesFromCatalog("Ultra High Definition")
                     default:
-                        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
+                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
                 }
             default:
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Display resolution unsupported: " . system["Environment"]["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Display resolution unsupported: " . system["Environment"]["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
         }
     }
 
@@ -144,11 +144,11 @@ RegisterApplications(createApplicationImages := true) {
                 SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
 
                 if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
                 }
 
                 if !imageRegistry[applicationName].Has(matchResults[1]) {
-                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
                 }
 
                 variantFound := false
@@ -164,7 +164,7 @@ RegisterApplications(createApplicationImages := true) {
                 }
 
                 if !variantFound {
-                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
                 }
 
                 for variant in imageRegistry[applicationName][matchResults[1]] {
@@ -223,12 +223,12 @@ RegisterApplications(createApplicationImages := true) {
 
     BatchAppendExecutionLog("Application", installedApplications)
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ExecutablePathResolve(applicationName) {
     static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName])
+    logConclusionData := LogBeginning(methodName, [applicationName])
 
     global applicationRegistry
 
@@ -323,7 +323,7 @@ ExecutablePathResolve(applicationName) {
 
 ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandidates) {
     static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    logConclusionData := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static candidateBaseDirectories := unset
     if !IsSet(candidateBaseDirectories) {
@@ -501,7 +501,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
 
 ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandidates) {
     static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    logConclusionData := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static appPathsBaseRegistryKeys := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
@@ -548,7 +548,7 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
 
 ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandidates) {
     static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
+    logConclusionData := LogBeginning(methodName, [applicationName, applicationExecutableDirectoryCandidates])
 
     static uninstallBaseKeyPaths := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -664,7 +664,7 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
 
 ResolveFactsForApplication(applicationName, counter) {
     static methodName := RegisterMethod("applicationName As String, counter As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, counter])
+    logConclusionData := LogBeginning(methodName, [applicationName, counter])
 
     global applicationRegistry
 
@@ -816,7 +816,7 @@ ResolveFactsForApplication(applicationName, counter) {
             Sleep(excelTinyDelay + excelTinyDelay)
 
             if excelWorksheet.Range("A1").Value != "Cell" {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to execute Excel Macro Code.")
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute Excel Macro Code.")
             }
 
             applicationRegistry["Excel"]["International"] := Map()
@@ -852,27 +852,27 @@ ResolveFactsForApplication(applicationName, counter) {
 
 ValidateApplicationFact(applicationName, factName, factValue) {
     static methodName := RegisterMethod("applicationName As String, factName As String, factValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName, factName, factValue])
+    logConclusionData := LogBeginning(methodName, [applicationName, factName, factValue])
 
     if !applicationRegistry[applicationName].Has(factName) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" does not have a valid fact name: ' . factName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Application "' . applicationName . '" does not have a valid fact name: ' . factName)
     }
 
     if applicationRegistry[applicationName][factName] !== factValue {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
     }
 }
 
 ValidateApplicationInstalled(applicationName) {
     static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName])
+    logConclusionData := LogBeginning(methodName, [applicationName])
 
     if !applicationRegistry.Has(applicationName) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application doesn't exist: " . applicationName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application doesn't exist: " . applicationName)
     }
 
     if !applicationRegistry[applicationName]["Installed"] {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application not installed: " . applicationName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not installed: " . applicationName)
     }
 
     applicationIsInstalled := true
@@ -886,21 +886,21 @@ ValidateApplicationInstalled(applicationName) {
 
 CloseApplication(applicationName) {
     static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [applicationName], "Close Application (" . applicationName . ")")
+    logConclusionData := LogBeginning(methodName, [applicationName], "Close Application (" . applicationName . ")")
 
     if !applicationRegistry.Has(applicationName) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Application not found: " . applicationName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not found: " . applicationName)
     }
 
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
     if !ProcessExist(executableName) {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {
         ProcessClose(executableName)
         ProcessWaitClose(executableName, 4)
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
@@ -916,7 +916,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     } else {
         overlayValue := displayName . " Excel Extension Run"
     }
-    logValuesForConclusion := LogBeginning(methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
+    logConclusionData := LogBeginning(methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -934,7 +934,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "documentName not found: " . documentName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "documentName not found: " . documentName)
     }
 
     excelApplication := ComObject("Excel.Application")
@@ -971,7 +971,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     }
 
     if (aboutRange != "" || aboutCondition != "") && !aboutWorksheetFound {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Worksheet About not found with arguments passed in.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with arguments passed in.")
     }
 
     if aboutRange = "Progression Status" {
@@ -1015,7 +1015,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             excelApplication := 0
             ProcessWaitClose(excelProcessIdentifier, 2)
 
-            LogConclusion("Completed", logValuesForConclusion)
+            LogConclusion("Completed", logConclusionData)
         } else if aboutRange = "ProgressionStatus" {
             conditionParts := StrSplit(aboutCondition, ", ")
             builtPrefix    := ""
@@ -1043,7 +1043,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 excelApplication := 0
                 ProcessWaitClose(excelProcessIdentifier, 2)
 
-                LogConclusion("Completed", logValuesForConclusion)
+                LogConclusion("Completed", logConclusionData)
             } else {
                 activeWorkbook := excelApplication.ActiveWorkbook
                 activeWorkbook.Close(false)
@@ -1056,7 +1056,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
                 excelApplication := 0
                 Sleep(shortDelay * 4)
 
-                LogConclusion("Skipped", logValuesForConclusion)
+                LogConclusion("Skipped", logConclusionData)
             }
         } else {
             activeWorkbook := excelApplication.ActiveWorkbook
@@ -1070,7 +1070,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
             excelApplication := 0
             Sleep(shortDelay * 4)
 
-            LogConclusion("Skipped", logValuesForConclusion)
+            LogConclusion("Skipped", logConclusionData)
         }
     } else {
         OpenVisualBasicEditorAndRunCode(code, excelApplication)
@@ -1080,7 +1080,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         excelApplication := 0
         ProcessWaitClose(excelProcessIdentifier, 2)
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
@@ -1092,7 +1092,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     } else {
         overlayValue := displayName . " Excel Starting Run"
     }
-    logValuesForConclusion := LogBeginning(methodName, [documentName, saveDirectory, code, displayName], overlayValue)
+    logConclusionData := LogBeginning(methodName, [documentName, saveDirectory, code, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1120,7 +1120,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     }
 
     if xlsxPath != "" {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
         WriteTextToFile(system["Logging"]["Log Shared Name"], sidecarPath, "UTF-8")
@@ -1142,13 +1142,13 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         ProcessWaitClose(excelProcessIdentifier, 2)
 
         DeleteFile(sidecarPath)
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
 OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     static methodName := RegisterMethod("code As String, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
+    logConclusionData := LogBeginning(methodName, [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1199,7 +1199,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
             tinyDelay  := tinyDelay + (attempts * methodRegistry[methodName]["Settings"]["Tiny Delay"]["Delta"])
             shortDelay := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
 
-            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Tiny delay was " . tinyDelay . " milliseconds. Short delay was " . shortDelay . " milliseconds."
+            logConclusionData["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Tiny delay was " . tinyDelay . " milliseconds. Short delay was " . shortDelay . " milliseconds."
             
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
@@ -1252,7 +1252,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
         loopWasSuccessful := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Tiny delay is " . tinyDelay . " milliseconds. Short delay is " . shortDelay . " milliseconds."
+            logConclusionData["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Tiny delay is " . tinyDelay . " milliseconds. Short delay is " . shortDelay . " milliseconds."
 
             IncreaseMethodSetting(methodName, "Tiny Delay")
             IncreaseMethodSetting(methodName, "Short Delay")
@@ -1262,15 +1262,15 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     }
 
     if !loopWasSuccessful {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open visual basic editor and run code in " . maxAttempts . " attempts.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open visual basic editor and run code in " . maxAttempts . " attempts.")
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 WaitForExcelToClose(excelProcessIdentifier) {
     static methodName := RegisterMethod("excelProcessIdentifier As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [excelProcessIdentifier], "Wait for Excel to Close (PID: " . excelProcessIdentifier . ")")
+    logConclusionData := LogBeginning(methodName, [excelProcessIdentifier], "Wait for Excel to Close (PID: " . excelProcessIdentifier . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1309,10 +1309,10 @@ WaitForExcelToClose(excelProcessIdentifier) {
     }
 
     if !userInterfaceIsGone {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Excel did not close within " . totalSecondsToWait . " seconds.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel did not close within " . totalSecondsToWait . " seconds.")
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;
@@ -1321,7 +1321,7 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
 StartSqlServerManagementStudioAndConnect() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Start SQL Server Management Studio and Connect")
+    logConclusionData := LogBeginning(methodName, [], "Start SQL Server Management Studio and Connect")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1332,18 +1332,18 @@ StartSqlServerManagementStudioAndConnect() {
     SendInput("{Enter}") ; Connect
 
     if !WinWaitClose("Connect ahk id " . sqlServerManagementStudioConnectToServerWindowSearchResults["Window Handle"],, 40) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Connection failed.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Connection failed.")
     }
 
     sqlServerManagementStudioMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], 60)
     ActivateWindow(sqlServerManagementStudioMainWindowSearchResults, true)
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
+    logConclusionData := LogBeginning(methodName, [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1377,7 +1377,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
             longDelay   := longDelay + (attempts * methodRegistry[methodName]["Settings"]["Long Delay"]["Delta"])
 
-            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds. Long delay was " . longDelay . " milliseconds."
+            logConclusionData["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds. Long delay was " . longDelay . " milliseconds."
             
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
@@ -1456,7 +1456,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             }
 
             if FileGetTime(savePath, "M") = previousModifiedTime {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Timed out waiting for overwrite: " . savePath)
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Timed out waiting for overwrite: " . savePath)
             }
 
             Sleep(mediumDelay)
@@ -1464,7 +1464,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
         loopWasSuccessful := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds. Long delay is " . longDelay . " milliseconds."
+            logConclusionData["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds. Long delay is " . longDelay . " milliseconds."
 
             IncreaseMethodSetting(methodName, "Short Delay")
             IncreaseMethodSetting(methodName, "Medium Delay")
@@ -1475,10 +1475,10 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     }
 
     if !loopWasSuccessful {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to execute SQL query and save as CSV in " . maxAttempts . " attempts.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute SQL query and save as CSV in " . maxAttempts . " attempts.")
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;
@@ -1487,7 +1487,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
     static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [appName, runtimeDate], "Execute Automation App (" . appName . ")")
+    logConclusionData := LogBeginning(methodName, [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
 
@@ -1512,12 +1512,12 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
     if !ProcessExist(toadForOracleExecutableFilename) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Toad for Oracle process is not running.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Toad for Oracle process is not running.")
     }
 
     toadForOracleDatabaseLoginWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmLogin", 1)
     if toadForOracleDatabaseLoginWindowSearchResults["Success"] = true {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No server connection is active in Toad for Oracle (Database Login window is open).")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "No server connection is active in Toad for Oracle (Database Login window is open).")
     }
 
     toadForOracleMainWindowSearchResults := SearchForWindow("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TfrmMain", 60)
@@ -1554,7 +1554,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             }
 
             if A_TickCount - firstSeenTickCount >= massiveDelay {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
             }
         }
 
@@ -1609,5 +1609,5 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(tinyDelay)
     PerformMouseActionAtCoordinates("Move", (Round(A_ScreenWidth/2)) . "x" . (Round(A_ScreenHeight/1.2)))
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }

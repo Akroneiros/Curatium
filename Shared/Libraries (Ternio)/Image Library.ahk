@@ -7,7 +7,7 @@
 
 ConvertImagesToBase64ImageLibrary(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath], "Convert Images to Base64 Image Library (" . directoryPath . ")")
+    logConclusionData := LogBeginning(methodName, [directoryPath], "Convert Images to Base64 Image Library (" . directoryPath . ")")
 
     static applications   := unset
     static fileSignatures := unset
@@ -56,7 +56,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     }
 
     if FileExist(imageLibraryCatalogFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image Library Catalog (" . referenceDirectoryName . ") already exists, remove before proceeding.")
     }
 
     counter := 1
@@ -85,7 +85,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
 
         if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
         }
 
         actionName   := Trim(matchResults[1])
@@ -105,7 +105,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
                 if validation != "" {
                     subfolder := StrSplit(RTrim(actionFolderPath, "\"), "\").Pop()
-                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
                 }
             }
 
@@ -150,12 +150,12 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         WriteTextToFile(headerData . ConvertArrayIntoCsvString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM")
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 CreateImagesFromCatalog(imageLibraryCatalogName) {
     static methodName := RegisterMethod("imageCatalogName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
+    logConclusionData := LogBeginning(methodName, [imageLibraryCatalogName], "Create Images from Catalog")
 
     global imageRegistry
 
@@ -165,11 +165,11 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     imageLibraryCatalog          := unset
 
     if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
     }
 
     if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
     }
     
     if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
@@ -240,7 +240,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     }
 
     if relevantImages.Length = 0 {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {
         pendingBase64ImageWriteQueue := []
         uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
@@ -338,7 +338,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             }
         }
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
@@ -348,10 +348,10 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
 
 ExtractImageCoordinates(imageSearchResults) {
     static methodName := RegisterMethod("imageSearchResults As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [imageSearchResults])
+    logConclusionData := LogBeginning(methodName, [imageSearchResults])
 
     if imageSearchResults["Success"] = false {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Failed after " . imageSearchResults["Times Attempted"] . " attempts with " . imageSearchResults["Medium Delay"] . " milliseconds delay between each attempt.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . "). Failed after " . imageSearchResults["Times Attempted"] . " attempts with " . imageSearchResults["Medium Delay"] . " milliseconds delay between each attempt.")
     }
 
     coordinatePair := imageSearchResults["Coordinate Pair"]
@@ -361,7 +361,7 @@ ExtractImageCoordinates(imageSearchResults) {
 
 GetImageDimensions(imagePath) {
     static methodName := RegisterMethod("imagePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [imagePath])
+    logConclusionData := LogBeginning(methodName, [imagePath])
 
     static gdiPlusStartupInputSize := (A_PtrSize = 8) ? 24 : 16
     static gdiPlusStartupInputBuffer := Buffer(gdiPlusStartupInputSize, 0)
@@ -375,23 +375,23 @@ GetImageDimensions(imagePath) {
     gdiPlusStartupToken := 0
     gdiPlusStartupResult := DllCall("GdiPlus\GdiplusStartup", "Ptr*", &gdiPlusStartupToken, "Ptr", gdiPlusStartupInputBuffer.Ptr, "Ptr", 0, "UInt")
     if gdiPlusStartupResult != 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to initialize Windows GDI+. [GdiPlus\GdiplusStartup" . ", GDI+ Status Code: " . gdiPlusStartupResult . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to initialize Windows GDI+. [GdiPlus\GdiplusStartup" . ", GDI+ Status Code: " . gdiPlusStartupResult . "]")
     }
 
     gdiPlusBitmapPointer := 0
     gdiPlusCreateBitmapStatus := DllCall("GdiPlus\GdipCreateBitmapFromFile", "WStr", imagePath, "Ptr*", &gdiPlusBitmapPointer, "UInt")
     if gdiPlusCreateBitmapStatus != 0 || !gdiPlusBitmapPointer {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to create a bitmap object based on the image. [GdiPlus\GdipCreateBitmapFromFile" . ", GDI+ Status Code: " . gdiPlusCreateBitmapStatus . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to create a bitmap object based on the image. [GdiPlus\GdipCreateBitmapFromFile" . ", GDI+ Status Code: " . gdiPlusCreateBitmapStatus . "]")
     }
 
     gdiPlusGetImageWidthStatus := DllCall("GdiPlus\GdipGetImageWidth", "Ptr", gdiPlusBitmapPointer, "UInt*", &imageWidthPixels := 0, "UInt")
     if gdiPlusGetImageWidthStatus != 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to get the width in pixels of the image. [GdiPlus\GdipGetImageWidth" . ", GDI+ Status Code: " . gdiPlusGetImageWidthStatus . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to get the width in pixels of the image. [GdiPlus\GdipGetImageWidth" . ", GDI+ Status Code: " . gdiPlusGetImageWidthStatus . "]")
     }
 
     gdiPlusGetImageHeightStatus := DllCall("GdiPlus\GdipGetImageHeight", "Ptr", gdiPlusBitmapPointer, "UInt*", &imageHeightPixels := 0, "UInt")
     if gdiPlusGetImageHeightStatus != 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to get the height in pixels of the image. [GdiPlus\GdipGetImageHeight" . ", GDI+ Status Code: " . gdiPlusGetImageHeightStatus . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to get the height in pixels of the image. [GdiPlus\GdipGetImageHeight" . ", GDI+ Status Code: " . gdiPlusGetImageHeightStatus . "]")
     }
 
     DllCall("Gdiplus\GdipDisposeImage", "Ptr", gdiPlusBitmapPointer, "UInt")
@@ -404,16 +404,16 @@ GetImageDimensions(imagePath) {
 
 OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRange, verticalRange) {
     static methodName := RegisterMethod("directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, variant, horizontalRange, verticalRange])
+    logConclusionData := LogBeginning(methodName, [directoryFolder, imageName, variant, horizontalRange, verticalRange])
 
     global imageRegistry
 
     if !imageRegistry.Has(directoryFolder) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
     }
 
     if !imageRegistry[directoryFolder].Has(imageName) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image name not found: " . imageName)
     }
 
     variant := StrLower(variant)
@@ -425,7 +425,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
     }
 
     if !variantFound {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Variant not found: " . variant)
     }
 
     static displayResolution := StrSplit(system["Environment"]["Display Resolution"], "x")
@@ -458,7 +458,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
 
 SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, variant := "") {
     static methodName := RegisterMethod("directoryFolder As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryFolder, imageName, timesToAttempt, variant])
+    logConclusionData := LogBeginning(methodName, [directoryFolder, imageName, timesToAttempt, variant])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -471,11 +471,11 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     mediumDelay := settings["Medium Delay"].Get("Value")
 
     if !imageRegistry.Has(directoryFolder) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
     }
 
     if !imageRegistry[directoryFolder].Has(imageName) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Image name not found: " . imageName)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image name not found: " . imageName)
     }
 
     if timesToAttempt = 0 {
@@ -492,7 +492,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
         }
 
         if !variantFound {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Variant not found: " . variant)
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Variant not found: " . variant)
         }
     }
 

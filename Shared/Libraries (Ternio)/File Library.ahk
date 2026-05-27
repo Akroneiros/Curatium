@@ -8,13 +8,13 @@
 
 CleanOfficeLocksInFolder(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath], "Clean Office Locks in Folder (" . directoryPath . ")")
+    logConclusionData := LogBeginning(methodName, [directoryPath], "Clean Office Locks in Folder (" . directoryPath . ")")
 
     deletedCount     := 0
     filesInDirectory := GetFilesFromDirectory(directoryPath)
 
     if filesInDirectory.Length = 0 {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {
         for filePath in filesInDirectory {
             SplitPath(filePath, &fileName)
@@ -26,7 +26,7 @@ CleanOfficeLocksInFolder(directoryPath) {
                     if size >= 0 && size <= 8192 {
                         FileDelete(filePath)
                         deletedCount++
-                        logValuesForConclusion["Context"] := "Office lock files deleted: " . deletedCount
+                        logConclusionData["Context"] := "Office lock files deleted: " . deletedCount
                     }
                 } catch {
                     continue
@@ -34,13 +34,13 @@ CleanOfficeLocksInFolder(directoryPath) {
             }
         }
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
 ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], delimiter As String [Optional: |]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, delimiter], "Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [filePath, delimiter], "Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")")
 
     fileHash := GetFileHash(filePath, "SHA-256")
     fileText := ReadFileOnHashMatch(filePath, fileHash)
@@ -49,7 +49,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
     allLines := StrSplit(fileText, "`n")
 
     if allLines[1] = "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Header line is empty.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Header line is empty.")
     }
 
     headerNames := StrSplit(allLines[1], delimiter)
@@ -59,7 +59,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
         currentLine := allLines[1 + A_Index]
 
         if RegExMatch(currentLine, "^[ \t]*$") {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Found an empty line on line #" . (A_Index + 1) . ".")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Found an empty line on line #" . (A_Index + 1) . ".")
         }
 
         fieldValues := StrSplit(currentLine, delimiter)
@@ -74,16 +74,16 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
         rowsAsMaps.Push(rowMap)
     }
     
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
     return rowsAsMaps
 }
 
 CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "") {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], targetDirectory As String [Constraint: Directory], findValue As String [Optional], replaceValue As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, targetDirectory, findValue, replaceValue], "Copy File to Target (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [filePath, targetDirectory, findValue, replaceValue], "Copy File to Target (" . ExtractFilename(filePath) . ")")
 
     if ((findValue = "" && replaceValue != "") || (findValue != "" && replaceValue = "")) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Invalid find/replace combo.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Invalid find/replace combo.")
     }
 
     SplitPath(filePath, &sourceFilename, &sourceDirectoryPath, &sourceExtension, &sourceFilenameWithoutExtension)
@@ -93,71 +93,71 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
         targetPath := targetDirectory . sourceFilename
     } else {
         if RegExMatch(replaceValue, '[<>:"/\\|?*]') {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "replaceValue contains invalid characters.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "replaceValue contains invalid characters.")
         }
 
         targetPath := targetDirectory . StrReplace(sourceFilename, findValue, replaceValue)
     }
 
     if FileExist(targetPath) {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {
         fileTimeCreated := AssignFileTimeAsLocalIso(filePath, "Created")
         FileCopy(filePath, targetPath)
 
         if !FileExist(targetPath) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Copy did not produce target.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Copy did not produce target.")
         }
 
         SetFileTimeFromLocalIsoDateTime(targetPath, fileTimeCreated, "Created")
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
 DeleteFile(filePath) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath], "Delete File (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [filePath], "Delete File (" . ExtractFilename(filePath) . ")")
 
     try {
         FileDelete(filePath)
     } catch as fileDeleteFailedError {
-        LogConclusion("Failed", logValuesForConclusion, fileDeleteFailedError.Line, "File delete failed: " . filePath)
+        LogConclusion("Failed", logConclusionData, fileDeleteFailedError.Line, "File delete failed: " . filePath)
     }
 
     if FileExist(filePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File still exists after deletion attempt: " . filePath)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "File still exists after deletion attempt: " . filePath)
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 EnsureDirectoryExists(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Valid Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath], "Ensure Directory Exists (" . directoryPath . ")")
+    logConclusionData := LogBeginning(methodName, [directoryPath], "Ensure Directory Exists (" . directoryPath . ")")
 
     if !DirExist(directoryPath) {
         try {
             DirCreate(directoryPath)
         } catch as directoryError {
-            LogConclusion("Failed", logValuesForConclusion, directoryError.Line, directoryError.Message)
+            LogConclusion("Failed", logConclusionData, directoryError.Line, directoryError.Message)
         }
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     } else {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     }
 }
 
 MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], directoryPath As String [Constraint: Directory], overwrite As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, directoryPath, overwrite], "Move File to Directory (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [filePath, directoryPath, overwrite], "Move File to Directory (" . ExtractFilename(filePath) . ")")
 
     filename   := ExtractFilename(filePath)
     targetPath := directoryPath . filename
 
     if !DirExist(directoryPath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Destination directory (" . directoryPath . ") does not exist.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Destination directory (" . directoryPath . ") does not exist.")
     }
 
     if !overwrite {
@@ -165,35 +165,35 @@ MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
             try {
                 FileMove(filePath, targetPath, overwrite)
             } catch as moveError {
-                LogConclusion("Failed", logValuesForConclusion, moveError.Line, moveError.Message)
+                LogConclusion("Failed", logConclusionData, moveError.Line, moveError.Message)
             }
 
-            LogConclusion("Completed", logValuesForConclusion)
+            LogConclusion("Completed", logConclusionData)
         } else {
-            LogConclusion("Skipped", logValuesForConclusion)
+            LogConclusion("Skipped", logConclusionData)
         }
     } else {
         if filePath = targetPath {
-            LogConclusion("Skipped", logValuesForConclusion)
+            LogConclusion("Skipped", logConclusionData)
         } else {
             try {
                 FileMove(filePath, targetPath, overwrite)
             } catch as moveError {
-                LogConclusion("Failed", logValuesForConclusion, moveError.Line, moveError.Message)
+                LogConclusion("Failed", logConclusionData, moveError.Line, moveError.Message)
             }
 
-            LogConclusion("Completed", logValuesForConclusion)
+            LogConclusion("Completed", logConclusionData)
         }
     }
 }
 
 ReadFileOnHashMatch(filePath, expectedHash) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, expectedHash], "Read File on Hash Match (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [filePath, expectedHash], "Read File on Hash Match (" . ExtractFilename(filePath) . ")")
 
     fileHash := GetFileHash(filePath, "SHA-256")
     if fileHash != expectedHash {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Hash mismatch in " . filePath . ". Expected: " . expectedHash . ". Results: " . fileHash)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Hash mismatch in " . filePath . ". Expected: " . expectedHash . ". Results: " . fileHash)
     }
 
     fileBuffer := FileRead(filePath, "RAW")
@@ -201,7 +201,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
     fileText   := ""
     
     if totalSize = 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File is empty: " . filePath)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "File is empty: " . filePath)
     }
 
     byte1 := NumGet(fileBuffer.Ptr, 0, "UChar")
@@ -226,7 +226,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
 
         fileText := StrGet(swapped.Ptr, beSize // 2, "UTF-16")
     } else if (totalSize >= 4 && ((byte1=0x00 && byte2=0x00 && byte3=0xFE && byte4=0xFF) || (byte1=0xFF && byte2=0xFE && byte3=0x00 && byte4=0x00))) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "UTF-32 encoded text for file " . filePath . " is not supported.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "UTF-32 encoded text for file " . filePath . " is not supported.")
     } else {
         fileText := StrGet(fileBuffer.Ptr, totalSize, "UTF-8")
     }
@@ -235,13 +235,13 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         fileText := SubStr(fileText, 2)
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
     return fileText
 }
 
 WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     static methodName := RegisterMethod("base64Text As String [Constraint: Base64], filePath As String [Constraint: Valid Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . ExtractFilename(filePath) . ")")
     
     requiredSizeInBytes   := 0
     decodedByteCount      := 0
@@ -260,26 +260,26 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     }
 
     if !needsWrite {
-        LogConclusion("Skipped", logValuesForConclusion)
+        LogConclusion("Skipped", logConclusionData)
     } else {       
         primaryDecodeSucceeded := true
         try {
             sizeProbeSucceeded := DllCall("Crypt32\CryptStringToBinaryW", "WStr", base64Text, "UInt", 0, "UInt", cryptStringBase64Flag, "Ptr", 0, "UInt*", &requiredSizeInBytes, "Ptr", 0, "Ptr", 0, "Int")
 
             if !sizeProbeSucceeded || requiredSizeInBytes <= 0 {
-                logValuesForConclusion["Context"] := "CryptStringToBinaryW size probe failed or returned zero size."
+                logConclusionData["Context"] := "CryptStringToBinaryW size probe failed or returned zero size."
             }
 
             decodedBinaryBuffer := Buffer(requiredSizeInBytes, 0)
             decodeCallSucceeded := DllCall("Crypt32\CryptStringToBinaryW", "WStr", base64Text, "UInt", 0, "UInt", cryptStringBase64Flag, "Ptr", decodedBinaryBuffer.Ptr, "UInt*", requiredSizeInBytes, "Ptr", 0, "Ptr", 0, "Int")
 
             if !decodeCallSucceeded {
-                logValuesForConclusion["Context"] := "CryptStringToBinaryW decode call failed."
+                logConclusionData["Context"] := "CryptStringToBinaryW decode call failed."
             }
 
             decodedByteCount := requiredSizeInBytes
             if decodedByteCount <= 0 {
-                logValuesForConclusion["Context"] := "Decoded buffer is empty after decode."
+                logConclusionData["Context"] := "Decoded buffer is empty after decode."
             }
         } catch {
             primaryDecodeSucceeded := false
@@ -299,7 +299,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
                     throw Error("Decoded byte array is empty after MSXML fallback.")
                 }
             } catch as base64DecodingError {
-                LogConclusion("Failed", logValuesForConclusion, base64DecodingError.Line, base64DecodingError.Message)
+                LogConclusion("Failed", logConclusionData, base64DecodingError.Line, base64DecodingError.Message)
             }
 
             decodedBinaryBuffer := Buffer(decodedByteCount, 0)
@@ -330,25 +330,25 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
                 FileDelete(temporaryFilePath)
             }
 
-            LogConclusion("Failed", logValuesForConclusion, fileWriteOrMoveError.Line, fileWriteOrMoveError.Message)
+            LogConclusion("Failed", logConclusionData, fileWriteOrMoveError.Line, fileWriteOrMoveError.Message)
         }
 
-        LogConclusion("Completed", logValuesForConclusion)
+        LogConclusion("Completed", logConclusionData)
     }
 }
 
 WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
     static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
-    static methodName := RegisterMethod("text As String, filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [text, filePath, encoding, mode], "Write Text Into File" . " (" . ExtractFilename(filePath) . ") with Mode: " . mode)
+    static methodName := RegisterMethod("text As String [Optional], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [text, filePath, encoding, mode], "Write Text Into File" . " (" . ExtractFilename(filePath) . ") with Mode: " . mode)
 
     if mode = "Create" && FileExist(filePath) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File already exists.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "File already exists.")
     }
 
     if !FileExist(filePath) && (mode = "Append" || mode = "Append Break") {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "File doesn't exist.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "File doesn't exist.")
     }
 
     switch encoding {
@@ -371,10 +371,10 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
         fileHandle.Write(text)
         fileHandle.Close()
     } catch as fileWriteError {
-        LogConclusion("Failed", logValuesForConclusion, fileWriteError.Line, fileWriteError.Message)
+        LogConclusion("Failed", logConclusionData, fileWriteError.Line, fileWriteError.Message)
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;
@@ -383,7 +383,7 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
 
 DetermineWindowsBinaryType(executablePath) {
     static methodName := RegisterMethod("executablePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [executablePath])
+    logConclusionData := LogBeginning(methodName, [executablePath])
 
     static SCS_32BIT_BINARY := 0
     static SCS_DOS_BINARY   := 1
@@ -422,7 +422,7 @@ DetermineWindowsBinaryType(executablePath) {
 
 ExtractDirectory(filePath) {
     static methodName := RegisterMethod("filePath As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath])
+    logConclusionData := LogBeginning(methodName, [filePath])
 
     SplitPath(filePath, , &directoryPath)
 
@@ -435,7 +435,7 @@ ExtractDirectory(filePath) {
 
 ExtractFilename(filePath, removeFileExtension := false) {
     static methodName := RegisterMethod("filePath As String, removeFileExtension As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, removeFileExtension])
+    logConclusionData := LogBeginning(methodName, [filePath, removeFileExtension])
 
     SplitPath(filePath, &filenameWithExtension, , , &filenameWithoutExtension)
 
@@ -449,7 +449,7 @@ ExtractFilename(filePath, removeFileExtension := false) {
 
 ExtractParentDirectory(filePath) {
     static methodName := RegisterMethod("filePath As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath])
+    logConclusionData := LogBeginning(methodName, [filePath])
 
     SplitPath(filePath, , &directoryPath)
     SplitPath(directoryPath, , &parentFolderPath)
@@ -463,7 +463,7 @@ ExtractParentDirectory(filePath) {
 
 FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     static methodName := RegisterMethod("filename As String [Constraint: Filename], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filename, directoryPath, fileExtension])
+    logConclusionData := LogBeginning(methodName, [filename, directoryPath, fileExtension])
 
     filesInDirectory := GetFilesFromDirectory(directoryPath)
     if filesInDirectory.Length = 0 {
@@ -487,13 +487,13 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     } else if filesInDirectory.Length = 1  {
         return filesInDirectory[1]
     } else {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Too many files match the filename (" . filename . ") in the directory: " . directoryPath)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Too many files match the filename (" . filename . ") in the directory: " . directoryPath)
     }
 }
 
 GetFilesFromDirectory(directoryPath, filterValue := "") {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], filterValue As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
+    logConclusionData := LogBeginning(methodName, [directoryPath])
 
     files := []
     pattern := RTrim(directoryPath, "\/") . "\*"
@@ -516,7 +516,7 @@ GetFilesFromDirectory(directoryPath, filterValue := "") {
 GetFileHash(filePath, algorithm) {
     static algorithmWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
     static methodName := RegisterMethod("filePath as String, algorithm As String [Whitelist: " . algorithmWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath, algorithm])
+    logConclusionData := LogBeginning(methodName, [filePath, algorithm])
 
     switch algorithm {
         case "MD2": algorithm := "MD2"
@@ -531,7 +531,7 @@ GetFileHash(filePath, algorithm) {
     try {
         fileHash := Hash.File(algorithm, filePath)
     } catch as fileHashError {
-        LogConclusion("Failed", logValuesForConclusion, fileHashError.Line, fileHashError.Message)
+        LogConclusion("Failed", logConclusionData, fileHashError.Line, fileHashError.Message)
     }
 
     return fileHash
@@ -539,7 +539,7 @@ GetFileHash(filePath, algorithm) {
 
 GetFoldersFromDirectory(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [directoryPath])
+    logConclusionData := LogBeginning(methodName, [directoryPath])
 
     folders := []
     pattern := RTrim(directoryPath, "\/") . "\*"
@@ -553,7 +553,7 @@ GetFoldersFromDirectory(directoryPath) {
 
 GetLastLineNumberFromTextFile(filePath) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath])
+    logConclusionData := LogBeginning(methodName, [filePath])
 
     lineCount := 0
 
@@ -561,7 +561,7 @@ GetLastLineNumberFromTextFile(filePath) {
         endsWithTerminator := false
         fileObject := FileOpen(filePath, "r")
         if !IsObject(fileObject) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to open text file: " . filePath)
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open text file: " . filePath)
         }
         
         while !fileObject.AtEOF {
@@ -583,7 +583,7 @@ GetLastLineNumberFromTextFile(filePath) {
             lineCount++
         }
     } catch as fileObjectError {
-        LogConclusion("Failed", logValuesForConclusion, fileObjectError.Line, fileObjectError.Message)
+        LogConclusion("Failed", logConclusionData, fileObjectError.Line, fileObjectError.Message)
     }
 
    return lineCount

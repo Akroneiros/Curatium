@@ -8,12 +8,12 @@
 #Include Logging Library.ahk
 
 global applicationRegistry := Map()
-global imageRegistry  := Map()
+global imageRegistry := Map()
 global methodRegistry := Map()
-global overlay        := Map(
-    "GUI",    Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
-    "Lines",  Map(),
-    "Order",  [],
+global overlay := Map(
+    "GUI", Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
+    "Lines", Map(),
+    "Order", [],
     "Status", Map(
         "Beginning", "... Beginning " . "▶️",
         "Skipped",   "... Skipped " .   "➡️",
@@ -22,25 +22,42 @@ global overlay        := Map(
     )
 )
 global symbolLedger := Map(
-    "Context",   Map(),
-    "Error",     Map(),
-    "Method",    Map(),
-    "Overlay",   Map(),
-    "Reference", Map(),
-    "Whitelist", Map()
+    "Context", Map(),
+    "Error", Map(),
+    "Method", Map(),
+    "Overlay", Map(),
+    "Reference", Map()
 )
-global system       := Map(
+global system := Map(
     "Configuration", Map(),
-    "Directories",   Map(),
-    "Environment",   Map(),
-    "Logging",       Map(),
-    "Runtime",       Map(),
-    "Snapshot",      Map()
+    "Directories", Map(),
+    "Environment", Map(),
+    "Logging", Map(
+        "Counters", Map(
+            "Context", 0,
+            "Error", 0,
+            "Method", 0,
+            "Overlay", 0,
+            "Reference", 0,
+            "Operation Sequence Number", 0,
+            "Run Telemetry Order", 0
+        ),
+        "Log Engine State", "Pending",
+        "Log Entries", Map(
+            "Execution Log", [],
+            "Operation Log", [],
+            "Run Telemetry", [],
+            "Symbol Ledger", []
+        ),
+        "Log to Array", true
+    ),
+    "Runtime", Map(),
+    "Telemetry", Map()
 )
 
 ActivateWindow(windowSearchResults, maximizeWindow := false) {
     static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [windowSearchResults, maximizeWindow], "Activate Window")
+    logConclusionData := LogBeginning(methodName, [windowSearchResults, maximizeWindow], "Activate Window")
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -64,7 +81,7 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
             errorMessage := windowSearchResults["Custom Error Message"]
         }
 
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, errorMessage)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, errorMessage)
     }
 
     loop 10 {
@@ -79,14 +96,14 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
             break
         } catch {
             if A_Index = 10 {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds. " . windowSearchTerm)
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to activate window after trying for " . totalSleep . " milliseconds. " . windowSearchTerm)
             }
         }
     }
 
     matchingWindowFound := WinWaitActive(windowSearchResults["Window Title"], , secondsToAttempt)
     if !matchingWindowFound {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds. " . windowSearchTerm)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to activate window after waiting for " . secondsToAttempt . " seconds. " . windowSearchTerm)
     }
 
     if maximizeWindow {
@@ -94,9 +111,9 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
         Sleep(shortDelay)
     }
 
-    logValuesForConclusion["Context"] := windowSearchTerm
+    logConclusionData["Context"] := windowSearchTerm
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 AssignSpreadsheetOperationsTemplateCombined(version := "") {
@@ -107,7 +124,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     } else {
         overlayValue := overlayValue . " (" . version . ")"
     }
-    logValuesForConclusion := LogBeginning(methodName, [version], overlayValue)
+    logConclusionData := LogBeginning(methodName, [version], overlayValue)
 
     versionManifestFilePath := system["Directories"]["Spreadsheet Operations Template"] . "Version Manifest.ini"
     version := StrReplace(version, "v", "")
@@ -137,7 +154,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     outroHash   := IniRead(versionManifestFilePath, version, "OutroSHA-256", "")
 
     if releaseDate = "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Version not found: " . version)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Version not found: " . version)
     }
 
     templateCombined := Map(
@@ -150,14 +167,14 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     templateCombined["Intro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
     templateCombined["Outro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
     return templateCombined
 }
 
 PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
     static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [text, commentPrefix], "Paste Text")
+    logConclusionData := LogBeginning(methodName, [text, commentPrefix], "Paste Text")
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -192,7 +209,7 @@ PasteText(text, commentPrefix := "") {
             shortDelay  := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
             mediumDelay := mediumDelay + (attempts * methodRegistry[methodName]["Settings"]["Medium Delay"]["Delta"])
 
-            logValuesForConclusion["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds was " . clipboardTimeoutInSeconds .
+            logConclusionData["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds was " . clipboardTimeoutInSeconds .
                 ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds."
             
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
@@ -311,7 +328,7 @@ PasteText(text, commentPrefix := "") {
 
         loopWasSuccessful := true
         if attempts >= 2 {
-            logValuesForConclusion["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds is " . clipboardTimeoutInSeconds .
+            logConclusionData["Context"] := "Succeeded on attempt " . attempts . " of " . maxAttempts . ". Clipboard Timeout in Seconds is " . clipboardTimeoutInSeconds .
                 ". Short delay is " . shortDelay . " milliseconds. Medium delay is " . mediumDelay . " milliseconds."
 
             IncreaseMethodSetting(methodName, "Short Delay")
@@ -322,18 +339,18 @@ PasteText(text, commentPrefix := "") {
     }
 
     if !loopWasSuccessful {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to paste text in " . maxAttempts . " attempts.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to paste text in " . maxAttempts . " attempts.")
     }
 
     Sleep(shortDelay)
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     static mouseActionWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Double", "Left", "Middle", "Move", "Move Smooth", "Right", "Wheel Down", "Wheel Up")
     static methodName := RegisterMethod("mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [mouseAction, coordinatePair], "Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")")
+    logConclusionData := LogBeginning(methodName, [mouseAction, coordinatePair], "Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")")
 
     coordinates := StrSplit(coordinatePair, "x")
     x := coordinates[1] + 0
@@ -376,13 +393,13 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
         OverlayChangeVisibility()
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouseButton := "Left", modifierKeys := "") {
     static mouseActionWhitelist := Format('"{1}", "{2}"', "Left", "Right")
     static methodName := RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys], "PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")")
+    logConclusionData := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys], "PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")")
 
     modeBeforeAction := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
@@ -435,7 +452,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
             } else if tokenLowercase = "rwin" || tokenLowercase = "rightwin" || tokenLowercase = "winright" {
                 canonical := "RWin"
             } else {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Unsupported modifier: " . rawToken)
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Unsupported modifier: " . rawToken)
             }
 
             if !seenModifierMap.Has(canonical) {
@@ -465,13 +482,13 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
 
     CoordMode("Mouse", modeBeforeAction)
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 SetAutoHotkeyThreadPriority(threadPriority) {
     static threadPriorityWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}"', "Lowest", "Below Normal", "Normal", "Above Normal", "Highest")
     static methodName := RegisterMethod("threadPriority As String [Whitelist: " . threadPriorityWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [threadPriority], "Set AutoHotkey Thread Priority (" . threadPriority . ")")
+    logConclusionData := LogBeginning(methodName, [threadPriority], "Set AutoHotkey Thread Priority (" . threadPriority . ")")
 
     switch threadPriority {
         case "Lowest":
@@ -489,12 +506,12 @@ SetAutoHotkeyThreadPriority(threadPriority) {
     autoHotkeyThreadHandle := DllCall("GetCurrentThread", "Ptr")
     DllCall("SetThreadPriority", "Ptr", autoHotkeyThreadHandle, "Int", threadPriority)
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ValidateConfiguration(configurationPath) {
     static methodName := RegisterMethod("configurationPath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [configurationPath], "Validate Configuration")
+    logConclusionData := LogBeginning(methodName, [configurationPath], "Validate Configuration")
 
     global system
 
@@ -502,51 +519,51 @@ ValidateConfiguration(configurationPath) {
     try {
         system["Configuration"] := jsongo.Parse(FileRead(configurationPath))
     } catch {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to load Configuration File due to invalid JSON.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to load Configuration File due to invalid JSON.")
     }
 
     if Type(system["Configuration"]) != "Map" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration is unexpectedly not a Map.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration is unexpectedly not a Map.")
     }
 
     rootSettings := [["Application Executable Directory Candidates", "Array"], ["Application Whitelist", "Array"], ["Candidate Base Directories", "Array"], ["Settings", "Map"]]
     for setting in rootSettings {
         if !system["Configuration"].Has(setting[1]) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root missing " . setting[1] . ".")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root missing " . setting[1] . ".")
         }
 
         if Type(system["Configuration"][setting[1]]) != setting[2] {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root for " . setting[1] . " did not return the data type of " . setting[2] . ".")
         }
     }
 
     for applicationWhitelist in system["Configuration"]["Application Whitelist"] {
         if Type(applicationWhitelist) != "String" {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
         }
 
         if !applicationRegistry.Has(applicationWhitelist) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
         }
     }
 
     for applicationExecutableDirectoryCandidate in system["Configuration"]["Application Executable Directory Candidates"] {
         if Type(applicationExecutableDirectoryCandidate) != "Array" {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of Array.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of Array.")
         }
 
         if applicationExecutableDirectoryCandidate.Length != 3 {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected array length of 3.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected array length of 3.")
         }
 
         for index, entry in applicationExecutableDirectoryCandidate {
             if Type(entry) != "String" {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of String.")
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of String.")
             }
 
             if index = 1 {
                 if !applicationRegistry.Has(entry) {
-                    LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate refers to an application that does not exist.")
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate refers to an application that does not exist.")
                 }
             }
         }
@@ -554,24 +571,24 @@ ValidateConfiguration(configurationPath) {
 
     for candidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
         if Type(candidateBaseDirectory) != "String" {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
         }
     }
 
     subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"]]
     for setting in subSettings {
         if !system["Configuration"]["Settings"].Has(setting[1]) {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
         }
 
         if Type(system["Configuration"]["Settings"][setting[1]]) != setting[2] {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " did not return the data type of " . setting[2] . ".")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " did not return the data type of " . setting[2] . ".")
         }
 
         if system["Configuration"]["Settings"][setting[1]] != "" {
             settingValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"][setting[1]], setting[2], setting[3])
             if settingValidation != "" {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for " . setting[1] . " failed validation. " . settingValidation)
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " failed validation. " . settingValidation)
             }
         }
     }
@@ -579,7 +596,7 @@ ValidateConfiguration(configurationPath) {
     if system["Configuration"]["Settings"]["Application Image Override Directory"] != "" {
         filesInDirectory := GetFilesFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
         if filesInDirectory.Length != 0 {
-            LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Expected no files in directory but found " . filesInDirectory.Length . ".")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Expected no files in directory but found " . filesInDirectory.Length . ".")
         }
 
         applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
@@ -587,7 +604,7 @@ ValidateConfiguration(configurationPath) {
             SplitPath(RTrim(applicationFolder, "\"), &applicationName)
 
             if !applicationRegistry.Has(applicationName) {
-                LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Application " . applicationName . " doesn't exist.")
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Application " . applicationName . " doesn't exist.")
             }
         }
 
@@ -596,26 +613,26 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ValidateDisplayScaling() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [], "Validate Display Scaling")
+    logConclusionData := LogBeginning(methodName, [], "Validate Display Scaling")
 
     validateDisplayResolution := ValidateDataUsingSpecification(system["Environment"]["Display Resolution"], "String", "Display Resolution")
 
     if validateDisplayResolution != "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDisplayResolution)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, validateDisplayResolution)
     }
 
     validateDpiScale := ValidateDataUsingSpecification(system["Environment"]["DPI Scale"], "String", "DPI Scale")
 
     if validateDpiScale != "" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, validateDpiScale)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, validateDpiScale)
     }
 
-    LogConclusion("Completed", logValuesForConclusion)
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;
@@ -723,12 +740,14 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
                     case "constraint":
                         dataConstraint := conceptValue
                     case "whitelist":
-                        for piece in StrSplit(conceptValue, '", "') {
-                            cleanedValue := Trim(piece, '" ')
+                        if optionalValue = "Optional" {
+                            whitelist.Push("")
+                        }
 
-                            if cleanedValue != "" {
-                                whitelist.Push(cleanedValue)
-                            }
+                        whitelistValues := StrSplit(conceptValue, '", "')
+                        for entry in whitelistValues {
+                            entry := Trim(entry, '"')
+                            whitelist.Push(entry)
                         }
                 }
             }
@@ -776,17 +795,13 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
     validationLineNumber := " " . "<" . validationLineNumber . ">"
     methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
 
-    symbol := unset
     if !symbolLedger["Method"].Has(methodWithDeclaration) {
-        logSymbolLedgerLine := RegisterSymbol(methodWithDeclaration, "M", false)
-        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-
-        logParts := StrSplit(logSymbolLedgerLine, "|")
-        symbol   := logParts[logParts.Length]
-    } else {
-        symbol   := symbolLedger["Method"][methodWithDeclaration]
+        logSymbolLedgerMethodLine := RegisterSymbol(methodWithDeclaration, "M", false)
+        AppendLineToLog(logSymbolLedgerMethodLine, "Symbol Ledger")
     }
-
+    
+    symbol := symbolLedger["Method"][methodWithDeclaration]
+    
     methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
     if methodRegistry.Has(methodName) {
         methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
@@ -823,6 +838,19 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
             "Symbol",              symbol,
             "Settings",            Map()
         )
+    }
+
+    for parameterContract in methodRegistry[methodName]["Parameter Contracts"] {
+        if parameterContract["Whitelist"].Length != 0 {
+            ; Add blank if Optional present.
+
+            for whitelistValue in parameterContract["Whitelist"] {
+                if !symbolLedger["Reference"].Has(whitelistValue) {
+                    logSymbolLedgerWhitelistLine := RegisterSymbol(whitelistValue, "Reference", false)
+                    AppendLineToLog(logSymbolLedgerWhitelistLine, "Symbol Ledger")
+                }
+            }
+        }
     }
 
     return methodName
@@ -897,7 +925,9 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
         case "Object":
             ; No validation, but allowed Data Type.
         case "String":
-            if whitelist.Length != 0 {
+            if Type(dataValue) != "String" {
+                validation := "Value must be a String."
+            } else if whitelist.Length != 0 {
                 valueIsWhitelisted := false
 
                 for whitelistEntry in whitelist {
@@ -910,8 +940,6 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 if !valueIsWhitelisted {
                     validation := "Value did not match whitelisted values."
                 }
-            } else if Type(dataValue) != "String" {
-                validation := "Value must be a String."
             } else {
                 switch dataConstraint {
                     case "Base52", "Base66", "Base86", "Base94":
@@ -966,9 +994,13 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
 
                         if !(isDrive || isUNC) {
-                            validation := dataConstraint . " path must start with a drive (C:\) or UNC path (\\server\share\)."
-                        } else if SubStr(dataValue, -1) != "\" {
-                            validation := dataConstraint . " path must end with a backslash \."
+                            validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."
+                        } else if InStr(dataValue, ":", , 3) {
+                            validation := dataConstraint . " must not contain any colon except the drive letter."
+                        } else if SubStr(dataValue, StrLen(dataValue)) != "\" {
+                            validation := dataConstraint . " must end with a backslash \."
+                        } else if RegExMatch(dataValue, '[<|?*""]') {
+                            validation := dataConstraint . " contains invalid character."
                         } else if !DirExist(dataValue) && dataConstraint = "Directory" {
                             validation := dataConstraint . " doesn't exist."
                         }
@@ -995,6 +1027,20 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := ""
                                 break
                             }
+                        }
+                    case "Drive Letter":
+                        if StrLen(dataValue) >= 4 || StrLen(dataValue) = 2 {
+                            validation := dataConstraint . " can't be valid due to wrong length. Length of one or three is acceptable."
+                        } else if StrLen(dataValue) = 3 {
+                            if SubStr(dataValue, 2, 2) != ":\" {
+                                validation := dataConstraint . " when three characters can only end with :\."
+                            }
+
+                            dataValue := SubStr(dataValue, 1, 1)
+                        }
+
+                        if validation = "" && !RegExMatch(dataValue, "^[A-Za-z]$") {
+                            validation := dataConstraint . " has invalid letter."
                         }
                     case "Filename":
                         if RegExMatch(dataValue, "[\x00-\x1F]") {
@@ -1149,7 +1195,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 validation := "Value must be an Integer or a String."
             }
         default:
-            validation := "Data Type is invalid: " . dataType . "."
+            validation := "Data Type of " . dataType . " not recognized."
     }
 
     return validation
@@ -1161,7 +1207,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 
 CombineCode(introCode, mainCode, outroCode := "") {
     static methodName := RegisterMethod("introCode As String, mainCode As String, outroCode As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [introCode, mainCode, outroCode])
+    logConclusionData := LogBeginning(methodName, [introCode, mainCode, outroCode])
 
     combinedCode := introCode . "`r`n`r`n" . mainCode
 
@@ -1174,7 +1220,7 @@ CombineCode(introCode, mainCode, outroCode := "") {
 
 ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
     static methodName := RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair])
+    logConclusionData := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair])
 
     startCoordinates := StrSplit(startCoordinatePair, "x")
     startX := startCoordinates[1] + 0
@@ -1216,7 +1262,7 @@ ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
 
 ConvertArrayIntoCsvString(array) {
     static methodName := RegisterMethod("array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [array])
+    logConclusionData := LogBeginning(methodName, [array])
 
     static newLine := "`r`n"
 
@@ -1234,7 +1280,7 @@ ConvertArrayIntoCsvString(array) {
 
 ConvertHexStringToBase64(hexString, removePadding := true) {
     static methodName := RegisterMethod("hexString As String [Constraint: Hexadecimal String], removePadding As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [hexString])
+    logConclusionData := LogBeginning(methodName, [hexString])
 
     byteCount := StrLen(hexString) // 2
     binaryBuffer := Buffer(byteCount)
@@ -1252,13 +1298,13 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
     requiredCharacterCount := 0
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", 0, "UInt*", &requiredCharacterCount, "Int")
     if !sizeProbeRetrievedSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacterCount * 2)
     encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", binaryBuffer.Ptr, "UInt", binaryBuffer.Size, "UInt", encodingFlags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacterCount, "Int")
     if !encodingSuccessful {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     base64 := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
@@ -1271,7 +1317,7 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
 
 ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) {
     static methodName := RegisterMethod("rowsAsMaps As Object, headerName As String, targetValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [rowsAsMaps, headerName, targetValue])
+    logConclusionData := LogBeginning(methodName, [rowsAsMaps, headerName, targetValue])
 
     foundRow := unset
     for rowMap in rowsAsMaps {
@@ -1286,7 +1332,7 @@ ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) 
     }
 
     if !IsSet(foundRow) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "No row found where '" . headerName . "' = '" . targetValue . "'.")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "No row found where '" . headerName . "' = '" . targetValue . "'.")
     }
 
     return foundRow
@@ -1294,7 +1340,7 @@ ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) 
 
 ExtractValuesFromArrayDimension(array, dimension) {
     static methodName := RegisterMethod("array As Array, dimension As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [array, dimension])
+    logConclusionData := LogBeginning(methodName, [array, dimension])
 
     arrayDimension := []
 
@@ -1307,7 +1353,7 @@ ExtractValuesFromArrayDimension(array, dimension) {
 
 ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     static methodName := RegisterMethod("parentMapOfMaps As Object, subMapKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [parentMapOfMaps, subMapKeyName])
+    logConclusionData := LogBeginning(methodName, [parentMapOfMaps, subMapKeyName])
 
     uniqueValues := []
 
@@ -1340,7 +1386,7 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
 
 GetBase64FromFile(filePath) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [filePath])
+    logConclusionData := LogBeginning(methodName, [filePath])
 
     fileContentBuffer := FileRead(filePath, "RAW")
 
@@ -1351,13 +1397,13 @@ GetBase64FromFile(filePath) {
     requiredCharacters := 0
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
     if !sizeProbeRetrievedSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     outputUtf16Buffer := Buffer(requiredCharacters * 2, 0)
     encodingSuccessful := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", outputUtf16Buffer.Ptr, "UInt*", &requiredCharacters, "Int")
     if !encodingSuccessful {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
     base64Output := StrGet(outputUtf16Buffer.Ptr, "UTF-16")
@@ -1365,9 +1411,33 @@ GetBase64FromFile(filePath) {
     return base64Output
 }
 
+GetTextHash(text, algorithm) {
+    static algorithmWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
+    static methodName := RegisterMethod("text as String, algorithm As String [Whitelist: " . algorithmWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [text, algorithm])
+
+    switch algorithm {
+        case "MD2": algorithm := "MD2"
+        case "MD4": algorithm := "MD4"
+        case "MD5": algorithm := "MD5"
+        case "SHA-1": algorithm := "SHA1"
+        case "SHA-256": algorithm := "SHA256"
+        case "SHA-384": algorithm := "SHA384"
+        case "SHA-512": algorithm := "SHA512"
+    }
+
+    try {
+        textHash := Hash.String(algorithm, text)
+    } catch as textHashError {
+        LogConclusion("Failed", logConclusionData, textHashError.Line, textHashError.Message)
+    }
+
+    return textHash
+}
+
 IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
     static methodName := RegisterMethod("stringValue As String [Optional], returnValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [stringValue, returnValue])
+    logConclusionData := LogBeginning(methodName, [stringValue, returnValue])
 
     If stringValue = "" {
         returnValue := ""
@@ -1379,7 +1449,7 @@ IfStringIsNotEmptyReturnValue(stringValue, returnValue) {
 KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
     static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [primaryModifier, key, secondaryModifier])
+    logConclusionData := LogBeginning(methodName, [primaryModifier, key, secondaryModifier])
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -1468,7 +1538,7 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
 
 ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     static methodName := RegisterMethod("horizontalValue As Integer, verticalValue As Integer, coordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [horizontalValue, verticalValue, coordinatePair])
+    logConclusionData := LogBeginning(methodName, [horizontalValue, verticalValue, coordinatePair])
 
     widthDisplayResolution  := A_ScreenWidth
     heightDisplayResolution := A_ScreenHeight
@@ -1482,11 +1552,11 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
     modifiedCoordinatePair := Format("{}x{}", newX, newY)
 
     if newX < 0 || newX > widthDisplayResolution - 1 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "X out of bounds. Tried " . newX . " (valid 0 to " . (widthDisplayResolution - 1) . ").")
     }
 
     if newY < 0 || newY > heightDisplayResolution - 1 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Y out of bounds. Tried " . newY . " (valid 0 to " . (heightDisplayResolution - 1) . ").")
     }
 
     return modifiedCoordinatePair
@@ -1494,7 +1564,7 @@ ModifyScreenCoordinates(horizontalValue, verticalValue, coordinatePair) {
 
 RemoveDuplicatesFromArray(array) {
     static methodName := RegisterMethod("array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [array])
+    logConclusionData := LogBeginning(methodName, [array])
 
     seen := Map()
     index := array.Length
@@ -1515,7 +1585,7 @@ RemoveDuplicatesFromArray(array) {
 
 SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
     static methodName := RegisterMethod("windowTitle As String, secondsToAttempt As Integer, customErrorMessage As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [windowTitle, secondsToAttempt, customErrorMessage])
+    logConclusionData := LogBeginning(methodName, [windowTitle, secondsToAttempt, customErrorMessage])
 
     windowSearchResults := Map(
         "Window Title", windowTitle,
@@ -1539,7 +1609,7 @@ SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
 
 ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling, delta := 0) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, floor As Integer, ceiling As Integer, delta As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue, floor, ceiling, delta])
+    logConclusionData := LogBeginning(methodName, [settingMethod, settingName, settingValue, floor, ceiling, delta])
 
     global methodRegistry
 
@@ -1579,7 +1649,7 @@ ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling,
 
 DecreaseMethodSetting(settingMethod, settingName) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName])
+    logConclusionData := LogBeginning(methodName, [settingMethod, settingName])
 
     global methodRegistry
 
@@ -1594,7 +1664,7 @@ DecreaseMethodSetting(settingMethod, settingName) {
 
 IncreaseMethodSetting(settingMethod, settingName) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName])
+    logConclusionData := LogBeginning(methodName, [settingMethod, settingName])
 
     global methodRegistry
 
@@ -1609,7 +1679,7 @@ IncreaseMethodSetting(settingMethod, settingName) {
 
 SetMethodSetting(settingMethod, settingName, settingValue) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [settingMethod, settingName, settingValue])
+    logConclusionData := LogBeginning(methodName, [settingMethod, settingName, settingValue])
 
     global methodRegistry
 
@@ -1634,350 +1704,117 @@ SetMethodSetting(settingMethod, settingName, settingValue) {
 }
 
 ; **************************** ;
-; System Methods               ;
+; System Methods: Environment  ;
 ; **************************** ;
 
-GetInternationalFormatting() {
+GetActiveDisplayGpu() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
-    internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
-    registryValueData            := ""
-    internationalFormattingMap   := Map()
+    ; Prefer Win32 (User32) enumeration - authoritative primary GPU.
+    DISPLAY_DEVICE_ACTIVE_FLAG := 0x00000001
+    DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG := 0x00000004
+    DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES := 840
 
-    excludedRegistryValueNames := [
-        "iCountry",
-        "iLocale",
-        "iPaperSize",
-        "Locale",
-        "LocaleName",
-        "sIntlCurrency",
-        "sLanguage"
-    ]
+    primaryAdapterFriendlyName := ""
+    firstActiveAdapterFriendlyName := ""
 
-    loop reg, internationalRegistryKeyPath, "V" {
-        registryValueName := A_LoopRegName
-        skipValue := false
+    displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, 0)
+    displayDeviceIndex  := 0
+    loop {
+        ; Reinitialize the struct for this iteration and set cb (size).
+        DllCall("Msvcrt\memset", "Ptr", displayDeviceBuffer.Ptr, "Int", 0, "UPtr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "Int")
+        NumPut("UInt", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, displayDeviceBuffer, 0)
 
-        for excludedRegistryValueName in excludedRegistryValueNames {
-            if excludedRegistryValueName = registryValueName {
-                skipValue := true
+        enumerationSuccessful := DllCall("User32\EnumDisplayDevicesW", "Ptr", 0, "UInt", displayDeviceIndex, "Ptr", displayDeviceBuffer.Ptr, "UInt", 0, "Int")
+        if enumerationSuccessful = 0 {
+            break
+        }
+
+        displayDeviceStateFlags   := NumGet(displayDeviceBuffer, 68 + 256, "UInt")
+        displayDeviceFriendlyName := StrGet(displayDeviceBuffer.Ptr + 68, "UTF-16")
+
+        if InStr(displayDeviceFriendlyName, "Microsoft Basic Display") || InStr(displayDeviceFriendlyName, "Remote Display") || InStr(displayDeviceFriendlyName, "RDP")
+        {
+            displayDeviceIndex += 1
+            continue
+        }
+
+        if displayDeviceStateFlags & DISPLAY_DEVICE_ACTIVE_FLAG {
+            if firstActiveAdapterFriendlyName = "" {
+                firstActiveAdapterFriendlyName := displayDeviceFriendlyName
+            }
+            if displayDeviceStateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG {
+                primaryAdapterFriendlyName := displayDeviceFriendlyName
                 break
             }
         }
 
-        if skipValue {
-            continue
-        }
+        displayDeviceIndex += 1
+    }
 
+    ; Fallback only if no value retrieved from Win32: WMI heuristic.
+    activeModelNameFromWmi := ""
+    firstModelNameFromWmi := ""
+
+    if primaryAdapterFriendlyName = "" && firstActiveAdapterFriendlyName = "" {
         try {
-        	registryValueData := RegRead(internationalRegistryKeyPath, registryValueName)
-        }
+            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-        internationalFormattingMap[registryValueName] := registryValueData
-    }
+            win32VideoControllerQuery := "
+            (
+                SELECT
+                    Name,
+                    ConfigManagerErrorCode,
+                    CurrentHorizontalResolution,
+                    CurrentVerticalResolution
+                FROM
+                    Win32_VideoController
+                WHERE
+                    ConfigManagerErrorCode = 0
+            )"
 
-    internationalFormatting := internationalFormattingMap
-    
-    return internationalFormatting
-}
+            queryResults := windowsManagementInstrumentationService.ExecQuery(win32VideoControllerQuery)
+            for record in queryResults {
+                controllerName := record.Name
 
-GetOperatingSystem() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+                if firstModelNameFromWmi = "" {
+                    firstModelNameFromWmi := controllerName
+                }
 
-    currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
+                ; Ignore virtual or placeholder adapters here as well.
+                if InStr(controllerName, "Microsoft Basic Display") || InStr(controllerName, "Remote Display") || InStr(controllerName, "RDP") {
+                    continue
+                }
 
-    family := "Unknown Windows"
-    edition := "Unknown Edition"
-    architectureTag := A_Is64bitOS ? "x64" : "x86"
-    currentBuildNumber := ""
-    version := "Unknown Version"
-    updateBuildRevisionNumber := ""
-    releaseDisplay := ""
-
-    try {
-        currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
-        version := "Build " . currentBuildNumber
-    }
-        
-    switch true {
-        case currentBuildNumber >= 22000:
-            family := "Windows 11"
-        case currentBuildNumber >= 10240:
-            family := "Windows 10"
-        case currentBuildNumber >= 9600:
-            family := "Windows 8.1"
-        case currentBuildNumber >= 9200:
-            family := "Windows 8"
-        case currentBuildNumber >= 7600:
-            family := "Windows 7"
-    }
-   
-    try {
-        edition := RegRead(currentVersionRegistryKey, "EditionID")
-    }
-
-    try {
-        updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
-
-        if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
-            version := version . "." . updateBuildRevisionNumber
-        }
-    }
-
-    if family = "Windows 7" {
-        servicePackVersion := ""
-
-        try {
-            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
-        }
-
-        releaseDisplay := (servicePackVersion != "" ? " (" . servicePackVersion . ")" : "")
-    } else {
-        try {
-            releaseDisplay := RegRead(currentVersionRegistryKey, "DisplayVersion")
-        }
-
-        if releaseDisplay = "" {
-            try {
-                releaseDisplay := RegRead(currentVersionRegistryKey, "ReleaseId")
-            }
-        }
-
-        if releaseDisplay != "" {
-            releaseDisplay := " (" . releaseDisplay . ")"
-        }
-    }
-
-    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . releaseDisplay
-
-    return operatingSystem
-}
-
-GetWindowsInstallationDateUtcTimestamp() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    registryKeySystemSetup               := "HKEY_LOCAL_MACHINE\System\Setup"
-    registryKeyCurrentVersionNonWow      := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
-    registryKeyCurrentVersionWow6432Node := "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
-
-    installDateSeconds := unset
-
-    ; Prefer the oldest DWORD InstallDate under SYSTEM\Setup\Source OS (...).
-    oldestSeconds := unset
-    loop reg, registryKeySystemSetup, "K" {
-        subKeyName := A_LoopRegName
-        if !RegExMatch(subKeyName, "^Source OS") {
-            continue
-        }
-
-        fullKey := registryKeySystemSetup . "\" . subKeyName
-        try {
-            candidate := RegRead(fullKey, "InstallDate")
-            candidate := candidate & 0xFFFFFFFF ; Treat as unsigned DWORD.
-        }
-
-        if candidate > 0 && (!IsSet(oldestSeconds) || candidate < oldestSeconds) {
-            oldestSeconds := candidate
-        }
-    }
-
-    if IsSet(oldestSeconds) {
-        installDateSeconds := oldestSeconds
-    }
-
-    ; Fallback: CurrentVersion DWORD InstallDate (prefer non-WOW, then WOW6432Node).
-    if !IsSet(installDateSeconds) {
-        try {
-            installDateSeconds := RegRead(registryKeyCurrentVersionNonWow, "InstallDate")
-        }
-    }
-
-    if !IsSet(installDateSeconds) {
-        try {
-            installDateSeconds := RegRead(registryKeyCurrentVersionWow6432Node, "InstallDate")
-        }
-    }
-
-    if !IsSet(installDateSeconds) {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
-    }
-
-    installDateSeconds := installDateSeconds & 0xFFFFFFFF
-    if installDateSeconds <= 0 {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
-    }
-
-    utcTimestamp := ConvertUnixTimeToUtcTimestamp(installDateSeconds)
-
-    return utcTimestamp
-}
-
-GetComputerIdentifier() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    computerIdentifier := "N/A"
-
-    machineGuid := ""
-    try {
-        machineGuid := RegRead("HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography", "MachineGuid")
-    }
-
-    systemUniversallyUniqueIdentifier := ""
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32ComputerSystemProductQuery := "
-        (
-            SELECT
-                UUID
-            FROM
-                Win32_ComputerSystemProduct
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32ComputerSystemProductQuery)
-        for record in queryResults {
-            systemUniversallyUniqueIdentifier := record.UUID
-            break
-        }
-    }
-
-    if machineGuid = "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := systemUniversallyUniqueIdentifier
-    } else if systemUniversallyUniqueIdentifier = "" && machineGuid != "" {
-        computerIdentifier := machineGuid
-    } else if machineGuid != "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := machineGuid . " + " . systemUniversallyUniqueIdentifier
-    }
-
-    return computerIdentifier
-}
-
-GetTextHash(text, algorithm) {
-    static algorithmWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512")
-    static methodName := RegisterMethod("text as String, algorithm As String [Whitelist: " . algorithmWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName, [text, algorithm])
-
-    switch algorithm {
-        case "MD2": algorithm := "MD2"
-        case "MD4": algorithm := "MD4"
-        case "MD5": algorithm := "MD5"
-        case "SHA-1": algorithm := "SHA1"
-        case "SHA-256": algorithm := "SHA256"
-        case "SHA-384": algorithm := "SHA384"
-        case "SHA-512": algorithm := "SHA512"
-    }
-
-    try {
-        textHash := Hash.String(algorithm, text)
-    } catch as textHashError {
-        LogConclusion("Failed", logValuesForConclusion, textHashError.Line, textHashError.Message)
-    }
-
-    return textHash
-}
-
-GetTimeZoneKeyName() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    timeZoneKeyName := "Unknown"
-
-    dynamicTimeZoneInformationBuffer := Buffer(432, 0)
-    callResult := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
-    if callResult != 0xFFFFFFFF {
-        extractedKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
-
-        if extractedKey != "" {
-            timeZoneKeyName := extractedKey
-        }
-    }
-
-    if timeZoneKeyName = "Unknown" {
-        try {
-            regValue := RegRead("HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
-        }
-
-        if regValue != "" {
-            timeZoneKeyName := regValue
-        }
-    }
-
-    if timeZoneKeyName = "Unknown" {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve time zone information.")
-    }
-
-    return timeZoneKeyName
-}
-
-GetRegionFormat() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    LOCALE_NAME_MAX_LENGTH := 85
-    BYTES_PER_WIDE_CHAR    := 2
-    localeNameBuffer       := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-
-    regionFormat := "Unknown"
-
-    regionFormatFromRegistry := ""
-    try {
-        regionFormatFromRegistry := RegRead("HKEY_CURRENT_USER\Control Panel\International", "LocaleName", "")
-    }
-
-    if regionFormatFromRegistry != "" {
-        regionFormat := regionFormatFromRegistry
-    } else {
-        wasLocaleResolved := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
-        if wasLocaleResolved {
-            resolvedLocaleName := StrGet(localeNameBuffer)
-
-            if resolvedLocaleName != "" {
-                regionFormat := resolvedLocaleName
+                if record.CurrentHorizontalResolution > 0 && record.CurrentVerticalResolution > 0 {
+                    activeModelNameFromWmi := controllerName
+                    break
+                }
             }
         }
     }
 
-    return regionFormat
-}
+    modelName := "Unknown GPU"
 
-GetInputLanguage() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    LOCALE_NAME_MAX_LENGTH := 85
-    BYTES_PER_WIDE_CHAR    := 2
-    localeNameUtf16Buffer  := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-
-    inputLanguageName := "Unknown Language"
-
-    keyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
-    if keyboardLayoutHandle {
-        languageIdentifier := keyboardLayoutHandle & 0xFFFF
-        localeIdentifier   := languageIdentifier
-
-        wasLcidToLocaleNameSuccessful := DllCall("Kernel32\LCIDToLocaleName", "UInt", localeIdentifier, "Ptr", localeNameUtf16Buffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
-
-        if wasLcidToLocaleNameSuccessful {
-            resolvedLocaleName := StrGet(localeNameUtf16Buffer)
-
-            if resolvedLocaleName != "" {
-                inputLanguageName := resolvedLocaleName
-            }
-        }
+    if primaryAdapterFriendlyName != "" {
+        modelName := primaryAdapterFriendlyName
+    } else if firstActiveAdapterFriendlyName != "" {
+        modelName := firstActiveAdapterFriendlyName
+    } else if activeModelNameFromWmi != "" {
+        modelName := activeModelNameFromWmi
+    } else if firstModelNameFromWmi != "" {
+        modelName := firstModelNameFromWmi
     }
 
-    return inputLanguageName
+    return modelName
 }
 
 GetActiveKeyboardLayout() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
     KEYBOARD_LAYOUT_ID_LENGTH_CHARACTERS := 9
     LOCALE_NAME_MAX_LENGTH               := 85
@@ -2084,57 +1921,462 @@ GetActiveKeyboardLayout() {
     return keyboardLayoutDescription
 }
 
-GetMotherboard() {
+GetActiveMonitor() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
-    rawManufacturer := ""
-    rawProduct := ""
+    DISPLAY_DEVICEW_SIZE  := 840
+    OFFSET_DeviceString   := 68
+    OFFSET_StateFlags     := 324
+    OFFSET_DeviceID       := 328
+    DISPLAY_DEVICE_ACTIVE := 0x00000001
+
+
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
+
+    plugAndPlayManufacturers := Map()
+    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {
+        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+    }
+
+    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry {
+        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+    }
+
+    monitorNameResult := "Unknown Monitor"
+
+    primaryDisplayDeviceName := ""
+    primaryMonitorIndex := MonitorGetPrimary()
+    if primaryMonitorIndex > 0 {
+        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
+    }
+
+    monitorDeviceInstanceId := ""
+    monitorFriendlyDeviceString := ""
+    if primaryDisplayDeviceName != "" {
+        enumerationIndex := 0
+        displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
+        loop {
+            NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
+            enumerationCallSucceeded := DllCall("User32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr", displayDeviceBuffer, "UInt", 0, "Int")
+            if enumerationCallSucceeded = 0 {
+                break
+            }
+            enumerationIndex += 1
+
+            stateFlags := NumGet(displayDeviceBuffer, OFFSET_StateFlags, "UInt")
+            if stateFlags & DISPLAY_DEVICE_ACTIVE {
+                monitorDeviceInstanceId     := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceID,     128, "UTF-16")
+                monitorFriendlyDeviceString := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceString, 128, "UTF-16")
+                break
+            }
+        }
+    }
+
+    vendorCode := ""
+    productCode := ""
+    if monitorDeviceInstanceId != "" && RegExMatch(monitorDeviceInstanceId, "i)^(?:MONITOR|DISPLAY)\\([A-Z]{3})([0-9A-F]{4})", &matchPnP) {
+        vendorCode := matchPnP[1]
+        productCode := matchPnP[2]
+    }
+
+    if monitorNameResult = "Unknown Monitor" {
+        bestBrand := ""
+        bestModel := ""
+        bestIsPrimaryMatch := false
+
+        try {
+            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
+            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+            wmiMonitorIDQuery := "
+            (
+                SELECT
+                    InstanceName,
+                    ManufacturerName,
+                    UserFriendlyName,
+                    Active
+                FROM
+                    WmiMonitorID
+                WHERE
+                    Active=True
+            )"
+
+            queryResults := windowsManagementInstrumentationService.ExecQuery(wmiMonitorIDQuery)
+            for record in queryResults {
+                instanceName := record.InstanceName
+                manufacturerArray := record.ManufacturerName
+                candidateBrandCode := ""
+                for codePoint in manufacturerArray {
+                    if codePoint = 0 {
+                        break
+                    }
+                    candidateBrandCode .= Chr(codePoint)
+                }
+                candidateBrandCode := StrUpper(Trim(candidateBrandCode))
+                candidateBrand := plugAndPlayManufacturers.Has(candidateBrandCode) ? plugAndPlayManufacturers[candidateBrandCode] : candidateBrandCode
+
+                userFriendlyArray := record.UserFriendlyName
+                candidateModel := ""
+                for codePoint in userFriendlyArray {
+                    if codePoint = 0 {
+                        break
+                    }
+                    candidateModel .= Chr(codePoint)
+                }
+                candidateModel := Trim(candidateModel)
+
+                if candidateModel = "" || RegExMatch(candidateModel, "i)^\s*Generic\b.*\bPnP\b") {
+                    continue
+                }
+
+                instanceMatchesPrimary := vendorCode != "" && productCode != "" && RegExMatch(instanceName, "i)" . vendorCode . productCode)
+
+                if instanceMatchesPrimary {
+                    bestBrand := candidateBrand
+                    bestModel := candidateModel
+                    bestIsPrimaryMatch := true
+                    break
+                } else if !bestIsPrimaryMatch && bestModel = "" {
+                    bestBrand := candidateBrand
+                    bestModel := candidateModel
+                }
+            }
+        }
+        if bestModel != "" {
+            if bestBrand != "" && !RegExMatch(bestModel, "i)^\Q" . bestBrand . "\E\b") {
+                monitorNameResult := bestBrand . " " . bestModel
+            } else {
+                monitorNameResult := bestModel
+            }
+        }
+    }
+
+    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
+        for registryClass in ["DISPLAY", "MONITOR"] {
+            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
+            try {
+                loop reg, registryBasePath, "K" {
+                    instanceKeyName := A_LoopRegName
+                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
+                    friendlyNameCandidate := ""
+                    try {
+                        friendlyNameCandidate := RegRead(parametersPath, "FriendlyName", "")
+                    }
+                    if friendlyNameCandidate != "" && !RegExMatch(friendlyNameCandidate, "i)^\s*Generic\b.*\bPnP\b") {
+                        monitorNameResult := friendlyNameCandidate
+                        break 2
+                    }
+                }
+            }
+        }
+    }
+
+    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
+        for registryClass in ["DISPLAY", "MONITOR"] {
+            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
+            try {
+                loop reg, registryBasePath, "K" {
+                    instanceKeyName := A_LoopRegName
+                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
+                    edidBuffer := ""
+                    try {
+                        edidBuffer := RegRead(parametersPath, "EDID")
+                    }
+                    if IsObject(edidBuffer) && edidBuffer.Size >= 128 {
+                        descriptorStart := 54
+                        descriptorLength := 18
+                        loop 4 {
+                            descriptorOffset := descriptorStart + (A_Index - 1) * descriptorLength
+                            byte0 := NumGet(edidBuffer, descriptorOffset + 0, "UChar")
+                            byte1 := NumGet(edidBuffer, descriptorOffset + 1, "UChar")
+                            tag   := NumGet(edidBuffer, descriptorOffset + 3, "UChar")
+                            if byte0 = 0x00 && byte1 = 0x00 && tag = 0xFC {
+                                modelFromEdid := ""
+                                loop 13 {
+                                    edidNameAsciiByte := NumGet(edidBuffer, descriptorOffset + 5 + (A_Index - 1), "UChar")
+                                    if edidNameAsciiByte = 0x00 || edidNameAsciiByte = 0x0A {
+                                        break
+                                    }
+                                    modelFromEdid .= Chr(edidNameAsciiByte)
+                                }
+                                modelFromEdid := Trim(modelFromEdid)
+                                if modelFromEdid != "" {
+                                    brandFromMap := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
+                                    monitorNameResult := (brandFromMap != "" ? brandFromMap . " " : "") . modelFromEdid
+                                }
+                                break
+                            }
+                        }
+                        if monitorNameResult != "Unknown Monitor" {
+                            break 2
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
+        derivedBrand := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
+        monitorNameResult := derivedBrand . " " . StrUpper(productCode)
+    }
+
+    if monitorNameResult = "Unknown Monitor" && monitorFriendlyDeviceString != "" && !RegExMatch(monitorFriendlyDeviceString, "i)^\s*Generic\b.*\bPnP\b") {
+        monitorNameResult := monitorFriendlyDeviceString
+    }
+
+    return monitorNameResult
+}
+
+GetActiveMonitorRefreshRateHz() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    ENUM_CURRENT_SETTINGS := -1
+    DEVMODEW_BYTES := 220
+    OFFSET_dmSize := 68
+    OFFSET_dmFields := 76
+    OFFSET_dmDisplayFrequency := 120
+    DM_DISPLAYFREQUENCY := 0x00400000
+
+    GDI_VREFRESH_INDEX := 116
+
+    refreshRateHertzResult := 0
+
+    primaryDisplayDeviceName := ""
+    primaryMonitorIndex := MonitorGetPrimary()
+    if primaryMonitorIndex > 0 {
+        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
+    }
+
+    if primaryDisplayDeviceName != "" {
+        deviceModeBuffer := Buffer(DEVMODEW_BYTES, 0)
+        NumPut("UShort", DEVMODEW_BYTES, deviceModeBuffer, OFFSET_dmSize)
+        NumPut("UShort", 0, deviceModeBuffer, 70)
+
+        enumCallSucceeded := DllCall("User32\EnumDisplaySettingsW", "WStr", primaryDisplayDeviceName, "Int", ENUM_CURRENT_SETTINGS, "Ptr", deviceModeBuffer, "Int")
+
+        if enumCallSucceeded {
+            deviceModeFields := NumGet(deviceModeBuffer, OFFSET_dmFields, "UInt")
+            if deviceModeFields & DM_DISPLAYFREQUENCY {
+                candidateFrequencyFromDevMode := NumGet(deviceModeBuffer, OFFSET_dmDisplayFrequency, "UInt")
+                if candidateFrequencyFromDevMode >= 20 && candidateFrequencyFromDevMode <= 1000 {
+                    refreshRateHertzResult := candidateFrequencyFromDevMode
+                }
+            }
+        }
+    }
+
+    ; Fallback: GDI CreateDCW("DISPLAY") + GetDeviceCaps(VREFRESH) for the primary monitor.
+    if refreshRateHertzResult = 0 {
+        primaryDisplayDeviceContextHandle := DllCall("Gdi32\CreateDCW", "WStr", "DISPLAY", "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr")
+
+        if primaryDisplayDeviceContextHandle {
+            candidateFrequencyFromGdi := DllCall("Gdi32\GetDeviceCaps", "Ptr", primaryDisplayDeviceContextHandle, "Int", GDI_VREFRESH_INDEX, "Int")
+            DllCall("Gdi32\DeleteDC", "Ptr", primaryDisplayDeviceContextHandle)
+
+            if candidateFrequencyFromGdi >= 20 && candidateFrequencyFromGdi <= 1000 {
+                refreshRateHertzResult := candidateFrequencyFromGdi
+            }
+        }
+    }
+
+    return refreshRateHertzResult
+}
+
+GetBios() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    biosVersion := ""
+    biosDateIso := ""
+    uefiIsEnabled := false
 
     try {
         windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
         windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
         windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-        win32BaseBoardQuery := "
+        win32BiosQuery := "
         (
             SELECT
-                Manufacturer,
-                Product
+                SMBIOSBIOSVersion,
+                Version,
+                BIOSVersion,
+                ReleaseDate,
+                BiosCharacteristics
             FROM
-                Win32_BaseBoard
+                Win32_BIOS
         )"
 
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BaseBoardQuery)
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BiosQuery)
         for record in queryResults {
-            try {
-                rawManufacturer := Trim(record.Manufacturer . "")
+            biosVersionCandidate := Trim(record.SMBIOSBIOSVersion . "")
+            if biosVersionCandidate = "" {
+                biosVersionCandidate := Trim(record.Version . "")
+            }
+            if biosVersionCandidate = "" {
+                biosVersionField := record.BIOSVersion
+                if IsObject(biosVersionField) {
+                    for versionEntry in biosVersionField {
+                        if Trim(versionEntry . "") != "" {
+                            biosVersionCandidate := Trim(versionEntry . "")
+                            break
+                        }
+                    }
+                } else {
+                    candidateString := Trim(biosVersionField . "")
+                    if candidateString != "" {
+                        biosVersionCandidate := candidateString
+                    }
+                }
+            }
+            biosVersion := biosVersionCandidate
+
+            ; UEFI-capable via WMI: 75 = "UEFI specification supported".
+            biosCharacteristics := record.BiosCharacteristics
+            if IsObject(biosCharacteristics) {
+                for characteristicCode in biosCharacteristics {
+                    if characteristicCode + 0 = 75 {
+                        uefiIsEnabled := true
+                        break
+                    }
+                }
             }
 
-            try {
-                rawProduct := Trim(record.Product . "")
+            ; BIOS release date (CIM_DATETIME to YYYY-MM-DD).
+            rawBiosReleaseDate := Trim(record.ReleaseDate . "")
+            if StrLen(rawBiosReleaseDate) >= 8 {
+                biosReleaseDateYear  := SubStr(rawBiosReleaseDate, 1, 4)
+                biosReleaseDateMonth := SubStr(rawBiosReleaseDate, 5, 2)
+                biosReleaseDateDay   := SubStr(rawBiosReleaseDate, 7, 2)
+                biosDateIso := biosReleaseDateYear . "-" . biosReleaseDateMonth . "-" . biosReleaseDateDay
             }
-            
+
             break
         }
     }
 
-    if rawManufacturer = "" {
-        rawManufacturer := "Unknown Manufacturer"
+    ; Fallback UEFI-capable via RAW SMBIOS. Type 0 (BIOS Information) → Extension Byte 2 at offset 0x13, bit 3 (0x08).
+    if !uefiIsEnabled {
+        try {
+            rawSystemManagementBiosSignature := 0x52534D42
+
+            requiredBufferSize := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", 0, "UInt", 0, "UInt")
+
+            if requiredBufferSize > 0 {
+                systemManagementBiosBuffer := Buffer(requiredBufferSize, 0)
+
+                bytesReturned := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", systemManagementBiosBuffer.Ptr, "UInt", requiredBufferSize, "UInt")
+
+                if bytesReturned >= 8 {
+                    smbiosDataLength  := NumGet(systemManagementBiosBuffer, 4, "UInt")
+                    smbiosDataPointer := systemManagementBiosBuffer.Ptr + 8
+                    smbiosEndPointer  := smbiosDataPointer + smbiosDataLength
+
+                    currentStructurePointer := smbiosDataPointer
+                    while currentStructurePointer + 4 <= smbiosEndPointer {
+                        structureType   := NumGet(currentStructurePointer, 0, "UChar")
+                        structureLength := NumGet(currentStructurePointer, 1, "UChar")
+                        if structureLength < 4 || currentStructurePointer + structureLength > smbiosEndPointer {
+                            break
+                        }
+
+                        if structureType = 0 { ; BIOS Information.
+                            ; Extension Byte 2 is at offset 0x13 (19) when present. Bit 3 (0x08) == "UEFI specification supported".
+                            if structureLength >= 0x14 {
+                                biosCharacteristicsExtensionByte2 := NumGet(currentStructurePointer, 0x13, "UChar")
+                                if biosCharacteristicsExtensionByte2 & 0x08 {
+                                    uefiIsEnabled := true
+                                }
+                            }
+                        }
+
+                        ; Advance to next structure (formatted area + string-set until double NUL).
+                        nextPointer := currentStructurePointer + structureLength
+                        while nextPointer < smbiosEndPointer {
+                            if NumGet(nextPointer, 0, "UChar") = 0 {
+                                if nextPointer + 1 <= smbiosEndPointer && NumGet(nextPointer + 1, 0, "UChar") = 0 {
+                                    nextPointer += 2
+                                    break
+                                }
+                            }
+                            nextPointer += 1
+                        }
+                        currentStructurePointer := nextPointer
+                        if (structureType = 127) { ; End-of-table.
+                            break
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    if rawProduct = "" {
-        rawProduct := "Unknown Product"
+    if biosVersion = "" {
+        biosVersion := "Unknown"
     }
 
-    motherboard := Trim(rawManufacturer . " " . rawProduct)
+    if biosDateIso = "" {
+        biosDateIso := "Unknown"
+    }
 
-    return motherboard
+    uefiOrBios := uefiIsEnabled ? "UEFI" : "BIOS"
+
+    biosSummary := biosVersion . " (" . biosDateIso . ") " . uefiOrBios
+
+    return biosSummary
+}
+
+GetComputerIdentifier() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    computerIdentifier := "N/A"
+
+    machineGuid := ""
+    try {
+        machineGuid := RegRead("HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography", "MachineGuid")
+    }
+
+    systemUniversallyUniqueIdentifier := ""
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        win32ComputerSystemProductQuery := "
+        (
+            SELECT
+                UUID
+            FROM
+                Win32_ComputerSystemProduct
+        )"
+
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32ComputerSystemProductQuery)
+        for record in queryResults {
+            systemUniversallyUniqueIdentifier := record.UUID
+            break
+        }
+    }
+
+    if machineGuid = "" && systemUniversallyUniqueIdentifier != "" {
+        computerIdentifier := systemUniversallyUniqueIdentifier
+    } else if systemUniversallyUniqueIdentifier = "" && machineGuid != "" {
+        computerIdentifier := machineGuid
+    } else if machineGuid != "" && systemUniversallyUniqueIdentifier != "" {
+        computerIdentifier := machineGuid . " + " . systemUniversallyUniqueIdentifier
+    }
+
+    return computerIdentifier
 }
 
 GetCpu() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
     modelName := ""
     defaultModelName := "Unknown CPU"
@@ -2159,9 +2401,222 @@ GetCpu() {
     return modelName
 }
 
+GetDiskModel(driveLetter) {
+    static methodName := RegisterMethod("driveLetter As String [Constraint: Drive Letter]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [driveLetter])
+
+    diskModel := "Unknown Disk"
+
+    if StrLen(driveLetter) = 1 {
+        driveLetter := driveLetter . ":"
+    } else {
+        driveLetter := SubStr(driveLetter, 1, StrLen(driveLetter) - 1)
+    }
+
+    try {
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+
+        partitionObjectQuery := "
+        (
+            ASSOCIATORS OF
+                {Win32_LogicalDisk.DeviceID='
+        )" . driveLetter . "
+        (
+        '}
+            WHERE
+                AssocClass=Win32_LogicalDiskToPartition
+        )"
+
+        selectedPartitionDeviceId := ""
+        for partitionObject in windowsManagementInstrumentationService.ExecQuery(partitionObjectQuery) {
+            selectedPartitionDeviceId := partitionObject.DeviceID
+            break
+        }
+
+        diskDriveObjectQuery := "
+        (
+            ASSOCIATORS OF
+                {Win32_DiskPartition.DeviceID='
+        )" . selectedPartitionDeviceId . "
+        (
+        '}
+            WHERE
+                AssocClass=Win32_DiskDriveToDiskPartition
+        )"
+
+        if selectedPartitionDeviceId != "" {
+            for diskDriveObject in windowsManagementInstrumentationService.ExecQuery(diskDriveObjectQuery) {
+                if Trim(diskDriveObject.Model) != "" {
+                    diskModel := Trim(diskDriveObject.Model)
+                }
+
+                break
+            }
+        }
+    }
+    
+    return diskModel
+}
+
+GetInputLanguage() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    LOCALE_NAME_MAX_LENGTH := 85
+    BYTES_PER_WIDE_CHAR    := 2
+    localeNameUtf16Buffer  := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
+
+    inputLanguageName := "Unknown Language"
+
+    keyboardLayoutHandle := DllCall("User32\GetKeyboardLayout", "UInt", 0, "Ptr")
+    if keyboardLayoutHandle {
+        languageIdentifier := keyboardLayoutHandle & 0xFFFF
+        localeIdentifier   := languageIdentifier
+
+        wasLcidToLocaleNameSuccessful := DllCall("Kernel32\LCIDToLocaleName", "UInt", localeIdentifier, "Ptr", localeNameUtf16Buffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "UInt", 0, "Int")
+
+        if wasLcidToLocaleNameSuccessful {
+            resolvedLocaleName := StrGet(localeNameUtf16Buffer)
+
+            if resolvedLocaleName != "" {
+                inputLanguageName := resolvedLocaleName
+            }
+        }
+    }
+
+    return inputLanguageName
+}
+
+GetInternationalFormatting() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
+    registryValueData            := ""
+    internationalFormattingMap   := Map()
+
+    excludedRegistryValueNames := [
+        "iCountry",
+        "iLocale",
+        "iPaperSize",
+        "Locale",
+        "LocaleName",
+        "sIntlCurrency",
+        "sLanguage"
+    ]
+
+    loop reg, internationalRegistryKeyPath, "V" {
+        registryValueName := A_LoopRegName
+        skipValue := false
+
+        for excludedRegistryValueName in excludedRegistryValueNames {
+            if excludedRegistryValueName = registryValueName {
+                skipValue := true
+                break
+            }
+        }
+
+        if skipValue {
+            continue
+        }
+
+        try {
+        	registryValueData := RegRead(internationalRegistryKeyPath, registryValueName)
+        }
+
+        internationalFormattingMap[registryValueName] := registryValueData
+    }
+
+    internationalFormatting := internationalFormattingMap
+    
+    return internationalFormatting
+}
+
+GetLogonSessionStartTime() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+    
+    static tokenQuery      := 0x0008
+    static tokenStatistics := 10
+    
+    loginStartupTime := ""
+    tokenHandle      := 0
+    requiredSize     := 0
+    
+    currentProcess := DllCall("GetCurrentProcess", "Ptr")
+    
+    openProcessTokenAndRetrieveInformationSuccessfully := DllCall("advapi32\OpenProcessToken", "Ptr", currentProcess, "UInt", tokenQuery, "Ptr*", &tokenHandle)
+    
+    if !openProcessTokenAndRetrieveInformationSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open process token and retrieve information. [advapi32\OpenProcessToken" . ", System Error Code: " . A_LastError . "]")
+    }
+    
+    DllCall("advapi32\GetTokenInformation", "Ptr", tokenHandle, "UInt", tokenStatistics, "Ptr", 0, "UInt", 0, "UInt*", &requiredSize)
+    if A_LastError != 122 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve information from token. [advapi32\GetTokenInformation" . ", System Error Code: " . A_LastError . "]")
+    }
+    
+    statisticsBuffer := Buffer(requiredSize, 0)
+    
+    tokenStatisticsRetrievedSuccessfully := DllCall("advapi32\GetTokenInformation", "Ptr", tokenHandle, "UInt", tokenStatistics, "Ptr", statisticsBuffer, "UInt", requiredSize, "UInt*", &requiredSize)
+    if !tokenStatisticsRetrievedSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve statistics from token. [advapi32\GetTokenInformation" . ", System Error Code: " . A_LastError . "]")
+    }
+    
+    authenticationId := NumGet(statisticsBuffer, 8, "UInt64")
+    
+    try {        
+        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
+        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
+        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
+        
+        win32LogonSessionQuery := Format("
+        (
+            SELECT
+                StartTime
+            FROM
+                Win32_LogonSession
+            WHERE
+                LogonId = '{}'
+        )", authenticationId)
+        
+        for currentSession in windowsManagementInstrumentationService.ExecQuery(win32LogonSessionQuery) {
+            if currentSession.StartTime {
+                timeStamp        := currentSession.StartTime
+                sessionLocalTime := SubStr(timeStamp, 1, 14)
+
+                offset := unset
+                if RegExMatch(timeStamp, "([+-])(\d{3})$", &offset) {
+                    utcOffsetMinutes := offset[2] + 0
+
+                    if offset[1] = "-" {
+                        utcOffsetMinutes := -utcOffsetMinutes
+                    }
+
+                    loginStartupTime := DateAdd(sessionLocalTime, -utcOffsetMinutes, "Minutes")
+                } else {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert logon session date and time to UTC. Session Local Time: " . sessionLocalTime . ". Offset: " . (IsSet(offset) ? offset[0] : "N/A"))
+                }
+
+                break
+            }
+        }
+    }  catch as queryError {
+        LogConclusion("Failed", logConclusionData, queryError.Line, queryError.Message)
+    } finally {
+        if tokenHandle {
+            DllCall("CloseHandle", "Ptr", tokenHandle)
+        }
+    }
+    
+    return loginStartupTime
+}
+
 GetMemorySizeAndType() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
     systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv")
 
@@ -2181,7 +2636,7 @@ GetMemorySizeAndType() {
     retrievedTheAmountOfRamPhysicallyInstalledSuccessfully := DllCall("Kernel32\GetPhysicallyInstalledSystemMemory", "UInt64*", &installedKilobytes, "Int")
 
     if !retrievedTheAmountOfRamPhysicallyInstalledSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the amount of RAM that is physically installed on the computer. [Kernel32\GetPhysicallyInstalledSystemMemory" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve the amount of RAM that is physically installed on the computer. [Kernel32\GetPhysicallyInstalledSystemMemory" . ", System Error Code: " . A_LastError . "]")
     }
 
     installedMemorySizeInGigabytes := (installedKilobytes > 0) ? (installedKilobytes // 1048576) : 0
@@ -2404,577 +2859,135 @@ GetMemorySizeAndType() {
     return memorySizeAndType
 }
 
-GetSystemDisk() {
+GetMotherboard() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
-    EXPLORER_SIZE_MAX_CHARACTERS       := 64
-    BYTES_PER_WIDE_CHARACTER           := 2
-    diskCapacityUtf16Buffer            := Buffer(EXPLORER_SIZE_MAX_CHARACTERS * BYTES_PER_WIDE_CHARACTER, 0)
-    systemPartitionCapacityUtf16Buffer := Buffer(EXPLORER_SIZE_MAX_CHARACTERS * BYTES_PER_WIDE_CHARACTER, 0)
-
-    diskModelText := "Unknown Disk"
-    diskCapacityText := "Unknown"
-    systemPartitionCapacityText := "Unknown"
-
-    try {
-        logicalDriveLetter := SubStr(A_WinDir, 1, 2)
-        systemPartitionByteCount := ""
-
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32LogicalDiskQuery := "
-        (
-        SELECT
-            Size
-        FROM
-            Win32_LogicalDisk
-        WHERE
-            DeviceID='
-        )" . logicalDriveLetter . "
-        (
-        '
-        )"
-
-        for logicalDisk in windowsManagementInstrumentationService.ExecQuery(win32LogicalDiskQuery) {
-            systemPartitionByteCount := logicalDisk.Size + 0
-            break
-        }
-
-        partitionObjectQuery := "
-        (
-        ASSOCIATORS OF
-            {Win32_LogicalDisk.DeviceID='
-        )" . logicalDriveLetter . "
-        (
-        '}
-        WHERE
-            AssocClass=Win32_LogicalDiskToPartition
-        )"
-
-        selectedPartitionDeviceId := ""
-        for partitionObject in windowsManagementInstrumentationService.ExecQuery(partitionObjectQuery) {
-            selectedPartitionDeviceId := partitionObject.DeviceID
-            break
-        }
-
-        diskDriveObjectQuery := "
-        (
-        ASSOCIATORS OF
-            {Win32_DiskPartition.DeviceID='
-        )" . selectedPartitionDeviceId . "
-        (
-        '}
-        WHERE
-            AssocClass=Win32_DiskDriveToDiskPartition
-        )"
-
-        physicalDiskByteCount := ""
-        if selectedPartitionDeviceId != "" {
-            for diskDriveObject in windowsManagementInstrumentationService.ExecQuery(diskDriveObjectQuery) {
-                if Trim(diskDriveObject.Model) != "" {
-                    diskModelText := Trim(diskDriveObject.Model)
-                }
-
-                if diskDriveObject.Size != "" && diskDriveObject.Size >= 0 {
-                    physicalDiskByteCount := diskDriveObject.Size + 0
-                }
-
-                break
-            }
-        }
-
-        if physicalDiskByteCount != "" && physicalDiskByteCount >= 0 {
-            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", physicalDiskByteCount, "Ptr", diskCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
-            diskCapacityText := StrGet(diskCapacityUtf16Buffer)
-        }
-
-        if systemPartitionByteCount != "" && systemPartitionByteCount >= 0 {
-            DllCall("Shlwapi\StrFormatByteSizeW", "Int64", systemPartitionByteCount, "Ptr", systemPartitionCapacityUtf16Buffer.Ptr, "UInt", EXPLORER_SIZE_MAX_CHARACTERS)
-            systemPartitionCapacityText := StrGet(systemPartitionCapacityUtf16Buffer)
-        }
-    }
-
-    if diskCapacityText = systemPartitionCapacityText {
-        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . ")"
-    } else {
-        diskCapacityAndSystemPartitionCapacity := " (" . diskCapacityText . " / " . systemPartitionCapacityText . ")"
-    }
-
-    modelWithDiskCapacityAndSystemPartitionCapacity := diskModelText . diskCapacityAndSystemPartitionCapacity
-    
-    return modelWithDiskCapacityAndSystemPartitionCapacity
-}
-
-GetActiveDisplayGpu() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    ; Prefer Win32 (User32) enumeration - authoritative primary GPU.
-    DISPLAY_DEVICE_ACTIVE_FLAG := 0x00000001
-    DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG := 0x00000004
-    DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES := 840
-
-    primaryAdapterFriendlyName := ""
-    firstActiveAdapterFriendlyName := ""
-
-    displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, 0)
-    displayDeviceIndex  := 0
-    loop {
-        ; Reinitialize the struct for this iteration and set cb (size).
-        DllCall("Msvcrt\memset", "Ptr", displayDeviceBuffer.Ptr, "Int", 0, "UPtr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "Int")
-        NumPut("UInt", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, displayDeviceBuffer, 0)
-
-        enumerationSuccessful := DllCall("User32\EnumDisplayDevicesW", "Ptr", 0, "UInt", displayDeviceIndex, "Ptr", displayDeviceBuffer.Ptr, "UInt", 0, "Int")
-        if enumerationSuccessful = 0 {
-            break
-        }
-
-        displayDeviceStateFlags   := NumGet(displayDeviceBuffer, 68 + 256, "UInt")
-        displayDeviceFriendlyName := StrGet(displayDeviceBuffer.Ptr + 68, "UTF-16")
-
-        if InStr(displayDeviceFriendlyName, "Microsoft Basic Display") || InStr(displayDeviceFriendlyName, "Remote Display") || InStr(displayDeviceFriendlyName, "RDP")
-        {
-            displayDeviceIndex += 1
-            continue
-        }
-
-        if displayDeviceStateFlags & DISPLAY_DEVICE_ACTIVE_FLAG {
-            if firstActiveAdapterFriendlyName = "" {
-                firstActiveAdapterFriendlyName := displayDeviceFriendlyName
-            }
-            if displayDeviceStateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE_FLAG {
-                primaryAdapterFriendlyName := displayDeviceFriendlyName
-                break
-            }
-        }
-
-        displayDeviceIndex += 1
-    }
-
-    ; Fallback only if no value retrieved from Win32: WMI heuristic.
-    activeModelNameFromWmi := ""
-    firstModelNameFromWmi := ""
-
-    if primaryAdapterFriendlyName = "" && firstActiveAdapterFriendlyName = "" {
-        try {
-            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-            win32VideoControllerQuery := "
-            (
-                SELECT
-                    Name,
-                    ConfigManagerErrorCode,
-                    CurrentHorizontalResolution,
-                    CurrentVerticalResolution
-                FROM
-                    Win32_VideoController
-                WHERE
-                    ConfigManagerErrorCode = 0
-            )"
-
-            queryResults := windowsManagementInstrumentationService.ExecQuery(win32VideoControllerQuery)
-            for record in queryResults {
-                controllerName := record.Name
-
-                if firstModelNameFromWmi = "" {
-                    firstModelNameFromWmi := controllerName
-                }
-
-                ; Ignore virtual or placeholder adapters here as well.
-                if InStr(controllerName, "Microsoft Basic Display") || InStr(controllerName, "Remote Display") || InStr(controllerName, "RDP") {
-                    continue
-                }
-
-                if record.CurrentHorizontalResolution > 0 && record.CurrentVerticalResolution > 0 {
-                    activeModelNameFromWmi := controllerName
-                    break
-                }
-            }
-        }
-    }
-
-    modelName := "Unknown GPU"
-
-    if primaryAdapterFriendlyName != "" {
-        modelName := primaryAdapterFriendlyName
-    } else if firstActiveAdapterFriendlyName != "" {
-        modelName := firstActiveAdapterFriendlyName
-    } else if activeModelNameFromWmi != "" {
-        modelName := activeModelNameFromWmi
-    } else if firstModelNameFromWmi != "" {
-        modelName := firstModelNameFromWmi
-    }
-
-    return modelName
-}
-
-GetActiveMonitor() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    DISPLAY_DEVICEW_SIZE  := 840
-    OFFSET_DeviceString   := 68
-    OFFSET_StateFlags     := 324
-    OFFSET_DeviceID       := 328
-    DISPLAY_DEVICE_ACTIVE := 0x00000001
-
-
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
-
-    plugAndPlayManufacturers := Map()
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
-
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
-
-    monitorNameResult := "Unknown Monitor"
-
-    primaryDisplayDeviceName := ""
-    primaryMonitorIndex := MonitorGetPrimary()
-    if primaryMonitorIndex > 0 {
-        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
-    }
-
-    monitorDeviceInstanceId := ""
-    monitorFriendlyDeviceString := ""
-    if primaryDisplayDeviceName != "" {
-        enumerationIndex := 0
-        displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
-        loop {
-            NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
-            enumerationCallSucceeded := DllCall("User32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr", displayDeviceBuffer, "UInt", 0, "Int")
-            if enumerationCallSucceeded = 0 {
-                break
-            }
-            enumerationIndex += 1
-
-            stateFlags := NumGet(displayDeviceBuffer, OFFSET_StateFlags, "UInt")
-            if stateFlags & DISPLAY_DEVICE_ACTIVE {
-                monitorDeviceInstanceId     := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceID,     128, "UTF-16")
-                monitorFriendlyDeviceString := StrGet(displayDeviceBuffer.Ptr + OFFSET_DeviceString, 128, "UTF-16")
-                break
-            }
-        }
-    }
-
-    vendorCode := ""
-    productCode := ""
-    if monitorDeviceInstanceId != "" && RegExMatch(monitorDeviceInstanceId, "i)^(?:MONITOR|DISPLAY)\\([A-Z]{3})([0-9A-F]{4})", &matchPnP) {
-        vendorCode := matchPnP[1]
-        productCode := matchPnP[2]
-    }
-
-    if monitorNameResult = "Unknown Monitor" {
-        bestBrand := ""
-        bestModel := ""
-        bestIsPrimaryMatch := false
-
-        try {
-            windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-            windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\WMI")
-            windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-            wmiMonitorIDQuery := "
-            (
-                SELECT
-                    InstanceName,
-                    ManufacturerName,
-                    UserFriendlyName,
-                    Active
-                FROM
-                    WmiMonitorID
-                WHERE
-                    Active=True
-            )"
-
-            queryResults := windowsManagementInstrumentationService.ExecQuery(wmiMonitorIDQuery)
-            for record in queryResults {
-                instanceName := record.InstanceName
-                manufacturerArray := record.ManufacturerName
-                candidateBrandCode := ""
-                for codePoint in manufacturerArray {
-                    if codePoint = 0 {
-                        break
-                    }
-                    candidateBrandCode .= Chr(codePoint)
-                }
-                candidateBrandCode := StrUpper(Trim(candidateBrandCode))
-                candidateBrand := plugAndPlayManufacturers.Has(candidateBrandCode) ? plugAndPlayManufacturers[candidateBrandCode] : candidateBrandCode
-
-                userFriendlyArray := record.UserFriendlyName
-                candidateModel := ""
-                for codePoint in userFriendlyArray {
-                    if codePoint = 0 {
-                        break
-                    }
-                    candidateModel .= Chr(codePoint)
-                }
-                candidateModel := Trim(candidateModel)
-
-                if candidateModel = "" || RegExMatch(candidateModel, "i)^\s*Generic\b.*\bPnP\b") {
-                    continue
-                }
-
-                instanceMatchesPrimary := vendorCode != "" && productCode != "" && RegExMatch(instanceName, "i)" . vendorCode . productCode)
-
-                if instanceMatchesPrimary {
-                    bestBrand := candidateBrand
-                    bestModel := candidateModel
-                    bestIsPrimaryMatch := true
-                    break
-                } else if !bestIsPrimaryMatch && bestModel = "" {
-                    bestBrand := candidateBrand
-                    bestModel := candidateModel
-                }
-            }
-        }
-        if bestModel != "" {
-            if bestBrand != "" && !RegExMatch(bestModel, "i)^\Q" . bestBrand . "\E\b") {
-                monitorNameResult := bestBrand . " " . bestModel
-            } else {
-                monitorNameResult := bestModel
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
-            try {
-                loop reg, registryBasePath, "K" {
-                    instanceKeyName := A_LoopRegName
-                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
-                    friendlyNameCandidate := ""
-                    try {
-                        friendlyNameCandidate := RegRead(parametersPath, "FriendlyName", "")
-                    }
-                    if friendlyNameCandidate != "" && !RegExMatch(friendlyNameCandidate, "i)^\s*Generic\b.*\bPnP\b") {
-                        monitorNameResult := friendlyNameCandidate
-                        break 2
-                    }
-                }
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        for registryClass in ["DISPLAY", "MONITOR"] {
-            registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
-            try {
-                loop reg, registryBasePath, "K" {
-                    instanceKeyName := A_LoopRegName
-                    parametersPath := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
-                    edidBuffer := ""
-                    try {
-                        edidBuffer := RegRead(parametersPath, "EDID")
-                    }
-                    if IsObject(edidBuffer) && edidBuffer.Size >= 128 {
-                        descriptorStart := 54
-                        descriptorLength := 18
-                        loop 4 {
-                            descriptorOffset := descriptorStart + (A_Index - 1) * descriptorLength
-                            byte0 := NumGet(edidBuffer, descriptorOffset + 0, "UChar")
-                            byte1 := NumGet(edidBuffer, descriptorOffset + 1, "UChar")
-                            tag   := NumGet(edidBuffer, descriptorOffset + 3, "UChar")
-                            if byte0 = 0x00 && byte1 = 0x00 && tag = 0xFC {
-                                modelFromEdid := ""
-                                loop 13 {
-                                    edidNameAsciiByte := NumGet(edidBuffer, descriptorOffset + 5 + (A_Index - 1), "UChar")
-                                    if edidNameAsciiByte = 0x00 || edidNameAsciiByte = 0x0A {
-                                        break
-                                    }
-                                    modelFromEdid .= Chr(edidNameAsciiByte)
-                                }
-                                modelFromEdid := Trim(modelFromEdid)
-                                if modelFromEdid != "" {
-                                    brandFromMap := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
-                                    monitorNameResult := (brandFromMap != "" ? brandFromMap . " " : "") . modelFromEdid
-                                }
-                                break
-                            }
-                        }
-                        if monitorNameResult != "Unknown Monitor" {
-                            break 2
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        derivedBrand := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
-        monitorNameResult := derivedBrand . " " . StrUpper(productCode)
-    }
-
-    if monitorNameResult = "Unknown Monitor" && monitorFriendlyDeviceString != "" && !RegExMatch(monitorFriendlyDeviceString, "i)^\s*Generic\b.*\bPnP\b") {
-        monitorNameResult := monitorFriendlyDeviceString
-    }
-
-    return monitorNameResult
-}
-
-GetBios() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
-
-    biosVersion := ""
-    biosDateIso := ""
-    uefiIsEnabled := false
+    rawManufacturer := ""
+    rawProduct := ""
 
     try {
         windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
         windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
         windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
 
-        win32BiosQuery := "
+        win32BaseBoardQuery := "
         (
             SELECT
-                SMBIOSBIOSVersion,
-                Version,
-                BIOSVersion,
-                ReleaseDate,
-                BiosCharacteristics
+                Manufacturer,
+                Product
             FROM
-                Win32_BIOS
+                Win32_BaseBoard
         )"
 
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BiosQuery)
+        queryResults := windowsManagementInstrumentationService.ExecQuery(win32BaseBoardQuery)
         for record in queryResults {
-            biosVersionCandidate := Trim(record.SMBIOSBIOSVersion . "")
-            if biosVersionCandidate = "" {
-                biosVersionCandidate := Trim(record.Version . "")
-            }
-            if biosVersionCandidate = "" {
-                biosVersionField := record.BIOSVersion
-                if IsObject(biosVersionField) {
-                    for versionEntry in biosVersionField {
-                        if Trim(versionEntry . "") != "" {
-                            biosVersionCandidate := Trim(versionEntry . "")
-                            break
-                        }
-                    }
-                } else {
-                    candidateString := Trim(biosVersionField . "")
-                    if candidateString != "" {
-                        biosVersionCandidate := candidateString
-                    }
-                }
-            }
-            biosVersion := biosVersionCandidate
-
-            ; UEFI-capable via WMI: 75 = "UEFI specification supported".
-            biosCharacteristics := record.BiosCharacteristics
-            if IsObject(biosCharacteristics) {
-                for characteristicCode in biosCharacteristics {
-                    if characteristicCode + 0 = 75 {
-                        uefiIsEnabled := true
-                        break
-                    }
-                }
+            try {
+                rawManufacturer := Trim(record.Manufacturer . "")
             }
 
-            ; BIOS release date (CIM_DATETIME to YYYY-MM-DD).
-            rawBiosReleaseDate := Trim(record.ReleaseDate . "")
-            if StrLen(rawBiosReleaseDate) >= 8 {
-                biosReleaseDateYear  := SubStr(rawBiosReleaseDate, 1, 4)
-                biosReleaseDateMonth := SubStr(rawBiosReleaseDate, 5, 2)
-                biosReleaseDateDay   := SubStr(rawBiosReleaseDate, 7, 2)
-                biosDateIso := biosReleaseDateYear . "-" . biosReleaseDateMonth . "-" . biosReleaseDateDay
+            try {
+                rawProduct := Trim(record.Product . "")
             }
-
+            
             break
         }
     }
 
-    ; Fallback UEFI-capable via RAW SMBIOS. Type 0 (BIOS Information) → Extension Byte 2 at offset 0x13, bit 3 (0x08).
-    if !uefiIsEnabled {
-        try {
-            rawSystemManagementBiosSignature := 0x52534D42
+    if rawManufacturer = "" {
+        rawManufacturer := "Unknown Manufacturer"
+    }
 
-            requiredBufferSize := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", 0, "UInt", 0, "UInt")
+    if rawProduct = "" {
+        rawProduct := "Unknown Product"
+    }
 
-            if requiredBufferSize > 0 {
-                systemManagementBiosBuffer := Buffer(requiredBufferSize, 0)
+    motherboard := Trim(rawManufacturer . " " . rawProduct)
 
-                bytesReturned := DllCall("Kernel32\GetSystemFirmwareTable", "UInt", rawSystemManagementBiosSignature, "UInt", 0, "Ptr", systemManagementBiosBuffer.Ptr, "UInt", requiredBufferSize, "UInt")
+    return motherboard
+}
 
-                if bytesReturned >= 8 {
-                    smbiosDataLength  := NumGet(systemManagementBiosBuffer, 4, "UInt")
-                    smbiosDataPointer := systemManagementBiosBuffer.Ptr + 8
-                    smbiosEndPointer  := smbiosDataPointer + smbiosDataLength
+GetOperatingSystem() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
 
-                    currentStructurePointer := smbiosDataPointer
-                    while currentStructurePointer + 4 <= smbiosEndPointer {
-                        structureType   := NumGet(currentStructurePointer, 0, "UChar")
-                        structureLength := NumGet(currentStructurePointer, 1, "UChar")
-                        if structureLength < 4 || currentStructurePointer + structureLength > smbiosEndPointer {
-                            break
-                        }
+    currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
 
-                        if structureType = 0 { ; BIOS Information.
-                            ; Extension Byte 2 is at offset 0x13 (19) when present. Bit 3 (0x08) == "UEFI specification supported".
-                            if structureLength >= 0x14 {
-                                biosCharacteristicsExtensionByte2 := NumGet(currentStructurePointer, 0x13, "UChar")
-                                if biosCharacteristicsExtensionByte2 & 0x08 {
-                                    uefiIsEnabled := true
-                                }
-                            }
-                        }
+    family := "Unknown Windows"
+    edition := "Unknown Edition"
+    architectureTag := A_Is64bitOS ? "x64" : "x86"
+    currentBuildNumber := ""
+    version := "Unknown Version"
+    updateBuildRevisionNumber := ""
+    releaseDisplay := ""
 
-                        ; Advance to next structure (formatted area + string-set until double NUL).
-                        nextPointer := currentStructurePointer + structureLength
-                        while nextPointer < smbiosEndPointer {
-                            if NumGet(nextPointer, 0, "UChar") = 0 {
-                                if nextPointer + 1 <= smbiosEndPointer && NumGet(nextPointer + 1, 0, "UChar") = 0 {
-                                    nextPointer += 2
-                                    break
-                                }
-                            }
-                            nextPointer += 1
-                        }
-                        currentStructurePointer := nextPointer
-                        if (structureType = 127) { ; End-of-table.
-                            break
-                        }
-                    }
-                }
-            }
+    try {
+        currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
+        version := "Build " . currentBuildNumber
+    }
+        
+    switch true {
+        case currentBuildNumber >= 22000:
+            family := "Windows 11"
+        case currentBuildNumber >= 10240:
+            family := "Windows 10"
+        case currentBuildNumber >= 9600:
+            family := "Windows 8.1"
+        case currentBuildNumber >= 9200:
+            family := "Windows 8"
+        case currentBuildNumber >= 7600:
+            family := "Windows 7"
+    }
+   
+    try {
+        edition := RegRead(currentVersionRegistryKey, "EditionID")
+    }
+
+    try {
+        updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
+
+        if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
+            version := version . "." . updateBuildRevisionNumber
         }
     }
 
-    if biosVersion = "" {
-        biosVersion := "Unknown"
+    if family = "Windows 7" {
+        servicePackVersion := ""
+
+        try {
+            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
+        }
+
+        releaseDisplay := (servicePackVersion != "" ? " (" . servicePackVersion . ")" : "")
+    } else {
+        try {
+            releaseDisplay := RegRead(currentVersionRegistryKey, "DisplayVersion")
+        }
+
+        if releaseDisplay = "" {
+            try {
+                releaseDisplay := RegRead(currentVersionRegistryKey, "ReleaseId")
+            }
+        }
+
+        if releaseDisplay != "" {
+            releaseDisplay := " (" . releaseDisplay . ")"
+        }
     }
 
-    if biosDateIso = "" {
-        biosDateIso := "Unknown"
-    }
+    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . releaseDisplay
 
-    uefiOrBios := uefiIsEnabled ? "UEFI" : "BIOS"
-
-    biosSummary := biosVersion . " (" . biosDateIso . ") " . uefiOrBios
-
-    return biosSummary
+    return operatingSystem
 }
 
 GetQueryPerformanceCounterFrequency() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
     queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
     queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
     if !queryPerformanceCounterFrequencyRetrievedSuccessfully {
-        LogConclusion("Failed", logValuesForConclusion, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
     }
 
     queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
@@ -2982,65 +2995,105 @@ GetQueryPerformanceCounterFrequency() {
     return queryPerformanceCounterFrequency
 }
 
-GetActiveMonitorRefreshRateHz() {
+GetRegionFormat() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
-    ENUM_CURRENT_SETTINGS := -1
-    DEVMODEW_BYTES := 220
-    OFFSET_dmSize := 68
-    OFFSET_dmFields := 76
-    OFFSET_dmDisplayFrequency := 120
-    DM_DISPLAYFREQUENCY := 0x00400000
+    LOCALE_NAME_MAX_LENGTH := 85
+    BYTES_PER_WIDE_CHAR    := 2
+    localeNameBuffer       := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
 
-    GDI_VREFRESH_INDEX := 116
+    regionFormat := "Unknown"
 
-    refreshRateHertzResult := 0
-
-    primaryDisplayDeviceName := ""
-    primaryMonitorIndex := MonitorGetPrimary()
-    if primaryMonitorIndex > 0 {
-        primaryDisplayDeviceName := MonitorGetName(primaryMonitorIndex)
+    regionFormatFromRegistry := ""
+    try {
+        regionFormatFromRegistry := RegRead("HKEY_CURRENT_USER\Control Panel\International", "LocaleName", "")
     }
 
-    if primaryDisplayDeviceName != "" {
-        deviceModeBuffer := Buffer(DEVMODEW_BYTES, 0)
-        NumPut("UShort", DEVMODEW_BYTES, deviceModeBuffer, OFFSET_dmSize)
-        NumPut("UShort", 0, deviceModeBuffer, 70)
+    if regionFormatFromRegistry != "" {
+        regionFormat := regionFormatFromRegistry
+    } else {
+        wasLocaleResolved := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
+        if wasLocaleResolved {
+            resolvedLocaleName := StrGet(localeNameBuffer)
 
-        enumCallSucceeded := DllCall("User32\EnumDisplaySettingsW", "WStr", primaryDisplayDeviceName, "Int", ENUM_CURRENT_SETTINGS, "Ptr", deviceModeBuffer, "Int")
+            if resolvedLocaleName != "" {
+                regionFormat := resolvedLocaleName
+            }
+        }
+    }
 
-        if enumCallSucceeded {
-            deviceModeFields := NumGet(deviceModeBuffer, OFFSET_dmFields, "UInt")
-            if deviceModeFields & DM_DISPLAYFREQUENCY {
-                candidateFrequencyFromDevMode := NumGet(deviceModeBuffer, OFFSET_dmDisplayFrequency, "UInt")
-                if candidateFrequencyFromDevMode >= 20 && candidateFrequencyFromDevMode <= 1000 {
-                    refreshRateHertzResult := candidateFrequencyFromDevMode
+    return regionFormat
+}
+
+GetTimeoutBeforeLockInSeconds() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    effectiveTimeout := 0
+
+    inactivityTimeout := RegRead("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "InactivityTimeoutSecs", 0)
+
+    if inactivityTimeout > 0 {
+        effectiveTimeout := inactivityTimeout
+    }
+
+    for registryKey in [
+        "HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Control Panel\Desktop",
+        "HKEY_CURRENT_USER\Control Panel\Desktop"
+    ] {
+        if RegRead(registryKey, "ScreenSaveActive", 0) = 1 && RegRead(registryKey, "ScreenSaverIsSecure", 0) = 1 {
+            screenSaverTimeout := RegRead(registryKey, "ScreenSaveTimeOut", 0)
+
+            if screenSaverTimeout > 0 {
+                if effectiveTimeout = 0 || screenSaverTimeout < effectiveTimeout {
+                    effectiveTimeout := screenSaverTimeout
                 }
             }
+
+            break
         }
     }
 
-    ; Fallback: GDI CreateDCW("DISPLAY") + GetDeviceCaps(VREFRESH) for the primary monitor.
-    if refreshRateHertzResult = 0 {
-        primaryDisplayDeviceContextHandle := DllCall("Gdi32\CreateDCW", "WStr", "DISPLAY", "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr")
+    return effectiveTimeout
+}
 
-        if primaryDisplayDeviceContextHandle {
-            candidateFrequencyFromGdi := DllCall("Gdi32\GetDeviceCaps", "Ptr", primaryDisplayDeviceContextHandle, "Int", GDI_VREFRESH_INDEX, "Int")
-            DllCall("Gdi32\DeleteDC", "Ptr", primaryDisplayDeviceContextHandle)
+GetTimeZoneKeyName() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
 
-            if candidateFrequencyFromGdi >= 20 && candidateFrequencyFromGdi <= 1000 {
-                refreshRateHertzResult := candidateFrequencyFromGdi
-            }
+    timeZoneKeyName := "Unknown"
+
+    dynamicTimeZoneInformationBuffer := Buffer(432, 0)
+    callResult := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
+    if callResult != 0xFFFFFFFF {
+        extractedKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
+
+        if extractedKey != "" {
+            timeZoneKeyName := extractedKey
         }
     }
 
-    return refreshRateHertzResult
+    if timeZoneKeyName = "Unknown" {
+        try {
+            regValue := RegRead("HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName")
+        }
+
+        if regValue != "" {
+            timeZoneKeyName := regValue
+        }
+    }
+
+    if timeZoneKeyName = "Unknown" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve time zone information.")
+    }
+
+    return timeZoneKeyName
 }
 
 GetWindowsColorMode() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logValuesForConclusion := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName)
 
     registryPath := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
@@ -3089,4 +3142,218 @@ GetWindowsColorMode() {
     }
 
     return colorMode
+}
+
+GetWindowsInstallationDateUtcTimestamp() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    registryKeySystemSetup               := "HKEY_LOCAL_MACHINE\System\Setup"
+    registryKeyCurrentVersionNonWow      := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
+    registryKeyCurrentVersionWow6432Node := "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows NT\CurrentVersion"
+
+    installDateSeconds := unset
+
+    ; Prefer the oldest DWORD InstallDate under SYSTEM\Setup\Source OS (...).
+    oldestSeconds := unset
+    loop reg, registryKeySystemSetup, "K" {
+        subKeyName := A_LoopRegName
+        if !RegExMatch(subKeyName, "^Source OS") {
+            continue
+        }
+
+        fullKey := registryKeySystemSetup . "\" . subKeyName
+        try {
+            candidate := RegRead(fullKey, "InstallDate")
+            candidate := candidate & 0xFFFFFFFF ; Treat as unsigned DWORD.
+        }
+
+        if candidate > 0 && (!IsSet(oldestSeconds) || candidate < oldestSeconds) {
+            oldestSeconds := candidate
+        }
+    }
+
+    if IsSet(oldestSeconds) {
+        installDateSeconds := oldestSeconds
+    }
+
+    ; Fallback: CurrentVersion DWORD InstallDate (prefer non-WOW, then WOW6432Node).
+    if !IsSet(installDateSeconds) {
+        try {
+            installDateSeconds := RegRead(registryKeyCurrentVersionNonWow, "InstallDate")
+        }
+    }
+
+    if !IsSet(installDateSeconds) {
+        try {
+            installDateSeconds := RegRead(registryKeyCurrentVersionWow6432Node, "InstallDate")
+        }
+    }
+
+    if !IsSet(installDateSeconds) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "InstallDate (DWORD) not found in SYSTEM\Setup snapshots or CurrentVersion.")
+    }
+
+    installDateSeconds := installDateSeconds & 0xFFFFFFFF
+    if installDateSeconds <= 0 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Invalid InstallDate seconds: " . installDateSeconds)
+    }
+
+    utcTimestamp := ConvertUnixTimeToUtcTimestamp(installDateSeconds)
+
+    return utcTimestamp
+}
+
+; **************************** ;
+; System Methods: Telemetry    ;
+; **************************** ;
+
+GetDriveSpaceSnapshot(driveLetter) {
+    static methodName := RegisterMethod("driveLetter As String [Constraint: Drive Letter]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [driveLetter])
+
+    driveLetter := StrUpper(driveLetter)
+    if StrLen(driveLetter) = 1 {
+        driveLetter := driveLetter . ":\"
+    }
+
+    freeBytesAvailableToCaller := 0
+    totalNumberOfBytes         := 0
+    totalNumberOfFreeBytes     := 0
+
+    freeDiskSpaceRetrievedSuccessfully := DllCall("Kernel32\GetDiskFreeSpaceExW", "Str", driveLetter, "Int64*", &freeBytesAvailableToCaller, "Int64*", &totalNumberOfBytes, "Int64*", &totalNumberOfFreeBytes, "Int")
+    if !freeDiskSpaceRetrievedSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve disk volume information. [Kernel32\GetDiskFreeSpaceExW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    bytesPerGB  := 1000000000
+    bytesPerGiB := 1 << 30
+    bytesPerTB  := 1000000000000
+    bytesPerTiB := 1 << 40
+
+    freeGB  := freeBytesAvailableToCaller / bytesPerGB
+    freeGiB := freeBytesAvailableToCaller / bytesPerGiB
+    freeTB  := freeBytesAvailableToCaller / bytesPerTB
+    freeTiB := freeBytesAvailableToCaller / bytesPerTiB
+
+    totalGB  := totalNumberOfBytes / bytesPerGB
+    totalGiB := totalNumberOfBytes / bytesPerGiB
+    totalTB  := totalNumberOfBytes / bytesPerTB
+    totalTiB := totalNumberOfBytes / bytesPerTiB
+
+    usedBytes   := totalNumberOfBytes - totalNumberOfFreeBytes
+    usedGB      := usedBytes / bytesPerGB
+    usedGiB     := usedBytes / bytesPerGiB
+    usedTB      := usedBytes / bytesPerTB
+    usedTiB     := usedBytes / bytesPerTiB
+
+    usedPercent := (totalNumberOfBytes > 0) ? Round((usedBytes / totalNumberOfBytes) * 100, 2) : 0.0
+    freePercent := Round(100 - usedPercent, 2)
+
+    static formattedFreeSizeBuffer := Buffer(128, 0)
+    freeSizeFormattedSuccessfully  := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", freeBytesAvailableToCaller, "Ptr", formattedFreeSizeBuffer.Ptr, "Int", 64, "Ptr")
+
+    if !freeSizeFormattedSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to format the amount of free space available on disk volume. [Shlwapi\StrFormatByteSizeW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    windowsFreeSizeFormatted := StrGet(formattedFreeSizeBuffer, "UTF-16")
+
+    static formattedTotalSizeBuffer := Buffer(128, 0)
+    totalSizeFormattedSuccessfully  := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", totalNumberOfBytes, "Ptr", formattedTotalSizeBuffer.Ptr, "Int", 64, "Ptr")
+
+    if !totalSizeFormattedSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to format the amount of total space available on disk volume. [Shlwapi\StrFormatByteSizeW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    windowsTotalSizeFormatted := StrGet(formattedTotalSizeBuffer, "UTF-16")
+
+    driveSpaceStatusResults := Map(
+        "Drive",              driveLetter,
+        "Free Bytes",         freeBytesAvailableToCaller,
+        "Free GB",            Round(freeGB, 4),
+        "Free GiB",           Round(freeGiB, 4),
+        "Free TB",            Round(freeTB, 4),
+        "Free TiB",           Round(freeTiB, 4),
+        "Free Percent",       freePercent,
+        "Total Bytes",        totalNumberOfBytes,
+        "Total GB",           Round(totalGB, 4),
+        "Total GiB",          Round(totalGiB, 4),
+        "Total TB",           Round(totalTB, 4),
+        "Total TiB",          Round(totalTiB, 4),
+        "Used Bytes",         usedBytes,
+        "Used GB",            usedGB,
+        "Used GiB",           usedGiB,
+        "Used TB",            usedTB,
+        "Used TiB",           usedTiB,
+        "Used Percent",       usedPercent,
+        "Windows Free Size",  windowsFreeSizeFormatted,
+        "Windows Total Size", windowsTotalSizeFormatted
+    )
+
+    return driveSpaceStatusResults
+}
+
+GetSystemResourceSnapshot() {
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName)
+
+    pointerSizeInBytes := A_PtrSize
+    structureSizeInBytes := 4 + (pointerSizeInBytes = 8 ? 4 : 0) + (10 * pointerSizeInBytes) + (3 * 4)
+    if pointerSizeInBytes = 8 {
+        structureSizeInBytes := (structureSizeInBytes + 7) & ~7
+    }
+
+    static performanceInformationBuffer := Buffer(structureSizeInBytes, 0)
+
+    NumPut("UInt", structureSizeInBytes, performanceInformationBuffer, 0)
+
+    getPerformanceInfoSucceeded := DllCall("Psapi\GetPerformanceInfo", "Ptr", performanceInformationBuffer.Ptr, "UInt", structureSizeInBytes, "Int")
+    if !getPerformanceInfoSucceeded {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve system performance information. [Psapi\GetPerformanceInfo" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    offsetInBytes := 4
+    if pointerSizeInBytes = 8 {
+        offsetInBytes += 4
+    }
+
+    commitTotalPages       := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    commitLimitPages       := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    commitPeakPages        := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    physicalTotalPages     := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    physicalAvailablePages := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    systemCachePages       := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    kernelTotalPages       := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    kernelPagedPages       := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    kernelNonpagedPages    := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    pageSizeInBytes        := NumGet(performanceInformationBuffer, offsetInBytes, "UPtr"), offsetInBytes += pointerSizeInBytes
+    systemHandleCount      := NumGet(performanceInformationBuffer, offsetInBytes, "UInt"), offsetInBytes += 4
+    systemProcessCount     := NumGet(performanceInformationBuffer, offsetInBytes, "UInt"), offsetInBytes += 4
+    systemThreadCount      := NumGet(performanceInformationBuffer, offsetInBytes, "UInt"), offsetInBytes += 4
+
+    totalPhysicalBytes     := physicalTotalPages * pageSizeInBytes
+    usedPhysicalBytes      := (physicalTotalPages - physicalAvailablePages) * pageSizeInBytes
+
+    usedPhysicalPercent    := (totalPhysicalBytes > 0) ? Round((usedPhysicalBytes / totalPhysicalBytes) * 100, 2) : 0.0
+    commitUsedPercent      := (commitLimitPages > 0)   ? Round((commitTotalPages / commitLimitPages) * 100, 2)    : 0.0
+
+    systemResourceSnapshot := Map(
+        "Commit Total Bytes",    commitTotalPages * pageSizeInBytes,
+        "Commit Limit Bytes",    commitLimitPages * pageSizeInBytes,
+        "Commit Peak Bytes",     commitPeakPages * pageSizeInBytes,
+        "Commit Used Percent",   commitUsedPercent,
+        "Kernel Total Bytes",    kernelTotalPages * pageSizeInBytes,
+        "Kernel Paged Bytes",    kernelPagedPages * pageSizeInBytes,
+        "Kernel Nonpaged Bytes", kernelNonpagedPages * pageSizeInBytes,
+        "Physical Used Bytes",   usedPhysicalBytes,
+        "Physical Total Bytes",  totalPhysicalBytes,
+        "Physical Used Percent", usedPhysicalPercent,
+        "System Cache Bytes",    systemCachePages * pageSizeInBytes,
+        "System Handle Count",   systemHandleCount,
+        "System Process Count",  systemProcessCount,
+        "System Thread Count",   systemThreadCount
+    )
+
+    return systemResourceSnapshot
 }
