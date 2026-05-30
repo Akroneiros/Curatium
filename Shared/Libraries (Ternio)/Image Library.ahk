@@ -250,7 +250,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             uniqueDataReferencesDirectories[index] := system["Directories"]["Images"] . uniqueDataReferenceDirectory . "\"
         }
 
-        BatchAppendSymbolLedger("R", uniqueDataReferencesDirectories)
+        BatchAppendSymbolLedger("Reference", uniqueDataReferencesDirectories)
 
         static screenWidth  := A_ScreenWidth
         static screenHeight := A_ScreenHeight
@@ -308,12 +308,16 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
             }
         }
 
-        hashValues     := []
+        references := []
         for image in pendingBase64ImageWriteQueue {
-            hashValues.Push(image["SHA-256"])
+            references.Push(image["SHA-256"])
         }
 
-        BatchAppendSymbolLedger("R", hashValues)
+        for image in pendingBase64ImageWriteQueue {
+            references.Push(system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"])
+        }
+
+        BatchAppendSymbolLedger("Reference", references)
 
         for image in pendingBase64ImageWriteQueue {
             filePath := system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"]

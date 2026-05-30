@@ -6,16 +6,16 @@
 #Include Logging Library.ahk
 
 AssignFileTimeAsLocalIso(filePath, timeType) {
-    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [filePath, timeType], "Assign File Times As Local ISO")
 
     switch StrLower(timeType) {
-        case "created", "c":
+        case "created":
             offset := 0
-        case "accessed", "a":
+        case "accessed":
             offset := 8
-        case "modified", "m":
+        case "modified":
             offset := 16
     }
 
@@ -140,7 +140,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
 }
 
 SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) {
-    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [directoryPath, localIsoDateTime, timeType], "Set Directory Time From Local ISO Date Time")
 
@@ -180,11 +180,11 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
     pointerAccessed := 0
     pointerModified := 0
     switch StrLower(timeType) {
-        case "accessed", "a":
+        case "accessed":
             pointerAccessed := utcFileTime.Ptr
-        case "created", "c":
+        case "created":
             pointerCreation := utcFileTime.Ptr
-        case "modified", "m":
+        case "modified":
             pointerModified := utcFileTime.Ptr
     }
 
@@ -200,7 +200,7 @@ SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) 
 }
 
 SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
-    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Accessed", "A", "Created", "C", "Modified", "M")
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("filePath As String [Constraint: Path], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [filePath, localIsoDateTime, timeType], "Set File Time From Local ISO Date Time")
 
@@ -241,13 +241,12 @@ SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
         pointerAccessed := 0
         pointerModified := 0
         switch StrLower(timeType) {
-            case "accessed", "a":
+            case "accessed":
                 pointerAccessed := utcFileTime.Ptr
-            case "created", "c":
+            case "created":
                 pointerCreation := utcFileTime.Ptr
-            case "modified", "m":
+            case "modified":
                 pointerModified := utcFileTime.Ptr
-            default:
         }
 
         success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
@@ -665,7 +664,7 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
 }
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
-    static dateOrderWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Day-Month-Year", "DMY", "Month-Day-Year", "MDY", "Year-Month-Day", "YMD")
+    static dateOrderWhitelist := Format('"{1}", "{2}", "{3}"', "Day-Month-Year", "Month-Day-Year", "Year-Month-Day")
     static methodName := RegisterMethod("inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [inputValue, dateOrder])
 
@@ -673,7 +672,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
     lastMatch := unset
 
     switch StrLower(dateOrder) {
-        case "day-month-year", "dmy":
+        case "day-month-year":
             currentPosition := 1
             pattern         := "(?<!\d)(0[1-9]|[12]\d|3[01])([-./ ])(0[1-9]|1[0-2])\2((?:19|20)\d{2})"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
@@ -700,7 +699,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
                     isoDate := lastMatch[3] . "-" . lastMatch[2] . "-" . lastMatch[1]
                 }
             }
-        case "month-day-year", "mdy":
+        case "month-day-year":
             currentPosition := 1
             pattern         := "(?<!\d)(0[1-9]|1[0-2])([-./ ])(0[1-9]|[12]\d|3[01])\2((?:19|20)\d{2})"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
@@ -727,7 +726,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
                     isoDate := lastMatch[3] . "-" . lastMatch[1] . "-" . lastMatch[2]
                 }
             }
-        case "year-month-day", "ymd":
+        case "year-month-day":
             currentPosition := 1
             pattern         := "(?<!\d)((?:19|20)\d{2})([-./ ])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {

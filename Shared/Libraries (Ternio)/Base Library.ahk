@@ -26,7 +26,8 @@ global symbolLedger := Map(
     "Error", Map(),
     "Method", Map(),
     "Overlay", Map(),
-    "Reference", Map()
+    "Reference", Map(),
+    "Whitelist", Map()
 )
 global system := Map(
     "Configuration", Map(),
@@ -39,6 +40,7 @@ global system := Map(
             "Method", 0,
             "Overlay", 0,
             "Reference", 0,
+            "Whitelist", 0,
             "Operation Sequence Number", 0,
             "Run Telemetry Order", 0
         ),
@@ -377,7 +379,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
             originalSendMode := A_SendMode
             SendMode("Event")
             MouseGetPos(&currentMouseX, &currentMouseY)
-            MouseMove(x, y, ComputeMouseSpeed(currentMouseX . "x" . currentMouseY, coordinatePair))
+            MouseMove(x, y, ComputeMouseMoveSpeed(currentMouseX . "x" . currentMouseY, coordinatePair))
             SendMode(originalSendMode)
         case "right":
             Click("right", x, y)
@@ -471,7 +473,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     SendMode("Event")
     MouseMove(startX, startY, 0)
     Sleep(16)
-    MouseClickDrag(StrLower(mouseButton), startX, startY, endX, endY, ComputeMouseSpeed(startCoordinatePair, endCoordinatePair))
+    MouseClickDrag(StrLower(mouseButton), startX, startY, endX, endY, ComputeMouseMoveSpeed(startCoordinatePair, endCoordinatePair))
     SendMode(originalSendMode)
 
     ; Release modifiers in reverse order.
@@ -575,7 +577,7 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"]]
+    subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"], ["Computer Alias", "String", "Single Line"]]
     for setting in subSettings {
         if !system["Configuration"]["Settings"].Has(setting[1]) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
@@ -638,6 +640,21 @@ ValidateDisplayScaling() {
 ; **************************** ;
 ; Core Methods                 ;
 ; **************************** ;
+
+AssignNewOverlayKey() {
+    overlayKey := IncrementCounter("Overlay")
+
+    return overlayKey
+}
+
+IncrementCounter(counterName) {
+    global system
+
+    system["Logging"]["Counters"][counterName]++
+    counter := system["Logging"]["Counters"][counterName]
+
+    return counter
+}
 
 ParseMethodWithDeclaration(methodWithDeclaration) {
     atParts     := StrSplit(methodWithDeclaration, "@", , 2)
@@ -803,50 +820,36 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
     symbol := symbolLedger["Method"][methodWithDeclaration]
     
     methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
-    if methodRegistry.Has(methodName) {
-        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
-        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
-        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
-        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
-        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
-        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
-        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
-        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
-        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
 
-        if !methodRegistry[methodName].Has("Overlay Log") {
-            methodRegistry[methodName]["Overlay Log"]     := false
-        }
+    if !methodRegistry.Has(methodName) {
+        methodRegistry[methodName] := Map()
+    }
 
-        methodRegistry[methodName]["Symbol"]              := symbol
-        
-        if !methodRegistry[methodName].Has("Settings") {
-            methodRegistry[methodName]["Settings"]        := Map()
-        }
-    } else {      
-        methodRegistry[methodName] := Map(
-            "Declaration",         methodWithDeclarationParsed["Declaration"],
-            "Signature",           methodWithDeclarationParsed["Signature"],
-            "Library",             methodWithDeclarationParsed["Library"],
-            "Contract",            methodWithDeclarationParsed["Contract"],
-            "Parameters",          methodWithDeclarationParsed["Parameters"],
-            "Data Types",          methodWithDeclarationParsed["Data Types"],
-            "Metadata",            methodWithDeclarationParsed["Metadata"],
-            "Validation Line",     methodWithDeclarationParsed["Validation Line"],
-            "Parameter Contracts", methodWithDeclarationParsed["Parameter Contracts"],
-            "Overlay Log",         false,
-            "Symbol",              symbol,
-            "Settings",            Map()
-        )
+    methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
+    methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
+    methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
+    methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
+    methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
+    methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
+    methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
+    methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
+    methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
+
+    if !methodRegistry[methodName].Has("Overlay Log") {
+        methodRegistry[methodName]["Overlay Log"] := false
+    }
+
+    methodRegistry[methodName]["Symbol"] := symbol
+    
+    if !methodRegistry[methodName].Has("Settings") {
+        methodRegistry[methodName]["Settings"] := Map()
     }
 
     for parameterContract in methodRegistry[methodName]["Parameter Contracts"] {
         if parameterContract["Whitelist"].Length != 0 {
-            ; Add blank if Optional present.
-
             for whitelistValue in parameterContract["Whitelist"] {
-                if !symbolLedger["Reference"].Has(whitelistValue) {
-                    logSymbolLedgerWhitelistLine := RegisterSymbol(whitelistValue, "Reference", false)
+                if !symbolLedger["Whitelist"].Has(whitelistValue) {
+                    logSymbolLedgerWhitelistLine := RegisterSymbol(whitelistValue, "Whitelist", false)
                     AppendLineToLog(logSymbolLedgerWhitelistLine, "Symbol Ledger")
                 }
             }
@@ -942,7 +945,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 }
             } else {
                 switch dataConstraint {
-                    case "Base52", "Base66", "Base86", "Base94":
+                    case "Base52", "Base62", "Base66", "Base86", "Base92", "Base94":
                         if !IsSet(base52CharacterSet) {
                             base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
                             base62CharacterSet := GetBaseCharacterSet(62)["Digit Map"]
@@ -1161,6 +1164,10 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         } else if !RegExMatch(dataValue, "^[0-9a-fA-F]+$") {
                             validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
+                    case "Single Line":
+                        if RegExMatch(dataValue, "[\r\n\v\f\x{0085}\x{2028}\x{2029}]") {
+                            validation := dataConstraint . " must be a single line (no line breaks allowed)."
+                        }
                     case "Path", "Valid Path":
                         SplitPath(dataValue, &filename, &directoryPath)
                         directoryPath := directoryPath . "\"
@@ -1218,7 +1225,7 @@ CombineCode(introCode, mainCode, outroCode := "") {
     return combinedCode
 }
 
-ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
+ComputeMouseMoveSpeed(startCoordinatePair, endCoordinatePair) {
     static methodName := RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [startCoordinatePair, endCoordinatePair])
 
@@ -1246,18 +1253,18 @@ ComputeMouseSpeed(startCoordinatePair, endCoordinatePair) {
 
     nearSpeed := 80
     farSpeed  := 20
-    computedMouseSpeed := unset
+    computedMouseMoveSpeed := unset
     if movementDistancePixels <= nearDistanceThresholdPixels {
-        computedMouseSpeed := nearSpeed
+        computedMouseMoveSpeed := nearSpeed
     } else if movementDistancePixels >= farDistanceThresholdPixels {
-        computedMouseSpeed := farSpeed
+        computedMouseMoveSpeed := farSpeed
     } else {
         ratio := (movementDistancePixels - nearDistanceThresholdPixels)  / (farDistanceThresholdPixels - nearDistanceThresholdPixels)
         ratio := ratio ** 1.5
-        computedMouseSpeed := Round(nearSpeed + (farSpeed - nearSpeed) * ratio)
+        computedMouseMoveSpeed := Round(nearSpeed + (farSpeed - nearSpeed) * ratio)
     }
 
-    return computedMouseSpeed
+    return computedMouseMoveSpeed
 }
 
 ConvertArrayIntoCsvString(array) {
@@ -2534,7 +2541,7 @@ GetInternationalFormatting() {
     return internationalFormatting
 }
 
-GetLogonSessionStartTime() {
+GetSessionStartupTime() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName)
     
@@ -2567,6 +2574,7 @@ GetLogonSessionStartTime() {
     
     authenticationId := NumGet(statisticsBuffer, 8, "UInt64")
     
+    sessionStartupTime := ""
     try {        
         windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
         windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
@@ -2595,7 +2603,7 @@ GetLogonSessionStartTime() {
                         utcOffsetMinutes := -utcOffsetMinutes
                     }
 
-                    loginStartupTime := DateAdd(sessionLocalTime, -utcOffsetMinutes, "Minutes")
+                    sessionStartupTime := DateAdd(sessionLocalTime, -utcOffsetMinutes, "Minutes")
                 } else {
                     LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert logon session date and time to UTC. Session Local Time: " . sessionLocalTime . ". Offset: " . (IsSet(offset) ? offset[0] : "N/A"))
                 }
@@ -2611,7 +2619,7 @@ GetLogonSessionStartTime() {
         }
     }
     
-    return loginStartupTime
+    return sessionStartupTime
 }
 
 GetMemorySizeAndType() {

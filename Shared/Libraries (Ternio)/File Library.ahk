@@ -551,40 +551,59 @@ GetFoldersFromDirectory(directoryPath) {
     return folders
 }
 
-GetLastLineNumberFromTextFile(filePath) {
+GetTextFileLineCount(filePath) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [filePath])
+ 
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        ConfigureMethodSetting(methodName, "Max Fast Size", 100000000, 10, 1000000000)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings    := methodRegistry[methodName]["Settings"]
+    maxFastSize := settings["Max Fast Size"].Get("Value")
 
     lineCount := 0
 
+    fileSize  := 0
     try {
-        endsWithTerminator := false
-        fileObject := FileOpen(filePath, "r")
-        if !IsObject(fileObject) {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open text file: " . filePath)
-        }
-        
-        while !fileObject.AtEOF {
-            line := fileObject.ReadLine()
-            lineCount++
-        }
-
-        if fileObject.Length > 0 {
-            fileObject.Seek(-1, 2)
-            lastCharacter := fileObject.ReadUChar()
-            if lastCharacter = 10 || lastCharacter = 13 {
-                endsWithTerminator := true
-            }
-        }
-        
-        fileObject.Close()
-
-        if endsWithTerminator {
-            lineCount++
-        }
-    } catch as fileObjectError {
-        LogConclusion("Failed", logConclusionData, fileObjectError.Line, fileObjectError.Message)
+        fileSize := FileGetSize(filePath)
+    } catch as fileSizeError {
+        LogConclusion("Failed", logConclusionData, fileSizeError.Line, fileSizeError.Message)
     }
 
-   return lineCount
+    if fileSize != 0 {
+        try {
+            if fileSize < maxFastSize {
+                content := FileRead(filePath)
+
+                StrReplace(content, "`n", "", false, &lineCount)
+                lineCount += 1
+            } else {
+                chunkSize := 4 * 1024 * 1024
+
+                fileObject := FileOpen(filePath, "r")
+                if !IsObject(fileObject) {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file.")
+                }
+
+                while !fileObject.AtEOF {
+                    buffer := fileObject.Read(chunkSize)
+
+                    newlineCount := 0
+                    StrReplace(buffer, "`n", "", false, &newlineCount)
+                    lineCount += newlineCount
+                }
+                fileObject.Close()
+
+                lineCount += 1
+            }
+        } catch as fileError {
+            LogConclusion("Failed", logConclusionData, fileError.Line, fileError.Message)
+        }
+    }
+
+    return lineCount
 }

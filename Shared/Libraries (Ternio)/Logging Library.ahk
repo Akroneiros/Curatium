@@ -197,8 +197,6 @@ AppendLineToLog(line, logType) {
 }
 
 LogBeginning(methodName, arguments := [], overlayValue := unset) {
-    global system
-
     static lastRunTelemetryTick := unset
     static runTelemetryInterval := 12 * 60 * 1000
 
@@ -215,29 +213,36 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
 
     customOverlayMethod := (methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine")
 
-    system["Logging"]["Counters"]["Operation Sequence Number"]++
+    operationSequenceNumber := IncrementCounter("Operation Sequence Number")
     if IsSet(overlayValue) {
-        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(system["Logging"]["Counters"]["Operation Sequence Number"], 94)
+        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(operationSequenceNumber, 94)
         logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
         logConclusionData["UTC Timestamp Integer"]     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
     } else {
-        logConclusionData["Operation Sequence Number"] := system["Logging"]["Counters"]["Operation Sequence Number"]
+        logConclusionData["Operation Sequence Number"] := operationSequenceNumber
         logConclusionData["Query Performance Counter"] := timestamp["QPC Midpoint Tick"]
         logConclusionData["UTC Timestamp Integer"]     := timestamp["UTC Timestamp Integer"]
     }
 
     logBeginning := unset
-    overlayKey   := unset
+    overlayKey   := -1
     if IsSet(overlayValue) {
         if !customOverlayMethod {
-            overlayKey := OverlayGenerateNextKey(methodName)
+            if methodRegistry[methodName].Has("Overlay Log") {
+                if methodRegistry[methodName]["Overlay Log"] {
+                    overlayKey := IncrementCounter("Overlay")
+                } else {
+                    overlayKey := 0
+                }
+            }
 
-            if overlayKey != 0 {
+            if overlayKey >= 1 {
                 OverlayUpdateLine(overlayKey, overlayValue . overlay["Status"]["Beginning"])
             }
         } else {
             if methodName = "OverlayInsertSpacer" {
-                OverlayUpdateLine(overlayKey := OverlayGenerateNextKey(), overlayValue := "")
+                overlayKey := IncrementCounter("Overlay")
+                OverlayUpdateLine(overlayKey, overlayValue := "")
             } else if methodName = "OverlayUpdateCustomLine" {
                 OverlayUpdateLine(overlayKey := arguments[1], overlayValue := arguments[2])
             }
@@ -249,8 +254,6 @@ LogBeginning(methodName, arguments := [], overlayValue := unset) {
             logConclusionData["Query Performance Counter"] . "|" . ; Query Performance Counter
             logConclusionData["UTC Timestamp Integer"] .     "|" . ; UTC Timestamp Integer
             methodRegistry[methodName]["Symbol"]                   ; Method or Context
-    } else {
-        overlayKey := -1
     }
 
     logConclusionData["Overlay Key"] := overlayKey
@@ -439,10 +442,6 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     }
 
     if IsSet(errorMessage) {
-        if OverlayIsVisible() {
-            WinSetTransparent(255, "ahk_id " . overlay["GUI"].Hwnd)
-        }
-
         system["Logging"]["Log Engine State"] := "Failed"
         LogEngine()
 
@@ -469,7 +468,7 @@ LogEngine() {
     static runtime       := "Runtime"
     static telemetry     := "Telemetry"
 
-    operationLogLineNumber := ""
+    operationLogLineNumber := unset
 
     switch system[logging]["Log Engine State"] {
         case "Pending": system[logging]["Log Engine State"] := "Beginning"
@@ -493,7 +492,7 @@ LogEngine() {
         }
     }
 
-    system[logging]["Counters"]["Run Telemetry Order"]++
+    runTelemetryOrder := IncrementCounter("Run Telemetry Order")
     system[telemetry] := TelemetryTimestamp(200)
 
     if system[logging]["Log Engine State"] = "Beginning" {
@@ -528,72 +527,137 @@ LogEngine() {
     }
 
     if system[logging]["Log Engine State"] != "Beginning" {
-        operationLogLineNumber := GetLastLineNumberFromTextFile(system["Logging"]["Log File Path"]["Operation Log"])
+        operationLogLineNumber := GetTextFileLineCount(system["Logging"]["Log File Path"]["Operation Log"])
     }
 
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [], "Log Engine")
 
-    configurationPath := system[directories]["Project"] . "Configuration (" . system[runtime]["Project Name"] . ", " . "Library Release" . " " . system[runtime]["Library Release"] . ").json"
-    RegisterReference(configurationPath)
+    static configurationPath    := system[directories]["Project"] . "Configuration (" . system[runtime]["Project Name"] . ", " . "Library Release" . " " . system[runtime]["Library Release"] . ").json"
+    static defaultConfiguration := StrReplace(
+    '{' . newLine . 
+        '    "Application Whitelist": [' . newLine . 
+            '        ' .  newLine . 
+        '    ],' . newLine . 
+        '    "Application Executable Directory Candidates": [' . newLine .
+            '        '  . newLine . 
+        '    ],' . newLine . 
+        '    "Candidate Base Directories": [' . newLine . 
+            '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '",' . newLine . 
+            '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
+            '    ],' . newLine . 
+        '    "Settings": {' . newLine . 
+            '        "Image Variant Preset": "' . system[directories]["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
+            '        "Application Image Override Directory": "' . "" . '",' . newline . 
+            '        "Computer Alias": "' . "N/A" . '"' . newline . 
+        '    }' . newLine . 
+    '}', "\", "\\")
 
     if system[logging]["Log Engine State"] = "Beginning" {
+        for reference in [
+            configurationPath,
+            "",
+            "|",
+            "<Constraint: Base64>",
+            "<Data Type: Array>",
+            "<Data Type: Integer>",
+            "<Data Type: Map>",
+            "<Data Type: String>",
+            system[directories]["Log"],
+            system[directories]["Project"],
+            system[directories]["Constants"] . "Resolutions (2025-09-20).csv",
+            system[directories]["Constants"] . "Scales (2025-09-20).csv",
+            system[directories]["Images"] .    "Image Library Catalog (Full High Definition).csv",
+            system[directories]["Images"] .    "Image Library Catalog (Quad High Definition).csv",
+            system[directories]["Images"] .    "Image Library Catalog (Ultra High Definition).csv",
+            system[directories]["Mappings"] .  "Application Executable Directory Candidates.csv",
+            system[directories]["Mappings"] .  "Applications.csv",
+            system[directories]["Mappings"] .  "Command Line Executables.csv",
+            system[directories]["Mappings"] .  "File Signatures.csv",
+            system[directories]["Mappings"] .  "System Management BIOS Type 17 Memory Device - Type.csv",
+            system[directories]["Mappings"] .  "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry.csv",
+            system[directories]["Mappings"] .  "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv",
+            system[directories]["Mappings"] .  "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv",
+            system[directories]["Spreadsheet Operations Template"] . "Version Manifest.ini",
+            "Log|Type",
+            "Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value",
+            "Reference|Type|Symbol",
+            system[logging]["Log Shared Name"] . "Template.csv",
+            "<Text Block: Length: " . StrLen(defaultConfiguration) . ", Rows: " . StrSplit(defaultConfiguration, "`n").Length . ">",
+            "Full High Definition",
+            "Quad High Definition",
+            "Ultra High Definition"
+        ] {
+            RegisterReference(reference)
+        }
+
         RemoveDuplicatesFromArray([])
-        system[environment]["Time Zone Key Name"]       := GetTimeZoneKeyName()
-        system[environment]["Logon Session Start Time"] := GetLogonSessionStartTime()
-        system[environment]["QPC Frequency"]            := GetQueryPerformanceCounterFrequency()
-    }
-
-    system[telemetry]["Computer Uptime in Seconds"]     := Round(system[telemetry]["QPC Midpoint Tick"] / system[environment]["QPC Frequency"])
-    system[telemetry]["User Session Uptime in Seconds"] := DateDiff(SubStr(system[telemetry]["UTC Timestamp Integer"], 1, 14) . "", system[environment]["Logon Session Start Time"], "Seconds")
-    system[telemetry]["System Drive Space Snapshot"]    := GetDriveSpaceSnapshot(systemDrive)
-
-    if system[logging]["Log Engine State"] = "Beginning" {
-        BatchAppendExecutionLog("Beginning", [])
-        BatchAppendOperationLog([])
-        BatchAppendRunTelemetry("Beginning", [])
+        system[environment]["Time Zone Key Name"] := GetTimeZoneKeyName()
+        system[environment]["QPC Frequency"]      := GetQueryPerformanceCounterFrequency()
         BatchAppendSymbolLedger("", [])
+        BatchAppendRunTelemetry("Beginning", [])
+        BatchAppendOperationLog([])
+        BatchAppendExecutionLog("Beginning", [])
 
         EnsureDirectoryExists(system[directories]["Log"])
 
-        WriteTextToFile("Log|Type", system[logging]["Log Shared Name"] . "Execution Log.csv", "UTF-8", "Create")
-        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", system[logging]["Log Shared Name"] . "Operation Log.csv", "UTF-8", "Create")
-        WriteTextToFile("Log|Type", system[logging]["Log Shared Name"] . "Run Telemetry.csv", "UTF-8", "Create")
-        WriteTextToFile("Reference|Type|Symbol", system[logging]["Log Shared Name"] . "Symbol Ledger.csv", "UTF-8", "Create")
+        WriteTextToFile("Log|Type", system[logging]["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
+        FileMove(system[logging]["Log Shared Name"] . "Template.csv", system[logging]["Log File Path"]["Execution Log"])
+        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", system[logging]["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
+        FileMove(system[logging]["Log Shared Name"] . "Template.csv", system[logging]["Log File Path"]["Operation Log"])
+        WriteTextToFile("Log|Type", system[logging]["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
+        FileMove(system[logging]["Log Shared Name"] . "Template.csv", system[logging]["Log File Path"]["Run Telemetry"])
+        WriteTextToFile("Reference|Type|Symbol", system[logging]["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
+        FileMove(system[logging]["Log Shared Name"] . "Template.csv", system[logging]["Log File Path"]["Symbol Ledger"])
 
-        FileMove(system[logging]["Log Shared Name"] . "Execution Log.csv", system[logging]["Log File Path"]["Execution Log"])
-        FileMove(system[logging]["Log Shared Name"] . "Operation Log.csv", system[logging]["Log File Path"]["Operation Log"])
-        FileMove(system[logging]["Log Shared Name"] . "Run Telemetry.csv", system[logging]["Log File Path"]["Run Telemetry"])
-        FileMove(system[logging]["Log Shared Name"] . "Symbol Ledger.csv", system[logging]["Log File Path"]["Symbol Ledger"])
+        operationLogLineNumber := GetTextFileLineCount(system["Logging"]["Log File Path"]["Operation Log"])
+
+        EnsureDirectoryExists(system[directories]["Project"])
+
         system[logging]["Log to Array"] := false
         AppendLineToLog("", "Execution Log")
         AppendLineToLog("", "Operation Log")
         AppendLineToLog("", "Run Telemetry")
         AppendLineToLog("", "Symbol Ledger")
-        system[logging]["Log to Array"] := true
-        operationLogLineNumber := GetLastLineNumberFromTextFile(system["Logging"]["Log File Path"]["Operation Log"])
     }
-
-    system[telemetry]["System Resource Snapshot"] := GetSystemResourceSnapshot()
-
-    if system[logging]["Log Engine State"] != "Beginning" {
-        system[logging]["Log to Array"] := true
-    }
-
-    AppendLineToLog("Run Telemetry Order: " . system[logging]["Counters"]["Run Telemetry Order"] . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
-        "|" . "Duration in Milliseconds: " . system[telemetry]["Duration in Milliseconds"] . "|" . "Number of Readings: " .  system[telemetry]["Number of Readings"] . 
-        "|" . "UTC Timestamp Precise: " . system[telemetry]["UTC Timestamp Precise"] . "|" . "UTC Timestamp Integer: " . system[telemetry]["UTC Timestamp Integer"] . 
-        "|" . "QPC Before Tick: " . system[telemetry]["QPC Before Tick"] . "|" . "QPC After Tick: " . system[telemetry]["QPC After Tick"] . 
-        "|" . "QPC Delta Tick: " . system[telemetry]["QPC Delta Tick"] . "|" . "QPC Midpoint Tick: " . system[telemetry]["QPC Midpoint Tick"], "Run Telemetry")
-    AppendLineToLog("Computer Uptime in Seconds: " . system[telemetry]["Computer Uptime in Seconds"] . "|" . "User Session Uptime in Seconds: " . system[telemetry]["User Session Uptime in Seconds"], "Run Telemetry")
-    AppendLineToLog("Physical: " . system[telemetry]["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . system[telemetry]["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
-        "|" . "Processes: " . system[telemetry]["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . system[telemetry]["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
-    AppendLineToLog("Free Size: " . Format("{:.1f}", system[telemetry]["System Drive Space Snapshot"]["Free GB"]) . " GB (" . system[telemetry]["System Drive Space Snapshot"]["Windows Free Size"] . 
-        ")|" . "Used Bytes: " . system[telemetry]["System Drive Space Snapshot"]["Used Bytes"] . "|" . "Used Percent: " . Format("{:.2f}", system[telemetry]["System Drive Space Snapshot"]["Used Percent"]) . "%", "Run Telemetry")
 
     if system[logging]["Log Engine State"] != "Beginning" {
         system[logging]["Log to Array"] := false
+    }
 
+    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
+        "|" . "Duration in Milliseconds: " . system[telemetry]["Duration in Milliseconds"] . "|" . "Number of Readings: " .  system[telemetry]["Number of Readings"] . 
+        "|" . "UTC Timestamp Precise: " . system[telemetry]["UTC Timestamp Precise"] . "|" . "QPC Before Tick: " . system[telemetry]["QPC Before Tick"] . 
+        "|" . "QPC After Tick: " . system[telemetry]["QPC After Tick"] . "|" . "QPC Midpoint Tick: " . system[telemetry]["QPC Midpoint Tick"] . "|" . SubStr(system[logging]["Log Engine State"], 1, 1), "Run Telemetry")
+
+    system[logging]["Log to Array"] := true
+
+    if system[logging]["Log Engine State"] = "Beginning" {
+        system[environment]["Session Startup Time"] := GetSessionStartupTime()
+        ModifyScreenCoordinates(2, 2, "0x0")
+        CombineCode("Intro", "Main")
+        ComputeMouseMoveSpeed("0x0", "2x2")
+        GetFoldersFromDirectory(system[directories]["Log"])
+        FileExistsInDirectory("Ultra High Definition", system[directories]["Images"])
+        ExtractParentDirectory(system[directories]["Log"])
+        OverlayIsVisible()
+        ConvertIntegerToUtcTimestamp(system[telemetry]["UTC Timestamp Integer"])
+        ConvertUtcTimestampToInteger(system[telemetry]["UTC Timestamp Precise"])
+        ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(system[telemetry]["UTC Timestamp Precise"], system[environment]["Time Zone Key Name"])
+    }
+
+    system[telemetry]["Computer Uptime in Seconds"]  := Round(system[telemetry]["QPC Midpoint Tick"] / system[environment]["QPC Frequency"])
+    system[telemetry]["Session Uptime in Seconds"]   := DateDiff(SubStr(system[telemetry]["UTC Timestamp Integer"], 1, 14) . "", system[environment]["Session Startup Time"], "Seconds")
+    system[telemetry]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
+    system[telemetry]["System Resource Snapshot"]    := GetSystemResourceSnapshot()
+
+    AppendLineToLog("Computer Uptime in Seconds: " . system[telemetry]["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . system[telemetry]["Session Uptime in Seconds"], "Run Telemetry")
+    AppendLineToLog("Physical: " . system[telemetry]["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . system[telemetry]["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
+        "|" . "Processes: " . system[telemetry]["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . system[telemetry]["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
+    AppendLineToLog("Disk Free Bytes: " . system[telemetry]["System Drive Space Snapshot"]["Free Bytes"] . "|" . "Windows Free Size: " . system[telemetry]["System Drive Space Snapshot"]["Windows Free Size"], "Run Telemetry")
+
+    if system[logging]["Log Engine State"] != "Beginning" {
+        system[logging]["Log to Array"] := false
         BatchAppendRunTelemetry(system[logging]["Log Engine State"], system[logging]["Log Entries"]["Run Telemetry"])
         system[logging]["Log Entries"]["Run Telemetry"] := []
     }
@@ -601,8 +665,6 @@ LogEngine() {
     if system[logging]["Log Engine State"] = "Beginning" {
         system[environment]["BIOS"]                 := GetBios()
         system[environment]["Color Mode"]           := GetWindowsColorMode()
-        system[environment]["Computer Identifier"]  := GetTextHash(GetComputerIdentifier(), "SHA-256")
-        system[environment]["Computer Name"]        := A_ComputerName
         system[environment]["CPU"]                  := GetCpu()
         system[environment]["Display GPU"]          := GetActiveDisplayGpu()
         system[environment]["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
@@ -615,6 +677,7 @@ LogEngine() {
         system[environment]["Motherboard"]          := GetMotherboard()
         system[environment]["Operating System"]     := GetOperatingSystem()
         system[environment]["OS Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
+        system[environment]["Computer Name"]        := A_ComputerName
         system[environment]["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
         system[environment]["Region Format"]        := GetRegionFormat()
         system[environment]["System Disk"]          := GetDiskModel(systemDrive)
@@ -628,6 +691,16 @@ LogEngine() {
         system[runtime]["File Library Hash"]        := GetFileHash(system[directories]["Libraries"] . "File Library" .        ".ahk", "SHA-256")
         system[runtime]["Image Library Hash"]       := GetFileHash(system[directories]["Libraries"] . "Image Library" .       ".ahk", "SHA-256")
         system[runtime]["Logging Library Hash"]     := GetFileHash(system[directories]["Libraries"] . "Logging Library" .     ".ahk", "SHA-256")
+
+        DefineApplicationRegistry()
+
+        if !FileExist(configurationPath) {
+            WriteTextToFile(defaultConfiguration, configurationPath, "UTF-8", "Create")
+        }
+
+        ValidateConfiguration(configurationPath)
+        system[configuration]["Path"]            := configurationPath
+        system[configuration]["Number of Lines"] := GetTextFileLineCount(system[configuration]["Path"])
 
         for executionLogLine in [
             "Project Name: " .             system[runtime]["Project Name"],
@@ -643,7 +716,7 @@ LogEngine() {
             "Operating System: " .         system[environment]["Operating System"],
             "OS Installation Date: " .     system[environment]["OS Installation Date"],
             "Computer Name: " .            system[environment]["Computer Name"],
-            "Computer Identifier: " .      system[environment]["Computer Identifier"],
+            "Computer Alias: " .           system[configuration]["Settings"]["Computer Alias"],
             "Username: " .                 system[environment]["Username"],
             "Time Zone Key Name: " .       system[environment]["Time Zone Key Name"],
             "Region Format: " .            system[environment]["Region Format"],
@@ -653,7 +726,9 @@ LogEngine() {
             "Motherboard: " .              system[environment]["Motherboard"],
             "CPU: " .                      system[environment]["CPU"],
             "Memory Size and Type: " .     system[environment]["Memory Size and Type"],
-            "System Disk: " .              system[environment]["System Disk"],
+            "System Disk: " .              system[environment]["System Disk"] . "|" . 
+                "Disk Total Bytes: " .     system[telemetry]["System Drive Space Snapshot"]["Total Bytes"] . "|" . 
+                "Windows Total Size: " .   system[telemetry]["System Drive Space Snapshot"]["Windows Total Size"],
             "Display GPU: " .              system[environment]["Display GPU"],
             "Monitor: " .                  system[environment]["Monitor"],
             "BIOS: " .                     system[environment]["BIOS"],
@@ -665,34 +740,6 @@ LogEngine() {
         ] {
             AppendLineToLog(executionLogLine, "Execution Log")
         }
-
-        DefineApplicationRegistry()
-
-        EnsureDirectoryExists(system[directories]["Project"])
-
-        if !FileExist(configurationPath) {
-            configurationData := '{' . newLine . 
-                '    "Application Whitelist": [' . newLine . 
-                    '        ' .  newLine . 
-                '    ],' . newLine . 
-                '    "Application Executable Directory Candidates": [' . newLine .
-                    '        '  . newLine . 
-                '    ],' . newLine . 
-                '    "Candidate Base Directories": [' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '",' . newLine . 
-                    '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
-                    '    ],' . newLine . 
-                '    "Settings": {' . newLine . 
-                    '        "Image Variant Preset": "' . system[directories]["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
-                    '        "Application Image Override Directory": "' . '"' . newline . 
-                '    }' . newLine . '}'
-            configurationData := StrReplace(configurationData, "\", "\\")
-            WriteTextToFile(configurationData, configurationPath, "UTF-8", "Create")
-        }
-
-        ValidateConfiguration(configurationPath)
-        system[configuration]["Path"]            := configurationPath
-        system[configuration]["Number of Lines"] := GetLastLineNumberFromTextFile(system[configuration]["Path"])
     }
 
     logConclusionData["Context"] := "Log Engine State: " . system[logging]["Log Engine State"]
@@ -811,7 +858,7 @@ LogProcessArguments(logConclusionData, arguments) {
                 if Type(argument) != argumentsFormatted["Data Type"] {
                     argumentValueFull := "<Data Type: " . Type(argument) . ">"
                 } else if argumentsFormatted["Data Constraint"] = "Base64" {
-                    argumentValueFull := GetTextHash(argumentValueFull, "SHA-256")
+                    argumentValueFull := "<Constraint: Base64>"
                 } else if InStr(argument, "`n") || InStr(argument, "`r") {
                     argumentValueFull := "<Text Block: Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ">"
                 } else {
@@ -820,10 +867,15 @@ LogProcessArguments(logConclusionData, arguments) {
                     }
                 }
 
-                argumentValueLog  := RegisterReference(argumentValueFull)
-                
+                if argumentsFormatted["Whitelist"].Length != 0 {
+                    argumentValueLog  := symbolLedger["Whitelist"][argumentValueLog]
+                    argumentValueLog  := Format('\{1}\', argumentValueLog)
+                } else {
+                    argumentValueLog  := RegisterReference(argumentValueFull)
+                    argumentValueLog  := Format('"{1}"', argumentValueLog)
+                }
+
                 argumentValueFull := Format('"{1}"', argumentValueFull)
-                argumentValueLog  := Format('"{1}"', argumentValueLog)
             case "Variant":
                 if Type(argument) = "String" {
                     argumentValueLog  := RegisterReference(argumentValueFull)
@@ -863,28 +915,6 @@ LogTimestamp() {
     )
 
     return logTimestamp
-}
-
-OverlayGenerateNextKey(methodName := unset) {
-    static counter := 1
-
-    if !IsSet(methodName) {
-        return counter++
-    }
-
-    if Type(methodName) != "String" {
-        return 0
-    }
-
-    if !methodRegistry.Has(methodName) {
-        return 0
-    }
-
-    if methodRegistry[methodName]["Overlay Log"] {
-        return counter++
-    } else {
-        return 0
-    }
 }
 
 OverlayUpdateLine(overlayKey, overlayValue) {
@@ -932,7 +962,6 @@ RegisterReference(referenceValue) {
 
 RegisterSymbol(value, type, addNewLine := true) {
     global symbolLedger
-    global system
 
     static newLine := "`r`n"
 
@@ -947,16 +976,18 @@ RegisterSymbol(value, type, addNewLine := true) {
             type := "Overlay"
         case "reference", "r":
             type := "Reference"
+        case "whitelist", "r":
+            type := "Whitelist"
     }
 
     symbolLine := ""
     if !symbolLedger[type].Has(value) {
-        system["Logging"]["Counters"][type]++
+        counter := IncrementCounter(type)
 
-        if type = "Reference" {
-            symbolLedger[type][value] := EncodeIntegerToBase(system["Logging"]["Counters"][type], 92)
+        if type = "Reference" || type = "Whitelist" {
+            symbolLedger[type][value] := EncodeIntegerToBase(counter, 92)
         } else {
-            symbolLedger[type][value] := EncodeIntegerToBase(system["Logging"]["Counters"][type], 94)
+            symbolLedger[type][value] := EncodeIntegerToBase(counter, 94)
         }
 
         typeCharacter := SubStr(type, 1, 1)
@@ -1306,16 +1337,16 @@ DecodeBaseToSha256Hex(baseText, baseType) {
 ; **************************** ;
 
 BatchAppendExecutionLog(executionType, array) {
-    static executionTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Application", "A", "Beginning", "B")
+    static executionTypeWhitelist := Format('"{1}", "{2}"', "Application", "Beginning")
     static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [executionType, array])
 
     static newLine := "`r`n"
 
     switch StrLower(executionType) {
-        case "application", "a":
+        case "application":
             executionType := "A"
-        case "beginning", "b":
+        case "beginning":
             executionType := "B"
     }
 
@@ -1354,7 +1385,7 @@ BatchAppendOperationLog(array) {
 }
 
 BatchAppendRunTelemetry(appendType, array) {
-    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Beginning", "B", "Completed", "C", "Failed", "F", "Intermission", "I")
+    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Beginning", "Completed", "Failed", "Intermission")
     static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [appendType, array])
 
@@ -1386,8 +1417,7 @@ BatchAppendRunTelemetry(appendType, array) {
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
-    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}", "{9}", "{10}"',
-        "Context", "C", "Error", "E", "Method", "M", "Overlay", "O", "Reference", "R")
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Context", "Error", "Method", "Overlay", "Reference", "Whitelist")
     static methodName := RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [symbolType, array])
 
@@ -1400,10 +1430,12 @@ BatchAppendSymbolLedger(symbolType, array) {
             symbolType := "Error"
         case "method", "m":
             symbolType := "Method"
-        case "overlay", "o":
+        case "overlay":
             symbolType := "Overlay"
-        case "reference", "r":
+        case "reference":
             symbolType := "Reference"
+        case "whitelist":
+            symbolType := "Whitelist"
     }
 
     symbolLedgerArray := []
