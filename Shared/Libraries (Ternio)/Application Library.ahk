@@ -909,13 +909,8 @@ CloseApplication(applicationName) {
 ; **************************** ;
 
 ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
-    overlayValue := ""
-    if displayName = "" {
-        overlayValue := documentName . " Excel Extension Run"
-    } else {
-        overlayValue := displayName . " Excel Extension Run"
-    }
+    overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
@@ -1085,13 +1080,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 }
 
 ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 7)
-    overlayValue := ""
-    if displayName = "" {
-        overlayValue := documentName . " Excel Starting Run"
-    } else {
-        overlayValue := displayName . " Excel Starting Run"
-    }
+    overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Starting Run"
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [documentName, saveDirectory, code, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")

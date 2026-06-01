@@ -376,7 +376,7 @@ GetImageDimensions(imagePath) {
 
     static gdiPlusLoadLibrary := DllCall("LoadLibrary", "Str", "GdiPlus", "Ptr")
 
-    gdiPlusStartupToken := 0
+    gdiPlusStartupToken  := 0
     gdiPlusStartupResult := DllCall("GdiPlus\GdiplusStartup", "Ptr*", &gdiPlusStartupToken, "Ptr", gdiPlusStartupInputBuffer.Ptr, "Ptr", 0, "UInt")
     if gdiPlusStartupResult != 0 {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to initialize Windows GDI+. [GdiPlus\GdiplusStartup" . ", GDI+ Status Code: " . gdiPlusStartupResult . "]")
@@ -412,6 +412,10 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
 
     global imageRegistry
 
+    static displayResolution := StrSplit(system["Environment"]["Display Resolution"], "x")
+    static screenWidth  := displayResolution[1] + 0
+    static screenHeight := displayResolution[2] + 0
+
     if !imageRegistry.Has(directoryFolder) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
     }
@@ -432,10 +436,6 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Variant not found: " . variant)
     }
 
-    static displayResolution := StrSplit(system["Environment"]["Display Resolution"], "x")
-    static screenWidth  := displayResolution[1] + 0
-    static screenHeight := displayResolution[2] + 0
-
     horizontalRange      := StrReplace(horizontalRange, ",", ".")
     horizontalParts      := StrSplit(horizontalRange, "-")
     horizontalRangeStart := Floor(screenWidth * horizontalParts[1] / 100)
@@ -448,12 +448,12 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
 
     for image in imageRegistry[directoryFolder][imageName] {
         if variant = image["Variant"] {
-            image["Horizontal Range"] := horizontalRange
+            image["Horizontal Range"]       := horizontalRange
             image["Horizontal Range Start"] := horizontalRangeStart
-            image["Horizontal Range End"] := horizontalRangeEnd
-            image["Vertical Range"] := verticalRange
-            image["Vertical Range Start"] := verticalRangeStart
-            image["Vertical Range End"] := verticalRangeEnd
+            image["Horizontal Range End"]   := horizontalRangeEnd
+            image["Vertical Range"]         := verticalRange
+            image["Vertical Range Start"]   := verticalRangeStart
+            image["Vertical Range End"]     := verticalRangeEnd
 
             break
         }
