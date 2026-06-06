@@ -923,9 +923,10 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
-    tinyDelay   := settings["Tiny Delay"].Get("Value")
-    shortDelay  := settings["Short Delay"].Get("Value")
+    settings := methodRegistry[methodName]["Settings"]
+
+    tinyDelay  := settings["Tiny Delay"].Get("Value")
+    shortDelay := settings["Short Delay"].Get("Value")
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
@@ -1093,8 +1094,9 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
-    tinyDelay   := settings["Tiny Delay"].Get("Value")
+    settings := methodRegistry[methodName]["Settings"]
+
+    tinyDelay := settings["Tiny Delay"].Get("Value")
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -1151,7 +1153,8 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+
     maxAttempts := settings["Max Attempts"].Get("Value")
     tinyDelay   := settings["Tiny Delay"].Get("Value")
     shortDelay  := settings["Short Delay"].Get("Value")
@@ -1272,7 +1275,8 @@ WaitForExcelToClose(excelProcessIdentifier) {
         defaultMethodSettingsSet := true
     }
 
-    settings                 := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+
     totalSecondsToWait       := settings["Total Seconds to Wait"].Get("Value")
     mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"].Get("Value")
 
@@ -1348,7 +1352,8 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
         defaultMethodSettingsSet := true
     }
 
-    settings       := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+
     maxAttempts    := settings["Max Attempts"].Get("Value")
     timesToAttempt := settings["Times to Attempt"].Get("Value")
     shortDelay     := settings["Short Delay"].Get("Value")
@@ -1492,7 +1497,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         defaultMethodSettingsSet := true
     }
 
-    settings     := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+    
     tinyDelay    := settings["Tiny Delay"].Get("Value")
     shortDelay   := settings["Short Delay"].Get("Value")
     mediumDelay  := settings["Medium Delay"].Get("Value")

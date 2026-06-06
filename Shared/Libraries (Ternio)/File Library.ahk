@@ -82,34 +82,27 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
     static methodName := RegisterMethod("filePath As String [Constraint: Path], targetDirectory As String [Constraint: Directory], findValue As String [Optional], replaceValue As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [filePath, targetDirectory, findValue, replaceValue], "Copy File to Target (" . ExtractFilename(filePath) . ")")
 
-    if ((findValue = "" && replaceValue != "") || (findValue != "" && replaceValue = "")) {
+    sourceFilename := ExtractFilename(filePath)
+
+    if (findValue = "" && replaceValue != "") || (findValue != "" && replaceValue = "") {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Invalid find/replace combo.")
     }
 
-    SplitPath(filePath, &sourceFilename, &sourceDirectoryPath, &sourceExtension, &sourceFilenameWithoutExtension)
-    targetPath := ""
-
-    if findValue = "" && replaceValue = "" {
-        targetPath := targetDirectory . sourceFilename
-    } else {
-        if RegExMatch(replaceValue, '[<>:"/\\|?*]') {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "replaceValue contains invalid characters.")
-        }
-
+    targetPath := targetDirectory . sourceFilename
+    if findValue != "" && replaceValue != "" {
         targetPath := targetDirectory . StrReplace(sourceFilename, findValue, replaceValue)
     }
 
     if FileExist(targetPath) {
         LogConclusion("Skipped", logConclusionData)
     } else {
-        fileTimeCreated := AssignFileTimeAsLocalIso(filePath, "Created")
-        FileCopy(filePath, targetPath)
+        try {
+            FileCopy(filePath, targetPath)
+        }
 
         if !FileExist(targetPath) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Copy did not produce target.")
         }
-
-        SetFileTimeFromLocalIsoDateTime(targetPath, fileTimeCreated, "Created")
 
         LogConclusion("Completed", logConclusionData)
     }
@@ -390,16 +383,15 @@ DetermineWindowsBinaryType(executablePath) {
     static SCS_WOW_BINARY   := 2
     static SCS_PIF_BINARY   := 3
     static SCS_POSIX_BINARY := 4
-    static SCS_OS2_BINARY   := 5
+    static SCS_OS216_BINARY := 5
     static SCS_64BIT_BINARY := 6
 
     classificationResult := "N/A"
-    scsCode := 0
+    binaryType           := 0
 
-    executableSubsystemRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &scsCode, "Int")
-
-    if executableSubsystemRetrievedSuccessfully {
-        switch scsCode {
+    binaryTypeRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &binaryType, "Int")
+    if binaryTypeRetrievedSuccessfully {
+        switch binaryType {
             case SCS_32BIT_BINARY:
                 classificationResult := "32-bit"
             case SCS_64BIT_BINARY:
@@ -412,7 +404,7 @@ DetermineWindowsBinaryType(executablePath) {
                 classificationResult := "PIF"
             case SCS_POSIX_BINARY:
                 classificationResult := "POSIX"
-            case SCS_OS2_BINARY:
+            case SCS_OS216_BINARY:
                 classificationResult := "OS/2"
         }
     }
@@ -562,7 +554,8 @@ GetTextFileLineCount(filePath) {
         defaultMethodSettingsSet := true
     }
 
-    settings    := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+    
     maxFastSize := settings["Max Fast Size"].Get("Value")
 
     lineCount := 0

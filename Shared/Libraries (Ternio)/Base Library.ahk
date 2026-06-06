@@ -9,7 +9,26 @@
 
 global applicationRegistry := Map()
 global imageRegistry := Map()
-global methodRegistry := Map()
+global methodRegistry := Map(
+    "LogEngine", Map(
+        "Settings", Map(
+            "Start Milliseconds Treshold", Map(
+                "Value",   256,
+                "Default", 256,
+                "Floor",   32,
+                "Ceiling", 998,
+                "Delta",   0
+            ),
+            "Telemetry Timestamp Duration in Milliseconds", Map(
+                "Value",   224,
+                "Default", 224,
+                "Floor",   16,
+                "Ceiling", 1000,
+                "Delta",   0
+            )
+        )
+    )
+)
 global overlay := Map(
     "GUI", Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
     "Lines", Map(),
@@ -69,7 +88,8 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
         defaultMethodSettingsSet := true
     }
 
-    settings         := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+
     secondsToAttempt := settings["Seconds to Attempt"].Get("Value")
     shortDelay       := settings["Short Delay"].Get("Value")
 
@@ -183,7 +203,8 @@ PasteText(text, commentPrefix := "") {
         defaultMethodSettingsSet := true
     }
 
-    settings                  := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+
     maxAttempts               := settings["Max Attempts"].Get("Value")
     clipboardTimeoutInSeconds := settings["Clipboard Timeout in Seconds"].Get("Value")
     shortDelay                := settings["Short Delay"].Get("Value")
@@ -361,26 +382,26 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     modeBeforeAction := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
     
-    switch StrLower(mouseAction) {
-        case "double":
+    switch mouseAction {
+        case "Double":
             Click("left", x, y, 2)
-        case "left":
+        case "Left":
             Click("left", x, y)
-        case "middle":
+        case "Middle":
             Click("middle", x, y)
-        case "move":
+        case "Move":
             MouseMove(x, y, 0)
-        case "move smooth":
+        case "Move Smooth":
             originalSendMode := A_SendMode
             SendMode("Event")
             MouseGetPos(&currentMouseX, &currentMouseY)
             MouseMove(x, y, ComputeMouseMoveSpeed(currentMouseX . "x" . currentMouseY, coordinatePair))
             SendMode(originalSendMode)
-        case "right":
+        case "Right":
             Click("right", x, y)
-        case "wheel down":
+        case "Wheel Down":
             Click("WheelDown", x, y)
-        case "wheel up":
+        case "Wheel Up":
             Click("WheelUp", x, y)
     }
 
@@ -854,15 +875,12 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
 
-    static base52CharacterSet := unset
-    static base62CharacterSet := unset
-    static base66CharacterSet := unset
-    static base86CharacterSet := unset
-    static base92CharacterSet := unset
-    static base94CharacterSet := unset
-
-    static resolutions := unset
-    static scales      := unset
+    static base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
+    static base62CharacterSet := GetBaseCharacterSet(62)["Digit Map"]
+    static base66CharacterSet := GetBaseCharacterSet(66)["Digit Map"]
+    static base86CharacterSet := GetBaseCharacterSet(86)["Digit Map"]
+    static base92CharacterSet := GetBaseCharacterSet(92)["Digit Map"]
+    static base94CharacterSet := GetBaseCharacterSet(94)["Digit Map"]
 
     validation := ""
 
@@ -923,7 +941,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 valueIsWhitelisted := false
 
                 for whitelistEntry in whitelist {
-                    if dataValue = whitelistEntry {
+                    if dataValue == whitelistEntry {
                         valueIsWhitelisted := true
                         break
                     }
@@ -935,16 +953,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
             } else {
                 switch dataConstraint {
                     case "Base52", "Base62", "Base66", "Base86", "Base92", "Base94":
-                        if !IsSet(base52CharacterSet) {
-                            base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
-                            base62CharacterSet := GetBaseCharacterSet(62)["Digit Map"]
-                            base66CharacterSet := GetBaseCharacterSet(66)["Digit Map"]
-                            base86CharacterSet := GetBaseCharacterSet(86)["Digit Map"]
-                            base92CharacterSet := GetBaseCharacterSet(92)["Digit Map"]
-                            base94CharacterSet := GetBaseCharacterSet(94)["Digit Map"]
-                        }
-
                         baseCharacterSet := unset
+                        
                         switch dataConstraint {
                             case "Base52": baseCharacterSet := base52CharacterSet
                             case "Base62": baseCharacterSet := base62CharacterSet
@@ -997,24 +1007,16 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " doesn't exist."
                         }
                     case "Display Resolution":
-                        if !IsSet(resolutions) {
-                            resolutions := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Resolutions (2025-09-20).csv")
-                        }
-
                         validation := dataConstraint . " is invalid."
-                        for resolution in resolutions {
+                        for resolution in system["Constants"]["Resolutions"] {
                             if resolution["Resolution"] = dataValue {
                                 validation := ""
                                 break
                             }
                         }
                     case "DPI Scale":
-                        if !IsSet(scales) {
-                            scales := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Scales (2025-09-20).csv")
-                        }
-
                         validation := dataConstraint . " is invalid."
-                        for scale in scales {
+                        for scale in system["Constants"]["Scales"] {
                             if scale["Scale"] = dataValue {
                                 validation := ""
                                 break
@@ -1394,13 +1396,13 @@ GetBase64FromFile(filePath) {
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [filePath])
 
-    fileContentBuffer := FileRead(filePath, "RAW")
-
     static CRYPT_STRING_BASE64 := 0x1
     static CRYPT_STRING_NOCRLF := 0x40000000
     static base64Flags         := CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF
 
+    fileContentBuffer  := FileRead(filePath, "RAW")
     requiredCharacters := 0
+
     sizeProbeRetrievedSuccessfully := DllCall("Crypt32\CryptBinaryToStringW", "Ptr", fileContentBuffer.Ptr, "UInt", fileContentBuffer.Size, "UInt", base64Flags, "Ptr", 0, "UInt*", &requiredCharacters, "Int")
     if !sizeProbeRetrievedSuccessfully {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve size probe. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
@@ -1465,7 +1467,8 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
         defaultMethodSettingsSet := true
     }
 
-    settings        := methodRegistry[methodName]["Settings"]
+    settings := methodRegistry[methodName]["Settings"]
+    
     tinyDelay       := settings["Tiny Delay"].Get("Value")
     legacyThreshold := settings["Legacy Threshold"].Get("Value")
 
@@ -2607,6 +2610,18 @@ GetInternationalSnapshot() {
         }
     }
 
+    LOCALE_NAME_MAX_LENGTH := 85
+    BYTES_PER_WIDE_CHAR    := 2
+
+    userDefaultLocaleNameBuffer := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
+
+    userDefaultLocaleNameRetrievedSuccessfully := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", userDefaultLocaleNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
+    if !userDefaultLocaleNameRetrievedSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve user default locale name. [Kernel32\GetUserDefaultLocaleName" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    internationalSnapshot["LocaleName"] := StrGet(userDefaultLocaleNameBuffer, "UTF-16")
+
     loop reg, internationalRegistryKeyPath, "K" {
         subkey := A_LoopRegName
 
@@ -2663,21 +2678,21 @@ GetInternationalSnapshot() {
         friendlyNameValue                 := (friendlyNameRetrievedSuccessfully != 0) ? StrGet(friendlyNameBuffer, "UTF-16") : "Error (" . A_LastError . ")"
     }
 
-    requiredBufferSizeForISO2Code := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0004, "Ptr", 0, "Int", 0, "UInt", 0, "Int")
-    if requiredBufferSizeForISO2Code = 0 {
+    requiredBufferSizeForIso2Code := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0004, "Ptr", 0, "Int", 0, "UInt", 0, "Int")
+    if requiredBufferSizeForIso2Code = 0 {
         iso2CodeValue := "Error (" . A_LastError . ")"
     } else {
-        iso2CodeBuffer                := Buffer(requiredBufferSizeForISO2Code * 2)
-        iso2CodeRetrievedSuccessfully := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0004, "Ptr", iso2CodeBuffer.Ptr, "Int", requiredBufferSizeForISO2Code, "UInt", 0, "Int")
+        iso2CodeBuffer                := Buffer(requiredBufferSizeForIso2Code * 2)
+        iso2CodeRetrievedSuccessfully := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0004, "Ptr", iso2CodeBuffer.Ptr, "Int", requiredBufferSizeForIso2Code, "UInt", 0, "Int")
         iso2CodeValue                 := (iso2CodeRetrievedSuccessfully != 0) ? StrGet(iso2CodeBuffer, "UTF-16") : "Error (" . A_LastError . ")"
     }
 
-    requiredBufferSizeForISO3Code := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0005, "Ptr", 0, "Int", 0, "UInt", 0, "Int")
-    if requiredBufferSizeForISO3Code = 0 {
+    requiredBufferSizeForIso3Code := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0005, "Ptr", 0, "Int", 0, "UInt", 0, "Int")
+    if requiredBufferSizeForIso3Code = 0 {
         iso3CodeValue := "Error (" . A_LastError . ")"
     } else {
-        iso3CodeBuffer                := Buffer(requiredBufferSizeForISO3Code * 2)
-        iso3CodeRetrievedSuccessfully := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0005, "Ptr", iso3CodeBuffer.Ptr, "Int", requiredBufferSizeForISO3Code, "UInt", 0, "Int")
+        iso3CodeBuffer                := Buffer(requiredBufferSizeForIso3Code * 2)
+        iso3CodeRetrievedSuccessfully := DllCall("Kernel32\GetGeoInfoW", "UInt", geographicalLocationIdentifier, "UInt", 0x0005, "Ptr", iso3CodeBuffer.Ptr, "Int", requiredBufferSizeForIso3Code, "UInt", 0, "Int")
         iso3CodeValue                 := (iso3CodeRetrievedSuccessfully != 0) ? StrGet(iso3CodeBuffer, "UTF-16") : "Error (" . A_LastError . ")"
     }
 
@@ -3083,17 +3098,17 @@ GetOperatingSystem() {
 
     currentVersionRegistryKey := "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion"
 
-    family := "Unknown Windows"
-    edition := "Unknown Edition"
-    architectureTag := A_Is64bitOS ? "x64" : "x86"
-    currentBuildNumber := ""
-    version := "Unknown Version"
+    family                    := "Unknown Windows"
+    edition                   := "Unknown Edition"
+    architecture              := A_Is64bitOS ? "x64" : "x86"
+    currentBuildNumber        := 0
+    version                   := "Unknown Version"
     updateBuildRevisionNumber := ""
-    releaseDisplay := ""
+    displayVersion            := ""
 
     try {
         currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
-        version := "Build " . currentBuildNumber
+        version := currentBuildNumber
     }
         
     switch true {
@@ -3105,8 +3120,8 @@ GetOperatingSystem() {
             family := "Windows 8.1"
         case currentBuildNumber >= 9200:
             family := "Windows 8"
-        case currentBuildNumber >= 7600:
-            family := "Windows 7"
+        case currentBuildNumber = 0:
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Unable to retrieve Build Number from the registry.")
     }
    
     try {
@@ -3121,31 +3136,28 @@ GetOperatingSystem() {
         }
     }
 
-    if family = "Windows 7" {
-        servicePackVersion := ""
+    try {
+        displayVersion := RegRead(currentVersionRegistryKey, "DisplayVersion")
+    }
 
+    if displayVersion = "" {
         try {
-            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
-        }
-
-        releaseDisplay := (servicePackVersion != "" ? " (" . servicePackVersion . ")" : "")
-    } else {
-        try {
-            releaseDisplay := RegRead(currentVersionRegistryKey, "DisplayVersion")
-        }
-
-        if releaseDisplay = "" {
-            try {
-                releaseDisplay := RegRead(currentVersionRegistryKey, "ReleaseId")
-            }
-        }
-
-        if releaseDisplay != "" {
-            releaseDisplay := " (" . releaseDisplay . ")"
+            displayVersion := RegRead(currentVersionRegistryKey, "ReleaseId")
         }
     }
 
-    operatingSystem := "Microsoft " . family . " " . edition . " " . "(" . architectureTag . ")" . " " . version . releaseDisplay
+    installationDate := GetWindowsInstallationDateUtcTimestamp()
+
+    operatingSystem := Map(
+        "Family",            family,
+        "Edition",           edition,
+        "Architecture",      architecture,
+        "Version",           version,
+        "Display Version",   displayVersion,
+        "Full Name",         "Microsoft " . family . " " . edition . " " . "(" . architecture . ")" . " Build " . version . (displayVersion != "" ? " (" . displayVersion . ")" : ""),
+        "Build Number",      currentBuildNumber,
+        "Installation Date", installationDate
+    )
 
     return operatingSystem
 }
@@ -3163,37 +3175,6 @@ GetQueryPerformanceCounterFrequency() {
     queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
 
     return queryPerformanceCounterFrequency
-}
-
-GetRegionFormat() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName)
-
-    LOCALE_NAME_MAX_LENGTH := 85
-    BYTES_PER_WIDE_CHAR    := 2
-    localeNameBuffer       := Buffer(LOCALE_NAME_MAX_LENGTH * BYTES_PER_WIDE_CHAR, 0)
-
-    regionFormat := "Unknown"
-
-    regionFormatFromRegistry := ""
-    try {
-        regionFormatFromRegistry := RegRead("HKEY_CURRENT_USER\Control Panel\International", "LocaleName", "")
-    }
-
-    if regionFormatFromRegistry != "" {
-        regionFormat := regionFormatFromRegistry
-    } else {
-        wasLocaleResolved := DllCall("Kernel32\GetUserDefaultLocaleName", "Ptr", localeNameBuffer.Ptr, "Int", LOCALE_NAME_MAX_LENGTH, "Int")
-        if wasLocaleResolved {
-            resolvedLocaleName := StrGet(localeNameBuffer)
-
-            if resolvedLocaleName != "" {
-                regionFormat := resolvedLocaleName
-            }
-        }
-    }
-
-    return regionFormat
 }
 
 GetTimeoutBeforeLockInSeconds() {
@@ -3228,7 +3209,7 @@ GetTimeoutBeforeLockInSeconds() {
     return effectiveTimeout
 }
 
-GetTimeZoneDetails() {
+GetTimeZone() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName)
 
@@ -3239,17 +3220,16 @@ GetTimeZoneDetails() {
     static timeZoneKeyNameOffset := 172
     static timeZoneKeyNameMaxLen := 128
 
-    static timeZoneIdUnknown  := 0
     static timeZoneIdStandard := 1
     static timeZoneIdDaylight := 2
     static invalidCallResult  := 0xFFFFFFFF
 
     timeZoneKeyName := ""
 
-    dynamicTimeZoneInformationBuffer     := Buffer(bufferSize, 0)
-    dynamicTimeZoneRetrievedSuccessfully := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
+    dynamicTimeZoneInformationBuffer := Buffer(bufferSize, 0)
 
-    if dynamicTimeZoneRetrievedSuccessfully != invalidCallResult {
+    timeZoneStateRetrievedSuccessfully := DllCall("Kernel32\GetDynamicTimeZoneInformation", "Ptr", dynamicTimeZoneInformationBuffer, "UInt")
+    if timeZoneStateRetrievedSuccessfully != invalidCallResult {
         extractedTimeZoneKey := StrGet(dynamicTimeZoneInformationBuffer.Ptr + timeZoneKeyNameOffset, timeZoneKeyNameMaxLen, "UTF-16")
         if extractedTimeZoneKey != "" {
             timeZoneKeyName := extractedTimeZoneKey
@@ -3272,24 +3252,24 @@ GetTimeZoneDetails() {
     timeZonesBaseKey        := "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Time Zones\"
     fullTimeZoneRegistryKey := timeZonesBaseKey . timeZoneKeyName
 
-    description := "(Description not available)"
+    displayName := "(Display name not available)"
 
     try {
-        description := RegRead(fullTimeZoneRegistryKey, "Display")
+        displayName := RegRead(fullTimeZoneRegistryKey, "Display")
     }
 
     effectiveBias := 0
 
-    if dynamicTimeZoneRetrievedSuccessfully != invalidCallResult {
+    if timeZoneStateRetrievedSuccessfully != invalidCallResult {
         bias         := NumGet(dynamicTimeZoneInformationBuffer.Ptr, biasOffset, "Int")
         standardBias := NumGet(dynamicTimeZoneInformationBuffer.Ptr, standardBiasOffset, "Int")
         daylightBias := NumGet(dynamicTimeZoneInformationBuffer.Ptr, daylightBiasOffset, "Int")
 
         effectiveBias := bias
 
-        if dynamicTimeZoneRetrievedSuccessfully = timeZoneIdStandard {
+        if timeZoneStateRetrievedSuccessfully = timeZoneIdStandard {
             effectiveBias += standardBias
-        } else if dynamicTimeZoneRetrievedSuccessfully = timeZoneIdDaylight {
+        } else if timeZoneStateRetrievedSuccessfully = timeZoneIdDaylight {
             effectiveBias += daylightBias
         }
     } else {
@@ -3305,13 +3285,13 @@ GetTimeZoneDetails() {
     utcSign              := (displayOffsetMinutes >= 0) ? "+" : "-"
     utcOffsetString      := "(UTC" . utcSign . Format("{:02}", Abs(utcHours)) . ":" . Format("{:02}", utcMinutesPart) . ")"
 
-    timeZoneDetails := Map(
-        "Time Zone Key Name",    timeZoneKeyName,
-        "Time Zone Description", description,
-        "UTC",                   utcOffsetString
+    timeZone := Map(
+        "Key Name",     timeZoneKeyName,
+        "Display Name", displayName,
+        "UTC Offset",   utcOffsetString
     )
 
-    return timeZoneDetails
+    return timeZone
 }
 
 GetWindowsInstallationDateUtcTimestamp() {

@@ -93,6 +93,7 @@ OverlayStart() {
     }
 
     settings := methodRegistry[methodName]["Settings"]
+
     baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
     baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
     overlayTransparency := settings["Overlay Transparency"].Get("Value")
@@ -417,8 +418,8 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         logConclusion := logConclusion . "|" . 
             symbolLedger["Error"][logErrorMessage]                      ; Arguments or Error Message
 
-        if system["Environment"].Has("Time Zone Details") {
-            currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone Details"]["Time Zone Key Name"])
+        if system["Environment"].Has("Time Zone") {
+            currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone"]["Key Name"])
 
             constructedErrorMessage := constructedErrorMessage . 
                 "Date Runtime: " . currentLocalDateTime
@@ -451,7 +452,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
 
     if IsSet(errorMessage) { 
         runTelemetryLogFilePath := system["Logging"]["Log Shared Name"] . system["Logging"]["Log Date and Time"] . " - " . "Run Telemetry.csv"
-        if system["Environment"].Has("Time Zone Details") && FileExist(runTelemetryLogFilePath) {
+        if system["Environment"].Has("Time Zone") && FileExist(runTelemetryLogFilePath) {
             system["Logging"]["Log Engine State"] := "Failed"
             LogEngine()
         }
@@ -469,27 +470,45 @@ LogEngine() {
     global symbolLedger
     global system
 
-    configuration := system["Configuration"]
-    directories   := system["Directories"]
-    environment   := system["Environment"]
-    logging       := system["Logging"]
-    runtime       := system["Runtime"]
-    telemetry     := system["Telemetry"]
+    static configuration := system["Configuration"]
+    static directories   := system["Directories"]
+    static environment   := system["Environment"]
+    static logging       := system["Logging"]
+    static runtime       := system["Runtime"]
+    static telemetry     := system["Telemetry"]
 
     static newLine     := "`r`n"
     static systemDrive := SubStr(A_WinDir, 1, 3)
 
-    operationLogLineNumber := unset
+    switch logging["Log Engine State"] {
+        case "Pending":
+            kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
+            preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
 
-    if logging["Log Engine State"] = "Pending" {
-        while A_MSec > 256 {
-            Sleep(16)
-        }
+            if !preciseFunctionAddress {
+                MsgBox("Windows 8.1 or higher required to use this framework.", "Unsupported Operating System", "IconX")
+                ExitApp()
+            }
+
+            logging["Log Engine State"] := "Beginning"
+        case "Running":
+            logging["Log Engine State"] := "Completed"
     }
 
-    switch logging["Log Engine State"] {
-        case "Pending": logging["Log Engine State"] := "Beginning"
-        case "Running": logging["Log Engine State"] := "Completed"
+    settings := methodRegistry["LogEngine"]["Settings"]
+    
+    startMillisecondsTreshold                := settings["Start Milliseconds Treshold"].Get("Value")
+    telemetryTimestampDurationInMilliseconds := settings["Telemetry Timestamp Duration in Milliseconds"].Get("Value")
+
+    startMillisecondsTresholdCeiling := settings["Start Milliseconds Treshold"].Get("Ceiling")
+    startMillisecondsTresholdFloor   := settings["Start Milliseconds Treshold"].Get("Floor")
+
+    operationLogLineNumber := unset
+
+    if logging["Log Engine State"] = "Beginning" && startMillisecondsTreshold >= startMillisecondsTresholdFloor && startMillisecondsTreshold < startMillisecondsTresholdCeiling + 1 {
+        while A_MSec > startMillisecondsTreshold {
+            Sleep(16)
+        }
     }
 
     if logging["Log Engine State"] != "Beginning" && logging["Log Engine State"] != "Intermission" {
@@ -499,7 +518,7 @@ LogEngine() {
     }
 
     runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
-    system["Telemetry"] := TelemetryTimestamp(200)
+    system["Telemetry"] := TelemetryTimestamp(telemetryTimestampDurationInMilliseconds)
     telemetry           := system["Telemetry"]
 
     if logging["Log Engine State"] = "Beginning" {
@@ -539,13 +558,6 @@ LogEngine() {
         }
     }
 
-    if logging["Log Engine State"] != "Beginning" {
-        operationLogLineNumber := GetTextFileLineCount(logging["Log File Path"]["Operation Log"])
-    }
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Log Engine")
-
     static configurationPath    := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
     static defaultConfiguration := StrReplace(
     '{' . newLine . 
@@ -556,8 +568,8 @@ LogEngine() {
             '        '  . newLine . 
         '    ],' . newLine . 
         '    "Candidate Base Directories": [' . newLine . 
-            '        "' . ExtractDirectory(A_WinDir) . 'Portable Files' . '",' . newLine . 
-            '        "' . ExtractDirectory(A_WinDir) . 'Program Files (Portable)' . '"' . newLine . 
+            '        "' . systemDrive . 'Portable Files' . '",' . newLine . 
+            '        "' . systemDrive . 'Program Files (Portable)' . '"' . newLine . 
             '    ],' . newLine . 
         '    "Settings": {' . newLine . 
             '        "Image Variant Preset": "' . directories["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
@@ -566,9 +578,23 @@ LogEngine() {
         '    }' . newLine . 
     '}', "\", "\\")
 
+    if logging["Log Engine State"] != "Beginning" {
+        operationLogLineNumber := GetTextFileLineCount(logging["Log File Path"]["Operation Log"])
+    } else {
+        operationLogLineNumber := 2
+    }
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [], "Log Engine")
+
     if logging["Log Engine State"] = "Beginning" {
+        RemoveDuplicatesFromArray([])
+        BatchAppendSymbolLedger("", [])
+        BatchAppendRunTelemetry("Beginning", [])
+        BatchAppendOperationLog([])
+        BatchAppendExecutionLog("Beginning", [])
+
         for reference in [
-            configurationPath,
             "",
             "|",
             "<Constraint: Base64>",
@@ -576,64 +602,117 @@ LogEngine() {
             "<Data Type: Integer>",
             "<Data Type: Map>",
             "<Data Type: String>",
-            directories["Log"],
-            directories["Project"],
+            "<Text Block: Length: " . StrLen(defaultConfiguration) . ", Rows: " . StrSplit(defaultConfiguration, "`n").Length . ">"
+        ] {
+            RegisterReference(reference)
+        }
+    }
+
+    system["Telemetry"]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
+
+    if logging["Log Engine State"] = "Beginning" {
+        EnsureDirectoryExists(directories["Log"])
+        EnsureDirectoryExists(directories["Project"])
+
+        logging["Log to Array"] := false
+        AppendLineToLog("Log|Type", "Execution Log")
+        AppendLineToLog("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", "Operation Log")
+        AppendLineToLog("Log|Type", "Run Telemetry")
+        AppendLineToLog("Reference|Type|Symbol", "Symbol Ledger")
+        logging["Log to Array"] := true
+
+        environment["Time Zone"]            := GetTimeZone()
+        environment["QPC Frequency"]        := GetQueryPerformanceCounterFrequency()
+        environment["Session Startup Time"] := GetSessionStartupTime()
+
+        for reference in [
+            directories["Constants"] . "BIP-39 (2025-09-20).csv",
+            directories["Constants"] . "EFF Dice-Generated Passphrases (2026-06-02).csv",
+            directories["Constants"] . "Heroes (2025-09-20).csv",
+            directories["Constants"] . "Middle-earth (2025-12-20).csv",
+            directories["Constants"] . "NATO Phonetic Alphabet (2026-06-02).csv",
             directories["Constants"] . "Resolutions (2025-09-20).csv",
             directories["Constants"] . "Scales (2025-09-20).csv",
-            directories["Images"] .    "Image Library Catalog (Full High Definition).csv",
-            directories["Images"] .    "Image Library Catalog (Quad High Definition).csv",
-            directories["Images"] .    "Image Library Catalog (Ultra High Definition).csv",
-            directories["Mappings"] .  "Application Executable Directory Candidates.csv",
-            directories["Mappings"] .  "Applications.csv",
-            directories["Mappings"] .  "Command Line Executables.csv",
-            directories["Mappings"] .  "File Signatures.csv",
-            directories["Mappings"] .  "System Management BIOS Type 17 Memory Device - Type.csv",
-            directories["Mappings"] .  "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry.csv",
-            directories["Mappings"] .  "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv",
-            directories["Mappings"] .  "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv",
-            directories["Spreadsheet Operations Template"] . "Version Manifest.ini",
-            "Log|Type",
-            "Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value",
-            "Reference|Type|Symbol",
-            logging["Log Shared Name"] . "Template.csv",
-            "<Text Block: Length: " . StrLen(defaultConfiguration) . ", Rows: " . StrSplit(defaultConfiguration, "`n").Length . ">",
-            "Full High Definition",
-            "Quad High Definition",
-            "Ultra High Definition"
+            directories["Constants"] . "XKCD Color Survey (2026-06-02).csv",
+            "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
+            "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
+            "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
+            "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
+            "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
+            "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
+            "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
+            "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
         ] {
             RegisterReference(reference)
         }
 
-        RemoveDuplicatesFromArray([])
-        BatchAppendSymbolLedger("", [])
-        BatchAppendRunTelemetry("Beginning", [])
-        BatchAppendOperationLog([])
-        BatchAppendExecutionLog("Beginning", [])
+        heroes := directories["Constants"] . "Heroes (2025-09-20).csv"
+        ExtractFilename(heroes)
+        GetFileHash(heroes, "SHA-256")
 
-        EnsureDirectoryExists(directories["Log"])
+        system["Constants"] := Map(
+            "BIP-39",                         ConvertCsvToArrayOfMaps(directories["Constants"] . "BIP-39 (2025-09-20).csv"),
+            "EFF Dice-Generated Passphrases", ConvertCsvToArrayOfMaps(directories["Constants"] . "EFF Dice-Generated Passphrases (2026-06-02).csv"),
+            "Heroes",                         ConvertCsvToArrayOfMaps(directories["Constants"] . "Heroes (2025-09-20).csv"),
+            "Middle-earth",                   ConvertCsvToArrayOfMaps(directories["Constants"] . "Middle-earth (2025-12-20).csv"),
+            "NATO Phonetic Alphabet",         ConvertCsvToArrayOfMaps(directories["Constants"] . "NATO Phonetic Alphabet (2026-06-02).csv"),
+            "Resolutions",                    ConvertCsvToArrayOfMaps(directories["Constants"] . "Resolutions (2025-09-20).csv"),
+            "Scales",                         ConvertCsvToArrayOfMaps(directories["Constants"] . "Scales (2025-09-20).csv"),
+            "XKCD Color Survey",              ConvertCsvToArrayOfMaps(directories["Constants"] . "XKCD Color Survey (2026-06-02).csv")
+        )
 
-        WriteTextToFile("Log|Type", logging["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
-        FileMove(logging["Log Shared Name"] . "Template.csv", logging["Log File Path"]["Execution Log"])
-        WriteTextToFile("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", logging["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
-        FileMove(logging["Log Shared Name"] . "Template.csv", logging["Log File Path"]["Operation Log"])
-        WriteTextToFile("Log|Type", logging["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
-        FileMove(logging["Log Shared Name"] . "Template.csv", logging["Log File Path"]["Run Telemetry"])
-        WriteTextToFile("Reference|Type|Symbol", logging["Log Shared Name"] . "Template.csv", "UTF-8", "Overwrite")
-        FileMove(logging["Log Shared Name"] . "Template.csv", logging["Log File Path"]["Symbol Ledger"])
+        for index, rowMap in system["Constants"]["Resolutions"] {
+            rowMap["Counter"] := index
+        }
 
-        operationLogLineNumber := GetTextFileLineCount(logging["Log File Path"]["Operation Log"])
+        for index, rowMap in system["Constants"]["Scales"] {
+            rowMap["Counter"] := index
+        }
 
-        EnsureDirectoryExists(directories["Project"])
+        uefi := "Unified Extensible Firmware Interface "
 
-        logging["Log to Array"] := false
-        AppendLineToLog("", "Execution Log")
-        AppendLineToLog("", "Operation Log")
-        AppendLineToLog("", "Run Telemetry")
-        AppendLineToLog("", "Symbol Ledger")
-    }
+        for reference in [
+            directories["Mappings"] . "Application Executable Directory Candidates.csv",
+            directories["Mappings"] . "Applications.csv",
+            directories["Mappings"] . "Command Line Executables.csv",
+            directories["Mappings"] . "File Signatures.csv",
+            directories["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv",
+            directories["Mappings"] . uefi . "Advanced Configuration and Power Interface ID Official Registry.csv",
+            directories["Mappings"] . uefi . "Plug and Play ID Official Registry.csv",
+            directories["Mappings"] . uefi . "Plug and Play ID Unofficial Registry.csv"
+        ] {
+            RegisterReference(reference)
+        }
+        
+        system["Mappings"] := Map(
+            "Application Executable Directory Candidates",                            ConvertCsvToArrayOfMaps(directories["Mappings"] . "Application Executable Directory Candidates.csv"),
+            "Applications",                                                           ConvertCsvToArrayOfMaps(directories["Mappings"] . "Applications.csv"),
+            "Command Line Executables",                                               ConvertCsvToArrayOfMaps(directories["Mappings"] . "Command Line Executables.csv"),
+            "File Signatures",                                                        ConvertCsvToArrayOfMaps(directories["Mappings"] . "File Signatures.csv"),
+            "System Management BIOS Type 17 Memory Device - Type",                    ConvertCsvToArrayOfMaps(directories["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv"),
+            uefi . "Advanced Configuration and Power Interface ID Official Registry", ConvertCsvToArrayOfMaps(directories["Mappings"] . uefi . "Advanced Configuration and Power Interface ID Official Registry.csv"),
+            uefi . "Plug and Play ID Official Registry",                              ConvertCsvToArrayOfMaps(directories["Mappings"] . uefi . "Plug and Play ID Official Registry.csv"),
+            uefi . "Plug and Play ID Unofficial Registry",                            ConvertCsvToArrayOfMaps(directories["Mappings"] . uefi . "Plug and Play ID Unofficial Registry.csv")
+        )
 
-    if logging["Log Engine State"] != "Beginning" {
-        logging["Log to Array"] := false
+        for fileSignature in system["Mappings"]["File Signatures"] {
+            fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
+            fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
+        }
+
+        ExtractDirectory(heroes)
+        ExtractParentDirectory(heroes)
+        GetTextFileLineCount(heroes)
+        ModifyScreenCoordinates(2, 2, "0x0")
+        CombineCode("Intro", "Main")
+        ComputeMouseMoveSpeed("0x0", "2x2")
+        GetFoldersFromDirectory(directories["Log"])
+        FileExistsInDirectory("Ultra High Definition", directories["Images"])
+        OverlayIsVisible()
+        ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
+        ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
+        ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(telemetry["UTC Timestamp Precise"], environment["Time Zone"]["Key Name"])
+        ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(telemetry["UTC Timestamp Precise"], environment["Time Zone"]["Key Name"])
     }
 
     AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
@@ -641,32 +720,14 @@ LogEngine() {
         "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"] . "|" . "QPC Before Tick: " . telemetry["QPC Before Tick"] . 
         "|" . "QPC After Tick: " . telemetry["QPC After Tick"] . "|" . "QPC Midpoint Tick: " . telemetry["QPC Midpoint Tick"] . "|" . SubStr(logging["Log Engine State"], 1, 1), "Run Telemetry")
 
-    logging["Log to Array"] := true
-
-    if logging["Log Engine State"] = "Beginning" {
-        environment["Time Zone Details"]    := GetTimeZoneDetails()
-        environment["QPC Frequency"]        := GetQueryPerformanceCounterFrequency()
-        environment["Session Startup Time"] := GetSessionStartupTime()
-        ModifyScreenCoordinates(2, 2, "0x0")
-        CombineCode("Intro", "Main")
-        ComputeMouseMoveSpeed("0x0", "2x2")
-        GetFoldersFromDirectory(directories["Log"])
-        FileExistsInDirectory("Ultra High Definition", directories["Images"])
-        ExtractParentDirectory(directories["Log"])
-        OverlayIsVisible()
-        ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
-        ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
-        ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(telemetry["UTC Timestamp Precise"], environment["Time Zone Details"]["Time Zone Key Name"])
-    }
-
-    telemetry["Computer Uptime in Seconds"]  := Round(telemetry["QPC Midpoint Tick"] / environment["QPC Frequency"])
-    telemetry["Session Uptime in Seconds"]   := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
-    system["Telemetry"]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
-    system["Telemetry"]["System Resource Snapshot"]    := GetSystemResourceSnapshot()
-
+    telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Tick"] / environment["QPC Frequency"])
+    telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
     AppendLineToLog("Computer Uptime in Seconds: " . telemetry["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . telemetry["Session Uptime in Seconds"], "Run Telemetry")
+
+    system["Telemetry"]["System Resource Snapshot"] := GetSystemResourceSnapshot()
     AppendLineToLog("Physical: " . telemetry["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . telemetry["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
         "|" . "Processes: " . telemetry["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . telemetry["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
+
     AppendLineToLog("Disk Free Bytes: " . telemetry["System Drive Space Snapshot"]["Free Bytes"] . "|" . "Windows Free Size: " . telemetry["System Drive Space Snapshot"]["Windows Free Size"], "Run Telemetry")
 
     if logging["Log Engine State"] != "Beginning" {
@@ -678,6 +739,7 @@ LogEngine() {
     if logging["Log Engine State"] = "Beginning" {
         environment["BIOS"]                 := GetBios()
         environment["Color Mode"]           := GetColorMode()
+        environment["Computer Name"]        := A_ComputerName
         environment["CPU"]                  := GetCpu()
         environment["Display GPU"]          := GetActiveDisplayGpu()
         environment["Display Language"]     := GetDisplayLanguage()
@@ -690,10 +752,8 @@ LogEngine() {
         environment["Monitor"]              := GetActiveMonitor()
         environment["Motherboard"]          := GetMotherboard()
         environment["Operating System"]     := GetOperatingSystem()
-        environment["OS Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
-        environment["Computer Name"]        := A_ComputerName
         environment["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
-        environment["Region Format"]        := GetRegionFormat()
+        environment["Regional Format"]      := environment["International"]["LocaleName"]
         environment["System Disk"]          := GetDiskModel(systemDrive)
         environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
         environment["Username"]             := A_UserName
@@ -729,18 +789,18 @@ LogEngine() {
             "File Library Hash: " .        runtime["File Library Hash"],
             "Image Library Hash: " .       runtime["Image Library Hash"],
             "Logging Library Hash: " .     runtime["Logging Library Hash"],
-            "Operating System: " .         environment["Operating System"],
-            "OS Installation Date: " .     environment["OS Installation Date"],
+            "Operating System: " .         environment["Operating System"]["Full Name"] . "|" . 
+                "Installation Date: " .    environment["Operating System"]["Installation Date"],
             "Computer Name: " .            environment["Computer Name"],
             "Computer Alias: " .           configuration["Settings"]["Computer Alias"],
             "Username: " .                 environment["Username"],
-            "Time Zone Key Name: " .       environment["Time Zone Details"]["Time Zone Key Name"],
-            "Country or Region: " .        environment["International"]["Geo"]["Friendly Name"] . "|" .
-                "ISO 3166-1 alpha-2: " .   environment["International"]["Geo"]["ISO 3166-1 alpha-2"] . "|" .
+            "Time Zone Key Name: " .       environment["Time Zone"]["Key Name"],
+            "Country or Region: " .        environment["International"]["Geo"]["Friendly Name"] . "|" . 
+                "ISO 3166-1 alpha-2: " .   environment["International"]["Geo"]["ISO 3166-1 alpha-2"] . "|" . 
                 "ISO 3166-1 alpha-3: " .   environment["International"]["Geo"]["ISO 3166-1 alpha-3"] . "|" . 
                 "ISO 3166-1 numeric: " .   environment["International"]["Geo"]["ISO 3166-1 numeric"],
             "Display Language: " .         environment["Display Language"],
-            "Region Format: " .            environment["Region Format"],
+            "Regional Format: " .          environment["Regional Format"],
             "Input Language: " .           environment["Input Language"],
             "Keyboard Layout: " .          environment["Keyboard Layout"],
             "Timeout Before Lock: " .      environment["Timeout Before Lock"],

@@ -5,65 +5,6 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-AssignFileTimeAsLocalIso(filePath, timeType) {
-    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [filePath, timeType], "Assign File Times As Local ISO")
-
-    switch StrLower(timeType) {
-        case "created":
-            offset := 0
-        case "accessed":
-            offset := 8
-        case "modified":
-            offset := 16
-    }
-
-    fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", 0x80000000, "UInt", 0x1, "Ptr", 0, "UInt", 3, "UInt", 0x02000000, "Ptr", 0, "Ptr")
-
-    if fileHandle = -1 {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file for reading: " . filePath)
-    }
-
-    fileTimeBuffer := Buffer(24, 0)
-    if !DllCall("Kernel32\GetFileTime", "Ptr", fileHandle, "Ptr", fileTimeBuffer.Ptr, "Ptr", fileTimeBuffer.Ptr + 8, "Ptr", fileTimeBuffer.Ptr + 16, "Int") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "GetFileTime failed for: " . filePath)
-    }
-
-    utcFileTime := Buffer(8, 0)
-    DllCall("RtlMoveMemory", "Ptr", utcFileTime.Ptr, "Ptr", fileTimeBuffer.Ptr + offset, "UPtr", 8)
-
-    systemTime := Buffer(16, 0)
-    if !DllCall("Kernel32\FileTimeToSystemTime", "Ptr", utcFileTime.Ptr, "Ptr", systemTime.Ptr, "Int") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "FileTimeToSystemTime failed")
-    }
-
-    localTime := Buffer(16, 0)
-    if !DllCall("Kernel32\SystemTimeToTzSpecificLocalTime", "Ptr", 0, "Ptr", systemTime.Ptr, "Ptr", localTime.Ptr, "Int") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "SystemTimeToTzSpecificLocalTime failed")
-    }
-
-    year   := NumGet(localTime, 0, "UShort")
-    month  := NumGet(localTime, 2, "UShort")
-    day    := NumGet(localTime, 6, "UShort")
-    hour   := NumGet(localTime, 8, "UShort")
-    minute := NumGet(localTime, 10, "UShort")
-    second := NumGet(localTime, 12, "UShort")
-
-    try {
-        if IsSet(fileHandle) && fileHandle != -1 {
-            DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
-        }
-    } catch as fileHandleError {
-        LogConclusion("Failed", logConclusionData, fileHandleError)
-    }
-
-    result := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
-
-    LogConclusion("Completed", logConclusionData)
-    return result
-}
-
 PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false) {
     static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, [runtimeDate, randomizePixelMovement], "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
@@ -139,123 +80,116 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     LogConclusion("Completed", logConclusionData)
 }
 
-SetDirectoryTimeFromLocalIsoDateTime(directoryPath, localIsoDateTime, timeType) {
+SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [directoryPath, localIsoDateTime, timeType], "Set Directory Time From Local ISO Date Time")
+    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
 
     directoryPath := RTrim(directoryPath, "\")
 
-    numericString := RegExReplace(localIsoDateTime, "[^0-9]")
-    localSystemTime := Buffer(16, 0)
-    NumPut("UShort", SubStr(numericString, 1, 4), localSystemTime,  0)
-    NumPut("UShort", SubStr(numericString, 5, 2), localSystemTime,  2)
-    NumPut("UShort", 0,                           localSystemTime,  4)
-    NumPut("UShort", SubStr(numericString, 7, 2), localSystemTime,  6)
-    NumPut("UShort", SubStr(numericString, 9, 2), localSystemTime,  8)
-    NumPut("UShort", SubStr(numericString,11, 2), localSystemTime, 10)
-    NumPut("UShort", SubStr(numericString,13, 2), localSystemTime, 12)
-    NumPut("UShort", 0,                           localSystemTime, 14)
-
-    utcSystemTime := Buffer(16, 0)
-    if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "TzSpecificLocalTimeToSystemTime failed (input may not exist in current time zone)")
-    }
-
-    utcFileTime := Buffer(8, 0)
-    if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTime, "Ptr", utcFileTime, "Int") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "SystemTimeToFileTime failed")
-    }
-
-    accessMode := 0x100
-    shareMode  := 0x7
-    flags      := 0x80 | 0x02000000
-    handle     := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
-
-    if handle = -1 {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "CreateFileW failed")
-    }
-
-    pointerCreation := 0
-    pointerAccessed := 0
-    pointerModified := 0
-    switch StrLower(timeType) {
-        case "accessed":
-            pointerAccessed := utcFileTime.Ptr
-        case "created":
-            pointerCreation := utcFileTime.Ptr
-        case "modified":
-            pointerModified := utcFileTime.Ptr
-    }
-
-    success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
-
-    DllCall("Kernel32\CloseHandle", "Ptr", handle)
-
-    if !success {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
-    }
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-SetFileTimeFromLocalIsoDateTime(filePath, localIsoDateTime, timeType) {
-    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("filePath As String [Constraint: Path], localIsoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [filePath, localIsoDateTime, timeType], "Set File Time From Local ISO Date Time")
-
-    if AssignFileTimeAsLocalIso(filePath, timeType) = localIsoDateTime {
+    currentDirectoryDateTime := GetDirectoryTimeAsUtc(directoryPath, timeType)
+    if currentDirectoryDateTime = isoDateTime {
         LogConclusion("Skipped", logConclusionData)
     } else {
-        numericString := RegExReplace(localIsoDateTime, "[^0-9]")
-        localSystemTime := Buffer(16, 0)
-        NumPut("UShort", SubStr(numericString, 1, 4),  localSystemTime,  0)
-        NumPut("UShort", SubStr(numericString, 5, 2),  localSystemTime,  2)
-        NumPut("UShort", 0,                            localSystemTime,  4)
-        NumPut("UShort", SubStr(numericString, 7, 2),  localSystemTime,  6)
-        NumPut("UShort", SubStr(numericString, 9, 2),  localSystemTime,  8)
-        NumPut("UShort", SubStr(numericString,11, 2),  localSystemTime, 10)
-        NumPut("UShort", SubStr(numericString,13, 2),  localSystemTime, 12)
-        NumPut("UShort", 0,                            localSystemTime, 14)
+        isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
 
-        utcSystemTime := Buffer(16, 0)
-        if !DllCall("Kernel32\TzSpecificLocalTimeToSystemTime", "Ptr", 0, "Ptr", localSystemTime, "Ptr", utcSystemTime, "Int") {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "TzSpecificLocalTimeToSystemTime failed (input may not exist in current time zone)")
-        }
+        utcSystemTimeBuffer := Buffer(16, 0)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
+        NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
+        NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
+        NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
+        NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
 
-        utcFileTime := Buffer(8, 0)
-        if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTime, "Ptr", utcFileTime, "Int") {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "SystemTimeToFileTime failed")
+        utcFileTimeBuffer := Buffer(8, 0)
+        if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int") {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
         }
 
         accessMode := 0x100
         shareMode  := 0x7
         flags      := 0x80 | 0x02000000
-        handle     := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
 
-        if handle = -1 {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "CreateFileW failed")
+        directoryHandle := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
+        if directoryHandle = -1 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open directory. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
         }
 
-        pointerCreation := 0
-        pointerAccessed := 0
-        pointerModified := 0
-        switch StrLower(timeType) {
-            case "accessed":
-                pointerAccessed := utcFileTime.Ptr
-            case "created":
-                pointerCreation := utcFileTime.Ptr
-            case "modified":
-                pointerModified := utcFileTime.Ptr
+        accessTimePointer   := 0
+        creationTimePointer := 0
+        modifiedTimePointer := 0
+        switch timeType {
+            case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
+            case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
+            case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
         }
 
-        success := DllCall("Kernel32\SetFileTime", "Ptr", handle, "Ptr", pointerCreation, "Ptr", pointerAccessed, "Ptr", pointerModified, "Int")
-
-        DllCall("Kernel32\CloseHandle", "Ptr", handle)
-
-        if !success {
+        dateAndTimeSetToDirectorySuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", directoryHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
+        if !dateAndTimeSetToDirectorySuccessfully {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
         }
+
+        DllCall("Kernel32\CloseHandle", "Ptr", directoryHandle)
+
+        LogConclusion("Completed", logConclusionData)
+    }
+}
+
+SetFileTimestamp(filePath, isoDateTime, timeType) {
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
+    static methodName := RegisterMethod("filePath As String [Constraint: Path], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [filePath, isoDateTime, timeType], "Set File Timestamp")
+
+    currentFileDateTime := GetFileTimeAsUtc(filePath, timeType)
+    if currentFileDateTime = isoDateTime {
+        LogConclusion("Skipped", logConclusionData)
+    } else {
+        isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
+
+        utcSystemTimeBuffer := Buffer(16, 0)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
+        NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
+        NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
+        NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
+        NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
+        NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
+
+        utcFileTimeBuffer := Buffer(8, 0)
+
+        convertedSystemTimeToFileTimeSuccessfully := DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int")
+        if !convertedSystemTimeToFileTimeSuccessfully {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
+        }
+
+        accessMode := 0x100
+        shareMode  := 0x7
+        flags      := 0x80 | 0x02000000
+
+        fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
+        if fileHandle = -1 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
+        }
+
+        accessTimePointer   := 0
+        creationTimePointer := 0
+        modifiedTimePointer := 0
+
+        switch timeType {
+            case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
+            case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
+            case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
+        }
+
+        dateAndTimeSetToFileSuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", fileHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
+        if !dateAndTimeSetToFileSuccessfully {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
+        }
+
+        DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
 
         LogConclusion("Completed", logConclusionData)
     }
@@ -326,6 +260,28 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Core Methods                 ;
 ; **************************** ;
 
+ConvertFileTimeToUtcTimestampPrecise(fileTimeTicks) {
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
+
+    NumPut("UInt64", fileTimeTicks, fileTimeBuffer, 0)
+    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+    year       := NumGet(systemTimeBuffer,  0, "UShort")
+    month      := NumGet(systemTimeBuffer,  2, "UShort")
+    dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
+    hour       := NumGet(systemTimeBuffer,  8, "UShort")
+    minute     := NumGet(systemTimeBuffer, 10, "UShort")
+    second     := NumGet(systemTimeBuffer, 12, "UShort")
+
+    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+    microsecond       := ticksWithinSecond // 10
+
+    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
+
+    return utcTimestampPrecise
+}
+
 GetQueryPerformanceCounter() {
     static queryPerformanceCounterBuffer := Buffer(8, 0)
 
@@ -372,62 +328,13 @@ GetUtcTimestampInteger() {
     return utcTimestampInteger
 }
 
-GetUtcTimestampPrecise() {
-    static fileTimeBuffer   := Buffer(8, 0)
-    static systemTimeBuffer := Buffer(16, 0)
-
-    static usePreciseSystemTimeFunction := unset
-
-    if !IsSet(usePreciseSystemTimeFunction) {
-        kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
-        preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
-
-        if preciseFunctionAddress != 0 {
-            usePreciseSystemTimeFunction := true
-        } else {
-            usePreciseSystemTimeFunction := false
-        }
-    }
-
-    if usePreciseSystemTimeFunction {
-        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)       
-        DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-
-        year       := NumGet(systemTimeBuffer,  0, "UShort")
-        month      := NumGet(systemTimeBuffer,  2, "UShort")
-        dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
-        hour       := NumGet(systemTimeBuffer,  8, "UShort")
-        minute     := NumGet(systemTimeBuffer, 10, "UShort")
-        second     := NumGet(systemTimeBuffer, 12, "UShort")
-
-        fileTimeTicks     := NumGet(fileTimeBuffer, 0, "Int64")
-        ticksWithinSecond := Mod(fileTimeTicks, 10000000)
-        microsecond       := ticksWithinSecond // 10
-
-        utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
-    } else {
-        utcTimestampPrecise := GetUtcTimestamp()
-    }
-
-    return utcTimestampPrecise
-}
-
 TelemetryTimestamp(durationInMilliseconds) {
-    if Type(durationInMilliseconds) != "Integer" {
-        durationInMilliseconds := 200
-    } else {
-        if durationInMilliseconds < 16 {
-            durationInMilliseconds := 16
-        }
-    }
-
     result := Map(
         "Duration in Milliseconds", durationInMilliseconds
     )
 
-    queryPerformanceCounterReadings := []
-    utcTimestampPreciseReadings     := []
-    pairedReadings                  := []
+    timeReadings   := []
+    pairedReadings := []
 
     originalAutoHotkeyThreadHandle   := DllCall("GetCurrentThread", "Ptr")
     originalAutoHotkeyThreadPriority := DllCall("GetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int")
@@ -436,25 +343,28 @@ TelemetryTimestamp(durationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
+    fileTimeBuffer                := Buffer(8, 0)
+    queryPerformanceCounterBuffer := Buffer(8, 0)
+
     startTime := A_TickCount
     while A_TickCount - startTime < durationInMilliseconds {
-        queryPerformanceCounterReadings.Push(GetQueryPerformanceCounter())
-        utcTimestampPreciseReadings.Push(GetUtcTimestampPrecise())
+        DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
+        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+        timeReadings.Push([NumGet(queryPerformanceCounterBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
     }
 
     if originalAutoHotkeyThreadPriority = 0 {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 0) ; Change to Normal.
     }
 
-    utcTimestampPreciseReadingsLength := utcTimestampPreciseReadings.Length
-    for index, utcTimestampPrecise in utcTimestampPreciseReadings {
-        if index = utcTimestampPreciseReadingsLength {
+    for index, timeReading in timeReadings {
+        if index = timeReadings.Length {
             continue
         }
 
-        qpcBefore := queryPerformanceCounterReadings[index]
-        qpcAfter  := queryPerformanceCounterReadings[index + 1]
-        pairedReadings.Push([qpcBefore, utcTimestampPrecise, qpcAfter, qpcAfter - qpcBefore])
+        qpcBefore := timeReading[1]
+        qpcAfter  := timeReadings[index + 1][1]
+        pairedReadings.Push([qpcBefore, timeReading[2], qpcAfter, qpcAfter - qpcBefore])
     }
 
     result["Number of Readings"] := pairedReadings.Length
@@ -475,7 +385,7 @@ TelemetryTimestamp(durationInMilliseconds) {
     }
     
     result["QPC Before Tick"]       := pairedReadings[bestIndex][1]
-    result["UTC Timestamp Precise"] := pairedReadings[bestIndex][2]
+    result["UTC Timestamp Precise"] := ConvertFileTimeToUtcTimestampPrecise(pairedReadings[bestIndex][2])
     result["QPC After Tick"]        := pairedReadings[bestIndex][3]
     result["QPC Delta Tick"]        := pairedReadings[bestIndex][4]
     result["QPC Midpoint Tick"]     := result["QPC Before Tick"] + (result["QPC Delta Tick"] // 2)
@@ -535,6 +445,74 @@ ConvertIntegerToUtcTimestamp(integerValue) {
     }
 
     return utcTimestamp
+}
+
+ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyName) {
+    static methodName := RegisterMethod("localTimestamp As String, timeZoneKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [localTimestamp, timeZoneKeyName])
+
+    parts := StrSplit(localTimestamp, " ")
+    dateParts := StrSplit(parts[1], "-")
+    timeAndFractionParts := StrSplit(parts[2], ".")
+    timeParts := StrSplit(timeAndFractionParts[1], ":")
+    
+    hasMilliseconds := timeAndFractionParts.Length = 2
+    milliseconds := 0
+    if hasMilliseconds {
+        fraction := timeAndFractionParts[2]
+        if StrLen(fraction) > 3 {
+            fraction := SubStr(fraction, 1, 3)
+        } else if StrLen(fraction) < 3 {
+            fraction := fraction . SubStr("000", 1, 3 - StrLen(fraction))
+        }
+        milliseconds := fraction + 0
+    }
+
+    localSystemTimeBuffer := Buffer(16, 0)
+    NumPut("UShort", dateParts[1] + 0, localSystemTimeBuffer, 0)
+    NumPut("UShort", dateParts[2] + 0, localSystemTimeBuffer, 2)
+    NumPut("UShort", dateParts[3] + 0, localSystemTimeBuffer, 6)
+    NumPut("UShort", timeParts[1] + 0, localSystemTimeBuffer, 8)
+    NumPut("UShort", timeParts[2] + 0, localSystemTimeBuffer, 10)
+    NumPut("UShort", timeParts[3] + 0, localSystemTimeBuffer, 12)
+    NumPut("UShort", milliseconds,     localSystemTimeBuffer, 14)
+
+    static DYNAMIC_TIME_ZONE_INFORMATION_SIZE    := 432
+    static DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET := 428
+    static TIME_ZONE_KEY_NAME_OFFSET             := 172
+
+    static timezoneCache := Map()
+    if !timezoneCache.Has(timeZoneKeyName) {
+        preparedBuffer := Buffer(DYNAMIC_TIME_ZONE_INFORMATION_SIZE, 0)
+        StrPut(timeZoneKeyName, preparedBuffer.Ptr + TIME_ZONE_KEY_NAME_OFFSET, 128, "UTF-16")
+        NumPut("UChar", 0, preparedBuffer, DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET)
+        timezoneCache[timeZoneKeyName] := preparedBuffer
+    }
+    dynamicTimeZoneInformationBuffer := timezoneCache[timeZoneKeyName]
+
+    static utcSystemTimeBuffer := Buffer(16, 0)
+
+    convertedLocalTimeToUtcSuccessfully := DllCall("Kernel32\TzSpecificLocalTimeToSystemTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Int", 0)
+    if !convertedLocalTimeToUtcSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert local timestamp to UTC. [Kernel32\TzSpecificLocalTimeToSystemTimeEx, Error: " A_LastError "]")
+    }
+
+    year        := NumGet(utcSystemTimeBuffer, 0,  "UShort")
+    month       := NumGet(utcSystemTimeBuffer, 2,  "UShort")
+    day         := NumGet(utcSystemTimeBuffer, 6,  "UShort")
+    hour        := NumGet(utcSystemTimeBuffer, 8,  "UShort")
+    minute      := NumGet(utcSystemTimeBuffer, 10, "UShort")
+    second      := NumGet(utcSystemTimeBuffer, 12, "UShort")
+    millisecond := NumGet(utcSystemTimeBuffer, 14, "UShort")
+
+    utcTime := unset
+    if hasMilliseconds {
+        utcTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+    } else {
+        utcTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+    }
+
+    return utcTime
 }
 
 ConvertUnixTimeToUtcTimestamp(unixSeconds) {
@@ -627,40 +605,54 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
         milliseconds := fraction + 0
     }
 
-    utcSystemTime := Buffer(16, 0)
-    NumPut("UShort", dateParts[1] + 0, utcSystemTime, 0)
-    NumPut("UShort", dateParts[2] + 0, utcSystemTime, 2)
-    NumPut("UShort", dateParts[3] + 0, utcSystemTime, 6)
-    NumPut("UShort", timeParts[1] + 0, utcSystemTime, 8)
-    NumPut("UShort", timeParts[2] + 0, utcSystemTime, 10)
-    NumPut("UShort", timeParts[3] + 0, utcSystemTime, 12)
-    NumPut("UShort", milliseconds,         utcSystemTime, 14)
+    utcSystemTimeBuffer := Buffer(16, 0)
+    NumPut("UShort", dateParts[1] + 0, utcSystemTimeBuffer, 0)
+    NumPut("UShort", dateParts[2] + 0, utcSystemTimeBuffer, 2)
+    NumPut("UShort", dateParts[3] + 0, utcSystemTimeBuffer, 6)
+    NumPut("UShort", timeParts[1] + 0, utcSystemTimeBuffer, 8)
+    NumPut("UShort", timeParts[2] + 0, utcSystemTimeBuffer, 10)
+    NumPut("UShort", timeParts[3] + 0, utcSystemTimeBuffer, 12)
+    NumPut("UShort", milliseconds, utcSystemTimeBuffer, 14)
 
-    static dynamicTimeZoneInformationBuffer := Buffer(432, 0)
-    StrPut(timeZoneKeyName, dynamicTimeZoneInformationBuffer.Ptr + 172, 128, "UTF-16")
+    static DYNAMIC_TIME_ZONE_INFORMATION_SIZE        := 432
+    static DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET     := 428
+    static TIME_ZONE_KEY_NAME_OFFSET                 := 172
 
-    static localSystemTime := Buffer(16, 0)
-    convertedUtcToLocalSuccessfully := DllCall("Kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTime.Ptr, "Ptr", localSystemTime.Ptr, "Int")
+    static timezoneCache := Map()
+    if !timezoneCache.Has(timeZoneKeyName) {
+        preparedBuffer := Buffer(DYNAMIC_TIME_ZONE_INFORMATION_SIZE, 0)
+        
+        StrPut(timeZoneKeyName, preparedBuffer.Ptr + TIME_ZONE_KEY_NAME_OFFSET, 128, "UTF-16")
+        NumPut("UChar", 0, preparedBuffer, DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET)
+        
+        timezoneCache[timeZoneKeyName] := preparedBuffer
+    }
+
+    dynamicTimeZoneInformationBuffer := timezoneCache[timeZoneKeyName]
+
+    static localSystemTimeBuffer := Buffer(16, 0)
+
+    convertedUtcToLocalSuccessfully := DllCall("Kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Int", 0)
     if !convertedUtcToLocalSuccessfully {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [Kernel32\SystemTimeToTzSpecificLocalTimeEx" . ", System Error Code: " . A_LastError . "]")
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [Kernel32\SystemTimeToTzSpecificLocalTimeEx, Error: " A_LastError "]")
     }
 
-    year        := NumGet(localSystemTime, 0,  "UShort")
-    month       := NumGet(localSystemTime, 2,  "UShort")
-    day         := NumGet(localSystemTime, 6,  "UShort")
-    hour        := NumGet(localSystemTime, 8,  "UShort")
-    minute      := NumGet(localSystemTime, 10, "UShort")
-    second      := NumGet(localSystemTime, 12, "UShort")
-    millisecond := NumGet(localSystemTime, 14, "UShort")
+    year        := NumGet(localSystemTimeBuffer, 0,  "UShort")
+    month       := NumGet(localSystemTimeBuffer, 2,  "UShort")
+    day         := NumGet(localSystemTimeBuffer, 6,  "UShort")
+    hour        := NumGet(localSystemTimeBuffer, 8,  "UShort")
+    minute      := NumGet(localSystemTimeBuffer, 10, "UShort")
+    second      := NumGet(localSystemTimeBuffer, 12, "UShort")
+    millisecond := NumGet(localSystemTimeBuffer, 14, "UShort")
 
-    localTimeText := ""
+    localTime := unset
     if hasMilliseconds {
-        localTimeText := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+        localTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
     } else {
-        localTimeText := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+        localTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
     }
 
-    return localTimeText
+    return localTime
 }
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
@@ -782,4 +774,104 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
 
         return isoDate
     }
+}
+
+GetDirectoryTimeAsUtc(directoryPath, timeType) {
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
+    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [directoryPath, timeType])
+
+    directoryPath := RTrim(directoryPath, "\")
+
+    offset := unset
+    switch timeType {
+        case "Accessed": offset := 8
+        case "Created":  offset := 0
+        case "Modified": offset := 16
+    }
+
+    directoryHandle := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", 0x80000000, "UInt", 0x1, "Ptr", 0, "UInt", 3, "UInt", 0x02000000, "Ptr", 0, "Ptr")
+    if directoryHandle = -1 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open directory. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    fileTimesBuffer := Buffer(24, 0)
+
+    retrievedDirectoryDateAndTimeSuccessfully := DllCall("Kernel32\GetFileTime", "Ptr", directoryHandle, "Ptr", fileTimesBuffer.Ptr, "Ptr", fileTimesBuffer.Ptr + 8, "Ptr", fileTimesBuffer.Ptr + 16, "Int")
+    if !retrievedDirectoryDateAndTimeSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve date and time for when directory was created, last accessed and last modified. [Kernel32\GetFileTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    utcFileTimeBuffer := Buffer(8, 0)
+
+    DllCall("RtlMoveMemory", "Ptr", utcFileTimeBuffer.Ptr, "Ptr", fileTimesBuffer.Ptr + offset, "UPtr", 8)
+
+    systemTimeBuffer := Buffer(16, 0)
+
+    convertedFileTimeToSystemTimeSuccessfully := DllCall("Kernel32\FileTimeToSystemTime", "Ptr", utcFileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    if !convertedFileTimeToSystemTimeSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert file time to system time. [Kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    year   := NumGet(systemTimeBuffer, 0, "UShort")
+    month  := NumGet(systemTimeBuffer, 2, "UShort")
+    day    := NumGet(systemTimeBuffer, 6, "UShort")
+    hour   := NumGet(systemTimeBuffer, 8, "UShort")
+    minute := NumGet(systemTimeBuffer, 10, "UShort")
+    second := NumGet(systemTimeBuffer, 12, "UShort")
+
+    DllCall("Kernel32\CloseHandle", "Ptr", directoryHandle)
+
+    directoryTimeAsUtc := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+
+    return directoryTimeAsUtc
+}
+
+GetFileTimeAsUtc(filePath, timeType) {
+    static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
+    static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, [filePath, timeType])
+
+    offset := unset
+    switch timeType {
+        case "Accessed": offset := 8
+        case "Created":  offset := 0
+        case "Modified": offset := 16
+    }
+
+    fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", 0x80000000, "UInt", 0x1, "Ptr", 0, "UInt", 3, "UInt", 0x02000000, "Ptr", 0, "Ptr")
+    if fileHandle = -1 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    fileTimesBuffer := Buffer(24, 0)
+
+    retrievedFileDateAndTimeSuccessfully := DllCall("Kernel32\GetFileTime", "Ptr", fileHandle, "Ptr", fileTimesBuffer.Ptr, "Ptr", fileTimesBuffer.Ptr + 8, "Ptr", fileTimesBuffer.Ptr + 16, "Int")
+    if !retrievedFileDateAndTimeSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve date and time for when file was created, last accessed and last modified. [Kernel32\GetFileTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    utcFileTimeBuffer := Buffer(8, 0)
+
+    DllCall("RtlMoveMemory", "Ptr", utcFileTimeBuffer.Ptr, "Ptr", fileTimesBuffer.Ptr + offset, "UPtr", 8)
+
+    systemTimeBuffer := Buffer(16, 0)
+
+    convertedFileTimeToSystemTimeSuccessfully := DllCall("Kernel32\FileTimeToSystemTime", "Ptr", utcFileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    if !convertedFileTimeToSystemTimeSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert file time to system time. [Kernel32\FileTimeToSystemTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    year   := NumGet(systemTimeBuffer, 0, "UShort")
+    month  := NumGet(systemTimeBuffer, 2, "UShort")
+    day    := NumGet(systemTimeBuffer, 6, "UShort")
+    hour   := NumGet(systemTimeBuffer, 8, "UShort")
+    minute := NumGet(systemTimeBuffer, 10, "UShort")
+    second := NumGet(systemTimeBuffer, 12, "UShort")
+
+    DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
+
+    fileTimeAsUtc := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+
+    return fileTimeAsUtc
 }
