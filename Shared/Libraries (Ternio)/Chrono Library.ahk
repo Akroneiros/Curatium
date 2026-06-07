@@ -6,8 +6,15 @@
 #Include Logging Library.ahk
 
 PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [runtimeDate, randomizePixelMovement], "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [runtimeDate, randomizePixelMovement], "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
     
     counter := 0
 
@@ -81,9 +88,16 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
 }
 
 SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
 
     directoryPath := RTrim(directoryPath, "\")
 
@@ -138,9 +152,16 @@ SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
 }
 
 SetFileTimestamp(filePath, isoDateTime, timeType) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("filePath As String [Constraint: Path], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [filePath, isoDateTime, timeType], "Set File Timestamp")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, isoDateTime, timeType], "Set File Timestamp")
 
     currentFileDateTime := GetFileTimeAsUtc(filePath, timeType)
     if currentFileDateTime = isoDateTime {
@@ -196,8 +217,15 @@ SetFileTimestamp(filePath, isoDateTime, timeType) {
 }
 
 ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], minimumStartupInSeconds As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [runtimeDate, minimumStartupInSeconds], "Validate Runtime Date (" . runtimeDate . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [runtimeDate, minimumStartupInSeconds], "Validate Runtime Date (" . runtimeDate . ")")
 
     if runtimeDate <= A_Now {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "runtimeDate is in the past.")
@@ -212,8 +240,15 @@ ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
 }
 
 WaitUntilFileIsModifiedToday(filePath) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [filePath], "Wait Until File is Modified Today: " . ExtractFilename(filePath, true))
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . ExtractFilename(filePath, true))
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -260,6 +295,28 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Core Methods                 ;
 ; **************************** ;
 
+ConvertFileTimeToUtcTimestampInteger(fileTimeTicks) {
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
+    
+    NumPut("UInt64", fileTimeTicks, fileTimeBuffer, 0)
+    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    
+    year   := NumGet(systemTimeBuffer,  0, "UShort")
+    month  := NumGet(systemTimeBuffer,  2, "UShort")
+    day    := NumGet(systemTimeBuffer,  6, "UShort")
+    hour   := NumGet(systemTimeBuffer,  8, "UShort")
+    minute := NumGet(systemTimeBuffer, 10, "UShort")
+    second := NumGet(systemTimeBuffer, 12, "UShort")
+    
+    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+    millisecond      := ticksWithinSecond // 10000
+    
+    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+    
+    return utcTimestampInteger
+}
+
 ConvertFileTimeToUtcTimestampPrecise(fileTimeTicks) {
     static fileTimeBuffer   := Buffer(8, 0)
     static systemTimeBuffer := Buffer(16, 0)
@@ -267,65 +324,19 @@ ConvertFileTimeToUtcTimestampPrecise(fileTimeTicks) {
     NumPut("UInt64", fileTimeTicks, fileTimeBuffer, 0)
     DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
 
-    year       := NumGet(systemTimeBuffer,  0, "UShort")
-    month      := NumGet(systemTimeBuffer,  2, "UShort")
-    dayOfMonth := NumGet(systemTimeBuffer,  6, "UShort")
-    hour       := NumGet(systemTimeBuffer,  8, "UShort")
-    minute     := NumGet(systemTimeBuffer, 10, "UShort")
-    second     := NumGet(systemTimeBuffer, 12, "UShort")
+    year   := NumGet(systemTimeBuffer,  0, "UShort")
+    month  := NumGet(systemTimeBuffer,  2, "UShort")
+    day    := NumGet(systemTimeBuffer,  6, "UShort")
+    hour   := NumGet(systemTimeBuffer,  8, "UShort")
+    minute := NumGet(systemTimeBuffer, 10, "UShort")
+    second := NumGet(systemTimeBuffer, 12, "UShort")
 
     ticksWithinSecond := Mod(fileTimeTicks, 10000000)
     microsecond       := ticksWithinSecond // 10
 
-    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, dayOfMonth, hour, minute, second, microsecond)
+    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, day, hour, minute, second, microsecond)
 
     return utcTimestampPrecise
-}
-
-GetQueryPerformanceCounter() {
-    static queryPerformanceCounterBuffer := Buffer(8, 0)
-
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
-
-    queryPerformanceCounter := NumGet(queryPerformanceCounterBuffer, 0, "Int64")
-
-    return queryPerformanceCounter
-}
-
-GetUtcTimestamp() {
-    static systemTime := Buffer(16, 0)
-
-    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
-
-    year        := NumGet(systemTime,  0, "UShort")
-    month       := NumGet(systemTime,  2, "UShort")
-    day         := NumGet(systemTime,  6, "UShort")
-    hour        := NumGet(systemTime,  8, "UShort")
-    minute      := NumGet(systemTime, 10, "UShort")
-    second      := NumGet(systemTime, 12, "UShort")
-    millisecond := NumGet(systemTime, 14, "UShort")
-
-    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
-
-    return utcTimestamp
-}
-
-GetUtcTimestampInteger() {
-    static systemTime := Buffer(16, 0)
-
-    DllCall("Kernel32\GetSystemTime", "Ptr", systemTime.Ptr)
-
-    year        := NumGet(systemTime,  0, "UShort")
-    month       := NumGet(systemTime,  2, "UShort")
-    day         := NumGet(systemTime,  6, "UShort")
-    hour        := NumGet(systemTime,  8, "UShort")
-    minute      := NumGet(systemTime, 10, "UShort")
-    second      := NumGet(systemTime, 12, "UShort")
-    millisecond := NumGet(systemTime, 14, "UShort")
-
-    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
-
-    return utcTimestampInteger
 }
 
 TelemetryTimestamp(durationInMilliseconds) {
@@ -407,8 +418,15 @@ TelemetryTimestamp(durationInMilliseconds) {
 ; **************************** ;
 
 ConvertIntegerToUtcTimestamp(integerValue) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("integerValue As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [integerValue])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [integerValue])
 
     digitText := integerValue . ""
     if !RegExMatch(digitText, "^\d+$") {
@@ -448,8 +466,15 @@ ConvertIntegerToUtcTimestamp(integerValue) {
 }
 
 ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyName) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("localTimestamp As String, timeZoneKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [localTimestamp, timeZoneKeyName])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [localTimestamp, timeZoneKeyName])
 
     parts := StrSplit(localTimestamp, " ")
     dateParts := StrSplit(parts[1], "-")
@@ -516,8 +541,15 @@ ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyNa
 }
 
 ConvertUnixTimeToUtcTimestamp(unixSeconds) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("unixSeconds As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [unixSeconds])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [unixSeconds])
 
     if unixSeconds < -11644473600 {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Unix Seconds predates 1601-01-01 UTC and cannot be represented as FILETIME: " . unixSeconds)
@@ -547,8 +579,15 @@ ConvertUnixTimeToUtcTimestamp(unixSeconds) {
 }
 
 ConvertUtcTimestampToInteger(utcTimestamp) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("utcTimestamp As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [utcTimestamp])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [utcTimestamp])
     
     utcTimestampLength := StrLen(utcTimestamp)
     if utcTimestampLength != 19 && utcTimestampLength != 23 && utcTimestampLength != 26 {
@@ -584,8 +623,15 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
 }
 
 ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("utcTimestamp As String, timeZoneKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [utcTimestamp, timeZoneKeyName])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [utcTimestamp, timeZoneKeyName])
 
     parts := StrSplit(utcTimestamp, " ")
     dateParts := StrSplit(parts[1], "-")
@@ -656,15 +702,22 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
 }
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static dateOrderWhitelist := Format('"{1}", "{2}", "{3}"', "Day-Month-Year", "Month-Day-Year", "Year-Month-Day")
     static methodName := RegisterMethod("inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [inputValue, dateOrder])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [inputValue, dateOrder])
 
     isoDate   := ""
     lastMatch := unset
 
-    switch StrLower(dateOrder) {
-        case "day-month-year":
+    switch dateOrder {
+        case "Day-Month-Year":
             currentPosition := 1
             pattern         := "(?<!\d)(0[1-9]|[12]\d|3[01])([-./ ])(0[1-9]|1[0-2])\2((?:19|20)\d{2})"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
@@ -691,7 +744,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
                     isoDate := lastMatch[3] . "-" . lastMatch[2] . "-" . lastMatch[1]
                 }
             }
-        case "month-day-year":
+        case "Month-Day-Year":
             currentPosition := 1
             pattern         := "(?<!\d)(0[1-9]|1[0-2])([-./ ])(0[1-9]|[12]\d|3[01])\2((?:19|20)\d{2})"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
@@ -718,7 +771,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
                     isoDate := lastMatch[3] . "-" . lastMatch[1] . "-" . lastMatch[2]
                 }
             }
-        case "year-month-day":
+        case "Year-Month-Day":
             currentPosition := 1
             pattern         := "(?<!\d)((?:19|20)\d{2})([-./ ])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])"
             while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
@@ -777,9 +830,16 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
 }
 
 GetDirectoryTimeAsUtc(directoryPath, timeType) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [directoryPath, timeType])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryPath, timeType])
 
     directoryPath := RTrim(directoryPath, "\")
 
@@ -828,9 +888,16 @@ GetDirectoryTimeAsUtc(directoryPath, timeType) {
 }
 
 GetFileTimeAsUtc(filePath, timeType) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [filePath, timeType])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, timeType])
 
     offset := unset
     switch timeType {

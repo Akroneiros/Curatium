@@ -16,454 +16,17 @@ $Esc:: {
 }
 
 AbortExecution() {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Abort Execution")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Abort Execution")
 
     LogConclusion("Failed", logConclusionData, A_LineNumber, "Execution aborted early by pressing escape.")
-}
-
-OverlayChangeTransparency(transparencyValue) {
-    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
-
-    WinSetTransparent(transparencyValue, "ahk_id " . overlay["GUI"].Hwnd)
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayChangeVisibility() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Overlay Change Visibility")
-
-    if DllCall("User32\IsWindowVisible", "Ptr", overlay["GUI"].Hwnd) {
-        overlay["GUI"].Hide()
-    } else {
-        overlay["GUI"].Show("NoActivate")
-    }
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayHideLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
-
-    global methodRegistry
-    
-    if !methodRegistry.Has(methodNameInput) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
-    }
-
-    methodRegistry[methodNameInput]["Overlay Log"] := false
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayShowLogForMethod(methodNameInput) {
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
-
-    global methodRegistry
-
-    if methodRegistry.Has(methodNameInput) {
-        methodRegistry[methodNameInput]["Overlay Log"] := true
-    } else {
-        methodRegistry[methodNameInput] := Map(
-            "Overlay Log", true
-        )
-    }
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayStart() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Overlay Start")
-
-    global overlay
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Base Logical Width", 960, 640, 7680)
-        ConfigureMethodSetting(methodName, "Base Logical Height", 920, 480, 4320)
-        ConfigureMethodSetting(methodName, "Overlay Transparency", 172, 0, 255)
-        ConfigureMethodSetting(methodName, "Font Size", 10, 6, 24)
-
-        defaultMethodSettingsSet := true
-    }
-
-    settings := methodRegistry[methodName]["Settings"]
-
-    baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
-    baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
-    overlayTransparency := settings["Overlay Transparency"].Get("Value")
-    fontSize            := settings["Font Size"].Get("Value")
-
-    overlay["GUI"].BackColor := "0x000000"
-    overlay["GUI"].SetFont("s" . fontSize . " cWhite", "Consolas")
-    overlay["GUI"].MarginX := 0
-    overlay["GUI"].MarginY := 0
-
-    statusTextControl := overlay["GUI"].Add("Text", "vStatusText w" . baseLogicalWidth . " h" . baseLogicalHeight . " +0x1", "")
-
-    measureVisualRectangle := () => (
-        overlay["GUI"].Show("Hide AutoSize"),
-        rectBuffer := Buffer(16, 0),
-        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlay["GUI"].Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
-        Map(
-            "left",   NumGet(rectBuffer,  0, "Int"),
-            "top",    NumGet(rectBuffer,  4, "Int"),
-            "right",  NumGet(rectBuffer,  8, "Int"),
-            "bottom", NumGet(rectBuffer, 12, "Int")
-        )
-    )
-
-    visualRectangle := measureVisualRectangle()
-    visualWidth     := visualRectangle["right"]  - visualRectangle["left"]
-    visualHeight    := visualRectangle["bottom"] - visualRectangle["top"]
-
-    ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
-    adjustAttemptsForWidth := 0
-    while Mod(visualWidth, 2) && adjustAttemptsForWidth < 6 {
-        baseLogicalWidth += 1
-        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
-        visualRectangle := measureVisualRectangle()
-        visualWidth := visualRectangle["right"] - visualRectangle["left"]
-        adjustAttemptsForWidth += 1
-    }
-
-    adjustAttemptsForHeight := 0
-    while Mod(visualHeight, 2) && adjustAttemptsForHeight < 6 {
-        baseLogicalHeight += 1
-        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
-        visualRectangle := measureVisualRectangle()
-        visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
-        adjustAttemptsForHeight += 1
-    }
-
-    MonitorGetWorkArea(1, &workLeft, &workTop, &workRight, &workBottom)
-    workAreaWidth  := workRight  - workLeft
-    workAreaHeight := workBottom - workTop
-
-    centeredX := Round(workLeft + (workAreaWidth  - visualWidth)  / 2)
-    centeredY := Round(workTop  + (workAreaHeight - visualHeight) / 2)
-
-    overlay["GUI"].Show("x" . centeredX . " y" . centeredY . " NoActivate")
-    WinSetTransparent(overlayTransparency, overlay["GUI"].Hwnd)
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayInsertSpacer() {
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Overlay Insert Spacer")
-    
-    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-OverlayUpdateCustomLine(overlayKey, overlayValue) {
-    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [overlayKey, overlayValue], "Overlay Update Custom Line")
-
-    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-; **************************** ;
-; Core Methods                 ;
-; **************************** ;
-
-AppendLineToLog(line, logType) {
-    static newLine := "`r`n"
-
-    if !system["Logging"]["Log to Array"] {
-        callerWasCritical := A_IsCritical
-        if !callerWasCritical {
-            Critical "On"
-        }
-
-        try {
-            FileAppend(line . newLine, system["Logging"]["Log File Path"][logType], "UTF-8-RAW")
-        } finally {
-            if !callerWasCritical {
-                Critical "Off"
-            }
-        }
-    } else {
-        system["Logging"]["Log Entries"][logType].Push(line)
-    }
-}
-
-LogBeginning(methodName, arguments := [], overlayValue := unset) {
-    static lastRunTelemetryTick := unset
-    static runTelemetryInterval := 12 * 60 * 1000
-
-    timestamp := LogTimestamp()
-
-    runTelemetryTick := A_TickCount
-    if !IsSet(lastRunTelemetryTick) {
-        lastRunTelemetryTick := runTelemetryTick
-    }
-
-    logConclusionData := Map(
-        "Method Name", methodName
-    )
-
-    customOverlayMethod := (methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine")
-
-    operationSequenceNumber := IncrementCounter("Operation Sequence Number")
-    if IsSet(overlayValue) {
-        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(operationSequenceNumber, 94)
-        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94)
-        logConclusionData["UTC Timestamp Integer"]     := EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)
-    } else {
-        logConclusionData["Operation Sequence Number"] := operationSequenceNumber
-        logConclusionData["Query Performance Counter"] := timestamp["QPC Midpoint Tick"]
-        logConclusionData["UTC Timestamp Integer"]     := timestamp["UTC Timestamp Integer"]
-    }
-
-    logBeginning := unset
-    overlayKey   := -1
-    if IsSet(overlayValue) {
-        if !customOverlayMethod {
-            if methodRegistry[methodName].Has("Overlay Log") {
-                if methodRegistry[methodName]["Overlay Log"] {
-                    overlayKey := IncrementCounter("Overlay")
-                } else {
-                    overlayKey := 0
-                }
-            }
-
-            if overlayKey >= 1 {
-                OverlayUpdateLine(overlayKey, overlayValue . overlay["Status"]["Beginning"])
-            }
-        } else {
-            if methodName = "OverlayInsertSpacer" {
-                overlayKey := IncrementCounter("Overlay")
-                OverlayUpdateLine(overlayKey, overlayValue := "")
-            } else if methodName = "OverlayUpdateCustomLine" {
-                OverlayUpdateLine(overlayKey := arguments[1], overlayValue := arguments[2])
-            }
-        }
-
-        logBeginning :=
-            logConclusionData["Operation Sequence Number"] . "|" . ; Operation Sequence Number
-            "B" .                                            "|" . ; Status
-            logConclusionData["Query Performance Counter"] . "|" . ; Query Performance Counter
-            logConclusionData["UTC Timestamp Integer"] .     "|" . ; UTC Timestamp Integer
-            methodRegistry[methodName]["Symbol"]                   ; Method or Context
-    }
-
-    logConclusionData["Overlay Key"] := overlayKey
-
-    if arguments.Length != 0 {
-        validation := ""
-
-        for index, argument in arguments {
-            parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-            dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-            dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-            optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-            whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
-
-            validationOfArgument := ""
-            if dataType = "String" && optional = "" && argument = "" {
-                validationOfArgument := "No value passed as argument when required."
-            } else if dataType = "String" && optional = "Optional" && argument = "" {
-                ; Skip validation as it's optional.
-            } else {
-                validationOfArgument := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
-            }
-
-            if validationOfArgument != "" {
-                if validation != "" {
-                    validation := validation . " "
-                }
-
-                validation := validation . 'Parameter "' . parameterName . '" failed validation. ' . validationOfArgument
-            }
-        }
-
-        if validation != "" {
-            logConclusionData["Validation"] := validation
-        }
-
-        if logConclusionData["Overlay Key"] != -1 {
-            if !customOverlayMethod {
-                logConclusionData := LogProcessArguments(logConclusionData, arguments)
-
-                logBeginning := logBeginning . "|" . 
-                    logConclusionData["Arguments Log"]             ; Arguments or Error Message
-            } else {
-                logBeginning := logBeginning . "|" . 
-                    ""                                             ; Arguments or Error Message
-            }
-        } else {
-            logConclusionData["Arguments"] := arguments
-        }
-    }
-
-    if logConclusionData["Overlay Key"] >= 1 {
-        if !symbolLedger["Overlay"].Has(overlayValue) {
-            logOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
-            AppendLineToLog(logOverlaySymbolLedgerLine, "Symbol Ledger")
-        }
-
-        logBeginning := logBeginning . "|" . 
-            EncodeIntegerToBase(overlayKey, 94) . "|" .            ; Overlay Key
-            symbolLedger["Overlay"][overlayValue]                  ; Overlay Value
-    }
-
-    if IsSet(logBeginning) {
-        AppendLineToLog(logBeginning, "Operation Log")
-    }
-
-    if logConclusionData.Has("Validation") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, logConclusionData["Validation"])
-    }
-
-    if IsSet(overlayValue) {
-        if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
-            lastRunTelemetryTick := runTelemetryTick
-            system["Logging"]["Log Engine State"] := "Intermission"
-            LogEngine()
-        }
-    }
-
-    return logConclusionData
-}
-
-LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, errorMessage := unset) {
-    timestamp := LogTimestamp()
-
-    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
-
-    logConclusion := unset
-    if conclusionStatus = "Failed" && logConclusionData["Overlay Key"] = -1 {
-        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(logConclusionData["Operation Sequence Number"], 94)
-        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logConclusionData["Query Performance Counter"], 94)
-        logConclusionData["UTC Timestamp Integer"]     := EncodeIntegerToBase(logConclusionData["UTC Timestamp Integer"], 94)
-
-        logBeginning :=
-            logConclusionData["Operation Sequence Number"] . "|" .      ; Operation Sequence Number
-            "B" .                                            "|" .      ; Status
-            logConclusionData["Query Performance Counter"] . "|" .      ; Query Performance Counter
-            logConclusionData["UTC Timestamp Integer"] .     "|" .      ; UTC Timestamp Integer
-            methodRegistry[logConclusionData["Method Name"]]["Symbol"]  ; Method or Context
-
-            if logConclusionData.Has("Arguments") {
-                logConclusionData := LogProcessArguments(logConclusionData, logConclusionData["Arguments"])
-
-                logBeginning := logBeginning . "|" . 
-                    logConclusionData["Arguments Log"]                  ; Arguments or Error Message
-            }
-
-            AppendLineToLog(logBeginning, "Operation Log")
-    }
-
-    logConclusion := 
-        logConclusionData["Operation Sequence Number"] .          "|" . ; Operation Sequence Number
-        SubStr(conclusionStatus, 1, 1) .                          "|" . ; Status
-        EncodeIntegerToBase(timestamp["QPC Midpoint Tick"], 94) . "|" . ; Query Performance Counter
-        EncodeIntegerToBase(timestamp["UTC Timestamp Integer"], 94)     ; UTC Timestamp Integer
-
-    if !logConclusionData.Has("Context") && IsSet(errorMessage) {
-        logConclusionData["Context"] := ""
-    }
-
-    if logConclusionData.Has("Context") {
-        if !symbolLedger["Context"].Has(logConclusionData["Context"]) {
-            logSymbolLedgerLine := RegisterSymbol(logConclusionData["Context"], "Context", false)
-            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-        }
-
-        logConclusionData["Context"] := symbolLedger["Context"][logConclusionData["Context"]]
-
-        logConclusion := logConclusion . "|" . 
-            logConclusionData["Context"]                                ; Method or Context
-    }
-
-    errorWindow             := unset
-    constructedErrorMessage := unset
-    if IsSet(errorMessage) {
-        windowTitle          := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
-        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + timestamp["UTC Timestamp Integer"])
-
-        if logConclusionData.Has("Validation") {
-            errorLineNumber := methodRegistry[logConclusionData["Method Name"]]["Validation Line"]
-        }
-        
-        declaration := RegExReplace(methodRegistry[logConclusionData["Method Name"]]["Declaration"], " <\d+>$", "")
-
-        newLine := "`r`n"
-        constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Runtime"]["Library Release"] . ")" . newLine
-        if methodRegistry[logConclusionData["Method Name"]]["Parameters"] != "" {
-            constructedErrorMessage := constructedErrorMessage .
-                "Parameters: " . methodRegistry[logConclusionData["Method Name"]]["Parameters"] . newLine . 
-                "Arguments: " . logConclusionData["Arguments Full"] . newLine
-        }
-
-        constructedErrorMessage := constructedErrorMessage . 
-            "Line Number: " . errorLineNumber . newLine
-
-        logErrorMessage := StrReplace(constructedErrorMessage . "Error Output: " . errorMessage, newLine, "|")
-        if !symbolLedger["Error"].Has(logErrorMessage) {
-            logSymbolLedgerLine := RegisterSymbol(logErrorMessage, "Error", false)
-            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
-        }
-
-        logConclusion := logConclusion . "|" . 
-            symbolLedger["Error"][logErrorMessage]                      ; Arguments or Error Message
-
-        if system["Environment"].Has("Time Zone") {
-            currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone"]["Key Name"])
-
-            constructedErrorMessage := constructedErrorMessage . 
-                "Date Runtime: " . currentLocalDateTime
-        } else {
-            constructedErrorMessage := constructedErrorMessage . 
-                "Date Runtime: " . currentUtcDateTime . " (UTC)"
-        }
-
-        constructedErrorMessage := constructedErrorMessage . 
-            newLine . "Error Output: " . errorMessage
-
-        errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
-        errorWindow.SetFont("s10", "Segoe UI")
-        errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", constructedErrorMessage)
-
-        exitButton := errorWindow.AddButton("w60 Default", "Exit")
-        exitButton.OnEvent("Click", (*) => ExitApp())
-        exitButton.Focus()
-        errorWindow.OnEvent("Close", (*) => ExitApp())
-
-        copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
-        copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
-    }
-
-    AppendLineToLog(logConclusion, "Operation Log")
-
-    if logConclusionData["Overlay Key"] >= 1 {
-        OverlayUpdateStatus(logConclusionData, conclusionStatus)
-    }
-
-    if IsSet(errorMessage) { 
-        runTelemetryLogFilePath := system["Logging"]["Log Shared Name"] . system["Logging"]["Log Date and Time"] . " - " . "Run Telemetry.csv"
-        if system["Environment"].Has("Time Zone") && FileExist(runTelemetryLogFilePath) {
-            system["Logging"]["Log Engine State"] := "Failed"
-            LogEngine()
-        }
-
-        if logConclusionData["Method Name"] = "AbortExecution" {
-            ExitApp()
-        }
-
-        errorWindow.Show("AutoSize Center")
-        WinWaitClose("ahk_id " . errorWindow.Hwnd)
-    }
 }
 
 LogEngine() {
@@ -479,6 +42,10 @@ LogEngine() {
 
     static newLine     := "`r`n"
     static systemDrive := SubStr(A_WinDir, 1, 3)
+
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
 
     switch logging["Log Engine State"] {
         case "Pending":
@@ -503,6 +70,8 @@ LogEngine() {
     startMillisecondsTresholdCeiling := settings["Start Milliseconds Treshold"].Get("Ceiling")
     startMillisecondsTresholdFloor   := settings["Start Milliseconds Treshold"].Get("Floor")
 
+    configurationPath      := unset
+    defaultConfiguration   := unset
     operationLogLineNumber := unset
 
     if logging["Log Engine State"] = "Beginning" && startMillisecondsTreshold >= startMillisecondsTresholdFloor && startMillisecondsTreshold < startMillisecondsTresholdCeiling + 1 {
@@ -520,6 +89,10 @@ LogEngine() {
     runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
     system["Telemetry"] := TelemetryTimestamp(telemetryTimestampDurationInMilliseconds)
     telemetry           := system["Telemetry"]
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     if logging["Log Engine State"] = "Beginning" {
         SplitPath(A_ScriptFullPath, , , , &projectName)
@@ -556,43 +129,26 @@ LogEngine() {
         ] {
             GetBaseCharacterSet(baseCharacterSet)
         }
-    }
 
-    static configurationPath    := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
-    static defaultConfiguration := StrReplace(
-    '{' . newLine . 
-        '    "Application Whitelist": [' . newLine . 
-            '        ' .  newLine . 
-        '    ],' . newLine . 
-        '    "Application Executable Directory Candidates": [' . newLine .
-            '        '  . newLine . 
-        '    ],' . newLine . 
-        '    "Candidate Base Directories": [' . newLine . 
-            '        "' . systemDrive . 'Portable Files' . '",' . newLine . 
-            '        "' . systemDrive . 'Program Files (Portable)' . '"' . newLine . 
+        configurationPath    := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
+        defaultConfiguration := StrReplace(
+        '{' . newLine . 
+            '    "Application Whitelist": [' . newLine . 
+                '        ' .  newLine . 
             '    ],' . newLine . 
-        '    "Settings": {' . newLine . 
-            '        "Image Variant Preset": "' . directories["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
-            '        "Application Image Override Directory": "' . "" . '",' . newline . 
-            '        "Computer Alias": "' . "N/A" . '"' . newline . 
-        '    }' . newLine . 
-    '}', "\", "\\")
-
-    if logging["Log Engine State"] != "Beginning" {
-        operationLogLineNumber := GetTextFileLineCount(logging["Log File Path"]["Operation Log"])
-    } else {
-        operationLogLineNumber := 2
-    }
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [], "Log Engine")
-
-    if logging["Log Engine State"] = "Beginning" {
-        RemoveDuplicatesFromArray([])
-        BatchAppendSymbolLedger("", [])
-        BatchAppendRunTelemetry("Beginning", [])
-        BatchAppendOperationLog([])
-        BatchAppendExecutionLog("Beginning", [])
+            '    "Application Executable Directory Candidates": [' . newLine .
+                '        '  . newLine . 
+            '    ],' . newLine . 
+            '    "Candidate Base Directories": [' . newLine . 
+                '        "' . systemDrive . 'Portable Files' . '",' . newLine . 
+                '        "' . systemDrive . 'Program Files (Portable)' . '"' . newLine . 
+                '    ],' . newLine . 
+            '    "Settings": {' . newLine . 
+                '        "Image Variant Preset": "' . directories["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
+                '        "Application Image Override Directory": "' . "" . '",' . newline . 
+                '        "Computer Alias": "' . "N/A" . '"' . newline . 
+            '    }' . newLine . 
+        '}', "\", "\\")
 
         for reference in [
             "",
@@ -606,6 +162,30 @@ LogEngine() {
         ] {
             RegisterReference(reference)
         }
+
+        for context in [
+            "",
+            "Log Engine State: Beginning"
+        ] {
+            RegisterContext(context)
+        }
+    }
+
+    if logging["Log Engine State"] != "Beginning" {
+        operationLogLineNumber := GetTextFileLineCount(logging["Log File Path"]["Operation Log"])
+    } else {
+        operationLogLineNumber := 2
+    }
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Log Engine")
+
+    if logging["Log Engine State"] = "Beginning" {
+        RemoveDuplicatesFromArray([])
+        BatchAppendSymbolLedger("", [])
+        BatchAppendRunTelemetry("Beginning", [])
+        BatchAppendOperationLog([])
+        BatchAppendExecutionLog("Beginning", [])
     }
 
     system["Telemetry"]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
@@ -828,33 +408,33 @@ LogEngine() {
 
     if logging["Log Engine State"] != "Beginning" && logging["Log Engine State"] != "Intermission" {
         timestampNow := A_Now
-        for logType, filePath in logging["Log File Path"] {
-            if !FileExist(filePath) {
+        for logType, logFilePath in logging["Log File Path"] {
+            if !FileExist(logFilePath) {
                 continue
             }
 
-            file := FileOpen(filePath, "rw")
+            logFile := FileOpen(logFilePath, "rw")
 
-            fileSize := file.Length
-            if fileSize = 0 {
-                file.Close()
+            logFileSize := logFile.Length
+            if logFileSize = 0 {
+                logFile.Close()
                 continue
             }
             
-            bytesToRead := (fileSize >= 2) ? 2 : 1
-            file.Seek(-bytesToRead, 2)
-            tail := Buffer(bytesToRead)
-            file.RawRead(tail, bytesToRead)
+            bytesToInspect := (logFileSize >= 2) ? 2 : 1
+            logFile.Seek(-bytesToInspect, 2)
+            trailingBytesBuffer := Buffer(bytesToInspect)
+            logFile.RawRead(trailingBytesBuffer, bytesToInspect)
 
-            if bytesToRead = 2 && NumGet(tail, 0, "UChar") = 13 && NumGet(tail, 1, "UChar") = 10 {
-                file.Length := fileSize - 2
-            } else if NumGet(tail, bytesToRead - 1, "UChar") = 10 {
-                file.Length := fileSize - 1
+            if bytesToInspect = 2 && NumGet(trailingBytesBuffer, 0, "UChar") = 13 && NumGet(trailingBytesBuffer, 1, "UChar") = 10 {
+                logFile.Length := logFileSize - 2
+            } else if NumGet(trailingBytesBuffer, bytesToInspect - 1, "UChar") = 10 {
+                logFile.Length := logFileSize - 1
             }
 
-            file.Close()
+            logFile.Close()
 
-            FileSetTime(timestampNow, logging["Log File Path"][logType], "M")
+            FileSetTime(timestampNow, logFilePath, "M")
         }
 
         logging.Delete("Log File Path")
@@ -865,6 +445,7 @@ LogEngine() {
             "Method",                    0,
             "Overlay",                   0,
             "Reference",                 0,
+            "Whitelist",                 0,
             "Operation Sequence Number", 0,
             "Run Telemetry Order",       0
         )
@@ -891,6 +472,508 @@ LogEngine() {
         )
 
         logging["Log Engine State"] := "Running"
+    }
+}
+
+OverlayChangeTransparency(transparencyValue) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
+
+    WinSetTransparent(transparencyValue, "ahk_id " . overlay["GUI"].Hwnd)
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayChangeVisibility() {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Change Visibility")
+
+    if DllCall("User32\IsWindowVisible", "Ptr", overlay["GUI"].Hwnd) {
+        overlay["GUI"].Hide()
+    } else {
+        overlay["GUI"].Show("NoActivate")
+    }
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayHideLogForMethod(methodNameInput) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
+
+    global methodRegistry
+    
+    if !methodRegistry.Has(methodNameInput) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
+    }
+
+    methodRegistry[methodNameInput]["Overlay Log"] := false
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayShowLogForMethod(methodNameInput) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
+
+    global methodRegistry
+
+    if methodRegistry.Has(methodNameInput) {
+        methodRegistry[methodNameInput]["Overlay Log"] := true
+    } else {
+        methodRegistry[methodNameInput] := Map(
+            "Overlay Log", true
+        )
+    }
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayStart() {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Start")
+
+    global overlay
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        ConfigureMethodSetting(methodName, "Base Logical Width", 960, 640, 7680)
+        ConfigureMethodSetting(methodName, "Base Logical Height", 920, 480, 4320)
+        ConfigureMethodSetting(methodName, "Overlay Transparency", 172, 0, 255)
+        ConfigureMethodSetting(methodName, "Font Size", 10, 6, 24)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings := methodRegistry[methodName]["Settings"]
+
+    baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
+    baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
+    overlayTransparency := settings["Overlay Transparency"].Get("Value")
+    fontSize            := settings["Font Size"].Get("Value")
+
+    overlay["GUI"].BackColor := "0x000000"
+    overlay["GUI"].SetFont("s" . fontSize . " cWhite", "Consolas")
+    overlay["GUI"].MarginX := 0
+    overlay["GUI"].MarginY := 0
+
+    statusTextControl := overlay["GUI"].Add("Text", "vStatusText w" . baseLogicalWidth . " h" . baseLogicalHeight . " +0x1", "")
+
+    measureVisualRectangle := () => (
+        overlay["GUI"].Show("Hide AutoSize"),
+        rectBuffer := Buffer(16, 0),
+        DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlay["GUI"].Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
+        Map(
+            "left",   NumGet(rectBuffer,  0, "Int"),
+            "top",    NumGet(rectBuffer,  4, "Int"),
+            "right",  NumGet(rectBuffer,  8, "Int"),
+            "bottom", NumGet(rectBuffer, 12, "Int")
+        )
+    )
+
+    visualRectangle := measureVisualRectangle()
+    visualWidth     := visualRectangle["right"]  - visualRectangle["left"]
+    visualHeight    := visualRectangle["bottom"] - visualRectangle["top"]
+
+    ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
+    adjustAttemptsForWidth := 0
+    while Mod(visualWidth, 2) && adjustAttemptsForWidth < 6 {
+        baseLogicalWidth += 1
+        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
+        visualRectangle := measureVisualRectangle()
+        visualWidth := visualRectangle["right"] - visualRectangle["left"]
+        adjustAttemptsForWidth += 1
+    }
+
+    adjustAttemptsForHeight := 0
+    while Mod(visualHeight, 2) && adjustAttemptsForHeight < 6 {
+        baseLogicalHeight += 1
+        statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
+        visualRectangle := measureVisualRectangle()
+        visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
+        adjustAttemptsForHeight += 1
+    }
+
+    MonitorGetWorkArea(1, &workLeft, &workTop, &workRight, &workBottom)
+    workAreaWidth  := workRight  - workLeft
+    workAreaHeight := workBottom - workTop
+
+    centeredX := Round(workLeft + (workAreaWidth  - visualWidth)  / 2)
+    centeredY := Round(workTop  + (workAreaHeight - visualHeight) / 2)
+
+    overlay["GUI"].Show("x" . centeredX . " y" . centeredY . " NoActivate")
+    WinSetTransparent(overlayTransparency, overlay["GUI"].Hwnd)
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayInsertSpacer() {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Insert Spacer")
+    
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+OverlayUpdateCustomLine(overlayKey, overlayValue) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [overlayKey, overlayValue], "Overlay Update Custom Line")
+
+    ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
+
+    LogConclusion("Completed", logConclusionData)
+}
+
+; **************************** ;
+; Core Methods                 ;
+; **************************** ;
+
+AppendLineToLog(line, logType) {
+    static newLine := "`r`n"
+
+    if !system["Logging"]["Log to Array"] {
+        callerWasCritical := A_IsCritical
+        if !callerWasCritical {
+            Critical "On"
+        }
+
+        try {
+            FileAppend(line . newLine, system["Logging"]["Log File Path"][logType], "UTF-8-RAW")
+        } finally {
+            if !callerWasCritical {
+                Critical "Off"
+            }
+        }
+    } else {
+        system["Logging"]["Log Entries"][logType].Push(line)
+    }
+}
+
+LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayValue := unset) {
+    static lastRunTelemetryTick := unset
+    static runTelemetryInterval := 12 * 60 * 1000
+
+    runTelemetryTick := A_TickCount
+    if !IsSet(lastRunTelemetryTick) {
+        lastRunTelemetryTick := runTelemetryTick
+    }
+
+    logConclusionData := Map(
+        "Method Name", methodName
+    )
+
+    customOverlayMethod := (methodName = "OverlayInsertSpacer" || methodName = "OverlayUpdateCustomLine")
+
+    operationSequenceNumber := IncrementCounter("Operation Sequence Number")
+    if IsSet(overlayValue) {
+        logBeginningTimestamp := LogTimestamp(qpcPre, timestamp, qpcPost)
+
+        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(operationSequenceNumber, 94)
+        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
+        logConclusionData["UTC Timestamp Integer"]     := EncodeIntegerToBase(logBeginningTimestamp[2], 94)
+    } else {
+        logConclusionData["Operation Sequence Number"] := operationSequenceNumber
+        logConclusionData["QPC Pre"]                   := qpcPre
+        logConclusionData["Timestamp"]                 := timestamp
+        logConclusionData["QPC Post"]                  := qpcPost
+    }
+
+    logBeginning := unset
+    overlayKey   := -1
+    if IsSet(overlayValue) {
+        if !customOverlayMethod {
+            if methodRegistry[methodName].Has("Overlay Log") {
+                if methodRegistry[methodName]["Overlay Log"] {
+                    overlayKey := IncrementCounter("Overlay")
+                } else {
+                    overlayKey := 0
+                }
+            }
+
+            if overlayKey >= 1 {
+                OverlayUpdateLine(overlayKey, overlayValue . overlay["Status"]["Beginning"])
+            }
+        } else {
+            if methodName = "OverlayInsertSpacer" {
+                overlayKey := IncrementCounter("Overlay")
+                OverlayUpdateLine(overlayKey, overlayValue := "")
+            } else if methodName = "OverlayUpdateCustomLine" {
+                OverlayUpdateLine(overlayKey := arguments[1], overlayValue := arguments[2])
+            }
+        }
+
+        logBeginning :=
+            logConclusionData["Operation Sequence Number"] . "|" . ; Operation Sequence Number
+            "B" .                                            "|" . ; Status
+            logConclusionData["Query Performance Counter"] . "|" . ; Query Performance Counter
+            logConclusionData["UTC Timestamp Integer"] .     "|" . ; UTC Timestamp Integer
+            methodRegistry[methodName]["Symbol"]                   ; Method or Context
+    }
+
+    logConclusionData["Overlay Key"] := overlayKey
+
+    if arguments.Length != 0 {
+        validation := ""
+
+        for index, argument in arguments {
+            parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+            dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+            dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
+            optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+            whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+
+            validationOfArgument := ""
+            if dataType = "String" && optional = "" && argument = "" {
+                validationOfArgument := "No value passed as argument when required."
+            } else if dataType = "String" && optional = "Optional" && argument = "" {
+                ; Skip validation as it's optional.
+            } else {
+                validationOfArgument := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
+            }
+
+            if validationOfArgument != "" {
+                if validation != "" {
+                    validation := validation . " "
+                }
+
+                validation := validation . 'Parameter "' . parameterName . '" failed validation. ' . validationOfArgument
+            }
+        }
+
+        if validation != "" {
+            logConclusionData["Validation"] := validation
+        }
+
+        if logConclusionData["Overlay Key"] != -1 {
+            if !customOverlayMethod {
+                logConclusionData := LogProcessArguments(logConclusionData, arguments)
+
+                logBeginning := logBeginning . "|" . 
+                    logConclusionData["Arguments Log"]             ; Arguments or Error Message
+            } else {
+                logBeginning := logBeginning . "|" . 
+                    ""                                             ; Arguments or Error Message
+            }
+        } else {
+            logConclusionData["Arguments"] := arguments
+        }
+    }
+
+    if logConclusionData["Overlay Key"] >= 1 {
+        if !symbolLedger["Overlay"].Has(overlayValue) {
+            logOverlaySymbolLedgerLine := RegisterSymbol(overlayValue, "Overlay", false)
+            AppendLineToLog(logOverlaySymbolLedgerLine, "Symbol Ledger")
+        }
+
+        logBeginning := logBeginning . "|" . 
+            EncodeIntegerToBase(overlayKey, 94) . "|" .            ; Overlay Key
+            symbolLedger["Overlay"][overlayValue]                  ; Overlay Value
+    }
+
+    if IsSet(logBeginning) {
+        AppendLineToLog(logBeginning, "Operation Log")
+    }
+
+    if logConclusionData.Has("Validation") {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, logConclusionData["Validation"])
+    }
+
+    if IsSet(overlayValue) {
+        if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
+            lastRunTelemetryTick := runTelemetryTick
+            system["Logging"]["Log Engine State"] := "Intermission"
+            LogEngine()
+        }
+    }
+
+    return logConclusionData
+}
+
+LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, errorMessage := unset) {
+    conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
+
+    if conclusionStatus = "Failed" && logConclusionData["Overlay Key"] = -1 {
+        logBeginningTimestamp := LogTimestamp(logConclusionData["QPC Pre"], logConclusionData["Timestamp"], logConclusionData["QPC Post"])
+
+        logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(logConclusionData["Operation Sequence Number"], 94)
+        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
+        logConclusionData["UTC Timestamp Integer"]     := EncodeIntegerToBase(logBeginningTimestamp[2], 94)
+
+        logBeginning :=
+            logConclusionData["Operation Sequence Number"] . "|" .      ; Operation Sequence Number
+            "B" .                                            "|" .      ; Status
+            logConclusionData["Query Performance Counter"] . "|" .      ; Query Performance Counter
+            logConclusionData["UTC Timestamp Integer"] .     "|" .      ; UTC Timestamp Integer
+            methodRegistry[logConclusionData["Method Name"]]["Symbol"]  ; Method or Context
+
+            if logConclusionData.Has("Arguments") {
+                logConclusionData := LogProcessArguments(logConclusionData, logConclusionData["Arguments"])
+
+                logBeginning := logBeginning . "|" . 
+                    logConclusionData["Arguments Log"]                  ; Arguments or Error Message
+            }
+
+            AppendLineToLog(logBeginning, "Operation Log")
+    }
+
+    logConclusion := 
+        logConclusionData["Operation Sequence Number"] .          "|" . ; Operation Sequence Number
+        SubStr(conclusionStatus, 1, 1)                                  ; Status
+
+    if !logConclusionData.Has("Context") && IsSet(errorMessage) {
+        logConclusionData["Context"] := ""
+    }
+
+    if logConclusionData.Has("Context") {
+        contextSymbol := RegisterContext(logConclusionData["Context"])
+        logConclusionData["Context"] := contextSymbol
+    }
+
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    logConclusionTimestamp := LogTimestamp(NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
+
+    logConclusion := logConclusion . "|" . 
+        EncodeIntegerToBase(logConclusionTimestamp[1], 94) .      "|" . ; Query Performance Counter
+        EncodeIntegerToBase(logConclusionTimestamp[2], 94)              ; UTC Timestamp Integer
+
+    if logConclusionData.Has("Context") {
+        logConclusion := logConclusion . "|" . 
+            logConclusionData["Context"]                                ; Method or Context
+    }
+
+    errorWindow             := unset
+    constructedErrorMessage := unset
+    if IsSet(errorMessage) {
+        windowTitle          := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
+        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + logConclusionTimestamp[2])
+
+        if logConclusionData.Has("Validation") {
+            errorLineNumber := methodRegistry[logConclusionData["Method Name"]]["Validation Line"]
+        }
+        
+        declaration := RegExReplace(methodRegistry[logConclusionData["Method Name"]]["Declaration"], " <\d+>$", "")
+
+        newLine := "`r`n"
+        constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Runtime"]["Library Release"] . ")" . newLine
+        if methodRegistry[logConclusionData["Method Name"]]["Parameters"] != "" {
+            constructedErrorMessage := constructedErrorMessage .
+                "Parameters: " . methodRegistry[logConclusionData["Method Name"]]["Parameters"] . newLine . 
+                "Arguments: " . logConclusionData["Arguments Full"] . newLine
+        }
+
+        constructedErrorMessage := constructedErrorMessage . 
+            "Line Number: " . errorLineNumber . newLine
+
+        logErrorMessage := StrReplace(constructedErrorMessage . "Error Output: " . errorMessage, newLine, "|")
+        if !symbolLedger["Error"].Has(logErrorMessage) {
+            logSymbolLedgerLine := RegisterSymbol(logErrorMessage, "Error", false)
+            AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+        }
+
+        logConclusion := logConclusion . "|" . 
+            symbolLedger["Error"][logErrorMessage]                      ; Arguments or Error Message
+
+        if system["Environment"].Has("Time Zone") {
+            currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone"]["Key Name"])
+
+            constructedErrorMessage := constructedErrorMessage . 
+                "Date Runtime: " . currentLocalDateTime
+        } else {
+            constructedErrorMessage := constructedErrorMessage . 
+                "Date Runtime: " . currentUtcDateTime . " (UTC)"
+        }
+
+        constructedErrorMessage := constructedErrorMessage . 
+            newLine . "Error Output: " . errorMessage
+
+        errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
+        errorWindow.SetFont("s10", "Segoe UI")
+        errorWindow.AddEdit("ReadOnly r10 w1024 -VScroll vErrorTextField", constructedErrorMessage)
+
+        exitButton := errorWindow.AddButton("w60 Default", "Exit")
+        exitButton.OnEvent("Click", (*) => ExitApp())
+        exitButton.Focus()
+        errorWindow.OnEvent("Close", (*) => ExitApp())
+
+        copyButton := errorWindow.AddButton("x+10 yp wp", "Copy")
+        copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
+    }
+
+    AppendLineToLog(logConclusion, "Operation Log")
+
+    if logConclusionData["Overlay Key"] >= 1 {
+        OverlayUpdateStatus(logConclusionData, conclusionStatus)
+    }
+
+    if IsSet(errorMessage) { 
+        runTelemetryLogFilePath := system["Logging"]["Log Shared Name"] . system["Logging"]["Log Date and Time"] . " - " . "Run Telemetry.csv"
+        if system["Environment"].Has("Time Zone") && FileExist(runTelemetryLogFilePath) {
+            system["Logging"]["Log Engine State"] := "Failed"
+            LogEngine()
+        }
+
+        if logConclusionData["Method Name"] = "AbortExecution" {
+            ExitApp()
+        }
+
+        errorWindow.Show("AutoSize Center")
+        WinWaitClose("ahk_id " . errorWindow.Hwnd)
     }
 }
 
@@ -981,19 +1064,12 @@ LogProcessArguments(logConclusionData, arguments) {
     return logConclusionData
 }
 
-LogTimestamp() {
-    queryPerformanceCounterBefore           := GetQueryPerformanceCounter()
-    utcTimestampInteger                     := GetUtcTimestampInteger()
-    queryPerformanceCounterAfter            := GetQueryPerformanceCounter()
+LogTimestamp(qpcPre, timestamp, qpcPost) {
+    qpcMeasurementDelta := qpcPost - qpcPre
+    qpcMidpointTick     := (qpcPre + (qpcMeasurementDelta // 2)) - system["Telemetry"]["QPC Midpoint Tick"]
+    utcTimestampInteger := ConvertFileTimeToUtcTimestampInteger(timestamp) - system["Telemetry"]["UTC Timestamp Integer"]
 
-    utcTimestampInteger                     := utcTimestampInteger - system["Telemetry"]["UTC Timestamp Integer"]
-    queryPerformanceCounterMeasurementDelta := queryPerformanceCounterAfter - queryPerformanceCounterBefore
-    queryPerformanceCounterMidpointTick     := (queryPerformanceCounterBefore + (queryPerformanceCounterMeasurementDelta // 2)) - system["Telemetry"]["QPC Midpoint Tick"]
-
-    logTimestamp := Map(
-        "QPC Midpoint Tick",     queryPerformanceCounterMidpointTick,
-        "UTC Timestamp Integer", utcTimestampInteger
-    )
+    logTimestamp := [qpcMidpointTick, utcTimestampInteger]
 
     return logTimestamp
 }
@@ -1030,6 +1106,15 @@ OverlayUpdateStatus(logConclusionData, newStatus) {
                 OverlayUpdateLine(overlayKey, StrReplace(currentText, overlay["Status"]["Beginning"], overlay["Status"]["Failed"]))
         }
     }
+}
+
+RegisterContext(contextValue) {
+    if !symbolLedger["Context"].Has(contextValue) {
+        logSymbolLedgerLine := RegisterSymbol(contextValue, "Context", false)
+        AppendLineToLog(logSymbolLedgerLine, "Symbol Ledger")
+    }
+
+    return symbolLedger["Context"][contextValue]
 }
 
 RegisterReference(referenceValue) {
@@ -1275,7 +1360,6 @@ DecodeBaseToInteger(baseText, baseType) {
 
 EncodeSha256HexToBase(hexSha256, baseType) {
     baseCharacterSet  := GetBaseCharacterSet(baseType)
-    characters        := baseCharacterSet["Characters"]
     baseRadix         := baseCharacterSet["Base Radix"]
     charArray         := baseCharacterSet["Char Array"]
 
@@ -1402,16 +1486,23 @@ DecodeBaseToSha256Hex(baseText, baseType) {
 ; **************************** ;
 
 BatchAppendExecutionLog(executionType, array) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static executionTypeWhitelist := Format('"{1}", "{2}"', "Application", "Beginning")
     static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [executionType, array])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [executionType, array])
 
     static newLine := "`r`n"
 
-    switch StrLower(executionType) {
-        case "application":
+    switch executionType {
+        case "Application":
             executionType := "A"
-        case "beginning":
+        case "Beginning":
             executionType := "B"
     }
 
@@ -1430,8 +1521,15 @@ BatchAppendExecutionLog(executionType, array) {
 }
 
 BatchAppendOperationLog(array) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [array])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [array])
 
     static newLine := "`r`n"
 
@@ -1450,20 +1548,27 @@ BatchAppendOperationLog(array) {
 }
 
 BatchAppendRunTelemetry(appendType, array) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Beginning", "Completed", "Failed", "Intermission")
     static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [appendType, array])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appendType, array])
 
     static newLine := "`r`n"
 
-    switch StrLower(appendType) {
-        case "beginning":
+    switch appendType {
+        case "Beginning":
             appendType := "B"
-        case "completed":
+        case "Completed":
             appendType := "C"
-        case "failed":
+        case "Failed":
             appendType := "F"
-        case "intermission":
+        case "Intermission":
             appendType := "I"
     }
 
@@ -1482,26 +1587,18 @@ BatchAppendRunTelemetry(appendType, array) {
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Context", "Error", "Method", "Overlay", "Reference", "Whitelist")
     static methodName := RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, [symbolType, array])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [symbolType, array])
 
     static newLine := "`r`n"
-
-    switch StrLower(symbolType) {
-        case "context":
-            symbolType := "Context"
-        case "error":
-            symbolType := "Error"
-        case "method":
-            symbolType := "Method"
-        case "overlay":
-            symbolType := "Overlay"
-        case "reference":
-            symbolType := "Reference"
-        case "whitelist":
-            symbolType := "Whitelist"
-    }
 
     symbolLedgerArray := []
     if symbolType = "" {
@@ -1544,8 +1641,15 @@ BatchAppendSymbolLedger(symbolType, array) {
 }
 
 OverlayIsVisible() {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
 
     windowHandle  := overlay["GUI"].Hwnd
     windowVisible := unset
