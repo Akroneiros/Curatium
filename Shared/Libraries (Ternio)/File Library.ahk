@@ -69,7 +69,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
     headerNames := StrSplit(allLines[1], delimiter)
 
     rowsAsMaps := []
-    loop allLines.Length - 1 {
+    Loop allLines.Length - 1 {
         currentLine := allLines[1 + A_Index]
 
         if RegExMatch(currentLine, "^[ \t]*$") {
@@ -79,7 +79,7 @@ ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
         fieldValues := StrSplit(currentLine, delimiter)
         rowMap := Map()
 
-        loop headerNames.Length {
+        Loop headerNames.Length {
             headerName := headerNames[A_Index]
             valueText := (A_Index <= fieldValues.Length) ? fieldValues[A_Index] : ""
             rowMap[headerName] := valueText
@@ -260,7 +260,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         swapped   := Buffer(beSize)
         sourcePtr := fileBuffer.Ptr + 2
 
-        loop beSize // 2 {
+        Loop beSize // 2 {
             offset := (A_Index - 1) * 2
             NumPut("UChar", NumGet(sourcePtr + offset, 1, "UChar"), swapped.Ptr + offset, 0)
             NumPut("UChar", NumGet(sourcePtr + offset, 0, "UChar"), swapped.Ptr + offset, 1)
@@ -596,11 +596,11 @@ GetFilesFromDirectory(directoryPath, filterValue := "") {
     pattern := RTrim(directoryPath, "\/") . "\*"
 
     if filterValue = "" {
-        loop files, pattern, "F" {
+        Loop Files, pattern, "F" {
             files.Push(A_LoopFileFullPath)
         }
     } else {
-        loop files, pattern, "F" {
+        Loop Files, pattern, "F" {
             if InStr(A_LoopFileFullPath, filterValue) {
                 files.Push(A_LoopFileFullPath)
             }
@@ -655,7 +655,7 @@ GetFoldersFromDirectory(directoryPath) {
     folders := []
     pattern := RTrim(directoryPath, "\/") . "\*"
 
-    loop files, pattern, "D" {
+    Loop Files, pattern, "D" {
         folders.Push(A_LoopFileFullPath . "\")
     }
 

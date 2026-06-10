@@ -74,7 +74,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         actionName   := Trim(matchResults[1])
         actionLetter := matchResults[2]
 
-        loop files, actionFolderPath . "*", "F" {
+        Loop Files, actionFolderPath . "*", "F" {
             SplitPath(A_LoopFileName, , , , &filenameWithoutExtension)
             lastOpenParenthesisIndex := InStr(filenameWithoutExtension, "(", "On", -1)
             baseTextWithoutRanges    := RTrim(SubStr(filenameWithoutExtension, 1, lastOpenParenthesisIndex - 1))
@@ -540,7 +540,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     verticalCoordinate   := 0
 
     CoordMode("Pixel", "Screen")
-    loop timesToAttempt {
+    Loop timesToAttempt {
         imageSearchResults["Times Attempted"] := A_Index
 
         for image in directoryImageVariants {

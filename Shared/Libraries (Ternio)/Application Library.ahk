@@ -9,7 +9,7 @@
 ; Application Registry         ;
 ; **************************** ;
 
-DefineApplicationRegistry() {
+DefineApplicationRegistry(applications, sharedImagesDirectory) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -17,18 +17,11 @@ DefineApplicationRegistry() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Define Application Registry")
+    static methodName := RegisterMethod("applications As Array, sharedImagesDirectory As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applications, sharedImagesDirectory], "Define Application Registry")
 
     global applicationRegistry
-    global system
-
-    mappedApplicationsFilePath := system["Directories"]["Mappings"] . "Applications.csv"
-    if !FileExist(mappedApplicationsFilePath) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Applications.csv not found in the directory for Mappings.")
-    }
-   
-    applications := ConvertCsvToArrayOfMaps(mappedApplicationsFilePath)
+  
     for application in applications {
         applicationName    := application["Name"]
         applicationCounter := application["Counter"] + 0
@@ -37,7 +30,7 @@ DefineApplicationRegistry() {
         applicationRegistry[applicationName]["Counter"] := applicationCounter
     }
 
-    applicationsWithSharedImageLibraryData := GetFilesFromDirectory(system["Directories"]["Images"], "Image Library Data (")
+    applicationsWithSharedImageLibraryData := GetFilesFromDirectory(sharedImagesDirectory, "Image Library Data (")
     for imageLibraryDataFile in applicationsWithSharedImageLibraryData {
         applicationName := ExtractFilename(imageLibraryDataFile, true)
         applicationName := SubStr(applicationName, StrLen("Image Library Data (") + 1)
@@ -45,6 +38,8 @@ DefineApplicationRegistry() {
 
         applicationRegistry[applicationName]["Shared Images"] := true
     }
+
+    logConclusionData["Context"] := "Image Library Data found for " . applicationsWithSharedImageLibraryData.Length . " applications."
 
     LogConclusion("Completed", logConclusionData)
 }
@@ -470,7 +465,7 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                         continue
                     }
 
-                    loop files, applicationRootDirectory . "*", "D" {
+                    Loop Files, applicationRootDirectory . "*", "D" {
                         folderName := A_LoopFileName
 
                         StrReplace(folderName, ".", "", , &dotOccurrencesInFolderName)
@@ -623,7 +618,7 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
         }
 
         maximumStartIndex := shorterLength - requiredLength + 1
-        loop maximumStartIndex {
+        Loop maximumStartIndex {
             currentStartIndex := A_Index
             substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
             if InStr(longerText, substringToSearch) {
@@ -637,7 +632,7 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
         }
 
         for uninstallBaseKeyPath in uninstallBaseKeyPaths {
-            loop reg, uninstallBaseKeyPath, "K" {
+            Loop Reg, uninstallBaseKeyPath, "K" {
                 uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
 
                 displayName := ""
@@ -1199,7 +1194,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         LogConclusion("Skipped", logConclusionData)
     } else {
         sidecarPath := saveDirectory . documentName . ".txt"
-        WriteTextToFile(system["Logging"]["Log Shared Name"], sidecarPath, "UTF-8")
+        WriteTextToFile("", sidecarPath, "UTF-8")
 
         excelApplication := ComObject("Excel.Application")
         excelWorkbook    := excelApplication.Workbooks.Add()
@@ -1382,7 +1377,7 @@ WaitForExcelToClose(excelProcessIdentifier) {
     secondsSinceLastMouseMove := 0
 
     userInterfaceIsGone := false
-    loop totalSecondsToWait {
+    Loop totalSecondsToWait {
         windowCount := WinGetList("ahk_pid " . excelProcessIdentifier).Length
         if windowCount = 0 {
             Sleep(secondDelay)
@@ -1508,7 +1503,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
         }
 
         sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates := unset
-        loop timesToAttempt {
+        Loop timesToAttempt {
             sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults := SearchForDirectoryImage("SQL Server Management Studio", "Query executed successfully", 2)
             if sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults["Success"] {
                 sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates := ExtractImageCoordinates(sqlServerManagementStudioQueryExecutedSuccessfullyImageSearchResults)

@@ -20,8 +20,8 @@ global methodRegistry := Map(
                 "Delta",   0
             ),
             "Telemetry Timestamp Duration in Milliseconds", Map(
-                "Value",   224,
-                "Default", 224,
+                "Value",   192,
+                "Default", 192,
                 "Floor",   16,
                 "Ceiling", 1000,
                 "Delta",   0
@@ -31,6 +31,7 @@ global methodRegistry := Map(
 )
 global overlay := Map(
     "GUI", Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
+    "Counter", 0,
     "Lines", Map(),
     "Order", [],
     "Status", Map(
@@ -52,6 +53,7 @@ global system := Map(
     "Configuration", Map(),
     "Directories", Map(),
     "Environment", Map(),
+    "Hardware", Map(),
     "Logging", Map(
         "Counters", Map(
             "Context", 0,
@@ -72,6 +74,7 @@ global system := Map(
         ),
         "Log to Array", true
     ),
+    "Paths", Map(),
     "Runtime", Map(),
     "Telemetry", Map()
 )
@@ -113,7 +116,7 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, errorMessage)
     }
 
-    loop 10 {
+    Loop 10 {
         loopDelay := shortDelay * A_Index
         if A_Index = 1 {
             loopDelay := Round(loopDelay/2)
@@ -165,7 +168,7 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
         latestDate    := ""
 
         sectionList := IniRead(versionManifestFilePath)
-        loop parse sectionList, "`n", "`r" {
+        Loop Parse sectionList, "`n", "`r" {
             candidateVersion := A_LoopField
             if candidateVersion = "" {
                 continue
@@ -314,7 +317,7 @@ PasteText(text, commentPrefix := "") {
 
             Sleep(mediumDelay)
 
-            loop 2 {
+            Loop 2 {
                 if SubStr(A_Clipboard, -1) = SubStr(text, -1) {
                     break
                 }
@@ -469,7 +472,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     seenModifierMap        := Map()
 
     if modifierKeys != "" {
-        loop parse modifierKeys, "+, " . "`t" {
+        Loop Parse modifierKeys, "+, " . "`t" {
             rawToken := A_LoopField
             if rawToken = "" {
                 continue
@@ -522,7 +525,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     MouseClickDrag(StrLower(mouseButton), startX, startY, endX, endY, ComputeMouseMoveSpeed(startCoordinatePair, endCoordinatePair))
     SendMode(originalSendMode)
 
-    loop normalizedModifierList.Length {
+    Loop normalizedModifierList.Length {
         reverseIndex := normalizedModifierList.Length - A_Index + 1
         Send("{" . normalizedModifierList[reverseIndex] . " up}")
     }
@@ -532,7 +535,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     LogConclusion("Completed", logConclusionData)
 }
 
-ValidateConfiguration(configurationPath) {
+ValidateConfiguration(configuration) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -540,34 +543,21 @@ ValidateConfiguration(configurationPath) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("configurationPath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configurationPath], "Validate Configuration")
-
-    global system
-
-    jsongo.silent_error := false
-    try {
-        system["Configuration"] := jsongo.Parse(FileRead(configurationPath))
-    } catch {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to load Configuration File due to invalid JSON.")
-    }
-
-    if Type(system["Configuration"]) != "Map" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration is unexpectedly not a Map.")
-    }
+    static methodName := RegisterMethod("configuration As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configuration], "Validate Configuration")
 
     rootSettings := [["Application Executable Directory Candidates", "Array"], ["Application Whitelist", "Array"], ["Candidate Base Directories", "Array"], ["Settings", "Map"]]
     for setting in rootSettings {
-        if !system["Configuration"].Has(setting[1]) {
+        if !configuration.Has(setting[1]) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root missing " . setting[1] . ".")
         }
 
-        if Type(system["Configuration"][setting[1]]) != setting[2] {
+        if Type(configuration[setting[1]]) != setting[2] {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root for " . setting[1] . " did not return the data type of " . setting[2] . ".")
         }
     }
 
-    for applicationWhitelist in system["Configuration"]["Application Whitelist"] {
+    for applicationWhitelist in configuration["Application Whitelist"] {
         if Type(applicationWhitelist) != "String" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
         }
@@ -577,7 +567,7 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    for applicationExecutableDirectoryCandidate in system["Configuration"]["Application Executable Directory Candidates"] {
+    for applicationExecutableDirectoryCandidate in configuration["Application Executable Directory Candidates"] {
         if Type(applicationExecutableDirectoryCandidate) != "Array" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of Array.")
         }
@@ -599,7 +589,7 @@ ValidateConfiguration(configurationPath) {
         }
     }
 
-    for candidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
+    for candidateBaseDirectory in configuration["Candidate Base Directories"] {
         if Type(candidateBaseDirectory) != "String" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
         }
@@ -607,39 +597,35 @@ ValidateConfiguration(configurationPath) {
 
     subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"], ["Computer Alias", "String", "Single Line"]]
     for setting in subSettings {
-        if !system["Configuration"]["Settings"].Has(setting[1]) {
+        if !configuration["Settings"].Has(setting[1]) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
         }
 
-        if Type(system["Configuration"]["Settings"][setting[1]]) != setting[2] {
+        if Type(configuration["Settings"][setting[1]]) != setting[2] {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " did not return the data type of " . setting[2] . ".")
         }
 
-        if system["Configuration"]["Settings"][setting[1]] != "" {
-            settingValidation := ValidateDataUsingSpecification(system["Configuration"]["Settings"][setting[1]], setting[2], setting[3])
+        if configuration["Settings"][setting[1]] != "" {
+            settingValidation := ValidateDataUsingSpecification(configuration["Settings"][setting[1]], setting[2], setting[3])
             if settingValidation != "" {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " failed validation. " . settingValidation)
             }
         }
     }
 
-    if system["Configuration"]["Settings"]["Application Image Override Directory"] != "" {
-        filesInDirectory := GetFilesFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+    if configuration["Settings"]["Application Image Override Directory"] != "" {
+        filesInDirectory := GetFilesFromDirectory(configuration["Settings"]["Application Image Override Directory"])
         if filesInDirectory.Length != 0 {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Expected no files in directory but found " . filesInDirectory.Length . ".")
         }
 
-        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        applicationFolders := GetFoldersFromDirectory(configuration["Settings"]["Application Image Override Directory"])
         for applicationFolder in applicationFolders {
             SplitPath(RTrim(applicationFolder, "\"), &applicationName)
 
             if !applicationRegistry.Has(applicationName) {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Application " . applicationName . " doesn't exist.")
             }
-        }
-
-        if applicationFolders.Length != 0 {
-            system["Directories"]["Application Image Override Directory"] := system["Configuration"]["Settings"]["Application Image Override Directory"]
         }
     }
 
@@ -677,7 +663,10 @@ ValidateDisplayScaling() {
 ; **************************** ;
 
 AssignNewOverlayKey() {
-    overlayKey := IncrementCounter("Overlay")
+    global overlay
+
+    overlay["Counter"]++
+    overlayKey := overlay["Counter"]
 
     return overlayKey
 }
@@ -715,7 +704,7 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
         inQuotedString               := false
         removeLeadingSpaceAfterComma := false
 
-        loop parse contract {
+        Loop Parse contract {
             currentCharacter := A_LoopField
 
             if currentCharacter = '"' {
@@ -847,45 +836,39 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
     validationLineNumber := " " . "<" . validationLineNumber . ">"
     methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
 
-    if !symbolLedger["Method"].Has(methodWithDeclaration) {
-        logSymbolLedgerMethodLine := RegisterSymbol(methodWithDeclaration, "Method", false)
-        AppendLineToLog(logSymbolLedgerMethodLine, "Symbol Ledger")
-    }
-    
-    symbol := symbolLedger["Method"][methodWithDeclaration]
-    
-    methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
+    symbol := RegisterSymbol(methodWithDeclaration, "Method")
 
     if !methodRegistry.Has(methodName) {
         methodRegistry[methodName] := Map()
     }
 
-    methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
-    methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
-    methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
-    methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
-    methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
-    methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
-    methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
-    methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
-    methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
+    if methodRegistry[methodName].Count < 10 {
+        methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
 
-    if !methodRegistry[methodName].Has("Overlay Log") {
-        methodRegistry[methodName]["Overlay Log"] := false
-    }
+        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
+        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
+        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
+        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
+        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
 
-    methodRegistry[methodName]["Symbol"] := symbol
-    
-    if !methodRegistry[methodName].Has("Settings") {
-        methodRegistry[methodName]["Settings"] := Map()
-    }
+        if !methodRegistry[methodName].Has("Overlay Log") {
+            methodRegistry[methodName]["Overlay Log"] := false
+        }
 
-    for parameterContract in methodRegistry[methodName]["Parameter Contracts"] {
-        if parameterContract["Whitelist"].Length != 0 {
-            for whitelistValue in parameterContract["Whitelist"] {
-                if !symbolLedger["Whitelist"].Has(whitelistValue) {
-                    logSymbolLedgerWhitelistLine := RegisterSymbol(whitelistValue, "Whitelist", false)
-                    AppendLineToLog(logSymbolLedgerWhitelistLine, "Symbol Ledger")
+        methodRegistry[methodName]["Symbol"] := symbol
+        
+        if !methodRegistry[methodName].Has("Settings") {
+            methodRegistry[methodName]["Settings"] := Map()
+        }
+
+        for parameterContract in methodRegistry[methodName]["Parameter Contracts"] {
+            if parameterContract["Whitelist"].Length != 0 {
+                for whitelistValue in parameterContract["Whitelist"] {
+                    RegisterSymbol(whitelistValue, "Whitelist")
                 }
             }
         }
@@ -1090,7 +1073,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " must contain an even number of characters (two characters per byte)."
                         } else {
                             totalCharacterCount := StrLen(dataValue)
-                            loop totalCharacterCount {
+                            Loop totalCharacterCount {
                                 currentCharacter     := SubStr(dataValue, A_Index, 1)
                                 currentCharacterCode := Ord(currentCharacter)
 
@@ -1349,7 +1332,7 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
 
     byteCount    := StrLen(hexString) // 2
     binaryBuffer := Buffer(byteCount)
-    loop byteCount {
+    Loop byteCount {
         characterIndex      := (A_Index - 1) * 2 + 1
         byteHexadecimalPair := SubStr(hexString, characterIndex, 2)
         computedByteValue   := ("0x" . byteHexadecimalPair) + 0
@@ -1870,7 +1853,7 @@ GetActiveDisplayGpu() {
 
     displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, 0)
     displayDeviceIndex  := 0
-    loop {
+    Loop {
         DllCall("Msvcrt\memset", "Ptr", displayDeviceBuffer.Ptr, "Int", 0, "UPtr", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, "Int")
         NumPut("UInt", DISPLAY_DEVICEW_STRUCTURE_SIZE_IN_BYTES, displayDeviceBuffer, 0)
 
@@ -2114,7 +2097,7 @@ GetActiveMonitor() {
     if primaryDisplayDeviceName != "" {
         enumerationIndex := 0
         displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
-        loop {
+        Loop {
             NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
             enumerationCallSucceeded := DllCall("User32\EnumDisplayDevicesW", "WStr", primaryDisplayDeviceName, "UInt", enumerationIndex, "Ptr", displayDeviceBuffer, "UInt", 0, "Int")
             if enumerationCallSucceeded = 0 {
@@ -2215,7 +2198,7 @@ GetActiveMonitor() {
         for registryClass in ["DISPLAY", "MONITOR"] {
             registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
-                loop reg, registryBasePath, "K" {
+                Loop Reg, registryBasePath, "K" {
                     instanceKeyName       := A_LoopRegName
                     parametersPath        := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
                     friendlyNameCandidate := ""
@@ -2235,7 +2218,7 @@ GetActiveMonitor() {
         for registryClass in ["DISPLAY", "MONITOR"] {
             registryBasePath := "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Enum\" . registryClass . "\" . vendorCode . productCode
             try {
-                loop reg, registryBasePath, "K" {
+                Loop Reg, registryBasePath, "K" {
                     instanceKeyName := A_LoopRegName
                     parametersPath  := registryBasePath . "\" . instanceKeyName . "\Device Parameters"
                     edidBuffer      := ""
@@ -2245,14 +2228,14 @@ GetActiveMonitor() {
                     if IsObject(edidBuffer) && edidBuffer.Size >= 128 {
                         descriptorStart  := 54
                         descriptorLength := 18
-                        loop 4 {
+                        Loop 4 {
                             descriptorOffset := descriptorStart + (A_Index - 1) * descriptorLength
                             byte0 := NumGet(edidBuffer, descriptorOffset + 0, "UChar")
                             byte1 := NumGet(edidBuffer, descriptorOffset + 1, "UChar")
                             tag   := NumGet(edidBuffer, descriptorOffset + 3, "UChar")
                             if byte0 = 0x00 && byte1 = 0x00 && tag = 0xFC {
                                 modelFromEdid := ""
-                                loop 13 {
+                                Loop 13 {
                                     edidNameAsciiByte := NumGet(edidBuffer, descriptorOffset + 5 + (A_Index - 1), "UChar")
                                     if edidNameAsciiByte = 0x00 || edidNameAsciiByte = 0x0A {
                                         break
@@ -2818,7 +2801,7 @@ GetInternationalSnapshot() {
     internationalRegistryKeyPath := "HKEY_CURRENT_USER\Control Panel\International"
     internationalSnapshot        := Map()
 
-    loop reg, internationalRegistryKeyPath, "V" {
+    Loop Reg, internationalRegistryKeyPath, "V" {
         try {
             if A_LoopRegType = "REG_SZ" {
                 registryValue := RegRead(internationalRegistryKeyPath, A_LoopRegName)
@@ -2839,7 +2822,7 @@ GetInternationalSnapshot() {
 
     internationalSnapshot["LocaleName"] := StrGet(userDefaultLocaleNameBuffer, "UTF-16")
 
-    loop reg, internationalRegistryKeyPath, "K" {
+    Loop Reg, internationalRegistryKeyPath, "K" {
         subkey := A_LoopRegName
 
         if subkey = "User Profile System Backup" {
@@ -2848,7 +2831,7 @@ GetInternationalSnapshot() {
 
         internationalSnapshot[subkey] := Map()
 
-        loop reg, internationalRegistryKeyPath . "\" . subkey, "V" {
+        Loop Reg, internationalRegistryKeyPath . "\" . subkey, "V" {
             if A_LoopRegType = "REG_DWORD" || A_LoopRegType = "REG_MULTI_SZ" || A_LoopRegType = "REG_SZ" {
                 try {
                     registryValue := RegRead(internationalRegistryKeyPath . "\" . subkey, A_LoopRegName)
@@ -3577,12 +3560,12 @@ GetWindowsInstallationDateUtcTimestamp() {
     oldestSeconds      := unset
     installDateSeconds := unset
 
-    loop reg, registryKeySystemSetup, "K" {
+    Loop Reg, registryKeySystemSetup, "K" {
         if !RegExMatch(A_LoopRegName, "^Source OS")
             continue
 
         try {
-            candidate := RegRead(registryKeySystemSetup "\" A_LoopRegName, "InstallDate")
+            candidate := RegRead(registryKeySystemSetup . "\" . A_LoopRegName, "InstallDate")
         } catch {
             continue
         }
@@ -3662,28 +3645,28 @@ GetDriveSpaceSnapshot(driveLetter) {
     bytesPerTB  := 1000000000000
     bytesPerTiB := 1 << 40
 
-    freeGB  := freeBytesAvailableToCaller / bytesPerGB
-    freeGiB := freeBytesAvailableToCaller / bytesPerGiB
-    freeTB  := freeBytesAvailableToCaller / bytesPerTB
-    freeTiB := freeBytesAvailableToCaller / bytesPerTiB
+    freeGB  := Round(freeBytesAvailableToCaller / bytesPerGB, 4)
+    freeGiB := Round(freeBytesAvailableToCaller / bytesPerGiB, 4)
+    freeTB  := Round(freeBytesAvailableToCaller / bytesPerTB, 4)
+    freeTiB := Round(freeBytesAvailableToCaller / bytesPerTiB, 4)
 
-    totalGB  := totalNumberOfBytes / bytesPerGB
-    totalGiB := totalNumberOfBytes / bytesPerGiB
-    totalTB  := totalNumberOfBytes / bytesPerTB
-    totalTiB := totalNumberOfBytes / bytesPerTiB
+    totalGB  := Round(totalNumberOfBytes / bytesPerGB, 4)
+    totalGiB := Round(totalNumberOfBytes / bytesPerGiB, 4)
+    totalTB  := Round(totalNumberOfBytes / bytesPerTB, 4)
+    totalTiB := Round(totalNumberOfBytes / bytesPerTiB, 4)
 
-    usedBytes   := totalNumberOfBytes - totalNumberOfFreeBytes
-    usedGB      := usedBytes / bytesPerGB
-    usedGiB     := usedBytes / bytesPerGiB
-    usedTB      := usedBytes / bytesPerTB
-    usedTiB     := usedBytes / bytesPerTiB
+    usedBytes   := Round(totalNumberOfBytes - totalNumberOfFreeBytes, 4)
+    usedGB      := Round(usedBytes / bytesPerGB, 4)
+    usedGiB     := Round(usedBytes / bytesPerGiB, 4)
+    usedTB      := Round(usedBytes / bytesPerTB, 4)
+    usedTiB     := Round(usedBytes / bytesPerTiB, 4)
 
     usedPercent := (totalNumberOfBytes > 0) ? Round((usedBytes / totalNumberOfBytes) * 100, 2) : 0.0
     freePercent := Round(100 - usedPercent, 2)
 
     static formattedFreeSizeBuffer := Buffer(128, 0)
-    freeSizeFormattedSuccessfully  := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", freeBytesAvailableToCaller, "Ptr", formattedFreeSizeBuffer.Ptr, "Int", 64, "Ptr")
 
+    freeSizeFormattedSuccessfully := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", freeBytesAvailableToCaller, "Ptr", formattedFreeSizeBuffer.Ptr, "Int", 64, "Ptr")
     if !freeSizeFormattedSuccessfully {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to format the amount of free space available on disk volume. [Shlwapi\StrFormatByteSizeW" . ", System Error Code: " . A_LastError . "]")
     }
@@ -3691,8 +3674,8 @@ GetDriveSpaceSnapshot(driveLetter) {
     windowsFreeSizeFormatted := StrGet(formattedFreeSizeBuffer, "UTF-16")
 
     static formattedTotalSizeBuffer := Buffer(128, 0)
-    totalSizeFormattedSuccessfully  := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", totalNumberOfBytes, "Ptr", formattedTotalSizeBuffer.Ptr, "Int", 64, "Ptr")
 
+    totalSizeFormattedSuccessfully := DllCall("Shlwapi\StrFormatByteSizeW", "Int64", totalNumberOfBytes, "Ptr", formattedTotalSizeBuffer.Ptr, "Int", 64, "Ptr")
     if !totalSizeFormattedSuccessfully {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to format the amount of total space available on disk volume. [Shlwapi\StrFormatByteSizeW" . ", System Error Code: " . A_LastError . "]")
     }
@@ -3702,16 +3685,16 @@ GetDriveSpaceSnapshot(driveLetter) {
     driveSpaceSnapshot := Map(
         "Drive",              driveLetter,
         "Free Bytes",         freeBytesAvailableToCaller,
-        "Free GB",            Round(freeGB, 4),
-        "Free GiB",           Round(freeGiB, 4),
-        "Free TB",            Round(freeTB, 4),
-        "Free TiB",           Round(freeTiB, 4),
+        "Free GB",            freeGB,
+        "Free GiB",           freeGiB,
+        "Free TB",            freeTB,
+        "Free TiB",           freeTiB,
         "Free Percent",       freePercent,
         "Total Bytes",        totalNumberOfBytes,
-        "Total GB",           Round(totalGB, 4),
-        "Total GiB",          Round(totalGiB, 4),
-        "Total TB",           Round(totalTB, 4),
-        "Total TiB",          Round(totalTiB, 4),
+        "Total GB",           totalGB,
+        "Total GiB",          totalGiB,
+        "Total TB",           totalTB,
+        "Total TiB",          totalTiB,
         "Used Bytes",         usedBytes,
         "Used GB",            usedGB,
         "Used GiB",           usedGiB,

@@ -269,7 +269,7 @@ WaitUntilFileIsModifiedToday(filePath) {
     maxLoops    := (maxWaitMinutes * 60000) // checkInterval
     timeSinceLastMouse := 0
 
-    loop maxLoops {
+    Loop maxLoops {
         if FileExist(filePath) {
             fileModifiedDate := FileGetTime(filePath, "M")
             fileModifiedDate := FormatTime(fileModifiedDate, "yyyy-MM-dd")
@@ -295,54 +295,37 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Core Methods                 ;
 ; **************************** ;
 
-ConvertFileTimeToUtcTimestampInteger(fileTimeTicks) {
-    static fileTimeBuffer   := Buffer(8, 0)
-    static systemTimeBuffer := Buffer(16, 0)
-    
-    NumPut("UInt64", fileTimeTicks, fileTimeBuffer, 0)
-    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-    
-    year   := NumGet(systemTimeBuffer,  0, "UShort")
-    month  := NumGet(systemTimeBuffer,  2, "UShort")
-    day    := NumGet(systemTimeBuffer,  6, "UShort")
-    hour   := NumGet(systemTimeBuffer,  8, "UShort")
-    minute := NumGet(systemTimeBuffer, 10, "UShort")
-    second := NumGet(systemTimeBuffer, 12, "UShort")
-    
-    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
-    millisecond      := ticksWithinSecond // 10000
-    
-    utcTimestampInteger := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
-    
-    return utcTimestampInteger
-}
-
-ConvertFileTimeToUtcTimestampPrecise(fileTimeTicks) {
+LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTick, utcTimestampInteger) {
     static fileTimeBuffer   := Buffer(8, 0)
     static systemTimeBuffer := Buffer(16, 0)
 
-    NumPut("UInt64", fileTimeTicks, fileTimeBuffer, 0)
+    NumPut("UInt64", timestamp, fileTimeBuffer, 0)
     DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
 
-    year   := NumGet(systemTimeBuffer,  0, "UShort")
-    month  := NumGet(systemTimeBuffer,  2, "UShort")
-    day    := NumGet(systemTimeBuffer,  6, "UShort")
-    hour   := NumGet(systemTimeBuffer,  8, "UShort")
-    minute := NumGet(systemTimeBuffer, 10, "UShort")
-    second := NumGet(systemTimeBuffer, 12, "UShort")
+    year        := NumGet(systemTimeBuffer,  0, "UShort")
+    month       := NumGet(systemTimeBuffer,  2, "UShort")
+    day         := NumGet(systemTimeBuffer,  6, "UShort")
+    hour        := NumGet(systemTimeBuffer,  8, "UShort")
+    minute      := NumGet(systemTimeBuffer, 10, "UShort")
+    second      := NumGet(systemTimeBuffer, 12, "UShort")
+    millisecond := NumGet(systemTimeBuffer, 14, "UShort")
 
-    ticksWithinSecond := Mod(fileTimeTicks, 10000000)
-    microsecond       := ticksWithinSecond // 10
+    qpcMeasurementDelta      := qpcPost - qpcPre
+    qpcMidpointTickDelta     := (qpcPre + (qpcMeasurementDelta // 2)) - qpcMidpointTick
+    utcTimestampIntegerDelta := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - utcTimestampInteger
 
-    utcTimestampPrecise := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, day, hour, minute, second, microsecond)
+    logDeltaTimestamp := [qpcMidpointTickDelta, utcTimestampIntegerDelta]
 
-    return utcTimestampPrecise
+    return logDeltaTimestamp
 }
 
 TelemetryTimestamp(durationInMilliseconds) {
     result := Map(
         "Duration in Milliseconds", durationInMilliseconds
     )
+
+    static kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
+    static preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
 
     timeReadings   := []
     pairedReadings := []
@@ -354,14 +337,23 @@ TelemetryTimestamp(durationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
-    fileTimeBuffer                := Buffer(8, 0)
-    queryPerformanceCounterBuffer := Buffer(8, 0)
+    fileTimeBuffer   := Buffer(8, 0)
+    systemTimeBuffer := Buffer(16, 0)
+    qpcBuffer        := Buffer(8, 0)
 
     startTime := A_TickCount
-    while A_TickCount - startTime < durationInMilliseconds {
-        DllCall("Kernel32\QueryPerformanceCounter", "Ptr", queryPerformanceCounterBuffer.Ptr, "Int")
-        DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-        timeReadings.Push([NumGet(queryPerformanceCounterBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
+    if preciseFunctionAddress {
+        while A_TickCount - startTime < durationInMilliseconds {
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBuffer.Ptr, "Int")
+            DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+            timeReadings.Push([NumGet(qpcBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
+        }
+    } else {
+        while A_TickCount - startTime < durationInMilliseconds {
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBuffer.Ptr, "Int")
+            DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimeBuffer.Ptr)
+            timeReadings.Push([NumGet(qpcBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
+        }
     }
 
     if originalAutoHotkeyThreadPriority = 0 {
@@ -395,20 +387,31 @@ TelemetryTimestamp(durationInMilliseconds) {
         }
     }
     
+    NumPut("UInt64", pairedReadings[bestIndex][2], fileTimeBuffer, 0)
+    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+    year        := NumGet(systemTimeBuffer,  0, "UShort")
+    month       := NumGet(systemTimeBuffer,  2, "UShort")
+    day         := NumGet(systemTimeBuffer,  6, "UShort")
+    hour        := NumGet(systemTimeBuffer,  8, "UShort")
+    minute      := NumGet(systemTimeBuffer, 10, "UShort")
+    second      := NumGet(systemTimeBuffer, 12, "UShort")
+    millisecond := NumGet(systemTimeBuffer, 14, "UShort")
+
     result["QPC Before Tick"]       := pairedReadings[bestIndex][1]
-    result["UTC Timestamp Precise"] := ConvertFileTimeToUtcTimestampPrecise(pairedReadings[bestIndex][2])
     result["QPC After Tick"]        := pairedReadings[bestIndex][3]
     result["QPC Delta Tick"]        := pairedReadings[bestIndex][4]
     result["QPC Midpoint Tick"]     := result["QPC Before Tick"] + (result["QPC Delta Tick"] // 2)
+    result["UTC Timestamp Integer"] := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+    if preciseFunctionAddress {
+        fileTimeTicks     := NumGet(fileTimeBuffer, 0, "Int64")
+        ticksWithinSecond := Mod(fileTimeTicks, 10000000)
+        microsecond       := ticksWithinSecond // 10
 
-    utcTimestampIntegerConversion := StrReplace(result["UTC Timestamp Precise"], "-")
-    utcTimestampIntegerConversion := StrReplace(utcTimestampIntegerConversion, " ")
-    utcTimestampIntegerConversion := StrReplace(utcTimestampIntegerConversion, ":")
-    utcTimestampIntegerConversion := StrReplace(utcTimestampIntegerConversion, ".")
-    if StrLen(utcTimestampIntegerConversion) >= 18 {
-        utcTimestampIntegerConversion := SubStr(utcTimestampIntegerConversion, 1, 17)
+        result["UTC Timestamp Precise"] := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, day, hour, minute, second, microsecond)
+    } else {       
+        result["UTC Timestamp Precise"] := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
     }
-    result["UTC Timestamp Integer"] := utcTimestampIntegerConversion + 0
 
     return result
 }
