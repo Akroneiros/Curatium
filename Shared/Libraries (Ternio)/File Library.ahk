@@ -45,53 +45,6 @@ CleanOfficeLocksInFolder(directoryPath) {
     }
 }
 
-ConvertCsvToArrayOfMaps(filePath, delimiter := "|") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("filePath As String [Constraint: Path], delimiter As String [Optional: |]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, delimiter], "Convert CSV to Array of Maps (" . ExtractFilename(filePath) . ")")
-
-    fileHash := GetFileHash(filePath, "SHA-256")
-    fileText := ReadFileOnHashMatch(filePath, fileHash)
-
-    fileText := StrReplace(StrReplace(fileText, "`r`n", "`n"), "`r", "`n")
-    allLines := StrSplit(fileText, "`n")
-
-    if allLines[1] = "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Header line is empty.")
-    }
-
-    headerNames := StrSplit(allLines[1], delimiter)
-
-    rowsAsMaps := []
-    Loop allLines.Length - 1 {
-        currentLine := allLines[1 + A_Index]
-
-        if RegExMatch(currentLine, "^[ \t]*$") {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Found an empty line on line #" . (A_Index + 1) . ".")
-        }
-
-        fieldValues := StrSplit(currentLine, delimiter)
-        rowMap := Map()
-
-        Loop headerNames.Length {
-            headerName := headerNames[A_Index]
-            valueText := (A_Index <= fieldValues.Length) ? fieldValues[A_Index] : ""
-            rowMap[headerName] := valueText
-        }
-
-        rowsAsMaps.Push(rowMap)
-    }
-    
-    LogConclusion("Completed", logConclusionData)
-    return rowsAsMaps
-}
-
 CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "") {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
@@ -235,8 +188,10 @@ ReadFileOnHashMatch(filePath, expectedHash) {
 
     fileHash := GetFileHash(filePath, "SHA-256")
     if fileHash != expectedHash {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Hash mismatch in " . filePath . ". Expected: " . expectedHash . ". Results: " . fileHash)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected hash does not match file hash. Got " . fileHash . ".")
     }
+
+    fileContents := ReadFile(filePath)
 
     fileBuffer := FileRead(filePath, "RAW")
     totalSize  := fileBuffer.Size
@@ -246,39 +201,8 @@ ReadFileOnHashMatch(filePath, expectedHash) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "File is empty: " . filePath)
     }
 
-    byte1 := NumGet(fileBuffer.Ptr, 0, "UChar")
-    byte2 := totalSize > 1 ? NumGet(fileBuffer.Ptr, 1, "UChar") : 0
-    byte3 := totalSize > 2 ? NumGet(fileBuffer.Ptr, 2, "UChar") : 0
-    byte4 := totalSize > 3 ? NumGet(fileBuffer.Ptr, 3, "UChar") : 0
-
-    if totalSize >= 3 && byte1=0xEF && byte2=0xBB && byte3=0xBF {
-        fileText := StrGet(fileBuffer.Ptr + 3, totalSize - 3, "UTF-8")
-    } else if totalSize >= 2 && byte1=0xFF && byte2=0xFE {
-        fileText := StrGet(fileBuffer.Ptr + 2, (totalSize - 2) // 2, "UTF-16")
-    } else if totalSize >= 2 && byte1=0xFE && byte2=0xFF {
-        beSize    := totalSize - 2
-        swapped   := Buffer(beSize)
-        sourcePtr := fileBuffer.Ptr + 2
-
-        Loop beSize // 2 {
-            offset := (A_Index - 1) * 2
-            NumPut("UChar", NumGet(sourcePtr + offset, 1, "UChar"), swapped.Ptr + offset, 0)
-            NumPut("UChar", NumGet(sourcePtr + offset, 0, "UChar"), swapped.Ptr + offset, 1)
-        }
-
-        fileText := StrGet(swapped.Ptr, beSize // 2, "UTF-16")
-    } else if (totalSize >= 4 && ((byte1=0x00 && byte2=0x00 && byte3=0xFE && byte4=0xFF) || (byte1=0xFF && byte2=0xFE && byte3=0x00 && byte4=0x00))) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "UTF-32 encoded text for file " . filePath . " is not supported.")
-    } else {
-        fileText := StrGet(fileBuffer.Ptr, totalSize, "UTF-8")
-    }
-
-    if SubStr(fileText, 1, 1) = Chr(0xFEFF) {
-        fileText := SubStr(fileText, 2)
-    }
-
     LogConclusion("Completed", logConclusionData)
-    return fileText
+    return fileContents
 }
 
 WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
@@ -555,7 +479,13 @@ FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
     static methodName := RegisterMethod("filename As String [Constraint: Filename], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filename, directoryPath, fileExtension])
 
-    filesInDirectory := GetFilesFromDirectory(directoryPath)
+    filesInDirectory := []
+    pattern := RTrim(directoryPath, "\/") . "\*"
+
+    Loop Files, pattern, "F" {
+        filesInDirectory.Push(A_LoopFileFullPath)
+    }
+
     if filesInDirectory.Length = 0 {
         return ""
     }
@@ -725,4 +655,103 @@ GetTextFileLineCount(filePath) {
     }
 
     return totalLineCount
+}
+
+ParseDelimitedRowsToArrayOfMaps(content, delimiter := "|") {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("content As String, delimiter As String [Optional: |]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [content, delimiter])
+
+    if content = "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "File is empty.")
+    }
+
+    allLines := StrSplit(content, "`n", "`r")
+
+    if allLines[1] = "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Header line is empty.")
+    }
+
+    if allLines.Length = 1 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "No data found after header line.")
+    }
+
+    headerNames := StrSplit(allLines[1], delimiter)
+
+    arrayOfMaps := []
+    Loop allLines.Length - 1 {
+        currentLine := allLines[1 + A_Index]
+
+        if RegExMatch(currentLine, "^[ \t]*$") {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Found an empty line on line #" . (A_Index + 1) . ".")
+        }
+
+        fieldValues := StrSplit(currentLine, delimiter)
+        rowMap := Map()
+
+        Loop headerNames.Length {
+            headerName := headerNames[A_Index]
+            valueText := (A_Index <= fieldValues.Length) ? fieldValues[A_Index] : ""
+            rowMap[headerName] := valueText
+        }
+
+        arrayOfMaps.Push(rowMap)
+    }
+    
+    return arrayOfMaps
+}
+
+ReadFile(filePath) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
+
+    fileBuffer      := FileRead(filePath, "RAW")
+    fileSizeInBytes := fileBuffer.Size
+    fileContents    := ""
+    
+    firstByte  := NumGet(fileBuffer.Ptr, 0, "UChar")
+    secondByte := fileSizeInBytes > 1 ? NumGet(fileBuffer.Ptr, 1, "UChar") : 0
+    thirdByte  := fileSizeInBytes > 2 ? NumGet(fileBuffer.Ptr, 2, "UChar") : 0
+    fourthByte := fileSizeInBytes > 3 ? NumGet(fileBuffer.Ptr, 3, "UChar") : 0
+
+    if fileSizeInBytes >= 3 && firstByte=0xEF && secondByte=0xBB && thirdByte=0xBF {
+        fileContents := StrGet(fileBuffer.Ptr + 3, fileSizeInBytes - 3, "UTF-8")
+    } else if fileSizeInBytes >= 2 && firstByte=0xFF && secondByte=0xFE {
+        fileContents := StrGet(fileBuffer.Ptr + 2, (fileSizeInBytes - 2) // 2, "UTF-16")
+    } else if fileSizeInBytes >= 2 && firstByte=0xFE && secondByte=0xFF {
+        bigEndianSizeInBytes := fileSizeInBytes - 2
+        byteSwappedBuffer    := Buffer(bigEndianSizeInBytes)
+        sourcePointer        := fileBuffer.Ptr + 2
+
+        Loop bigEndianSizeInBytes // 2 {
+            byteOffset := (A_Index - 1) * 2
+            NumPut("UChar", NumGet(sourcePointer + byteOffset, 1, "UChar"), byteSwappedBuffer.Ptr + byteOffset, 0)
+            NumPut("UChar", NumGet(sourcePointer + byteOffset, 0, "UChar"), byteSwappedBuffer.Ptr + byteOffset, 1)
+        }
+
+        fileContents := StrGet(byteSwappedBuffer.Ptr, bigEndianSizeInBytes // 2, "UTF-16")
+    } else if (fileSizeInBytes >= 4 && ((firstByte=0x00 && secondByte=0x00 && thirdByte=0xFE && fourthByte=0xFF) || (firstByte=0xFF && secondByte=0xFE && thirdByte=0x00 && fourthByte=0x00))) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "UTF-32 encoded text for file is not supported.")
+    } else {
+        fileContents := StrGet(fileBuffer.Ptr, fileSizeInBytes, "UTF-8")
+    }
+
+    if SubStr(fileContents, 1, 1) = Chr(0xFEFF) {
+        fileContents := SubStr(fileContents, 2)
+    }
+
+    return fileContents
 }

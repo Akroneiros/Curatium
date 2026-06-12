@@ -1169,7 +1169,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
                     case "SHA-256":
                         if StrLen(dataValue) != 64 {
-                            validation := dataConstraint . " expected length is 64 but instead got length of: " . StrLen(dataValue) "."
+                            validation := dataConstraint . " expected length is 64 but got " . StrLen(dataValue) "."
                         } else if !RegExMatch(dataValue, "^[0-9a-fA-F]+$") {
                             validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
@@ -1290,7 +1290,7 @@ ComputeMouseMoveSpeed(startCoordinatePair, endCoordinatePair) {
     return computedMouseMoveSpeed
 }
 
-ConvertArrayIntoCsvString(array) {
+ConvertArrayToLineSeparatedString(array) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -1298,21 +1298,21 @@ ConvertArrayIntoCsvString(array) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("array As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [array])
 
     static newLine := "`r`n"
 
-    result := ""
+    lineSeparatedString := ""
     for index, value in array {
         if index > 1 {
-            result .= newLine
+            lineSeparatedString .= newLine
         }
 
-        result .= value
+        lineSeparatedString .= value
     }
 
-    return result
+    return lineSeparatedString
 }
 
 ConvertHexStringToBase64(hexString, removePadding := true) {
@@ -1351,7 +1351,7 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to encode. [Crypt32\CryptBinaryToStringW" . ", System Error Code: " . A_LastError . "]")
     }
 
-    base64 := StrGet(outputUtf16Buffer.Ptr, requiredCharacterCount - 1, "UTF-16")
+    base64 := StrGet(outputUtf16Buffer.Ptr, , "UTF-16")
     if removePadding {
         base64 := RegExReplace(base64, "=+$")
     }   
@@ -2075,15 +2075,19 @@ GetActiveMonitor() {
     monitorNameResult        := "Unknown Monitor"
     primaryDisplayDeviceName := ""
 
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry   := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryHash      := GetFileHash(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv", "SHA-256")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryContent   := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv", unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryHash)
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryArray     := ParseDelimitedRowsToArrayOfMaps(unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryContent)
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryHash    := GetFileHash(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv", "SHA-256")
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv", unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryHash)
+    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryArray   := ParseDelimitedRowsToArrayOfMaps(unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryContent)
 
     plugAndPlayManufacturers := Map()
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistry {
+    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryArray {
         plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
     }
 
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistry {
+    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryArray {
         plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
     }
 
@@ -3022,10 +3026,12 @@ GetMemorySizeAndType() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
 
-    systemManagementBiosType17MemoryDeviceTypes := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv")
+    systemManagementBiosType17MemoryDeviceTypesHash    := GetFileHash(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv", "SHA-256")
+    systemManagementBiosType17MemoryDeviceTypesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv", systemManagementBiosType17MemoryDeviceTypesHash)
+    systemManagementBiosType17MemoryDeviceTypesArray   := ParseDelimitedRowsToArrayOfMaps(systemManagementBiosType17MemoryDeviceTypesContent)
 
     ramValues := Map()
-    for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypes {
+    for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypesArray {
         ramValues[systemManagementBiosType17MemoryDeviceType["Value"] + 0] := systemManagementBiosType17MemoryDeviceType["Meaning"]
     }
 
@@ -3338,41 +3344,48 @@ GetOperatingSystem() {
         currentBuildNumber := RegRead(currentVersionRegistryKey, "CurrentBuildNumber") + 0
         version := currentBuildNumber
     }
-        
-    switch true {
-        case currentBuildNumber >= 22000:
-            family := "Windows 11"
-        case currentBuildNumber >= 10240:
-            family := "Windows 10"
-        case currentBuildNumber >= 9600:
-            family := "Windows 8.1"
-        case currentBuildNumber >= 9200:
-            family := "Windows 8"
-        case currentBuildNumber = 0:
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Unable to retrieve Build Number from the registry.")
+
+    if currentBuildNumber = 0 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Unable to retrieve Build Number from the registry.")
+    }
+
+    switch {
+        case currentBuildNumber >= 22000: family := "Windows 11"
+        case currentBuildNumber >= 10240: family := "Windows 10"
+        case currentBuildNumber >= 9600:  family := "Windows 8.1"
+        case currentBuildNumber >= 9200:  family := "Windows 8"
+        case currentBuildNumber >= 7600:  family := "Windows 7"
     }
    
-    try {
-        edition := RegRead(currentVersionRegistryKey, "EditionID")
-    }
-
-    try {
-        updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
-
-        if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
-            version := version . "." . updateBuildRevisionNumber
-        }
-    }
-
-    try {
-        displayVersion := RegRead(currentVersionRegistryKey, "DisplayVersion")
-    }
-
-    if displayVersion = "" {
+    if family = "Windows 7" {
+        servicePackVersion := ""
         try {
-            displayVersion := RegRead(currentVersionRegistryKey, "ReleaseId")
+            servicePackVersion := RegRead(currentVersionRegistryKey, "CSDVersion")
+        }
+
+        displayVersion := servicePackVersion
+    } else {
+        try {
+            displayVersion := RegRead(currentVersionRegistryKey, "DisplayVersion")
+        }
+        if displayVersion = "" {
+            try {
+                displayVersion := RegRead(currentVersionRegistryKey, "ReleaseId")
+            }
         }
     }
+
+        try {
+            edition := RegRead(currentVersionRegistryKey, "EditionID")
+        }
+
+        try {
+            updateBuildRevisionNumber := RegRead(currentVersionRegistryKey, "UBR")
+
+            if updateBuildRevisionNumber != "" && currentBuildNumber >= 9200 {
+                version := version . "." . updateBuildRevisionNumber
+            }
+        }
 
     installationDate := GetWindowsInstallationDateUtcTimestamp()
 

@@ -716,120 +716,87 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
     static methodName := RegisterMethod("inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [inputValue, dateOrder])
 
-    isoDate   := ""
-    lastMatch := unset
+    isoDate         := ""
+    lastMatch       := unset
+
+    currentPosition := 1
+    pattern         := unset
 
     switch dateOrder {
         case "Day-Month-Year":
-            currentPosition := 1
-            pattern         := "(?<!\d)(0[1-9]|[12]\d|3[01])([-./ ])(0[1-9]|1[0-2])\2((?:19|20)\d{2})"
-            while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                lastMatch := Map()
-                for index, value in matchObject {
-                    lastMatch[index] := value
-                }
-                currentPosition += StrLen(matchObject[0])
-            }
-            if IsSet(lastMatch) {
-                isoDate := lastMatch[4] . "-" . lastMatch[3] . "-" . lastMatch[1]
-            } else {
-                lastMatch       := unset
-                currentPosition := 1
-                pattern         := "(?<!\d)(0[1-9]|[12]\d|3[01])(0[1-9]|1[0-2])((?:19|20)\d{2})"
-                while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                    lastMatch := Map()
-                    for index, value in matchObject {
-                        lastMatch[index] := value
-                    }
-                    currentPosition += StrLen(matchObject[0])
-                }
-                if IsSet(lastMatch) {
-                    isoDate := lastMatch[3] . "-" . lastMatch[2] . "-" . lastMatch[1]
-                }
-            }
+            pattern := "(?<!\d)(0[1-9]|[12]\d|3[01])([-./ ])(0[1-9]|1[0-2])\2((?:19|20)\d{2})"
         case "Month-Day-Year":
-            currentPosition := 1
-            pattern         := "(?<!\d)(0[1-9]|1[0-2])([-./ ])(0[1-9]|[12]\d|3[01])\2((?:19|20)\d{2})"
-            while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                lastMatch := Map()
-                for index, value in matchObject {
-                    lastMatch[index] := value
-                }
-                currentPosition += StrLen(matchObject[0])
-            }
-            if IsSet(lastMatch) {
-                isoDate := lastMatch[4] . "-" . lastMatch[1] . "-" . lastMatch[3]
-            } else {
-                lastMatch       := unset
-                currentPosition := 1
-                pattern         := "(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])((?:19|20)\d{2})"
-                while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                    lastMatch := Map()
-                    for index, value in matchObject {
-                        lastMatch[index] := value
-                    }
-                    currentPosition += StrLen(matchObject[0])
-                }
-                if IsSet(lastMatch) {
-                    isoDate := lastMatch[3] . "-" . lastMatch[1] . "-" . lastMatch[2]
-                }
-            }
+            pattern := "(?<!\d)(0[1-9]|1[0-2])([-./ ])(0[1-9]|[12]\d|3[01])\2((?:19|20)\d{2})"
         case "Year-Month-Day":
-            currentPosition := 1
-            pattern         := "(?<!\d)((?:19|20)\d{2})([-./ ])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])"
-            while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                lastMatch := Map()
-                for index, value in matchObject {
-                    lastMatch[index] := value
-                }
-                currentPosition += StrLen(matchObject[0])
-            }
-            if IsSet(lastMatch) {
+            pattern := "(?<!\d)((?:19|20)\d{2})([-./ ])(0[1-9]|1[0-2])\2(0[1-9]|[12]\d|3[01])"
+    }
+
+    while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
+        lastMatch := Map()
+        for index, value in matchObject {
+            lastMatch[index] := value
+        }
+        currentPosition += StrLen(matchObject[0])
+    }
+
+    if IsSet(lastMatch) {
+        switch dateOrder {
+            case "Day-Month-Year":
+                isoDate := lastMatch[4] . "-" . lastMatch[3] . "-" . lastMatch[1]
+            case "Month-Day-Year":
+                isoDate := lastMatch[4] . "-" . lastMatch[1] . "-" . lastMatch[3]
+            case "Year-Month-Day":
                 isoDate := lastMatch[1] . "-" . lastMatch[3] . "-" . lastMatch[4]
-            } else {
-                lastMatch       := unset
-                currentPosition := 1
-                pattern         := "(?<!\d)((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])"
-                while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
-                    lastMatch := Map()
-                    for index, value in matchObject {
-                        lastMatch[index] := value
-                    }
-                    currentPosition += StrLen(matchObject[0])
-                }
-                if IsSet(lastMatch) {
-                    isoDate := lastMatch[1] . "-" . lastMatch[2] . "-" . lastMatch[3]
-                }
-            }
-    }
-
-    if isoDate = "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "No date found in input: " inputValue)
+        }
     } else {
-        dateParts := StrSplit(isoDate, "-")
-        year      := dateParts[1] + 0
-        month     := dateParts[2] + 0
-        day       := dateParts[3] + 0
-
-        validation := ""
-        if validation = "" {
-            validation := ValidateDataUsingSpecification(year, "Integer", "Year")
+        switch dateOrder {
+            case "Day-Month-Year":
+                pattern := "(?<!\d)(0[1-9]|[12]\d|3[01])(0[1-9]|1[0-2])((?:19|20)\d{2})"
+            case "Month-Day-Year":
+                pattern := "(?<!\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])((?:19|20)\d{2})"
+            case "Year-Month-Day":
+                pattern := "(?<!\d)((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])"
         }
 
-        if validation = "" {
-            validation := ValidateDataUsingSpecification(month, "Integer", "Month")
+        currentPosition := 1
+        while currentPosition := RegExMatch(inputValue, pattern, &matchObject, currentPosition) {
+            lastMatch := Map()
+            for index, value in matchObject {
+                lastMatch[index] := value
+            }
+            currentPosition += StrLen(matchObject[0])
         }
 
-        if validation = "" {
-            validation := ValidateDataUsingSpecification(day, "Integer", "Day")
+        if IsSet(lastMatch) {
+            switch dateOrder {
+                case "Day-Month-Year":
+                    isoDate := lastMatch[3] . "-" . lastMatch[2] . "-" . lastMatch[1]
+                case "Month-Day-Year":
+                    isoDate := lastMatch[3] . "-" . lastMatch[1] . "-" . lastMatch[2]
+                case "Year-Month-Day":
+                    isoDate := lastMatch[1] . "-" . lastMatch[2] . "-" . lastMatch[3]
+            }
         }
-
-        if validation != "" {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, validation)
-        }
-
-        return isoDate
     }
+
+    extractionResults := Map(
+        "Input Value", inputValue,
+        "Date Order",  dateOrder,
+        "Success",     false
+    )
+    
+    if isoDate != "" {
+        extractionResults["Extracted Date"] := isoDate
+
+        validation := ValidateDataUsingSpecification(isoDate, "String", "ISO Date")
+        if validation != "" {
+            extractionResults["Validation"] := validation
+        } else {
+            extractionResults["Success"] := true
+        }
+    }
+
+    return extractionResults
 }
 
 GetDirectoryTimeAsUtc(directoryPath, timeType) {

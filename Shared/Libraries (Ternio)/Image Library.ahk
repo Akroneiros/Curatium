@@ -44,9 +44,11 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
     counter := 1
     if FileExist(imageLibraryDataReferenceFilePath) {
-        imageLibraryDataReferenceFile := ConvertCsvToArrayOfMaps(imageLibraryDataReferenceFilePath)
+        imageLibraryDataReferenceHash    := GetFileHash(imageLibraryDataReferenceFilePath, "SHA-256")
+        imageLibraryDataReferenceContent := ReadFileOnHashMatch(imageLibraryDataReferenceFilePath, imageLibraryDataReferenceHash)
+        imageLibraryDataReferenceArray   := ParseDelimitedRowsToArrayOfMaps(imageLibraryDataReferenceContent)
 
-        for rowMap in imageLibraryDataReferenceFile {
+        for rowMap in imageLibraryDataReferenceArray {
             if counter < rowMap["Counter"] {
                 counter := rowMap["Counter"]
             }
@@ -125,12 +127,12 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         }
     }
 
-    WriteTextToFile(headerCatalog . ConvertArrayIntoCsvString(catalogEntries), imageLibraryCatalogFilePath, "UTF-8-BOM")
+    WriteTextToFile(headerCatalog . ConvertArrayToLineSeparatedString(catalogEntries), imageLibraryCatalogFilePath, "UTF-8-BOM")
 
     if counterModified {
-        WriteTextToFile(ConvertArrayIntoCsvString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM", "Append Break")
+        WriteTextToFile(ConvertArrayToLineSeparatedString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM", "Append Break")
     } else {
-        WriteTextToFile(headerData . ConvertArrayIntoCsvString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM")
+        WriteTextToFile(headerData . ConvertArrayToLineSeparatedString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM")
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -155,7 +157,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     projectImageCatalogFilePath  := system["Directories"]["Project"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
     sharedImageCatalogFilePath   := system["Directories"]["Images"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
     catalogDirectory             := unset
-    imageLibraryCatalog          := unset
+    imageLibraryCatalogArray     := unset
 
     if !FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Image Library Catalog not found: " . imageLibraryCatalogName)
@@ -167,10 +169,15 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     
     if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
         catalogDirectory := system["Directories"]["Project"]
-        imageLibraryCatalog := ConvertCsvToArrayOfMaps(projectImageCatalogFilePath)
+
+        imageLibraryCatalogHash    := GetFileHash(projectImageCatalogFilePath, "SHA-256")
+        imageLibraryCatalogContent := ReadFileOnHashMatch(projectImageCatalogFilePath, imageLibraryCatalogHash)
+        imageLibraryCatalogArray   := ParseDelimitedRowsToArrayOfMaps(imageLibraryCatalogContent)
     } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
         catalogDirectory := system["Directories"]["Images"]
-        imageLibraryCatalog := ConvertCsvToArrayOfMaps(sharedImageCatalogFilePath)
+        imageLibraryCatalogHash    := GetFileHash(sharedImageCatalogFilePath, "SHA-256")
+        imageLibraryCatalogContent := ReadFileOnHashMatch(sharedImageCatalogFilePath, imageLibraryCatalogHash)
+        imageLibraryCatalogArray   := ParseDelimitedRowsToArrayOfMaps(imageLibraryCatalogContent)
     }
 
     static variants          := unset
@@ -178,10 +185,12 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     static dpiScale          := unset
 
     if !IsSet(variants) {
-        configurationImageVariantPreset := ConvertCsvToArrayOfMaps(system["Configuration"]["Settings"]["Image Variant Preset"])
+        configurationImageVariantPresetHash    := GetFileHash(system["Configuration"]["Settings"]["Image Variant Preset"], "SHA-256")
+        configurationImageVariantPresetContent := ReadFileOnHashMatch(system["Configuration"]["Settings"]["Image Variant Preset"], configurationImageVariantPresetHash)
+        configurationImageVariantPresetArray   := ParseDelimitedRowsToArrayOfMaps(configurationImageVariantPresetContent)
 
         variants := Map()
-        for name in configurationImageVariantPreset {
+        for name in configurationImageVariantPresetArray {
             variantName    := name["Name"]
             firstCharacter := StrLower(SubStr(variantName, 1, 1))
 
@@ -195,7 +204,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     relevantImages       := []
     uniqueDataReferences := []
 
-    for image in imageLibraryCatalog {
+    for image in imageLibraryCatalogArray {
         if IsInteger(image["Image Library Data Reference"]) {
             image["Image Library Data Reference"] := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["Applications"], "Counter", image["Image Library Data Reference"])["Name"]
 
@@ -236,11 +245,14 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
         BatchAppendSymbolLedger("Reference", uniqueImageLibraryDataReferences)
 
         for uniqueDataReference in uniqueDataReferences {
-            libraryDataEntries := ConvertCsvToArrayOfMaps(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
             EnsureDirectoryExists(system["Directories"]["Images"] . uniqueDataReference . "\")
 
+            libraryDataEntriesHash    := GetFileHash(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", "SHA-256")
+            libraryDataEntriesContent := ReadFileOnHashMatch(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", libraryDataEntriesHash)
+            libraryDataEntriesArray   := ParseDelimitedRowsToArrayOfMaps(libraryDataEntriesContent)
+
             for image in relevantImages {
-                for libraryData in libraryDataEntries {
+                for libraryData in libraryDataEntriesArray {
                     if image["Counter Reference"] = libraryData["Counter"] && uniqueDataReference = image["Image Library Data Reference"] {
                         if !libraryData.Has("Directory") {
                             libraryData["Directory"] := image["Image Library Data Reference"]

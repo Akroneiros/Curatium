@@ -95,9 +95,9 @@ LogEngine() {
         SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
         SplitPath(sharedFolderPath, , &curatiumFolderPath)
 
-        runtime["Project Name"]          := projectName
-        runtime["Library Release"]       := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
-        runtime["AutoHotkey Version"]    := A_AhkVersion
+        runtime["Project Name"]       := projectName
+        runtime["Library Release"]    := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
+        runtime["AutoHotkey Version"] := A_AhkVersion
 
         directories["Curatium"]  := curatiumFolderPath . "\"
         directories["Log"]       := directories["Curatium"] . "Log\"
@@ -168,11 +168,10 @@ LogEngine() {
                         continue
                     }
 
-                    positionOfDividerBetweenFirstAndSecond := InStr(line, "|", , , -2)
-                    referenceSection                       := SubStr(line, 1, positionOfDividerBetweenFirstAndSecond - 1)
-                    remainingAfterFirstSection             := SubStr(line, positionOfDividerBetweenFirstAndSecond + 1)
-                    positionOfLastDivider                  := InStr(remainingAfterFirstSection, "|", , , -1)
-                    typeSection                            := SubStr(remainingAfterFirstSection, 1, positionOfLastDivider - 1)
+                    positionOfReferenceDivider := InStr(line, "|", , , -2)
+                    positionOfTypeDivider      := InStr(line, "|", , , -1)
+                    referenceSection           := SubStr(line, 1, positionOfReferenceDivider - 1)
+                    typeSection                := SubStr(line, positionOfReferenceDivider + 1, positionOfTypeDivider - positionOfReferenceDivider - 1)
 
                     switch typeSection {
                         case "C": typeSection := "Context"
@@ -225,85 +224,131 @@ LogEngine() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Log Engine")
 
-    if logging["Log Engine State"] = "Beginning" {
-        environment["Time Zone"]     := GetTimeZone()
-        environment["QPC Frequency"] := GetQueryPerformanceCounterFrequency()
-
-        environment["Color Mode"]           := GetColorMode()
-        environment["Computer Name"]        := A_ComputerName
-        environment["Display Resolution"]   := A_ScreenWidth . "x" . A_ScreenHeight
-        environment["DPI Scale"]            := Round(A_ScreenDPI / 96 * 100) . "%"
-        environment["Operating System"]     := GetOperatingSystem()
-        environment["Session Startup Time"] := GetSessionStartupTime()
-        environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
-        environment["Username"]             := A_UserName
-
-        RemoveDuplicatesFromArray([])
-        BatchAppendExecutionLog("Beginning", [])
-        BatchAppendOperationLog([])
-        BatchAppendRunTelemetry("Beginning", [])
-        BatchAppendSymbolLedger("", [])
-
-        CombineCode("Intro", "Main")
-        ComputeMouseMoveSpeed("0x0", "2x2")
-        ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
-        ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
-        ExtractDirectory(paths["Scales"])
-        ExtractFilename(paths["Scales"])
-        ExtractParentDirectory(paths["Scales"])
-        GetFileHash(paths["Scales"], "SHA-256")
-        GetFilesFromDirectory(directories["Constants"])
-        GetFoldersFromDirectory(directories["Constants"])
-        ModifyScreenCoordinates(2, 2, "0x0")
-        OverlayIsVisible()
-    }
-
     system["Telemetry"]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
 
     if logging["Log Engine State"] = "Beginning" {
         for reference in [
             "",
             "|",
-            paths["BIP-39"],
-            paths["EFF Dice-Generated Passphrases"],
-            paths["Heroes"],
-            paths["Middle-earth"],
-            paths["NATO Phonetic Alphabet"],
-            paths["Resolutions"],
-            paths["Scales"],
-            paths["XKCD Color Survey"],
-            "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
-            "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
-            "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
-            "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
-            "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
-            "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
-            "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
-            "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
+            "<Constraint: Base64>",
+            "<Data Type: Array>",
+            "<Data Type: Map>",
+            "<Data Type: Object>"
         ] {
             RegisterSymbol(reference, "Reference")
         }
 
-        EnsureDirectoryExists(directories["Log"])
-        EnsureDirectoryExists(directories["Project"])
+        BatchAppendRunTelemetry("Beginning", [])
+
+        environment["Time Zone"]     := GetTimeZone()
+        environment["QPC Frequency"] := GetQueryPerformanceCounterFrequency()
+
+        environment["Session Startup Time"] := GetSessionStartupTime()
+        environment["Operating System"]     := GetOperatingSystem()
+
+        for directory in [
+            directories["Log"],
+            directories["Project"]
+        ] {
+            if !DirExist(directory) {
+                try {
+                    DirCreate(directory)
+                } catch as directoryCreationError {
+                    LogConclusion("Failure", logConclusionData, directoryCreationError.Line, directoryCreationError.Message)
+                }
+            }
+        }
 
         logging["Log to Array"] := false
         AppendLineToLog("Log|Type", "Execution Log")
         AppendLineToLog("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", "Operation Log")
         AppendLineToLog("Log|Type", "Run Telemetry")
         AppendLineToLog("Reference|Type|Symbol", "Symbol Ledger")
+    }  
+
+    logging["Log to Array"] := true
+
+    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
+        "|" . "Duration in Milliseconds: " . telemetry["Duration in Milliseconds"] . "|" . "Number of Readings: " .  telemetry["Number of Readings"] . 
+        "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"] . "|" . "QPC Before Tick: " . telemetry["QPC Before Tick"] . 
+        "|" . "QPC After Tick: " . telemetry["QPC After Tick"] . "|" . "QPC Midpoint Tick: " . telemetry["QPC Midpoint Tick"], "Run Telemetry")
+
+    if environment.Has("QPC Frequency") && environment.Has("Session Startup Time") {
+        telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Tick"] / environment["QPC Frequency"])
+        telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
+        AppendLineToLog("Computer Uptime in Seconds: " . telemetry["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . telemetry["Session Uptime in Seconds"], "Run Telemetry")
+    }
+
+    system["Telemetry"]["System Resource Snapshot"] := GetSystemResourceSnapshot()
+    AppendLineToLog("Physical: " . telemetry["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . telemetry["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
+        "|" . "Processes: " . telemetry["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . telemetry["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
+
+    AppendLineToLog("Disk Free Bytes: " . telemetry["System Drive Space Snapshot"]["Free Bytes"] . "|" . "Windows Free Size: " . telemetry["System Drive Space Snapshot"]["Windows Free Size"], "Run Telemetry")
+
+    logging["Log to Array"] := false
+    BatchAppendRunTelemetry(logging["Log Engine State"], logging["Log Entries"]["Run Telemetry"])
+    logging["Log Entries"]["Run Telemetry"] := []
+
+    if logging["Log Engine State"] = "Beginning" {
         logging["Log to Array"] := true
 
-        system["Constants"] := Map(
-            "BIP-39",                         ConvertCsvToArrayOfMaps(paths["BIP-39"]),
-            "EFF Dice-Generated Passphrases", ConvertCsvToArrayOfMaps(paths["EFF Dice-Generated Passphrases"]),
-            "Heroes",                         ConvertCsvToArrayOfMaps(paths["Heroes"]),
-            "Middle-earth",                   ConvertCsvToArrayOfMaps(paths["Middle-earth"]),
-            "NATO Phonetic Alphabet",         ConvertCsvToArrayOfMaps(paths["NATO Phonetic Alphabet"]),
-            "Resolutions",                    ConvertCsvToArrayOfMaps(paths["Resolutions"]),
-            "Scales",                         ConvertCsvToArrayOfMaps(paths["Scales"]),
-            "XKCD Color Survey",              ConvertCsvToArrayOfMaps(paths["XKCD Color Survey"])
-        )
+        CombineCode("Intro", "Main")
+        ComputeMouseMoveSpeed("0x0", "2x2")
+        ConvertArrayToLineSeparatedString(["1st Line", "2nd Line"])
+        ConvertHexStringToBase64("48656c6c6f20576f726c6421")
+        GetBase64FromFile(paths["Scales"])
+        KeyboardShortcut("CTRL", "F16")
+        ModifyScreenCoordinates(2, 2, "0x0")
+        RemoveDuplicatesFromArray([])
+
+        ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
+        ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
+        ExtractTrailingDateAsIso("(01.01.2000)", "Month-Day-Year")
+        GetDirectoryTimeAsUtc(directories["Constants"], "Created")
+        GetFileTimeAsUtc(paths["Scales"], "Created")
+
+        DetermineWindowsBinaryType("C:\Windows\System32\find.exe")
+        ExtractDirectory(paths["Scales"])
+        ExtractFilename(paths["Scales"])
+        ExtractParentDirectory(paths["Scales"])
+        FileExistsInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
+        GetFileHash(paths["Scales"], "SHA-256")
+        GetFilesFromDirectory(directories["Constants"])
+        GetFoldersFromDirectory(directories["Constants"])
+        GetTextFileLineCount(paths["Scales"])
+        ReadFile(paths["Scales"])
+
+        BatchAppendExecutionLog("Beginning", [])
+        BatchAppendOperationLog([])
+        BatchAppendSymbolLedger("", [])
+        OverlayIsVisible()
+
+        constants := [
+            ["BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229"],
+            ["EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf"],
+            ["Excel International",            "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"],
+            ["Heroes",                         "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d"],
+            ["Middle-earth",                   "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd"],
+            ["NATO Phonetic Alphabet",         "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf"],
+            ["Resolutions",                    "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364"],
+            ["Scales",                         "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d"],
+            ["Word International",             "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"],
+            ["XKCD Color Survey",              "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"]
+        ]
+
+        for constant in constants {
+            RegisterSymbol(paths[constant[1]], "Reference")
+        }
+
+        for constant in constants {
+            RegisterSymbol(constant[2], "Reference")
+        }
+
+        system["Constants"] := Map()
+        for constant in constants {
+            content := ReadFileOnHashMatch(paths[constant[1]], constant[2])
+            system["Constants"][constant[1]] := ParseDelimitedRowsToArrayOfMaps(content)
+        }
 
         for index, rowMap in system["Constants"]["Resolutions"] {
             rowMap["Counter"] := index
@@ -313,37 +358,39 @@ LogEngine() {
             rowMap["Counter"] := index
         }
 
-        for reference in [
-            paths["Application Executable Directory Candidates"],
-            paths["Applications"],
-            paths["Command Line Executables"],
-            paths["File Signatures"],
-            paths["System Management BIOS Type 17 Memory Device - Type"],
-            paths["Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry"],
-            paths["Unified Extensible Firmware Interface Plug and Play ID Official Registry"],
-            paths["Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"]
-        ] {
-            RegisterSymbol(reference, "Reference")
+        mappings := [
+            "Application Executable Directory Candidates",
+            "Applications",
+            "Command Line Executables",
+            "File Signatures",
+            "System Management BIOS Type 17 Memory Device - Type",
+            "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry",
+            "Unified Extensible Firmware Interface Plug and Play ID Official Registry",
+            "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"
+        ]
+
+        for mapping in mappings {
+            RegisterSymbol(paths[mapping], "Reference")
         }
 
-        system["Mappings"] := Map(
-            "Application Executable Directory Candidates", ConvertCsvToArrayOfMaps(paths["Application Executable Directory Candidates"]),
-            "Applications",                                ConvertCsvToArrayOfMaps(paths["Applications"]),
-            "Command Line Executables",                    ConvertCsvToArrayOfMaps(paths["Command Line Executables"]),
-            "File Signatures",                             ConvertCsvToArrayOfMaps(paths["File Signatures"]),
-            "System Management BIOS Type 17 Memory Device - Type", ConvertCsvToArrayOfMaps(paths["System Management BIOS Type 17 Memory Device - Type"]),
-            "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry", 
-                ConvertCsvToArrayOfMaps(paths["Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry"]),
-            "Unified Extensible Firmware Interface Plug and Play ID Official Registry",
-                ConvertCsvToArrayOfMaps(paths["Unified Extensible Firmware Interface Plug and Play ID Official Registry"]),
-            "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry",
-                ConvertCsvToArrayOfMaps(paths["Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"])
-        )
+        system["Mappings"] := Map()
+        for mapping in mappings {
+            fileHash := GetFileHash(paths[mapping], "SHA-256")
+            content  := ReadFileOnHashMatch(paths[mapping], fileHash)
+            system["Mappings"][mapping] := ParseDelimitedRowsToArrayOfMaps(content)
+        }
 
         for fileSignature in system["Mappings"]["File Signatures"] {
             fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
             fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
         }
+
+        environment["Computer Name"]       := A_ComputerName
+        environment["Display Resolution"]  := A_ScreenWidth . "x" . A_ScreenHeight
+        environment["DPI Scale"]           := Round(A_ScreenDPI / 96 * 100) . "%"
+        environment["Username"]            := A_UserName
+        environment["Color Mode"]          := GetColorMode()
+        environment["Timeout Before Lock"] := GetTimeoutBeforeLockInSeconds()
 
         DefineApplicationRegistry(system["Mappings"]["Applications"], directories["Images"])
 
@@ -378,30 +425,7 @@ LogEngine() {
         }
 
         ValidateConfiguration(configuration)
-    }  
 
-    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
-        "|" . "Duration in Milliseconds: " . telemetry["Duration in Milliseconds"] . "|" . "Number of Readings: " .  telemetry["Number of Readings"] . 
-        "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"] . "|" . "QPC Before Tick: " . telemetry["QPC Before Tick"] . 
-        "|" . "QPC After Tick: " . telemetry["QPC After Tick"] . "|" . "QPC Midpoint Tick: " . telemetry["QPC Midpoint Tick"], "Run Telemetry")
-
-    telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Tick"] / environment["QPC Frequency"])
-    telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
-    AppendLineToLog("Computer Uptime in Seconds: " . telemetry["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . telemetry["Session Uptime in Seconds"], "Run Telemetry")
-
-    system["Telemetry"]["System Resource Snapshot"] := GetSystemResourceSnapshot()
-    AppendLineToLog("Physical: " . telemetry["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . telemetry["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
-        "|" . "Processes: " . telemetry["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . telemetry["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
-
-    AppendLineToLog("Disk Free Bytes: " . telemetry["System Drive Space Snapshot"]["Free Bytes"] . "|" . "Windows Free Size: " . telemetry["System Drive Space Snapshot"]["Windows Free Size"], "Run Telemetry")
-
-    if logging["Log Engine State"] != "Beginning" {
-        logging["Log to Array"] := false
-        BatchAppendRunTelemetry(logging["Log Engine State"], logging["Log Entries"]["Run Telemetry"])
-        logging["Log Entries"]["Run Telemetry"] := []
-    }
-
-    if logging["Log Engine State"] = "Beginning" {
         environment["BIOS"]                 := GetBios()
         environment["CPU"]                  := GetCpu()
         environment["Display GPU"]          := GetActiveDisplayGpu()

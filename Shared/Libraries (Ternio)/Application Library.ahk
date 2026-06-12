@@ -265,13 +265,15 @@ ExecutablePathResolve(applicationName) {
             ))
         }
 
-        sharedApplicationExecutableDirectoryCandidates := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv")
-        for index, sharedApplicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidates {
+        sharedApplicationExecutableDirectoryCandidatesHash    := GetFileHash(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv", "SHA-256")
+        sharedApplicationExecutableDirectoryCandidatesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv", sharedApplicationExecutableDirectoryCandidatesHash)
+        sharedApplicationExecutableDirectoryCandidatesArray   := ParseDelimitedRowsToArrayOfMaps(sharedApplicationExecutableDirectoryCandidatesContent)
+        for index, sharedApplicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidatesArray {
             if applicationRegistry[sharedApplicationExecutableDirectoryCandidate["Name"]]["Whitelisted"] = false {
                 continue
             }
 
-            sharedApplicationExecutableDirectoryCandidates[index]["Source"] := "Shared"
+            sharedApplicationExecutableDirectoryCandidatesArray[index]["Source"] := "Shared"
             combinedApplicationExecutableDirectoryCandidates.Push(sharedApplicationExecutableDirectoryCandidate)
         }
 
@@ -740,8 +742,10 @@ ResolveFactsForApplication(applicationName, counter) {
     SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
     applicationRegistry[applicationName]["Executable Filename"] := executableFilename
 
-    static commandLineExecutables := ConvertCsvToArrayOfMaps(system["Directories"]["Mappings"] . "Command Line Executables.csv")
-    for commandLineExecutable in commandLineExecutables {
+    static commandLineExecutablesHash    := GetFileHash(system["Directories"]["Mappings"] . "Command Line Executables.csv", "SHA-256")
+    static commandLineExecutablesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Command Line Executables.csv", commandLineExecutablesHash)
+    static commandLineExecutablesArray   := ParseDelimitedRowsToArrayOfMaps(commandLineExecutablesContent)
+    for commandLineExecutable in commandLineExecutablesArray {
         if applicationName = commandLineExecutable["Name"] {
             directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
 
@@ -865,8 +869,10 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Excel"]["International"] := Map()
 
-            excelInternational := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv")
-            for international in excelInternational {
+            excelInternationalHash    := GetFileHash(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv", "SHA-256")
+            excelInternationalContent := ReadFileOnHashMatch(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv", excelInternationalHash)
+            excelInternationalArray   := ParseDelimitedRowsToArrayOfMaps(excelInternationalContent)
+            for international in excelInternationalArray {
                 applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
             }
 
@@ -883,9 +889,11 @@ ResolveFactsForApplication(applicationName, counter) {
 
             applicationRegistry["Word"]["International"] := Map()
 
-            wordInternational := ConvertCsvToArrayOfMaps(system["Directories"]["Constants"] . "Word International (2025-09-26).csv")
+            wordInternationalHash    := GetFileHash(system["Directories"]["Constants"] . "Word International (2025-09-26).csv", "SHA-256")
+            wordInternationalContent := ReadFileOnHashMatch(system["Directories"]["Constants"] . "Word International (2025-09-26).csv", wordInternationalHash)
+            wordInternationalArray   := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
 
-            for international in wordInternational {
+            for international in wordInternationalArray {
                 applicationRegistry["Word"]["International"][international["Label"]] := wordApplication.International[international["Value"]]
             }
 
