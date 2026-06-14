@@ -1,5 +1,6 @@
 ﻿Name|Executable|Directory
 4K Capture Utility|4KCaptureUtility.exe|Elgato\4KCaptureUtility
+4K Video Downloader+|4kvideodownloaderplus.exe|4KDownload\4kvideodownloaderplus
 7-Zip|7zFM.exe|7-Zip
 Access|MSACCESS.EXE|Microsoft Office\root\Office16
 ACDSee Pro|ACDSeePro25.exe|ACD Systems\ACDSee Pro\2.5
@@ -17,6 +18,7 @@ Anki|anki.exe|Anki
 AnyDesk|AnyDesk.exe|AnyDesk
 AnythingLLM|AnythingLLM.exe|AnythingLLM
 ares|ares.exe|ares-v146
+ares|ares.exe|ares-v148
 Attribute Changer|acmain.exe|Attribute Changer
 Audacity|audacity.exe|Audacity
 Audition|Adobe Audition CS6.exe|Adobe\Adobe Audition CS6
@@ -26,8 +28,10 @@ AutoCAD|acad.exe|Autodesk\AutoCAD 2025
 AutoCAD|acad.exe|Autodesk\AutoCAD 2026
 AutoHotkey|AutoHotkey64.exe|AutoHotkey\v2
 Autopsy|autopsy64.exe|Autopsy-4.22.1\bin
+Autopsy|autopsy64.exe|Autopsy-4.23.1\bin
 AVerMedia Streaming Center|StreamingCenter.exe|AVerMedia\AVerMedia Streaming Center
 AzaharPlus|azahar.exe|azaharplus-2123.3-A-windows
+AzaharPlus|azahar.exe|azaharplus-2125.1-B-windows
 Azahar|azahar.exe|Azahar
 Azure Data Studio|azuredatastudio.exe|Azure Data Studio
 Balabolka|balabolka.exe|Balabolka
@@ -45,6 +49,7 @@ BlastEm|blastem.exe|BlastEm
 BleachBit|bleachbit.exe|BleachBit
 Blender|blender.exe|Blender Foundation\Blender 4.5
 Blender|blender.exe|Blender Foundation\Blender 5.0
+Blender|blender.exe|Blender Foundation\Blender 5.1
 Blue Prism|Automate.exe|Blue Prism Limited\Blue Prism Automate
 BlueStacks|HD-Player.exe|BlueStacks_nxt
 Brave|brave.exe|BraveSoftware\Brave-Browser\Application
@@ -69,15 +74,18 @@ Chatterino|chatterino.exe|Chatterino
 Cherry Studio|Cherry Studio.exe|Cherry Studio
 CherryTree|cherrytree.exe|CherryTree\ucrt64\bin
 Chrome|chrome.exe|Google\Chrome\Application
+Cinebench|Cinebench.exe|Cinebench
 ComfyUI|ComfyUI.exe|ComfyUI
 CPU-Z|cpuz.exe|CPUID\CPU-Z
 CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
 CrystalDiskInfo|DiskInfo64.exe|CrystalDiskInfo
 CrystalDiskMark|DiskMark64.exe|CrystalDiskMark9
 Cura|UltiMaker-Cura.exe|UltiMaker Cura 5.11.0
+Cura|UltiMaker-Cura.exe|UltiMaker Cura 5.13.0
 CurseForge|CurseForge.exe|CurseForge Windows
 Cursor|Cursor.exe|cursor
 CyberChef|CyberChef_v10.19.4.html|CyberChef
+CyberChef|CyberChef_v11.1.0.html|CyberChef
 CyberGhost|Dashboard.exe|CyberGhost 8
 darktable|darktable.exe|darktable\bin
 DaVinci Resolve Studio|Resolve.exe|Blackmagic Design\DaVinci Resolve
@@ -91,9 +99,11 @@ DeSmuME|DeSmuME_0.9.13_x64.exe|DeSmuME
 DevToys|DevToys.exe|DevToys Preview
 Directory Opus|dopus.exe|GPSoftware\Directory Opus
 Discord|Discord.exe|Discord\app-1.0.9213
+Discord|Discord.exe|Discord\app-1.0.9241
 Disk Drill|DD.exe|CleverFiles\Disk Drill
 DiskGenius|DiskGenius.exe|DiskGenius
 Display Driver Uninstaller|Display Driver Uninstaller.exe|Display Driver Uninstaller
+Ditto|Ditto.exe|Ditto
 DMDE|dmde.exe|DMDE
 Docker Desktop|Docker Desktop.exe|Docker\Docker
 Dolphin|Dolphin.exe|Dolphin-x64
@@ -143,6 +153,7 @@ FontBase|FontBase.exe|FontBase
 foobar2000|foobar2000.exe|foobar2000
 Foxit PDF Reader|FoxitPDFReader.exe|Foxit Software\Foxit PDF Reader
 FreeCAD|freecad.exe|FreeCAD 1.0\bin
+FreeCAD|freecad.exe|FreeCAD 1.1\bin
 FreeCommander XE|FreeCommander.exe|FreeCommander XE
 FreeFileSync|FreeFileSync.exe|FreeFileSync
 FreeMind|FreeMind.exe|FreeMind
@@ -152,11 +163,13 @@ GameCube Backup Manager|GCBM.exe|gcbm
 GameSave Manager|gs_mngr_3.exe|GameSave Manager v3
 GearUP|gearup_booster.exe|GearUP\9232
 Gecata|Gecata.exe|Movavi Gecata 6
+Geekbench|Geekbench 6.exe|Geekbench 6
 Genymotion Desktop|genymotion.exe|Genymobile\Genymotion
 GIMP|gimp-3.exe|GIMP 3\bin
 GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
 GlassWire|GlassWire.exe|GlassWire
 Godot Engine|Godot_v4.5.1-stable_win64.exe|Godot Engine
+Godot Engine|Godot_v4.6.3-stable_win64.exe|Godot Engine
 GoldWave|GoldWave.exe|GoldWave
 Google Earth Pro|googleearth.exe|Google\Google Earth Pro\client
 Google Play Games|client.exe|Google\Play Games\current\client
@@ -181,6 +194,7 @@ HWMonitor|HWMonitor.exe|CPUID\HWMonitor
 HxD|HxD.exe|HxD
 Icon Editor Pro|gfie.exe|Greenfish Icon Editor Pro 4.5
 Iconset|Iconset.exe|iconset
+IconsExtract|iconsext.exe|NirSoft\IconsExtract
 iCUE|iCUE.exe|Corsair\Corsair iCUE5 Software
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator 2025\Support Files\Contents\Windows
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6 (64 Bit)\Support Files\Contents\Windows
@@ -254,6 +268,7 @@ Msty Studio|MstyStudio.exe|MstyStudio
 Mullvad Browser|mullvadbrowser.exe|Mullvad\MullvadBrowser\Release
 Mullvad VPN|Mullvad VPN.exe|Mullvad VPN
 Mumble|mumble.exe|Mumble\client
+MuMuPlayer|MuMuNxMain.exe|Netease\MuMuPlayer\nx_main
 MusicBee|MusicBee.exe|MusicBee
 Nestopia UE|nestopia.exe|Nestopia UE
 NetLimiter|NLClientApp.exe|Locktime Software\NetLimiter
@@ -286,6 +301,7 @@ PCSX2|pcsx2-qt.exe|PCSX2
 PeaZip|peazip.exe|PeaZip
 Pencil2D Animation|pencil2d.exe|Pencil2D
 PhotoDirector 365|PhotoDirector17.exe|CyberLink\PhotoDirector\17.0.1031.0
+PhotoDirector 365|PhotoDirector17.exe|CyberLink\PhotoDirector\17.4.1707.0
 PhotoLine|PhotoLine.exe|PhotoLine
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop 2025
 Photoshop|Photoshop.exe|Adobe\Adobe Photoshop CS6
@@ -321,7 +337,9 @@ puNES|punes64.exe|puNES
 PureRef|PureRef.exe|PureRef
 PuTTY|putty.exe|PuTTY
 PyCharm|pycharm64.exe|JetBrains\PyCharm 2025.3.1\bin
+PyCharm|pycharm64.exe|JetBrains\PyCharm 2026.1.2\bin
 qBittorrent|qbittorrent.exe|qBittorrent
+QGIS|qgis-bin.exe|QGIS 4.0.3\bin
 QGIS|qgis-ltr-bin.exe|QGIS 3.40.15\bin
 Rainmeter|Rainmeter.exe|Rainmeter
 RapidTyping|RapidTyping.exe|RapidTyping 5
@@ -332,11 +350,13 @@ Redream|redream.exe|Redream
 RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
 RegexBuddy|RegexBuddy5.exe|Just Great Software\RegexBuddy 5
 Regshot|Regshot-x64-Unicode.exe|Regshot
+Resource Hacker|ResourceHacker.exe|Resource Hacker
 Retool|retoolgui.exe|Retool
 RetroArch|retroarch.exe|RetroArch-Win64
 RetroBat|RetroBat.exe|RetroBat
 Retrom|Retrom.exe|Retrom
 Roblox Studio|RobloxStudioBeta.exe|Roblox\Versions\version-34c9847319974d28
+Roblox Studio|RobloxStudioBeta.exe|Roblox\Versions\version-914135c3903b4ffb
 RoboTask|RoboTask.exe|RoboTask
 RODECaster App|RODECaster App.exe|RØDE Microphones\RODECaster App
 Rominator|Rominator.exe|Rominator for Windows
@@ -344,6 +364,7 @@ RomVault|ROMVault37.exe|RomVault
 Rosalie's Mupen GUI|RMG.exe|Rosalie's Mupen GUI
 RPCS3|rpcs3.exe|RPCS3
 Rufus|rufus-4.11.exe|Rufus
+Rufus|rufus-4.14.exe|Rufus
 Ryujinx|Ryujinx.exe|Ryujinx
 SameBoy|sameboy.exe|SameBoy
 ScreenToGif|ScreenToGif.exe|ScreenToGif
@@ -354,6 +375,7 @@ Slack|slack.exe|slack
 SmartFTP|SmartFTP.exe|SmartFTP Client
 Snes9x|snes9x-x64.exe|Snes9x
 Sniffnet|sniffnet.exe|Sniffnet
+SoapUI|SoapUI-5.10.0.exe|SmartBear\SoapUI-5.10.0\bin
 SoapUI|SoapUI-5.9.1.exe|SmartBear\SoapUI-5.9.1\bin
 Social Stream Ninja|socialstream.exe|socialstream
 Sononym|Sononym.exe|Sononym
@@ -363,6 +385,7 @@ Spotify|Spotify.exe|Spotify
 SQL Developer|sqldeveloper.exe|sqldeveloper
 SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 21\Release\Common7\IDE
 SQL Server Management Studio|SSMS.exe|Microsoft SQL Server Management Studio 22\Release\Common7\IDE
+Stacher|Stacher7.exe|Stacher7
 StartAllBack|StartAllBackCfg.exe|StartAllBack
 Steam|steam.exe|Steam
 Stella|Stella.exe|Stella
@@ -382,6 +405,7 @@ Switch Backup Manager|Switch Backup Manager.exe|Switch Backup Manager
 Switch Library Manager|Switch-Library-Manager.exe|Switch Library Manager
 Syncthing Tray|syncthingtray.exe|Syncthing Tray
 Synfig Studio|synfigstudio.exe|Synfig\bin
+System Informer|SystemInformer.exe|SystemInformer
 SysTracer|SysTracer.exe|SysTracer
 Tableau Desktop|tableau.exe|Tableau\Tableau 2025.2\bin
 TablePlus|TablePlus.exe|TablePlus
@@ -418,10 +442,12 @@ Upscayl|Upscayl.exe|Upscayl
 USBDeview|USBDeview.exe|USBDeview
 UserBenchmark|UserBenchmark.exe|UserBenchmark
 VCam|VCam.exe|VCam
+Ventrilo|Ventrilo.exe|VentriloPro
 VeraCrypt|VeraCrypt.exe|VeraCrypt
 Virtual Audio Cable|vcctlpan.exe|Virtual Audio Cable
 VirtualBox|VirtualBox.exe|Oracle\VirtualBox
 Visual Studio Code|Code.exe|Microsoft VS Code
+Visual Studio|devenv.exe|Microsoft Visual Studio\18\Community\Common7\IDE
 Visual Studio|devenv.exe|Microsoft Visual Studio\2022\Community\Common7\IDE
 Vivaldi|vivaldi.exe|Vivaldi\Application
 VLC media player|vlc.exe|VideoLAN\VLC
