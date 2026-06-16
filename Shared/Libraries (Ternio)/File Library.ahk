@@ -54,9 +54,9 @@ CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "")
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("filePath As String [Constraint: Path], targetDirectory As String [Constraint: Directory], findValue As String [Optional], replaceValue As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, targetDirectory, findValue, replaceValue], "Copy File to Target (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, targetDirectory, findValue, replaceValue], "Copy File to Target (" . filePath . ")")
 
-    sourceFilename := ExtractFilename(filePath)
+    sourceFilename := GetPathComponents(filePath)["Filename"]
 
     if (findValue = "" && replaceValue != "") || (findValue != "" && replaceValue = "") {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Invalid find/replace combo.")
@@ -91,7 +91,7 @@ DeleteFile(filePath) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Delete File (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Delete File (" . filePath . ")")
 
     try {
         FileDelete(filePath)
@@ -139,9 +139,9 @@ MoveFileToDirectory(filePath, directoryPath, overwrite := false) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("filePath As String [Constraint: Path], directoryPath As String [Constraint: Directory], overwrite As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, directoryPath, overwrite], "Move File to Directory (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, directoryPath, overwrite], "Move File to Directory (" . filePath . ")")
 
-    filename   := ExtractFilename(filePath)
+    filename   := GetPathComponents(filePath)["Filename"]
     targetPath := directoryPath . filename
 
     if !DirExist(directoryPath) {
@@ -184,7 +184,7 @@ ReadFileOnHashMatch(filePath, expectedHash) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("filePath As String [Constraint: Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, expectedHash], "Read File on Hash Match (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, expectedHash], "Read File on Hash Match (" . filePath . ")")
 
     fileHash := GetFileHash(filePath, "SHA-256")
     if fileHash != expectedHash {
@@ -192,14 +192,6 @@ ReadFileOnHashMatch(filePath, expectedHash) {
     }
 
     fileContents := ReadFile(filePath)
-
-    fileBuffer := FileRead(filePath, "RAW")
-    totalSize  := fileBuffer.Size
-    fileText   := ""
-    
-    if totalSize = 0 {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "File is empty: " . filePath)
-    }
 
     LogConclusion("Completed", logConclusionData)
     return fileContents
@@ -214,7 +206,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("base64Text As String [Constraint: Base64], filePath As String [Constraint: Valid Path], expectedHash As String [Constraint: SHA-256]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . ExtractFilename(filePath) . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . filePath . ")")
     
     requiredSizeInBytes   := 0
     decodedByteCount      := 0
@@ -321,7 +313,7 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
     static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
     static methodName := RegisterMethod("text As String [Optional], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, filePath, encoding, mode], "Write Text Into File" . " (" . ExtractFilename(filePath) . ") with Mode: " . mode)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, filePath, encoding, mode], "Write Text Into File" . " (" . filePath . ") with Mode: " . mode)
 
     if mode = "Create" && FileExist(filePath) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "File already exists.")
@@ -404,68 +396,6 @@ DetermineWindowsBinaryType(executablePath) {
     }
 
     return classificationResult
-}
-
-ExtractDirectory(filePath) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("filePath As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
-
-    SplitPath(filePath, , &directoryPath)
-
-    if directoryPath != "" && SubStr(directoryPath, -1) != "\" {
-        directoryPath .= "\"
-    }
-
-    return directoryPath
-}
-
-ExtractFilename(filePath, removeFileExtension := false) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("filePath As String, removeFileExtension As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, removeFileExtension])
-
-    SplitPath(filePath, &filenameWithExtension, , , &filenameWithoutExtension)
-
-    filename := filenameWithExtension
-    if removeFileExtension {
-        filename := filenameWithoutExtension
-    }
-
-    return filename
-}
-
-ExtractParentDirectory(filePath) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("filePath As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
-
-    SplitPath(filePath, , &directoryPath)
-    SplitPath(directoryPath, , &parentFolderPath)
-
-    if parentFolderPath != "" && SubStr(parentFolderPath, -1) != "\" {
-        parentFolderPath .= "\"
-    }
-
-    return parentFolderPath
 }
 
 FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
@@ -590,6 +520,37 @@ GetFoldersFromDirectory(directoryPath) {
     }
 
     return folders
+}
+
+GetPathComponents(filePath) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
+
+    SplitPath(filePath, &filenameWithExtension, &directoryPath, &filenameExtension, &filenameNoExtension, &drive)
+    SplitPath(directoryPath, , &parentFolderPath)
+
+    if directoryPath = parentFolderPath {
+        parentFolderPath := ""
+    }
+
+    pathComponents := Map(
+        "Directory", directoryPath . "\",
+        "Extension", filenameExtension,
+        "Filename", filenameWithExtension,
+        "Filename No Extension", filenameNoExtension,
+        "Parent Directory", (parentFolderPath = "" ? "" : parentFolderPath . "\"),
+        "Path", filePath,
+        "Root", drive . "\"
+    )
+
+    return pathComponents
 }
 
 GetTextFileLineCount(filePath) {    

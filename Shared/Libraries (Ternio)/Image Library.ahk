@@ -151,8 +151,8 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
 
     global imageRegistry
 
-    screenWidth  := A_ScreenWidth
-    screenHeight := A_ScreenHeight
+    static screenWidth  := A_ScreenWidth
+    static screenHeight := A_ScreenHeight
 
     projectImageCatalogFilePath  := system["Directories"]["Project"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
     sharedImageCatalogFilePath   := system["Directories"]["Images"] . "Image Library Catalog (" . imageLibraryCatalogName . ").csv"
@@ -185,16 +185,22 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     static dpiScale          := unset
 
     if !IsSet(variants) {
-        configurationImageVariantPresetHash    := GetFileHash(system["Configuration"]["Settings"]["Image Variant Preset"], "SHA-256")
-        configurationImageVariantPresetContent := ReadFileOnHashMatch(system["Configuration"]["Settings"]["Image Variant Preset"], configurationImageVariantPresetHash)
-        configurationImageVariantPresetArray   := ParseDelimitedRowsToArrayOfMaps(configurationImageVariantPresetContent)
-
         variants := Map()
-        for name in configurationImageVariantPresetArray {
-            variantName    := name["Name"]
+        for index, name in system["Constants"][system["Configuration"]["Settings"]["Image Variant Preset"]] {
+            variantName := unset
+            if system["Configuration"]["Settings"]["Image Variant Preset"] = "NATO Phonetic Alphabet" {
+                variantName := name["Code Word"]
+            } else {
+                variantName := name["Name"]
+            }
+
             firstCharacter := StrLower(SubStr(variantName, 1, 1))
 
             variants[firstCharacter] := variantName
+
+            if index = 16 {
+                break
+            }
         }
 
         displayResolution := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Constants"]["Resolutions"], "Resolution", system["Environment"]["Display Resolution"])["Counter"] . ""

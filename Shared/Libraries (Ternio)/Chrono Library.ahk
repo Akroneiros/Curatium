@@ -248,7 +248,7 @@ WaitUntilFileIsModifiedToday(filePath) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . ExtractFilename(filePath, true))
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {

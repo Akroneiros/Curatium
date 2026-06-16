@@ -13,8 +13,8 @@ global methodRegistry := Map(
     "LogEngine", Map(
         "Settings", Map(
             "Start Milliseconds Treshold", Map(
-                "Value",   256,
-                "Default", 256,
+                "Value",   512,
+                "Default", 512,
                 "Floor",   32,
                 "Ceiling", 998,
                 "Delta",   0
@@ -51,6 +51,7 @@ global symbolLedger := Map(
 )
 global system := Map(
     "Configuration", Map(),
+    "Constants", Map(),
     "Directories", Map(),
     "Environment", Map(),
     "Hardware", Map(),
@@ -74,6 +75,7 @@ global system := Map(
         ),
         "Log to Array", true
     ),
+    "Mappings", Map(),
     "Paths", Map(),
     "Runtime", Map(),
     "Telemetry", Map()
@@ -535,7 +537,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     LogConclusion("Completed", logConclusionData)
 }
 
-ValidateConfiguration(configuration) {
+ValidateConfiguration(configuration, applications) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -543,8 +545,8 @@ ValidateConfiguration(configuration) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("configuration As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configuration], "Validate Configuration")
+    static methodName := RegisterMethod("configuration As Map, applications As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configuration, applications], "Validate Configuration")
 
     rootSettings := [["Application Executable Directory Candidates", "Array"], ["Application Whitelist", "Array"], ["Candidate Base Directories", "Array"], ["Settings", "Map"]]
     for setting in rootSettings {
@@ -562,8 +564,16 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
         }
 
-        if !applicationRegistry.Has(applicationWhitelist) {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist refers to an application that does not exist.")
+        applicationFound := false
+        for application in applications {
+            if applicationWhitelist == application["Name"] {
+                applicationFound := true
+                break
+            }
+        }
+
+        if !applicationFound {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Application Whitelist refers to the application "' . applicationWhitelist . '"' . " which doesn't exist.")
         }
     }
 
@@ -573,7 +583,7 @@ ValidateConfiguration(configuration) {
         }
 
         if applicationExecutableDirectoryCandidate.Length != 3 {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected array length of 3.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected three elements.")
         }
 
         for index, entry in applicationExecutableDirectoryCandidate {
@@ -582,8 +592,16 @@ ValidateConfiguration(configuration) {
             }
 
             if index = 1 {
-                if !applicationRegistry.Has(entry) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate refers to an application that does not exist.")
+                applicationFound := false
+                for application in applications {
+                    if entry == application["Name"] {
+                        applicationFound := true
+                        break
+                    }
+                }
+
+                if !applicationFound {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Application Executable Directory Candidate refers to the application "' . entry . '"' . " which doesn't exist.")
                 }
             }
         }
@@ -593,9 +611,14 @@ ValidateConfiguration(configuration) {
         if Type(candidateBaseDirectory) != "String" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
         }
+
+        validation := ValidateDataUsingSpecification(candidateBaseDirectory, "String", "Valid Directory")
+        if validation != "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Candidate Base Directories of "' . candidateBaseDirectory . '" is not a Valid Directory.')
+        }
     }
 
-    subSettings := [["Image Variant Preset", "String", "Path"], ["Application Image Override Directory", "String", "Directory"], ["Computer Alias", "String", "Single Line"]]
+    subSettings := [["Image Variant Preset", "String", "Single Line"], ["Application Image Override Directory", "String", "Directory"], ["Computer Alias", "String", "Single Line"]]
     for setting in subSettings {
         if !configuration["Settings"].Has(setting[1]) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
@@ -613,6 +636,10 @@ ValidateConfiguration(configuration) {
         }
     }
 
+    if configuration["Settings"]["Image Variant Preset"] !== "Heroes" && configuration["Settings"]["Image Variant Preset"] !== "Middle-earth" && configuration["Settings"]["Image Variant Preset"] !== "NATO Phonetic Alphabet" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. Only three values are allowed: Heroes, Middle-earth or NATO Phonetic Alphabet.")
+    }
+
     if configuration["Settings"]["Application Image Override Directory"] != "" {
         filesInDirectory := GetFilesFromDirectory(configuration["Settings"]["Application Image Override Directory"])
         if filesInDirectory.Length != 0 {
@@ -623,8 +650,16 @@ ValidateConfiguration(configuration) {
         for applicationFolder in applicationFolders {
             SplitPath(RTrim(applicationFolder, "\"), &applicationName)
 
-            if !applicationRegistry.Has(applicationName) {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Application " . applicationName . " doesn't exist.")
+            applicationFound := false
+            for application in applications {
+                if applicationName == application["Name"] {
+                    applicationFound := true
+                    break
+                }
+            }
+
+            if !applicationFound {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Settings entry for Application Image Override Directory refers to the application "' . applicationName . '"' . " which doesn't exist.")
             }
         }
     }
@@ -1001,7 +1036,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
                     case "Directory", "Valid Directory":
                         isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
-                        isUNC   := RegExMatch(dataValue, "^\\\\{2}[^\\\/]+\\[^\\\/]+\\")
+                        isUNC   := RegExMatch(dataValue, "^\\\\[^\\]+\\[^\\]+\\")
 
                         if !(isDrive || isUNC) {
                             validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."

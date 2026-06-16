@@ -31,14 +31,16 @@ AbortExecution() {
 }
 
 LogEngine() {
-    global symbolLedger
+    global applicationRegistry
     global system
 
     static configuration := system["Configuration"]
+    static constants     := system["Constants"]
     static directories   := system["Directories"]
     static environment   := system["Environment"]
     static hardware      := system["Hardware"]
     static logging       := system["Logging"]
+    static mappings      := system["Mappings"]
     static paths         := system["Paths"]
     static runtime       := system["Runtime"]
     static telemetry     := system["Telemetry"]
@@ -308,13 +310,11 @@ LogEngine() {
         GetFileTimeAsUtc(paths["Scales"], "Created")
 
         DetermineWindowsBinaryType("C:\Windows\System32\find.exe")
-        ExtractDirectory(paths["Scales"])
-        ExtractFilename(paths["Scales"])
-        ExtractParentDirectory(paths["Scales"])
         FileExistsInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
         GetFileHash(paths["Scales"], "SHA-256")
         GetFilesFromDirectory(directories["Constants"])
         GetFoldersFromDirectory(directories["Constants"])
+        GetPathComponents(paths["Scales"])
         GetTextFileLineCount(paths["Scales"])
         ReadFile(paths["Scales"])
 
@@ -323,7 +323,7 @@ LogEngine() {
         BatchAppendSymbolLedger("", [])
         OverlayIsVisible()
 
-        constants := [
+        constantValues := [
             ["BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229"],
             ["EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf"],
             ["Excel International",            "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"],
@@ -336,18 +336,17 @@ LogEngine() {
             ["XKCD Color Survey",              "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"]
         ]
 
-        for constant in constants {
+        for constant in constantValues {
             RegisterSymbol(paths[constant[1]], "Reference")
         }
 
-        for constant in constants {
+        for constant in constantValues {
             RegisterSymbol(constant[2], "Reference")
         }
 
-        system["Constants"] := Map()
-        for constant in constants {
+        for constant in constantValues {
             content := ReadFileOnHashMatch(paths[constant[1]], constant[2])
-            system["Constants"][constant[1]] := ParseDelimitedRowsToArrayOfMaps(content)
+            constants[constant[1]] := ParseDelimitedRowsToArrayOfMaps(content)
         }
 
         for index, rowMap in system["Constants"]["Resolutions"] {
@@ -358,7 +357,7 @@ LogEngine() {
             rowMap["Counter"] := index
         }
 
-        mappings := [
+        mappingValues := [
             "Application Executable Directory Candidates",
             "Applications",
             "Command Line Executables",
@@ -369,30 +368,43 @@ LogEngine() {
             "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"
         ]
 
-        for mapping in mappings {
+        for mapping in mappingValues {
             RegisterSymbol(paths[mapping], "Reference")
         }
 
-        system["Mappings"] := Map()
-        for mapping in mappings {
+        for mapping in mappingValues {
             fileHash := GetFileHash(paths[mapping], "SHA-256")
             content  := ReadFileOnHashMatch(paths[mapping], fileHash)
-            system["Mappings"][mapping] := ParseDelimitedRowsToArrayOfMaps(content)
+            mappings[mapping] := ParseDelimitedRowsToArrayOfMaps(content)
         }
 
-        for fileSignature in system["Mappings"]["File Signatures"] {
+        applicationsWithSharedImageLibraryData := GetFilesFromDirectory(directories["Images"], "Image Library Data (")
+        for imageLibraryDataFile in applicationsWithSharedImageLibraryData {
+            applicationName := GetPathComponents(imageLibraryDataFile)["Filename No Extension"]
+            applicationName := SubStr(applicationName, StrLen("Image Library Data (") + 1)
+            applicationName := SubStr(applicationName, 1, -1)
+
+            for application in mappings["Applications"] {
+                if application["Name"] = applicationName {
+                    application["Shared Images"] := true
+                    break
+                }
+            }
+        }
+
+        for applicationExecutableDirectoryCandidate in mappings["Application Executable Directory Candidates"] {
+            applicationExecutableDirectoryCandidate["Source"] := "Shared"
+        }
+
+        for fileSignature in mappings["File Signatures"] {
             fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
             fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
         }
 
-        environment["Computer Name"]       := A_ComputerName
-        environment["Display Resolution"]  := A_ScreenWidth . "x" . A_ScreenHeight
-        environment["DPI Scale"]           := Round(A_ScreenDPI / 96 * 100) . "%"
-        environment["Username"]            := A_UserName
-        environment["Color Mode"]          := GetColorMode()
-        environment["Timeout Before Lock"] := GetTimeoutBeforeLockInSeconds()
-
-        DefineApplicationRegistry(system["Mappings"]["Applications"], directories["Images"])
+        environment["Computer Name"]      := A_ComputerName
+        environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
+        environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
+        environment["Username"]           := A_UserName
 
         if !FileExist(paths["Project Configuration"]) {
             defaultConfiguration := StrReplace(
@@ -404,11 +416,11 @@ LogEngine() {
                     '        '  . newLine . 
                 '    ],' . newLine . 
                 '    "Candidate Base Directories": [' . newLine . 
-                    '        "' . systemDrive . 'Portable Files' . '",' . newLine . 
-                    '        "' . systemDrive . 'Program Files (Portable)' . '"' . newLine . 
+                    '        "' . systemDrive . 'Portable Files\' . '",' . newLine . 
+                    '        "' . systemDrive . 'Program Files (Portable)\' . '"' . newLine . 
                     '    ],' . newLine . 
                 '    "Settings": {' . newLine . 
-                    '        "Image Variant Preset": "' . directories["Constants"] . 'Heroes (2025-09-20).csv' . '",' . newLine . 
+                    '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '",' . newLine . 
                     '        "Application Image Override Directory": "' . "" . '",' . newline . 
                     '        "Computer Alias": "' . "N/A" . '"' . newline . 
                 '    }' . newLine . 
@@ -424,9 +436,42 @@ LogEngine() {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to load Configuration File. " . StrReplace(invalidJsonError.Message, "`n", " "))
         }
 
-        ValidateConfiguration(configuration)
+        ValidateConfiguration(configuration, mappings["Applications"])
+
+        if configuration["Application Whitelist"].Length != 0 {
+            for application in mappings["Applications"] {
+                for applicationWhitelist in configuration["Application Whitelist"] {
+                    if application["Name"] = applicationWhitelist {
+                        application["Whitelisted"] := true
+                        break
+                    }
+
+                    application["Whitelisted"] := false
+                }
+            }
+        } else {
+            for application in mappings["Applications"] {
+                application["Whitelisted"] := true
+            }
+        }
+
+        for applicationExecutableDirectoryCandidate in configuration["Application Executable Directory Candidates"] {
+            for application in mappings["Applications"] {
+                if application["Name"] = applicationExecutableDirectoryCandidate[1] {
+                    if application["Whitelisted"] {
+                        mappings["Application Executable Directory Candidates"].Push(Map(
+                            "Directory",  applicationExecutableDirectoryCandidate[3],
+                            "Executable", applicationExecutableDirectoryCandidate[2],
+                            "Name",       applicationExecutableDirectoryCandidate[1],
+                            "Source",    "Project"
+                        ))
+                    }
+                }
+            }
+        }
 
         environment["BIOS"]                 := GetBios()
+        environment["Color Mode"]           := GetColorMode()
         environment["CPU"]                  := GetCpu()
         environment["Display GPU"]          := GetActiveDisplayGpu()
         environment["Display Language"]     := GetDisplayLanguage()
@@ -439,6 +484,7 @@ LogEngine() {
         environment["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
         environment["Regional Format"]      := environment["International"]["LocaleName"]
         environment["System Disk"]          := GetDiskModel(systemDrive)
+        environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
 
         runtime["Project Hash"]             := GetFileHash(directories["Projects"] . runtime["Project Name"] . ".ahk", "SHA-256")
         runtime["Application Library Hash"] := GetFileHash(paths["Application Library"], "SHA-256")
@@ -491,6 +537,8 @@ LogEngine() {
         ] {
             AppendLineToLog(executionLogLine, "Execution Log")
         }
+
+        RegisterApplications(mappings["Applications"], mappings["Application Executable Directory Candidates"])
     }
 
     if !logConclusionData.Has("Context") {

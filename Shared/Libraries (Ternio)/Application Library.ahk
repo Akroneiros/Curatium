@@ -9,7 +9,7 @@
 ; Application Registry         ;
 ; **************************** ;
 
-DefineApplicationRegistry(applications, sharedImagesDirectory) {
+RegisterApplications(applications, applicationExecutableDirectoryCandidates) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -17,129 +17,135 @@ DefineApplicationRegistry(applications, sharedImagesDirectory) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applications As Array, sharedImagesDirectory As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applications, sharedImagesDirectory], "Define Application Registry")
+    static methodName := RegisterMethod("applications As Array, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applications, applicationExecutableDirectoryCandidates], "Register Applications")
 
     global applicationRegistry
-  
+
     for application in applications {
-        applicationName    := application["Name"]
-        applicationCounter := application["Counter"] + 0
+        applicationName         := application["Name"]
+        applicationCounter      := application["Counter"] + 0
+        applicationWhitelisted  := application["Whitelisted"]
+        applicationSharedImages := false
 
-        applicationRegistry[applicationName] := Map()
-        applicationRegistry[applicationName]["Counter"] := applicationCounter
-    }
-
-    applicationsWithSharedImageLibraryData := GetFilesFromDirectory(sharedImagesDirectory, "Image Library Data (")
-    for imageLibraryDataFile in applicationsWithSharedImageLibraryData {
-        applicationName := ExtractFilename(imageLibraryDataFile, true)
-        applicationName := SubStr(applicationName, StrLen("Image Library Data (") + 1)
-        applicationName := SubStr(applicationName, 1, -1)
-
-        applicationRegistry[applicationName]["Shared Images"] := true
-    }
-
-    logConclusionData["Context"] := "Image Library Data found for " . applicationsWithSharedImageLibraryData.Length . " applications."
-
-    LogConclusion("Completed", logConclusionData)
-}
-
-RegisterApplications(createApplicationImages := true) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("createApplicationImages As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [createApplicationImages], "Register Applications")
-
-    global applicationRegistry
-
-    applicationWhitelist := system["Configuration"]["Application Whitelist"]
-    applicationWhitelistLength := applicationWhitelist.Length
-    if applicationWhitelistLength != 0 {
-        for application in applicationWhitelist {
-            applicationRegistry[application]["Whitelisted"] := true
+        if application.Has("Shared Images") {
+            applicationSharedImages := true
         }
 
-        for application in applicationRegistry {
-            if !applicationRegistry[application].Has("Whitelisted") {
-                applicationRegistry[application]["Whitelisted"] := false
-                applicationRegistry[application]["Installed"]   := false
+        applicationRegistry[applicationName] := Map(
+            "Counter",       applicationCounter,
+            "Shared Images", applicationSharedImages,
+            "Whitelisted",   applicationWhitelisted
+        )
+    }
+
+    combinedApplicationExecutableDirectoryCandidates := []
+    for outerKey, innerValue in applicationRegistry {
+        if innerValue["Whitelisted"] {
+            applicationRegistry[outerKey]["Application Executable Directory Candidates"] := []
+            for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+                if outerKey = applicationExecutableDirectoryCandidate["Name"] {
+                    if applicationExecutableDirectoryCandidate["Source"] = "Project" {
+                        applicationRegistry[outerKey]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
+                        combinedApplicationExecutableDirectoryCandidates.Push(applicationExecutableDirectoryCandidate)
+                    }
+                }
+            }
+
+            for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+                if outerKey = applicationExecutableDirectoryCandidate["Name"] {
+                    if applicationExecutableDirectoryCandidate["Source"] = "Shared" {
+                        applicationRegistry[outerKey]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
+                        combinedApplicationExecutableDirectoryCandidates.Push(applicationExecutableDirectoryCandidate)
+                    }
+                }
             }
         }
-    } else {
-        for application in applicationRegistry {
-            applicationRegistry[application]["Whitelisted"] := true
-        }
     }
 
-    for application in applicationRegistry {
-        if applicationWhitelistLength != 0 {
-            if applicationRegistry[application]["Whitelisted"] = false {
+    for outerKey in applicationRegistry {
+        for applicationExecutableDirectoryCandidate in combinedApplicationExecutableDirectoryCandidates {
+            if outerKey != applicationExecutableDirectoryCandidate["Name"] {
                 continue
             }
-        }
 
-        executablePathSearchResult := ExecutablePathResolve(application)
-        if Type(executablePathSearchResult) = "Map" {
-            applicationRegistry[application]["Executable Path"]   := executablePathSearchResult["Executable Path"]
-            applicationRegistry[application]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-            applicationRegistry[application]["Installed"]         := true
-        } else {
-            applicationRegistry[application]["Installed"]         := false
-        }
-    }
+            for collisionCandidate in combinedApplicationExecutableDirectoryCandidates {
+                if applicationExecutableDirectoryCandidate["Executable"] = collisionCandidate["Executable"] && outerKey != collisionCandidate["Name"] {
 
-    imagesFileList := GetFilesFromDirectory(system["Directories"]["Images"])
-    applicationImageLibraryDataFiles := []
-    for filePath in imagesFileList {
-        if InStr(filePath, "Image Library Data") {
-            filename := ExtractFilename(filePath, true)
-            if RegExMatch(filename, "\((.*)\)\s*$", &capturedGroups) {
-                applicationImageLibraryDataFiles.Push(capturedGroups[1])
+                    applicationRegistry[outerKey]["Executable Collision"] := true
+                    break 2
+                }
             }
         }
     }
 
     installedApplicationsWithImageLibraryDataCount := 0
     for outerKey, innerValue in applicationRegistry {
-        if innerValue["Installed"] {
-            for applicationName in applicationImageLibraryDataFiles {
-                if outerKey = applicationName {
-                    installedApplicationsWithImageLibraryDataCount := installedApplicationsWithImageLibraryDataCount + 1
-                }
+        if !innerValue.Has("Executable Collision") {
+            innerValue["Executable Collision"] := false
+        }
+
+        projectSourcePresent := false
+        for applicationExecutableDirectoryCandidate in innerValue["Application Executable Directory Candidates"] {
+            if applicationExecutableDirectoryCandidate["Source"] = "Project" {
+                projectSourcePresent := true
+                break
             }
+        }
+
+        executablePathSearchResult := unset
+        if projectSourcePresent || innerValue["Executable Collision"] {
+            executablePathSearchResult := ExecutablePathViaReference(innerValue)
+
+            if !executablePathSearchResult["Success"] {
+                executablePathSearchResult := ExecutablePathViaAppPaths(innerValue)
+            }
+
+            if !executablePathSearchResult["Success"] {
+                executablePathSearchResult := ExecutablePathViaUninstall(innerValue)
+            }
+        } else {
+            executablePathSearchResult := ExecutablePathViaUninstall(innerValue)
+
+            if !executablePathSearchResult["Success"] {
+                executablePathSearchResult := ExecutablePathViaAppPaths(innerValue)
+            }
+
+            if !executablePathSearchResult["Success"] {
+                executablePathSearchResult := ExecutablePathViaReference(innerValue)
+            }
+        }
+
+        if executablePathSearchResult["Success"] {
+            if innerValue["Shared Images"] {
+                installedApplicationsWithImageLibraryDataCount++
+            }
+
+            applicationRegistry[outerKey]["Executable Path"]   := executablePathSearchResult["Executable Path"]
+            applicationRegistry[outerKey]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
+            applicationRegistry[outerKey]["Installed"]         := true
+        } else {
+            applicationRegistry[outerKey]["Installed"]         := false
         }
     }
 
-    if installedApplicationsWithImageLibraryDataCount != 0 && createApplicationImages = true {
+    if installedApplicationsWithImageLibraryDataCount != 0 {
         switch system["Environment"]["Display Resolution"] {
             case "1920x1080":
                 switch system["Environment"]["DPI Scale"] {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Full High Definition")
-                    default:
-                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 1920x1080 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "2560x1440":
                 switch system["Environment"]["DPI Scale"] {
                     case "100%", "125%", "150%":
                         CreateImagesFromCatalog("Quad High Definition")
-                    default:
-                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 2560x1440 the following scales are supported: 100%, 125%, 150%.")
                 }
             case "3840x2160":
                 switch system["Environment"]["DPI Scale"] {
                     case "100%", "125%", "150%", "175%":
                         CreateImagesFromCatalog("Ultra High Definition")
-                    default:
-                        LogConclusion("Failed", logConclusionData, A_LineNumber, "DPI scale unsupported: " . system["Environment"]["DPI Scale"] . ". For 3840x2160 the following scales are supported: 100%, 125%, 150%, 175%.")
                 }
-            default:
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Display resolution unsupported: " . system["Environment"]["Display Resolution"] . ". The following display resolutions are supported: 1920x1080, 2560x1440, 3840x2160.")
         }
     }
 
@@ -197,7 +203,7 @@ RegisterApplications(createApplicationImages := true) {
 
     if applicationRegistry["DaVinci Resolve Studio"]["Installed"] && applicationRegistry["DaVinci Resolve"]["Installed"] {
         if applicationRegistry["DaVinci Resolve Studio"]["Executable Path"] = applicationRegistry["DaVinci Resolve"]["Executable Path"] {
-            executableDirectory := ExtractDirectory(applicationRegistry["DaVinci Resolve Studio"]["Executable Path"])
+            executableDirectory := GetPathComponents(applicationRegistry["DaVinci Resolve Studio"]["Executable Path"])["Directory"]
             readMeFilePath      := executableDirectory . "Documents\ReadMe.html"
 
             if FileExist(readMeFilePath) {
@@ -235,7 +241,7 @@ RegisterApplications(createApplicationImages := true) {
     LogConclusion("Completed", logConclusionData)
 }
 
-ExecutablePathResolve(applicationName) {
+ExecutablePathViaReference(application) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -243,112 +249,14 @@ ExecutablePathResolve(applicationName) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName])
+    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
 
-    global applicationRegistry
-
-    executablePathSearchResult := ""
-
-    static combinedApplicationExecutableDirectoryCandidates := unset
-
-    if !IsSet(combinedApplicationExecutableDirectoryCandidates) {
-        combinedApplicationExecutableDirectoryCandidates := []
-
-        for projectApplicationExecutableDirectoryCandidate in system["Configuration"]["Application Executable Directory Candidates"] {
-            if applicationRegistry[projectApplicationExecutableDirectoryCandidate[1]]["Whitelisted"] = false {
-                continue
-            }
-
-            combinedApplicationExecutableDirectoryCandidates.Push(Map(
-                "Directory", projectApplicationExecutableDirectoryCandidate[3], "Executable", projectApplicationExecutableDirectoryCandidate[2], "Name", projectApplicationExecutableDirectoryCandidate[1], "Source", "Project"
-            ))
-        }
-
-        sharedApplicationExecutableDirectoryCandidatesHash    := GetFileHash(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv", "SHA-256")
-        sharedApplicationExecutableDirectoryCandidatesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Application Executable Directory Candidates.csv", sharedApplicationExecutableDirectoryCandidatesHash)
-        sharedApplicationExecutableDirectoryCandidatesArray   := ParseDelimitedRowsToArrayOfMaps(sharedApplicationExecutableDirectoryCandidatesContent)
-        for index, sharedApplicationExecutableDirectoryCandidate in sharedApplicationExecutableDirectoryCandidatesArray {
-            if applicationRegistry[sharedApplicationExecutableDirectoryCandidate["Name"]]["Whitelisted"] = false {
-                continue
-            }
-
-            sharedApplicationExecutableDirectoryCandidatesArray[index]["Source"] := "Shared"
-            combinedApplicationExecutableDirectoryCandidates.Push(sharedApplicationExecutableDirectoryCandidate)
-        }
-
-        for outerKey in applicationRegistry {
-            for applicationExecutableDirectoryCandidate in combinedApplicationExecutableDirectoryCandidates {
-                if outerKey != applicationExecutableDirectoryCandidate["Name"] {
-                    continue
-                }
-
-                for collisionCandidate in combinedApplicationExecutableDirectoryCandidates {
-                    if applicationExecutableDirectoryCandidate["Executable"] = collisionCandidate["Executable"] && outerKey != collisionCandidate["Name"] {
-
-                        applicationRegistry[outerKey]["Executable Collision"] := true
-                        break 2
-                    }
-                }
-            }
-        }
-    }
-
-    projectEntryAvailable := false
-    relevantApplicationExecutableDirectoryCandidates := []
-    for applicationExecutableDirectoryCandidate in combinedApplicationExecutableDirectoryCandidates {
-        if applicationExecutableDirectoryCandidate["Name"] = applicationName {
-            if applicationExecutableDirectoryCandidate["Source"] = "Project" {
-                projectEntryAvailable := true
-            }
-
-            filteredApplicationExecutableDirectoryCandidate := Map()
-            filteredApplicationExecutableDirectoryCandidate["Directory"]  := applicationExecutableDirectoryCandidate["Directory"]
-            filteredApplicationExecutableDirectoryCandidate["Executable"] := applicationExecutableDirectoryCandidate["Executable"]
-
-            relevantApplicationExecutableDirectoryCandidates.Push(filteredApplicationExecutableDirectoryCandidate)
-        }
-    }
-
-    if projectEntryAvailable || applicationRegistry[applicationName].Has("Executable Collision") {
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaReference(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaAppPaths(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaUninstall(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-    } else {
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaUninstall(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaAppPaths(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-
-        if Type(executablePathSearchResult) != "Map" {
-            executablePathSearchResult := ExecutablePathViaReference(applicationName, relevantApplicationExecutableDirectoryCandidates)
-        }
-    }
-
-    return executablePathSearchResult
-}
-
-ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandidates) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, applicationExecutableDirectoryCandidates])
+    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
+    executablePathSearchResult := Map(
+        "Resolution Method", "Reference",
+        "Success",           false
+    )
 
     static candidateBaseDirectories := unset
     if !IsSet(candidateBaseDirectories) {
@@ -371,21 +279,20 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
         candidateBaseDirectories := RemoveDuplicatesFromArray(candidateBaseDirectories)
     }
 
-    executablePathSearchResult := ""
-    for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
         directoryName  := applicationExecutableDirectoryCandidate["Directory"]
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         baseDirectoriesWithDirectoryNames := []
         for candidateBaseDirectory in candidateBaseDirectories {
-            pathToExecutable := candidateBaseDirectory . "\" . directoryName . "\" . executableName
+            executablePath := candidateBaseDirectory . "\" . directoryName . "\" . executableName
 
             if DirExist(candidateBaseDirectory . "\" . directoryName . "\") {
                 baseDirectoriesWithDirectoryNames.Push(candidateBaseDirectory . "\" . directoryName . "\")
             }
 
-            if FileExist(pathToExecutable) {
-                executablePathSearchResult := pathToExecutable
+            if FileExist(executablePath) {
+                executablePathSearchResult["Executable Path"] := executablePath
                 break
             }
         }
@@ -406,10 +313,10 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                     continue
                 } else {
                     for filePath in applicationDirectoryFileList {
-                        filename := ExtractFilename(filePath)
+                        filename := GetPathComponents(filePath)["Filename"]
 
                         if InStr(filename, applicationName) && SubStr(filename, -extensionLength) = executableExtension {
-                            executablePathSearchResult := filePath
+                            executablePathSearchResult["Executable Path"] := filePath
                             break
                         }
                     }
@@ -490,41 +397,38 @@ ExecutablePathViaReference(applicationName, applicationExecutableDirectoryCandid
                             versionKey .= Format("{:06}", Number(versionPart))
                         }
 
-                        pathToExecutable := A_LoopFileFullPath
+                        executablePath := A_LoopFileFullPath
                         if relativePathAfterVersionSegment != "" {
-                            pathToExecutable .= "\" . relativePathAfterVersionSegment
+                            executablePath .= "\" . relativePathAfterVersionSegment
                         }
-                        pathToExecutable .= "\" . executableName
+                        executablePath .= "\" . executableName
 
-                        if !FileExist(pathToExecutable) {
+                        if !FileExist(executablePath) {
                             continue
                         }
 
                         if highestVersionKey = "" || StrCompare(versionKey, highestVersionKey) > 0 {
                             highestVersionKey := versionKey
-                            highestVersionExecutablePath := pathToExecutable
+                            highestVersionExecutablePath := executablePath
                         }
                     }
                 }
 
                 if highestVersionExecutablePath != "" {
-                    executablePathSearchResult := highestVersionExecutablePath
+                    executablePathSearchResult["Executable Path"] := highestVersionExecutablePath
                 }
             }
         }
     }
 
-    if executablePathSearchResult != "" {
-        executablePathSearchResult := Map(
-            "Executable Path",   executablePathSearchResult,
-            "Resolution Method", "Reference"
-        )
+    if executablePathSearchResult.Has("Executable Path") {
+        executablePathSearchResult["Success"] := true
     }
 
     return executablePathSearchResult
 }
 
-ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandidates) {
+ExecutablePathViaAppPaths(application) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -532,8 +436,14 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, applicationExecutableDirectoryCandidates])
+    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
+
+    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
+    executablePathSearchResult := Map(
+        "Resolution Method", "App Paths",
+        "Success",           false
+    )
 
     static appPathsBaseRegistryKeys := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
@@ -541,44 +451,40 @@ ExecutablePathViaAppPaths(applicationName, applicationExecutableDirectoryCandida
         "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
     ]
 
-    executablePathSearchResult := ""
-    for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
             subkeyPath := appPathsBaseRegistryKey . "\" . executableName
 
-            pathToExecutable := ""
+            executablePath := ""
             try {
-                pathToExecutable := RegRead(subkeyPath, "")
+                executablePath := RegRead(subkeyPath, "")
             }
 
-            if pathToExecutable {
-                if FileExist(pathToExecutable) && ExtractFilename(pathToExecutable) = executableName {
+            if executablePath {
+                if FileExist(executablePath) && GetPathComponents(executablePath)["Filename"] = executableName {
                     if applicationRegistry[applicationName].Has("Executable Collision") {
-                        if !InStr(pathToExecutable, applicationName) {
+                        if !InStr(executablePath, applicationName) {
                             continue
                         }
                     }
 
-                    executablePathSearchResult := pathToExecutable
+                    executablePathSearchResult["Executable Path"] := executablePath
                     break
                 }
             }
         }
     }
 
-    if executablePathSearchResult != "" {
-        executablePathSearchResult := Map(
-            "Executable Path",   executablePathSearchResult,
-            "Resolution Method", "App Paths"
-        )
+    if executablePathSearchResult.Has("Executable Path") {
+        executablePathSearchResult["Success"] := true
     }
 
     return executablePathSearchResult
 }
 
-ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandidates) {
+ExecutablePathViaUninstall(application) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -586,8 +492,14 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applicationName As String, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, applicationExecutableDirectoryCandidates])
+    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
+
+    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
+    executablePathSearchResult := Map(
+        "Resolution Method", "Uninstall",
+        "Success",           false
+    )
 
     static uninstallBaseKeyPaths := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
@@ -595,8 +507,7 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
         "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ]
 
-    executablePathSearchResult := ""
-    for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
+    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
         executableName := applicationExecutableDirectoryCandidate["Executable"]
 
         if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
@@ -606,9 +517,9 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
         requiredLength := 4
         applicationNamePartiallyMatchesExecutableNameCondition := false
         
-        executableNameWithoutExtension := ExtractFilename(executableName, true)
+        SplitPath(executableName, , , , &executableNameNoExtension)
         shorterText   := StrLower(applicationName)
-        longerText    := StrLower(executableNameWithoutExtension)
+        longerText    := StrLower(executableNameNoExtension)
         shorterLength := StrLen(shorterText)
         longerLength  := StrLen(longerText)
         if shorterLength > longerLength {
@@ -642,7 +553,7 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
                     displayName := RegRead(uninstallSubKeyPath, "DisplayName")
                 }
 
-                if !displayName || !InStr(displayName, executableNameWithoutExtension) {
+                if !displayName || !InStr(displayName, executableNameNoExtension) {
                     continue
                 }
 
@@ -652,17 +563,17 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
                 }
 
                 if displayIcon {
-                    pathToExecutable := RegExReplace(displayIcon, ",-?\d+$")
-                    pathToExecutable := StrReplace(pathToExecutable, "/", "\")
+                    executablePath := RegExReplace(displayIcon, ",-?\d+$")
+                    executablePath := StrReplace(executablePath, "/", "\")
                     
-                    if FileExist(pathToExecutable) && (SubStr(StrLower(pathToExecutable), -StrLen(executableName)) = StrLower(executableName)) {
-                        if applicationRegistry[applicationName].Has("Executable Collision") {
-                            if !InStr(pathToExecutable, applicationName) {
+                    if FileExist(executablePath) && (SubStr(StrLower(executablePath), -StrLen(executableName)) = StrLower(executableName)) {
+                        if applicationRegistry[applicationName]["Executable Collision"] {
+                            if !InStr(executablePath, applicationName) {
                                 continue
                             }
                         }
 
-                        executablePathSearchResult := pathToExecutable
+                        executablePathSearchResult["Executable Path"] := executablePath
                         break 2
                     }
                 }
@@ -673,17 +584,17 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
                 }
 
                 if installLocation {
-                    pathToExecutable := RTrim(installLocation, "\/")
-                    pathToExecutable := pathToExecutable . "\" . executableName
+                    executablePath := RTrim(installLocation, "\/")
+                    executablePath := executablePath . "\" . executableName
 
-                    if FileExist(pathToExecutable) {
-                        if applicationRegistry[applicationName].Has("Executable Collision") {
-                            if !InStr(pathToExecutable, applicationName) {
+                    if FileExist(executablePath) {
+                        if applicationRegistry[applicationName]["Executable Collision"] {
+                            if !InStr(executablePath, applicationName) {
                                 continue
                             }
                         }
 
-                        executablePathSearchResult := pathToExecutable
+                        executablePathSearchResult["Executable Path"] := executablePath
                         break 2
                     }
                 }
@@ -691,11 +602,8 @@ ExecutablePathViaUninstall(applicationName, applicationExecutableDirectoryCandid
         }
     }
 
-    if executablePathSearchResult != "" {
-        executablePathSearchResult := Map(
-            "Executable Path",   executablePathSearchResult,
-            "Resolution Method", "Uninstall"
-        )
+    if executablePathSearchResult.Has("Executable Path") {
+        executablePathSearchResult["Success"] := true
     }
 
     return executablePathSearchResult
@@ -747,7 +655,7 @@ ResolveFactsForApplication(applicationName, counter) {
     static commandLineExecutablesArray   := ParseDelimitedRowsToArrayOfMaps(commandLineExecutablesContent)
     for commandLineExecutable in commandLineExecutablesArray {
         if applicationName = commandLineExecutable["Name"] {
-            directoryPath := ExtractDirectory(applicationRegistry[applicationName]["Executable Path"])
+            directoryPath := GetPathComponents(applicationRegistry[applicationName]["Executable Path"])["Directory"]
 
             if FileExist(directoryPath . commandLineExecutable["Command Line Executable"]) {
                 applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . commandLineExecutable["Command Line Executable"]
