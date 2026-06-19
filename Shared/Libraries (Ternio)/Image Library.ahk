@@ -97,9 +97,20 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
             horizontalPercentRange := rangeParts[1]
             verticalPercentRange   := rangeParts[2]
 
-            parts      := StrSplit(baseTextWithoutRanges, "@", " `t")
-            resolution := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Constants"]["Resolutions"], "Resolution", parts[1])["Counter"]
-            scale      := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Constants"]["Scales"], "Scale", parts[2])["Counter"]
+            parts := StrSplit(baseTextWithoutRanges, "@", " `t")
+
+            resolutionValidation := ValidateDataUsingSpecification(parts[1], "String", "Display Resolution")
+            if resolutionValidation != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, resolutionValidation . " " . A_LoopFileName ".")
+            }
+
+            scaleValidation := ValidateDataUsingSpecification(parts[2], "String", "DPI Scale")
+            if scaleValidation != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, scaleValidation . " " . A_LoopFileName ".")
+            }
+
+            resolution := system["Constants"]["Resolution Counters"][parts[1]]
+            scale      := system["Constants"]["Scale Counters"][parts[2]]
 
             fileHash    := GetFileHash(A_LoopFileFullPath, "SHA-256")
             encodedHash := EncodeSha256HexToBase(fileHash, 86)
@@ -168,44 +179,20 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     }
     
     if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
-        catalogDirectory := system["Directories"]["Project"]
-
+        catalogDirectory           := system["Directories"]["Project"]
         imageLibraryCatalogHash    := GetFileHash(projectImageCatalogFilePath, "SHA-256")
         imageLibraryCatalogContent := ReadFileOnHashMatch(projectImageCatalogFilePath, imageLibraryCatalogHash)
         imageLibraryCatalogArray   := ParseDelimitedRowsToArrayOfMaps(imageLibraryCatalogContent)
     } else if !FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
-        catalogDirectory := system["Directories"]["Images"]
+        catalogDirectory           := system["Directories"]["Images"]
         imageLibraryCatalogHash    := GetFileHash(sharedImageCatalogFilePath, "SHA-256")
         imageLibraryCatalogContent := ReadFileOnHashMatch(sharedImageCatalogFilePath, imageLibraryCatalogHash)
         imageLibraryCatalogArray   := ParseDelimitedRowsToArrayOfMaps(imageLibraryCatalogContent)
     }
 
-    static variants          := unset
-    static displayResolution := unset
-    static dpiScale          := unset
-
-    if !IsSet(variants) {
-        variants := Map()
-        for index, name in system["Constants"][system["Configuration"]["Settings"]["Image Variant Preset"]] {
-            variantName := unset
-            if system["Configuration"]["Settings"]["Image Variant Preset"] = "NATO Phonetic Alphabet" {
-                variantName := name["Code Word"]
-            } else {
-                variantName := name["Name"]
-            }
-
-            firstCharacter := StrLower(SubStr(variantName, 1, 1))
-
-            variants[firstCharacter] := variantName
-
-            if index = 16 {
-                break
-            }
-        }
-
-        displayResolution := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Constants"]["Resolutions"], "Resolution", system["Environment"]["Display Resolution"])["Counter"] . ""
-        dpiScale          := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Constants"]["Scales"], "Scale", system["Environment"]["DPI Scale"])["Counter"] . ""
-    }
+    static variants          := system["Configuration"]["Image Variant Preset"].Clone()
+    static displayResolution := system["Environment"]["Display Resolution Counter"] . ""
+    static dpiScale          := system["Environment"]["DPI Scale Counter"] . ""
 
     relevantImages       := []
     uniqueDataReferences := []

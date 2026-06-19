@@ -9,7 +9,7 @@
 ; Application Registry         ;
 ; **************************** ;
 
-RegisterApplications(applications, applicationExecutableDirectoryCandidates) {
+RegisterApplications() {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -17,45 +17,65 @@ RegisterApplications(applications, applicationExecutableDirectoryCandidates) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applications As Array, applicationExecutableDirectoryCandidates As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applications, applicationExecutableDirectoryCandidates], "Register Applications")
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Register Applications")
 
     global applicationRegistry
+
+    static defaultMethodSettingsSet := unset
+    if !IsSet(defaultMethodSettingsSet) {
+        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
+        ConfigureMethodSetting(methodName, "Excel Short Delay", 256, 64, 2048)
+        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640, 160, 5120)
+
+        defaultMethodSettingsSet := true
+    }
+
+    settings := methodRegistry[methodName]["Settings"]
+
+    excelTinyDelay   := settings["Excel Tiny Delay"].Get("Value")
+    excelShortDelay  := settings["Excel Short Delay"].Get("Value")
+    excelMediumDelay := settings["Excel Medium Delay"].Get("Value")
+
+    applications                             := system["Mappings"]["Applications"]
+    applicationExecutableDirectoryCandidates := system["Mappings"]["Application Executable Directory Candidates"]
 
     for application in applications {
         applicationName         := application["Name"]
         applicationCounter      := application["Counter"] + 0
         applicationWhitelisted  := application["Whitelisted"]
-        applicationSharedImages := false
-
-        if application.Has("Shared Images") {
-            applicationSharedImages := true
-        }
 
         applicationRegistry[applicationName] := Map(
             "Counter",       applicationCounter,
-            "Shared Images", applicationSharedImages,
             "Whitelisted",   applicationWhitelisted
         )
+
+        if application.Has("Command Line Executable") {
+            applicationRegistry[applicationName]["Command Line Executable"] := application["Command Line Executable"]
+        }
+
+        if application.Has("Shared Images") {
+            applicationRegistry[applicationName]["Shared Images"] := application["Shared Images"]
+        }
     }
 
     combinedApplicationExecutableDirectoryCandidates := []
-    for outerKey, innerValue in applicationRegistry {
-        if innerValue["Whitelisted"] {
-            applicationRegistry[outerKey]["Application Executable Directory Candidates"] := []
+    for applicationName, application in applicationRegistry {
+        if application["Whitelisted"] {
+            applicationRegistry[applicationName]["Application Executable Directory Candidates"] := []
             for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
-                if outerKey = applicationExecutableDirectoryCandidate["Name"] {
+                if applicationName = applicationExecutableDirectoryCandidate["Name"] {
                     if applicationExecutableDirectoryCandidate["Source"] = "Project" {
-                        applicationRegistry[outerKey]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
+                        applicationRegistry[applicationName]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
                         combinedApplicationExecutableDirectoryCandidates.Push(applicationExecutableDirectoryCandidate)
                     }
                 }
             }
 
             for applicationExecutableDirectoryCandidate in applicationExecutableDirectoryCandidates {
-                if outerKey = applicationExecutableDirectoryCandidate["Name"] {
+                if applicationName = applicationExecutableDirectoryCandidate["Name"] {
                     if applicationExecutableDirectoryCandidate["Source"] = "Shared" {
-                        applicationRegistry[outerKey]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
+                        applicationRegistry[applicationName]["Application Executable Directory Candidates"].Push(applicationExecutableDirectoryCandidate)
                         combinedApplicationExecutableDirectoryCandidates.Push(applicationExecutableDirectoryCandidate)
                     }
                 }
@@ -63,71 +83,599 @@ RegisterApplications(applications, applicationExecutableDirectoryCandidates) {
         }
     }
 
-    for outerKey in applicationRegistry {
+    for applicationName, application in applicationRegistry {
+        if application.Has("Application Executable Directory Candidates") {
+            for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                applicationExecutableDirectoryCandidate["Root Directory"] := StrSplit(applicationExecutableDirectoryCandidate["Directory"], "\")[1]
+            }
+        }
+    }
+
+    for applicationName in applicationRegistry {
         for applicationExecutableDirectoryCandidate in combinedApplicationExecutableDirectoryCandidates {
-            if outerKey != applicationExecutableDirectoryCandidate["Name"] {
+            if applicationName != applicationExecutableDirectoryCandidate["Name"] {
                 continue
             }
 
             for collisionCandidate in combinedApplicationExecutableDirectoryCandidates {
-                if applicationExecutableDirectoryCandidate["Executable"] = collisionCandidate["Executable"] && outerKey != collisionCandidate["Name"] {
+                if applicationExecutableDirectoryCandidate["Executable"] = collisionCandidate["Executable"] && applicationName != collisionCandidate["Name"] {
 
-                    applicationRegistry[outerKey]["Executable Collision"] := true
+                    applicationRegistry[applicationName]["Executable Collision"] := true
                     break 2
                 }
             }
         }
     }
 
-    installedApplicationsWithImageLibraryDataCount := 0
-    for outerKey, innerValue in applicationRegistry {
-        if !innerValue.Has("Executable Collision") {
-            innerValue["Executable Collision"] := false
+    applicationRootDirectories := []
+    for applicationName, application in applicationRegistry {
+        if application["Whitelisted"] {
+            for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                applicationRootDirectories.Push(applicationExecutableDirectoryCandidate["Root Directory"])
+            }
+        }
+    }
+
+    applicationRootDirectories := RemoveDuplicatesFromArray(applicationRootDirectories)
+
+    applicationDirectories := []
+    for directoryPath in system["Mappings"]["Candidate Base Directories"] {
+        Loop Files, directoryPath "\*", "D" {
+            SplitPath(A_LoopFileFullPath, &candidateRootDirectory, &candidateParentDirectory)
+            for applicationRootDirectory in applicationRootDirectories {
+                if applicationRootDirectory = candidateRootDirectory {
+                    if StrLen(candidateParentDirectory) = 2 {
+                        candidateParentDirectory := candidateParentDirectory . "\"
+                    }
+                    applicationDirectories.Push(Map(
+                        "Parent", candidateParentDirectory,
+                        "Root",   candidateRootDirectory,
+                        "Path",   A_LoopFileFullPath
+                    ))
+                    break
+                }
+            }
+        }
+    }
+
+    for applicationName, application in applicationRegistry {
+        if !application["Whitelisted"] {
+            continue
         }
 
         projectSourcePresent := false
-        for applicationExecutableDirectoryCandidate in innerValue["Application Executable Directory Candidates"] {
+        for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
             if applicationExecutableDirectoryCandidate["Source"] = "Project" {
                 projectSourcePresent := true
                 break
             }
         }
 
-        executablePathSearchResult := unset
-        if projectSourcePresent || innerValue["Executable Collision"] {
-            executablePathSearchResult := ExecutablePathViaReference(innerValue)
+        dispatchTypes := ["Uninstall", "App Paths", "Reference"]
+        if projectSourcePresent || application.Has("Executable Collision") {
+            dispatchTypes := ["Reference", "Uninstall", "App Paths"]
+        }
 
-            if !executablePathSearchResult["Success"] {
-                executablePathSearchResult := ExecutablePathViaAppPaths(innerValue)
-            }
+        for dispatchType in dispatchTypes {
+            switch dispatchType {
+                case "App Paths":
+                    if application.Has("Executable Path") {
+                        break
+                    }
 
-            if !executablePathSearchResult["Success"] {
-                executablePathSearchResult := ExecutablePathViaUninstall(innerValue)
-            }
-        } else {
-            executablePathSearchResult := ExecutablePathViaUninstall(innerValue)
+                    static appPathsBaseRegistryKeys := [
+                        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
+                        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
+                        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
+                    ]
 
-            if !executablePathSearchResult["Success"] {
-                executablePathSearchResult := ExecutablePathViaAppPaths(innerValue)
-            }
+                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                        executableName  := applicationExecutableDirectoryCandidate["Executable"]
 
-            if !executablePathSearchResult["Success"] {
-                executablePathSearchResult := ExecutablePathViaReference(innerValue)
+                        for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
+                            subkeyPath := appPathsBaseRegistryKey . "\" . executableName
+
+                            executablePath := ""
+                            try {
+                                executablePath := RegRead(subkeyPath, "")
+                            }
+
+                            if executablePath {
+                                if FileExist(executablePath) && GetPathComponents(executablePath)["Filename"] = executableName {
+                                    if application.Has("Executable Collision") {
+                                        if !InStr(executablePath, applicationName) {
+                                            continue
+                                        }
+                                    }
+
+                                    application["Executable Path"]   := executablePath
+                                    application["Resolution Method"] := "App Paths"
+                                    break
+                                }
+                            }
+                        }
+                    }
+                case "Reference":
+                    if application.Has("Executable Path") {
+                        break
+                    }
+
+                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                        applicationExecutableDirectory     := applicationExecutableDirectoryCandidate["Directory"]
+                        applicationExecutableFilename      := applicationExecutableDirectoryCandidate["Executable"]
+                        applicationExecutableRootDirectory := applicationExecutableDirectoryCandidate["Root Directory"]
+
+                        for applicationDirectory in applicationDirectories {
+                            if applicationExecutableRootDirectory = applicationDirectory["Root"] {
+                                applicationDirectory := applicationDirectory["Parent"] . "\" . applicationExecutableDirectory . "\"
+                                executablePath       := applicationDirectory . applicationExecutableFilename
+                                if FileExist(executablePath) {
+                                    application["Executable Path"]   := executablePath
+                                    application["Resolution Method"] := "Reference"
+                                    break
+                                } else {
+                                    application["Application Directory"] := applicationDirectory
+                                }
+                            }
+                        }
+                    }
+                case "Uninstall":
+                    if application.Has("Executable Path") {
+                        break
+                    }
+
+                    static uninstallBaseKeyPaths := [
+                        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+                        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+                        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+                    ]
+
+                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                        executableName  := applicationExecutableDirectoryCandidate["Executable"]
+
+                        if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
+                            continue
+                        }
+
+                        requiredLength := 4
+                        applicationNamePartiallyMatchesExecutableNameCondition := false
+                        
+                        SplitPath(executableName, , , , &executableNameNoExtension)
+                        shorterText   := StrLower(applicationName)
+                        longerText    := StrLower(executableNameNoExtension)
+                        shorterLength := StrLen(shorterText)
+                        longerLength  := StrLen(longerText)
+                        if shorterLength > longerLength {
+                            temporarySwapHolder := shorterText
+                            shorterText := longerText
+                            longerText  := temporarySwapHolder
+                            shorterLength := StrLen(shorterText)
+                            longerLength  := StrLen(longerText)
+                        }
+
+                        maximumStartIndex := shorterLength - requiredLength + 1
+                        Loop maximumStartIndex {
+                            currentStartIndex := A_Index
+                            substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
+                            if InStr(longerText, substringToSearch) {
+                                applicationNamePartiallyMatchesExecutableNameCondition := true
+                                break
+                            }
+                        }
+
+                        if !applicationNamePartiallyMatchesExecutableNameCondition {
+                            continue
+                        }
+
+                        for uninstallBaseKeyPath in uninstallBaseKeyPaths {
+                            Loop Reg, uninstallBaseKeyPath, "K" {
+                                uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
+
+                                displayName := ""
+                                try {
+                                    displayName := RegRead(uninstallSubKeyPath, "DisplayName")
+                                }
+
+                                if !displayName || !InStr(displayName, executableNameNoExtension) {
+                                    continue
+                                }
+
+                                displayIcon := ""
+                                try {
+                                    displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
+                                }
+
+                                if displayIcon {
+                                    executablePath := RegExReplace(displayIcon, ",-?\d+$")
+                                    executablePath := StrReplace(executablePath, "/", "\")
+                                    
+                                    if FileExist(executablePath) && (SubStr(StrLower(executablePath), -StrLen(executableName)) = StrLower(executableName)) {
+                                        if application.Has("Executable Collision") {
+                                            if !InStr(executablePath, applicationName) {
+                                                continue
+                                            }
+                                        }
+
+                                        application["Executable Path"]   := executablePath
+                                        application["Resolution Method"] := "Uninstall"
+                                        break 2
+                                    }
+                                }
+
+                                installLocation := ""
+                                try {
+                                    installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
+                                }
+
+                                if installLocation {
+                                    executablePath := RTrim(installLocation, "\/")
+                                    executablePath := executablePath . "\" . executableName
+
+                                    if FileExist(executablePath) {
+                                        if application.Has("Executable Collision") {
+                                            if !InStr(executablePath, applicationName) {
+                                                continue
+                                            }
+                                        }
+
+                                        application["Executable Path"]   := executablePath
+                                        application["Resolution Method"] := "Uninstall"
+                                        break 2
+                                    }
+                                }
+                            }
+                        }
+                    }
             }
         }
 
-        if executablePathSearchResult["Success"] {
-            if innerValue["Shared Images"] {
+        if !application.Has("Executable Path") && application.Has("Application Directory") {
+            if application["Application Executable Directory Candidates"].Length != 1 {
+                totalDotOccurencesInDirectoryName := 0
+                for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                    dotCount := StrLen(applicationExecutableDirectoryCandidate["Directory"]) - StrLen(StrReplace(applicationExecutableDirectoryCandidate["Directory"], "."))
+                    totalDotOccurencesInDirectoryName += dotCount
+                }
+
+                if totalDotOccurencesInDirectoryName / application["Application Executable Directory Candidates"].Length >= 2 {
+                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                        if InStr(application["Application Directory"], applicationExecutableDirectoryCandidate["Directory"]) {
+                            applicationDirectory := application["Application Directory"]
+                            executableName       := applicationExecutableDirectoryCandidate["Executable"]
+                            
+                            directoryNameSegments := StrSplit(applicationDirectory, "\")
+                            versionSegmentIndex   := 0
+                            
+                            for index, directoryNameSegment in directoryNameSegments {
+                                if directoryNameSegment = "" {
+                                    continue
+                                }
+                                
+                                StrReplace(directoryNameSegment, ".", "", , &dotOccurrencesInDirectoryNameSegment)
+                                if dotOccurrencesInDirectoryNameSegment >= 2 {
+                                    firstDigitPositionInSegment := RegExMatch(directoryNameSegment, "\d")
+                                    if firstDigitPositionInSegment > 0 {
+                                        versionSegmentIndex := index
+                                        break
+                                    }
+                                }
+                            }
+                            
+                            if versionSegmentIndex = 0 {
+                                continue
+                            }
+
+                            relativePathBeforeVersionSegment := ""
+                            relativePathAfterVersionSegment  := ""
+                            
+                            for index, directoryNameSegment in directoryNameSegments {
+                                if directoryNameSegment = "" {
+                                    continue
+                                }
+
+                                
+                                if index < versionSegmentIndex {
+                                    if relativePathBeforeVersionSegment != "" {
+                                        relativePathBeforeVersionSegment .= "\"
+                                    }
+
+                                    relativePathBeforeVersionSegment .= directoryNameSegment
+                                } else if index > versionSegmentIndex {
+                                    if relativePathAfterVersionSegment != "" {
+                                        relativePathAfterVersionSegment .= "\"
+                                    }
+
+                                    relativePathAfterVersionSegment .= directoryNameSegment
+                                }
+                            }
+                            
+                            parentDirectory := ""
+                            if relativePathBeforeVersionSegment != "" {
+                                parentDirectory := relativePathBeforeVersionSegment . "\"
+                            } else {
+                                parentDirectory := RegExReplace(applicationDirectory, "[^\\]+\\$", "")
+                            }
+                            
+                            highestVersionKey            := ""
+                            highestVersionExecutablePath := ""
+                            
+                            Loop Files, parentDirectory . "*", "D" {
+                                folderName := A_LoopFileName
+                                
+                                StrReplace(folderName, ".", "", , &dotOccurrencesInFolderName)
+                                if dotOccurrencesInFolderName < 2 {
+                                    continue
+                                }
+                                
+                                firstDigitPositionInFolderName := RegExMatch(folderName, "\d")
+                                if firstDigitPositionInFolderName = 0 {
+                                    continue
+                                }
+                                
+                                versionText := SubStr(folderName, firstDigitPositionInFolderName)
+                                if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
+                                    continue
+                                }
+                                
+                                versionKey := ""
+                                for versionPart in StrSplit(versionText, ".") {
+                                    versionKey .= Format("{:06}", Number(versionPart))
+                                }
+                                
+                                executablePath := parentDirectory . folderName
+                                if relativePathAfterVersionSegment != "" {
+                                    executablePath .= "\" . relativePathAfterVersionSegment
+                                }
+                                executablePath .= "\" . executableName
+                                
+                                if FileExist(executablePath) && (highestVersionKey = "" || StrCompare(versionKey, highestVersionKey) > 0) {
+                                    highestVersionKey            := versionKey
+                                    highestVersionExecutablePath := executablePath
+                                }
+                            }
+                            
+                            if highestVersionExecutablePath != "" {
+                                application["Executable Path"]   := highestVersionExecutablePath
+                                application["Resolution Method"] := "Reference"
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for applicationName, application in applicationRegistry {
+        if application.Has("Executable Path") {
+            application["Installed"] := true
+
+            if application.Has("Application Directory") {
+                application.Delete("Application Directory")
+            }
+
+            SplitPath(application["Executable Path"], &executableFilename, &directoryPath)
+
+            if application.Has("Command Line Executable") {
+                if FileExist(directoryPath . "\" . application["Command Line Executable"]) {
+                    application["Command Line Executable Path"] := directoryPath . "\" . application["Command Line Executable"]
+                }
+            }
+
+            executableVersion := "N/A"
+            try {
+                executableVersion := FileGetVersion(application["Executable Path"])
+            }
+
+            application["Executable Binary Type"] := DetermineWindowsBinaryType(application["Executable Path"])
+            application["Executable Filename"]    := executableFilename
+            application["Executable Hash"]        := GetFileHash(application["Executable Path"], "SHA-256")
+            application["Executable Version"]     := executableVersion
+        } else {
+            application["Installed"] := false
+        }
+    }
+
+    if applicationRegistry["DaVinci Resolve Studio"]["Installed"] && applicationRegistry["DaVinci Resolve"]["Installed"] {
+        if applicationRegistry["DaVinci Resolve Studio"]["Executable Path"] = applicationRegistry["DaVinci Resolve"]["Executable Path"] {
+            executableDirectory := GetPathComponents(applicationRegistry["DaVinci Resolve Studio"]["Executable Path"])["Directory"]
+            readMeFilePath      := executableDirectory . "Documents\ReadMe.html"
+
+            if FileExist(readMeFilePath) {
+                readMeFileContents := ReadFileOnHashMatch(readMeFilePath, GetFileHash(readMeFilePath, "SHA-256"))
+
+                notInstalledApplication := "DaVinci Resolve Studio"
+                if InStr(readMeFileContents, "About DaVinci Resolve Studio") {
+                    notInstalledApplication := "DaVinci Resolve"
+                }
+
+                applicationRegistry[notInstalledApplication].Delete("Executable Binary Type")
+                applicationRegistry[notInstalledApplication].Delete("Executable Filename")
+                applicationRegistry[notInstalledApplication].Delete("Executable Hash")
+                applicationRegistry[notInstalledApplication].Delete("Executable Path")
+                applicationRegistry[notInstalledApplication].Delete("Executable Version")
+                applicationRegistry[notInstalledApplication].Delete("Resolution Method")
+
+                applicationRegistry[notInstalledApplication]["Installed"] := false
+            }
+        }
+    }
+    installedApplications := []
+    installedApplicationsWithImageLibraryDataCount := 0
+
+    for applicationName, application in applicationRegistry {
+        if application["Installed"] {
+            if application.Has("Shared Images") {
                 installedApplicationsWithImageLibraryDataCount++
             }
 
-            applicationRegistry[outerKey]["Executable Path"]   := executablePathSearchResult["Executable Path"]
-            applicationRegistry[outerKey]["Resolution Method"] := executablePathSearchResult["Resolution Method"]
-            applicationRegistry[outerKey]["Installed"]         := true
-        } else {
-            applicationRegistry[outerKey]["Installed"]         := false
+            switch applicationName {
+                case "Capture2Text":
+                    if application["Executable Hash"] = "d90d3684ccd34128556d33623a2d079400754ee9732bd1df7274f00a8e4fbb72" || application["Executable Hash"] = "320da826e0eddf763fd423c497ce5cd11703ff894b39da2f7b7db3ee78b1890f" {
+                        application["Executable Version"] := "4.6.3"
+                    }
+                case "Cura":
+                    if application["Executable Version"] = "N/A" {
+                        SplitPath(application["Executable Path"], , &directoryName)
+                        if RegExMatch(directoryName, "i)UltiMaker Cura ([\d\.]+)", &versionMatch) {
+                            application["Executable Version"] := versionMatch[1]
+                        }
+                    }
+                case "CyberChef":
+                    if application["Executable Version"] = "N/A" {
+                        filename := GetPathComponents(application["Executable Path"])["Filename"]
+                        if RegExMatch(filename, "_v(\d+\.\d+(?:\.\d+)*)", &versionMatch) {
+                            application["Executable Version"] := versionMatch[1]
+                        }
+                    }
+                case "Exact Audio Copy":
+                    if application["Executable Hash"] = "a169a5cad41cc341f2b108d8a38eaf957c817df1f971ac13aa1fb731f957a204" {
+                        application["Executable Version"] := "1.8"
+                    }
+                case "Excel":
+                    CloseApplication("Excel")
+
+                    excelApplication := ComObject("Excel.Application")
+                    excelWorkbook    := excelApplication.Workbooks.Add()
+                    excelWorksheet   := excelWorkbook.ActiveSheet
+                    excelApplication.Visible := true
+
+                    excelWindowHandle := excelApplication.Hwnd
+                    while !excelWindowHandle := excelApplication.Hwnd {
+                        Sleep(excelTinyDelay)
+                    }
+                    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+
+                    excelMainWindowSearchResults := SearchForWindow("ahk_exe " . application["Executable Filename"] . " ahk_class XLMAIN", 60)
+                    ActivateWindow(excelMainWindowSearchResults, true)
+
+                    personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
+                    if !FileExist(personalMacroWorkbookPath) {
+                        KeyboardShortcut("ALT", "Q") ; Microsoft Search
+                        Sleep(excelMediumDelay)
+                        PasteText("Record Macro")
+                        Sleep(excelMediumDelay)
+                        SendInput("{Down}") ; Record Macro: Select
+                        Sleep(excelShortDelay)
+                        SendInput("{Enter}") ; Record Macro: Apply
+                        excelRecordMacroWindowSearchResults := SearchForWindow("Record Macro ahk_exe " . application["Executable Filename"], 60)
+                        ActivateWindow(excelRecordMacroWindowSearchResults)
+                        SendInput("{Tab}") ; Shortcut key:
+                        Sleep(excelShortDelay)
+                        SendInput("{Tab}") ; Store macro in:
+                        Sleep(excelShortDelay)
+                        SendInput("{Up}") ; Activate list
+                        Sleep(excelShortDelay)
+                        SendInput("{Up}") ; This Workbook -> New Workbook
+                        Sleep(excelShortDelay)
+                        SendInput("{Up}") ; New Workbook -> Personal Macro Workbook
+                        Sleep(excelShortDelay)
+                        SendInput("{Enter}") ; Apply
+                        Sleep(excelShortDelay)
+                        SendInput("{Tab}") ; Description:
+                        Sleep(excelShortDelay)
+                        SendInput("{Tab}") ; OK
+                        Sleep(excelShortDelay)
+                        SendInput("{Enter}") ; OK: Apply
+                        Sleep(excelMediumDelay)
+                        ActivateWindow(excelMainWindowSearchResults)
+                        KeyboardShortcut("ALT", "Q") ; Microsoft Search
+                        Sleep(excelMediumDelay)
+                        PasteText("Record Macro")
+                        Sleep(excelMediumDelay)
+                        SendInput("{Down}") ; Record Macro: Select
+                        Sleep(excelShortDelay)
+                        SendInput("{Enter}") ; Record Macro: Stop Recording
+                        Sleep(excelShortDelay)
+                        KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
+                        visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . application["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
+                        ActivateWindow(visualBasicEditorWindowSearchResults)
+                        Sleep(excelShortDelay)
+                        KeyboardShortcut("CTRL", "R") ; Project Explorer
+                        Sleep(excelShortDelay)
+                        SendInput("{Down}") ; Sheet1 (Sheet1) -> ThisWorkbook
+                        Sleep(excelShortDelay)
+                        SendInput("{Down}") ; ThisWorkbook -> VBAProject (PERSONAL.XLSB)
+                        Sleep(excelShortDelay)
+                        SendInput("{Right}") ; VBAProject (PERSONAL.XLSB): Expand
+                        Sleep(excelShortDelay)
+                        SendInput("{Down}") ; Microsoft Excel Objects
+                        Sleep(excelShortDelay)
+                        SendInput("{Down}") ; Modules
+                        Sleep(excelShortDelay)
+                        SendInput("{Right}") ; Modules: Expand
+                        Sleep(excelShortDelay)
+                        SendInput("{Down}") ; Module1
+                        Sleep(excelShortDelay)
+                        SendInput("{Enter}") ; Module1: Open
+                        Sleep(excelShortDelay)
+                        PasteText("Sub Macro()" . "`r`n`r`n" . "End Sub", "'")
+
+                        Loop excelApplication.Workbooks.Count {
+                            currentWorkbook := excelApplication.Workbooks.Item(A_Index)
+                            if personalMacroWorkbookPath = currentWorkbook.FullName {
+                                currentWorkbook.Save()
+                                break
+                            }
+                        }
+
+                        Sleep(excelTinyDelay)
+                        KeyboardShortcut("ALT", "Q") ; Close and Return to Microsoft Excel
+                        Sleep(excelShortDelay)
+                    }
+
+                    excelMacroCode := "Sub Run()" . "`r`n" . '    Range("A1").Value = "Cell"' . "`r`n" . "End Sub"
+                    OpenVisualBasicEditorAndRunCode(excelMacroCode, excelApplication)
+                    Sleep(excelTinyDelay + excelTinyDelay)
+
+                    if excelWorksheet.Range("A1").Value != "Cell" {
+                        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute Excel Macro Code.")
+                    }
+
+                    application["Personal Macro Workbook"] := personalMacroWorkbookPath
+
+                    application["International"] := Map()
+                    for international in system["Constants"]["Excel International"] {
+                        application["International"][international["Label"]] := excelApplication.International[international["Value"]]
+                    }
+
+                    excelWorkbook.Close(false)
+                    excelApplication.DisplayAlerts := false
+                    excelApplication.Quit()
+
+                    excelWorksheet   := 0
+                    excelWorkbook    := 0
+                    excelApplication := 0
+                    ProcessWaitClose(excelProcessIdentifier, 2)
+                case "GtkHash":
+                    if application["Executable Hash"] = "bf4ee99fac496949a6619d90994fed19b2a199b7ea6af126cb8ab84555c73928" {
+                        application["Executable Version"] := "1.5"
+                    }
+                case "SoapUI":
+                    if application["Executable Version"] = "N/A" {
+                        if RegExMatch(application["Executable Filename"], "i)SoapUI-(\d+\.\d+(?:\.\d+)*)\.exe$", &versionMatch) {
+                            application["Executable Version"] := versionMatch[1]
+                        }
+                    }
+                case "Word":
+                    wordApplication := ComObject("Word.Application")
+
+                    application["International"] := Map()
+                    for international in system["Constants"]["Word International"] {
+                        application["International"][international["Label"]] := wordApplication.International[international["Value"]]
+                    }
+
+                    wordApplication.Quit()
+                    wordApplication := 0
+            }
+
+            configuration := applicationName . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
+            configuration := configuration . "|" . application["Counter"] . "|" . SubStr(application["Resolution Method"], 1, 1)
+            installedApplications.Push(configuration)
         }
     }
+
+    BatchAppendExecutionLog("Application", installedApplications)
 
     if installedApplicationsWithImageLibraryDataCount != 0 {
         switch system["Environment"]["Display Resolution"] {
@@ -195,663 +743,7 @@ RegisterApplications(applications, applicationExecutableDirectoryCandidates) {
         }
     }
 
-    for application in applicationRegistry {
-        if applicationRegistry[application]["Installed"] = true {
-             ResolveFactsForApplication(application, applicationRegistry[application]["Counter"])
-        }
-    }
-
-    if applicationRegistry["DaVinci Resolve Studio"]["Installed"] && applicationRegistry["DaVinci Resolve"]["Installed"] {
-        if applicationRegistry["DaVinci Resolve Studio"]["Executable Path"] = applicationRegistry["DaVinci Resolve"]["Executable Path"] {
-            executableDirectory := GetPathComponents(applicationRegistry["DaVinci Resolve Studio"]["Executable Path"])["Directory"]
-            readMeFilePath      := executableDirectory . "Documents\ReadMe.html"
-
-            if FileExist(readMeFilePath) {
-                readMeFileContents := ReadFileOnHashMatch(readMeFilePath, GetFileHash(readMeFilePath, "SHA-256"))
-
-                notInstalledApplication := "DaVinci Resolve Studio"
-                if InStr(readMeFileContents, "About DaVinci Resolve Studio") {
-                    notInstalledApplication := "DaVinci Resolve"
-                }
-
-                applicationRegistry[notInstalledApplication].Delete("Binary Type")
-                applicationRegistry[notInstalledApplication].Delete("Executable Filename")
-                applicationRegistry[notInstalledApplication].Delete("Executable Hash")
-                applicationRegistry[notInstalledApplication].Delete("Executable Path")
-                applicationRegistry[notInstalledApplication].Delete("Executable Version")
-                applicationRegistry[notInstalledApplication].Delete("Resolution Method")
-
-                applicationRegistry[notInstalledApplication]["Installed"] := false
-            }
-        }
-    }
-
-    installedApplications := []
-    for outerKey, innerValue in applicationRegistry {
-        if innerValue["Installed"] {
-            configuration := outerKey . "|" . innerValue["Executable Path"] . "|" . innerValue["Executable Hash"] . "|" . innerValue["Executable Version"] . "|" . innerValue["Binary Type"]
-            configuration := configuration . "|" . innerValue["Counter"] . "|" . SubStr(innerValue["Resolution Method"], 1, 1)
-            installedApplications.Push(configuration)
-            innerValue["Executable Hash"] := DecodeBaseToSha256Hex(innerValue["Executable Hash"], 86)
-        }
-    }
-
-    BatchAppendExecutionLog("Application", installedApplications)
-
     LogConclusion("Completed", logConclusionData)
-}
-
-ExecutablePathViaReference(application) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
-
-    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
-    executablePathSearchResult := Map(
-        "Resolution Method", "Reference",
-        "Success",           false
-    )
-
-    static candidateBaseDirectories := unset
-    if !IsSet(candidateBaseDirectories) {
-        candidateBaseDirectories := []
-
-        configurationCandidateBaseDirectories := system["Configuration"]["Candidate Base Directories"]
-        for configurationCandidateBaseDirectory in configurationCandidateBaseDirectories {
-            if DirExist(configurationCandidateBaseDirectory) {
-                candidateBaseDirectories.Push(configurationCandidateBaseDirectory)
-            }
-        }
-
-        defaultCandidateBaseDirectories := [EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive") . "\", EnvGet("USERPROFILE")]
-        for defaultCandidateBaseDirectory in defaultCandidateBaseDirectories {
-            if DirExist(defaultCandidateBaseDirectory) {
-                candidateBaseDirectories.Push(defaultCandidateBaseDirectory)
-            }
-        }
-
-        candidateBaseDirectories := RemoveDuplicatesFromArray(candidateBaseDirectories)
-    }
-
-    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-        directoryName  := applicationExecutableDirectoryCandidate["Directory"]
-        executableName := applicationExecutableDirectoryCandidate["Executable"]
-
-        baseDirectoriesWithDirectoryNames := []
-        for candidateBaseDirectory in candidateBaseDirectories {
-            executablePath := candidateBaseDirectory . "\" . directoryName . "\" . executableName
-
-            if DirExist(candidateBaseDirectory . "\" . directoryName . "\") {
-                baseDirectoriesWithDirectoryNames.Push(candidateBaseDirectory . "\" . directoryName . "\")
-            }
-
-            if FileExist(executablePath) {
-                executablePathSearchResult["Executable Path"] := executablePath
-                break
-            }
-        }
-
-        if executablePathSearchResult = "" {
-            extensionPosition   := InStr(executableName, ".", , -1)
-            executableExtension := SubStr(executableName, extensionPosition)
-            extensionLength     := StrLen(executableExtension)
-            
-            for baseDirectoryWithName in baseDirectoriesWithDirectoryNames {
-                if executablePathSearchResult != "" {
-                    break
-                }
-
-                applicationDirectoryFileList := GetFilesFromDirectory(baseDirectoryWithName)
-
-                if applicationDirectoryFileList.Length = 0 {
-                    continue
-                } else {
-                    for filePath in applicationDirectoryFileList {
-                        filename := GetPathComponents(filePath)["Filename"]
-
-                        if InStr(filename, applicationName) && SubStr(filename, -extensionLength) = executableExtension {
-                            executablePathSearchResult["Executable Path"] := filePath
-                            break
-                        }
-                    }
-                }
-            }
-        }
-
-        StrReplace(directoryName, ".", "", , &dotOccurrencesInDirectoryNameCount)
-        if executablePathSearchResult = "" && dotOccurrencesInDirectoryNameCount >= 2 {
-            directoryNameSegments := StrSplit(directoryName, "\")
-            versionSegmentIndex   := 0
-            versionSegment        := ""
-
-            for index, directoryNameSegment in directoryNameSegments {
-                StrReplace(directoryNameSegment, ".", "", , &dotOccurrencesInDirectoryNameSegmentCount)
-
-                if dotOccurrencesInDirectoryNameSegmentCount < 2 {
-                    continue
-                }
-
-                versionSegmentIndex := index
-                versionSegment      := directoryNameSegment
-                break
-            }
-
-            if versionSegmentIndex != 0 {
-                relativePathBeforeVersionSegment := ""
-                relativePathAfterVersionSegment  := ""
-
-                for index, directoryNameSegment in directoryNameSegments {
-                    if index < versionSegmentIndex {
-                        if relativePathBeforeVersionSegment != "" {
-                            relativePathBeforeVersionSegment .= "\"
-                        }
-                        relativePathBeforeVersionSegment .= directoryNameSegment
-                    } else if index > versionSegmentIndex {
-                        if relativePathAfterVersionSegment != "" {
-                            relativePathAfterVersionSegment .= "\"
-                        }
-                        relativePathAfterVersionSegment .= directoryNameSegment
-                    }
-                }
-
-                highestVersionKey            := ""
-                highestVersionExecutablePath := ""
-
-                for candidateBaseDirectory in candidateBaseDirectories {
-                    applicationRootDirectory := candidateBaseDirectory
-                    if relativePathBeforeVersionSegment != "" {
-                        applicationRootDirectory .= "\" . relativePathBeforeVersionSegment
-                    }
-                    applicationRootDirectory .= "\"
-
-                    if !DirExist(applicationRootDirectory) {
-                        continue
-                    }
-
-                    Loop Files, applicationRootDirectory . "*", "D" {
-                        folderName := A_LoopFileName
-
-                        StrReplace(folderName, ".", "", , &dotOccurrencesInFolderName)
-                        if dotOccurrencesInFolderName < 2 {
-                            continue
-                        }
-
-                        firstDigitPositionInFolderName := RegExMatch(folderName, "\d")
-                        if firstDigitPositionInFolderName = 0 {
-                            continue
-                        }
-
-                        versionText := SubStr(folderName, firstDigitPositionInFolderName)
-                        if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
-                            continue
-                        }
-
-                        versionKey := ""
-                        for versionPart in StrSplit(versionText, ".") {
-                            versionKey .= Format("{:06}", Number(versionPart))
-                        }
-
-                        executablePath := A_LoopFileFullPath
-                        if relativePathAfterVersionSegment != "" {
-                            executablePath .= "\" . relativePathAfterVersionSegment
-                        }
-                        executablePath .= "\" . executableName
-
-                        if !FileExist(executablePath) {
-                            continue
-                        }
-
-                        if highestVersionKey = "" || StrCompare(versionKey, highestVersionKey) > 0 {
-                            highestVersionKey := versionKey
-                            highestVersionExecutablePath := executablePath
-                        }
-                    }
-                }
-
-                if highestVersionExecutablePath != "" {
-                    executablePathSearchResult["Executable Path"] := highestVersionExecutablePath
-                }
-            }
-        }
-    }
-
-    if executablePathSearchResult.Has("Executable Path") {
-        executablePathSearchResult["Success"] := true
-    }
-
-    return executablePathSearchResult
-}
-
-ExecutablePathViaAppPaths(application) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
-
-    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
-    executablePathSearchResult := Map(
-        "Resolution Method", "App Paths",
-        "Success",           false
-    )
-
-    static appPathsBaseRegistryKeys := [
-        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
-        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
-        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
-    ]
-
-    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-        executableName := applicationExecutableDirectoryCandidate["Executable"]
-
-        for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
-            subkeyPath := appPathsBaseRegistryKey . "\" . executableName
-
-            executablePath := ""
-            try {
-                executablePath := RegRead(subkeyPath, "")
-            }
-
-            if executablePath {
-                if FileExist(executablePath) && GetPathComponents(executablePath)["Filename"] = executableName {
-                    if applicationRegistry[applicationName].Has("Executable Collision") {
-                        if !InStr(executablePath, applicationName) {
-                            continue
-                        }
-                    }
-
-                    executablePathSearchResult["Executable Path"] := executablePath
-                    break
-                }
-            }
-        }
-    }
-
-    if executablePathSearchResult.Has("Executable Path") {
-        executablePathSearchResult["Success"] := true
-    }
-
-    return executablePathSearchResult
-}
-
-ExecutablePathViaUninstall(application) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("application As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [application])
-
-    applicationName := application["Application Executable Directory Candidates"][1]["Name"]
-    executablePathSearchResult := Map(
-        "Resolution Method", "Uninstall",
-        "Success",           false
-    )
-
-    static uninstallBaseKeyPaths := [
-        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-    ]
-
-    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-        executableName := applicationExecutableDirectoryCandidate["Executable"]
-
-        if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
-            continue
-        }
-
-        requiredLength := 4
-        applicationNamePartiallyMatchesExecutableNameCondition := false
-        
-        SplitPath(executableName, , , , &executableNameNoExtension)
-        shorterText   := StrLower(applicationName)
-        longerText    := StrLower(executableNameNoExtension)
-        shorterLength := StrLen(shorterText)
-        longerLength  := StrLen(longerText)
-        if shorterLength > longerLength {
-            temporarySwapHolder := shorterText
-            shorterText := longerText
-            longerText  := temporarySwapHolder
-            shorterLength := StrLen(shorterText)
-            longerLength  := StrLen(longerText)
-        }
-
-        maximumStartIndex := shorterLength - requiredLength + 1
-        Loop maximumStartIndex {
-            currentStartIndex := A_Index
-            substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
-            if InStr(longerText, substringToSearch) {
-                applicationNamePartiallyMatchesExecutableNameCondition := true
-                break
-            }
-        }
-
-        if !applicationNamePartiallyMatchesExecutableNameCondition {
-            continue
-        }
-
-        for uninstallBaseKeyPath in uninstallBaseKeyPaths {
-            Loop Reg, uninstallBaseKeyPath, "K" {
-                uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
-
-                displayName := ""
-                try {
-                    displayName := RegRead(uninstallSubKeyPath, "DisplayName")
-                }
-
-                if !displayName || !InStr(displayName, executableNameNoExtension) {
-                    continue
-                }
-
-                displayIcon := ""
-                try {
-                    displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
-                }
-
-                if displayIcon {
-                    executablePath := RegExReplace(displayIcon, ",-?\d+$")
-                    executablePath := StrReplace(executablePath, "/", "\")
-                    
-                    if FileExist(executablePath) && (SubStr(StrLower(executablePath), -StrLen(executableName)) = StrLower(executableName)) {
-                        if applicationRegistry[applicationName]["Executable Collision"] {
-                            if !InStr(executablePath, applicationName) {
-                                continue
-                            }
-                        }
-
-                        executablePathSearchResult["Executable Path"] := executablePath
-                        break 2
-                    }
-                }
-
-                installLocation := ""
-                try {
-                    installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
-                }
-
-                if installLocation {
-                    executablePath := RTrim(installLocation, "\/")
-                    executablePath := executablePath . "\" . executableName
-
-                    if FileExist(executablePath) {
-                        if applicationRegistry[applicationName]["Executable Collision"] {
-                            if !InStr(executablePath, applicationName) {
-                                continue
-                            }
-                        }
-
-                        executablePathSearchResult["Executable Path"] := executablePath
-                        break 2
-                    }
-                }
-            }
-        }
-    }
-
-    if executablePathSearchResult.Has("Executable Path") {
-        executablePathSearchResult["Success"] := true
-    }
-
-    return executablePathSearchResult
-}
-
-ResolveFactsForApplication(applicationName, counter) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("applicationName As String, counter As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, counter])
-
-    global applicationRegistry
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
-        ConfigureMethodSetting(methodName, "Excel Short Delay", 256, 64, 2048)
-        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640, 160, 5120)
-
-        defaultMethodSettingsSet := true
-    }
-
-    settings := methodRegistry[methodName]["Settings"]
-
-    executableHash := GetFileHash(applicationRegistry[applicationName]["Executable Path"], "SHA-256")
-    executableHash := EncodeSha256HexToBase(executableHash, 86)
-
-    executableVersion := "N/A"
-    try {
-        executableVersion := FileGetVersion(applicationRegistry[applicationName]["Executable Path"])
-    }
-
-    binaryType := DetermineWindowsBinaryType(applicationRegistry[applicationName]["Executable Path"])
-
-    applicationRegistry[applicationName]["Executable Hash"]    := executableHash
-    applicationRegistry[applicationName]["Executable Version"] := executableVersion
-    applicationRegistry[applicationName]["Binary Type"]        := binaryType
-
-    SplitPath(applicationRegistry[applicationName]["Executable Path"], &executableFilename)
-    applicationRegistry[applicationName]["Executable Filename"] := executableFilename
-
-    static commandLineExecutablesHash    := GetFileHash(system["Directories"]["Mappings"] . "Command Line Executables.csv", "SHA-256")
-    static commandLineExecutablesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Command Line Executables.csv", commandLineExecutablesHash)
-    static commandLineExecutablesArray   := ParseDelimitedRowsToArrayOfMaps(commandLineExecutablesContent)
-    for commandLineExecutable in commandLineExecutablesArray {
-        if applicationName = commandLineExecutable["Name"] {
-            directoryPath := GetPathComponents(applicationRegistry[applicationName]["Executable Path"])["Directory"]
-
-            if FileExist(directoryPath . commandLineExecutable["Command Line Executable"]) {
-                applicationRegistry[applicationName]["Command Line Executable Path"] := directoryPath . commandLineExecutable["Command Line Executable"]
-            }
-        }
-    }
-
-    switch applicationName {
-        case "CyberChef":
-            cyberChefHtml := ReadFileOnHashMatch(applicationRegistry[applicationName]["Executable Path"], DecodeBaseToSha256Hex(applicationRegistry[applicationName]["Executable Hash"], 86))
-
-            versionPattern := "i)CyberChef\s+version:\s*(\d+(?:\.\d+)*)"
-            if RegExMatch(cyberChefHtml, versionPattern, &versionMatch) {
-                applicationRegistry[applicationName]["Executable Version"] := versionMatch[1]
-            }
-        case "Excel":
-            excelTinyDelay   := settings["Excel Tiny Delay"].Get("Value")
-            excelShortDelay  := settings["Excel Short Delay"].Get("Value")
-            excelMediumDelay := settings["Excel Medium Delay"].Get("Value")
-
-            CloseApplication("Excel")
-
-            excelApplication := ComObject("Excel.Application")
-            excelWorkbook    := excelApplication.Workbooks.Add()
-            excelWorksheet   := excelWorkbook.ActiveSheet
-            excelApplication.Visible := true
-
-            excelWindowHandle := excelApplication.Hwnd
-            while !excelWindowHandle := excelApplication.Hwnd {
-                Sleep(excelTinyDelay)
-            }
-            excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
-
-            excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
-            ActivateWindow(excelMainWindowSearchResults, true)
-
-            personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-            if !FileExist(personalMacroWorkbookPath) {
-                KeyboardShortcut("ALT", "Q") ; Microsoft Search
-                Sleep(excelMediumDelay)
-                PasteText("Record Macro")
-                Sleep(excelMediumDelay)
-                SendInput("{Down}") ; Record Macro: Select
-                Sleep(excelShortDelay)
-                SendInput("{Enter}") ; Record Macro: Apply
-                excelRecordMacroWindowSearchResults := SearchForWindow("Record Macro ahk_exe " . applicationRegistry["Excel"]["Executable Filename"], 60)
-                ActivateWindow(excelRecordMacroWindowSearchResults)
-                SendInput("{Tab}") ; Shortcut key:
-                Sleep(excelShortDelay)
-                SendInput("{Tab}") ; Store macro in:
-                Sleep(excelShortDelay)
-                SendInput("{Up}") ; Activate list
-                Sleep(excelShortDelay)
-                SendInput("{Up}") ; This Workbook -> New Workbook
-                Sleep(excelShortDelay)
-                SendInput("{Up}") ; New Workbook -> Personal Macro Workbook
-                Sleep(excelShortDelay)
-                SendInput("{Enter}") ; Apply
-                Sleep(excelShortDelay)
-                SendInput("{Tab}") ; Description:
-                Sleep(excelShortDelay)
-                SendInput("{Tab}") ; OK
-                Sleep(excelShortDelay)
-                SendInput("{Enter}") ; OK: Apply
-                Sleep(excelMediumDelay)
-                ActivateWindow(excelMainWindowSearchResults)
-                KeyboardShortcut("ALT", "Q") ; Microsoft Search
-                Sleep(excelMediumDelay)
-                PasteText("Record Macro")
-                Sleep(excelMediumDelay)
-                SendInput("{Down}") ; Record Macro: Select
-                Sleep(excelShortDelay)
-                SendInput("{Enter}") ; Record Macro: Stop Recording
-                Sleep(excelShortDelay)
-                KeyboardShortcut("ALT", "F11") ; Open the Visual Basic editor.
-                visualBasicEditorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class wndclass_desked_gsk", 60, "Failed to open the Visual Basic editor via ALT+F11 in Excel.")
-                ActivateWindow(visualBasicEditorWindowSearchResults)
-                Sleep(excelShortDelay)
-                KeyboardShortcut("CTRL", "R") ; Project Explorer
-                Sleep(excelShortDelay)
-                SendInput("{Down}") ; Sheet1 (Sheet1) -> ThisWorkbook
-                Sleep(excelShortDelay)
-                SendInput("{Down}") ; ThisWorkbook -> VBAProject (PERSONAL.XLSB)
-                Sleep(excelShortDelay)
-                SendInput("{Right}") ; VBAProject (PERSONAL.XLSB): Expand
-                Sleep(excelShortDelay)
-                SendInput("{Down}") ; Microsoft Excel Objects
-                Sleep(excelShortDelay)
-                SendInput("{Down}") ; Modules
-                Sleep(excelShortDelay)
-                SendInput("{Right}") ; Modules: Expand
-                Sleep(excelShortDelay)
-                SendInput("{Down}") ; Module1
-                Sleep(excelShortDelay)
-                SendInput("{Enter}") ; Module1: Open
-                Sleep(excelShortDelay)
-                PasteText("Sub Macro()" . "`r`n`r`n" . "End Sub", "'")
-
-                Loop excelApplication.Workbooks.Count {
-                    currentWorkbook := excelApplication.Workbooks.Item(A_Index)
-                    if personalMacroWorkbookPath = currentWorkbook.FullName {
-                        currentWorkbook.Save()
-                        break
-                    }
-                }
-
-                Sleep(excelTinyDelay)
-                KeyboardShortcut("ALT", "Q") ; Close and Return to Microsoft Excel
-                Sleep(excelShortDelay)
-            }
-
-            excelMacroCode := "Sub Run()" . "`r`n" . '    Range("A1").Value = "Cell"' . "`r`n" . "End Sub"
-            OpenVisualBasicEditorAndRunCode(excelMacroCode, excelApplication)
-            Sleep(excelTinyDelay + excelTinyDelay)
-
-            if excelWorksheet.Range("A1").Value != "Cell" {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute Excel Macro Code.")
-            }
-
-            applicationRegistry["Excel"]["International"] := Map()
-
-            excelInternationalHash    := GetFileHash(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv", "SHA-256")
-            excelInternationalContent := ReadFileOnHashMatch(system["Directories"]["Constants"] . "Excel International (2025-09-26).csv", excelInternationalHash)
-            excelInternationalArray   := ParseDelimitedRowsToArrayOfMaps(excelInternationalContent)
-            for international in excelInternationalArray {
-                applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
-            }
-
-            excelWorkbook.Close(false)
-            excelApplication.DisplayAlerts := false
-            excelApplication.Quit()
-
-            excelWorksheet   := 0
-            excelWorkbook    := 0
-            excelApplication := 0
-            ProcessWaitClose(excelProcessIdentifier, 2)
-        case "Word":
-            wordApplication := ComObject("Word.Application")
-
-            applicationRegistry["Word"]["International"] := Map()
-
-            wordInternationalHash    := GetFileHash(system["Directories"]["Constants"] . "Word International (2025-09-26).csv", "SHA-256")
-            wordInternationalContent := ReadFileOnHashMatch(system["Directories"]["Constants"] . "Word International (2025-09-26).csv", wordInternationalHash)
-            wordInternationalArray   := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
-
-            for international in wordInternationalArray {
-                applicationRegistry["Word"]["International"][international["Label"]] := wordApplication.International[international["Value"]]
-            }
-
-            wordApplication.Quit()
-            wordApplication := 0
-    }
-}
-
-ValidateApplicationFact(applicationName, factName, factValue) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("applicationName As String, factName As String, factValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, factName, factValue])
-
-    if !applicationRegistry[applicationName].Has(factName) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Application "' . applicationName . '" does not have a valid fact name: ' . factName)
-    }
-
-    if applicationRegistry[applicationName][factName] !== factValue {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Application "' . applicationName . '" with fact name of "' . factName . '" does not match fact value of: ' . factValue)
-    }
-}
-
-ValidateApplicationInstalled(applicationName) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName])
-
-    if !applicationRegistry.Has(applicationName) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application doesn't exist: " . applicationName)
-    }
-
-    if !applicationRegistry[applicationName]["Installed"] {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not installed: " . applicationName)
-    }
-
-    applicationIsInstalled := true
-
-    return applicationIsInstalled
 }
 
 ; **************************** ;
@@ -883,6 +775,30 @@ CloseApplication(applicationName) {
 
         LogConclusion("Completed", logConclusionData)
     }
+}
+
+ValidateApplicationInstalled(applicationName) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName])
+
+    if !applicationRegistry.Has(applicationName) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application doesn't exist: " . applicationName)
+    }
+
+    if !applicationRegistry[applicationName]["Installed"] {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not installed: " . applicationName)
+    }
+
+    applicationIsInstalled := true
+
+    return applicationIsInstalled
 }
 
 ; **************************** ;

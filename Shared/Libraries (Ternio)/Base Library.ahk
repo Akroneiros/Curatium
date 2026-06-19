@@ -667,32 +667,6 @@ ValidateConfiguration(configuration, applications) {
     LogConclusion("Completed", logConclusionData)
 }
 
-ValidateDisplayScaling() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Validate Display Scaling")
-
-    validateDisplayResolution := ValidateDataUsingSpecification(system["Environment"]["Display Resolution"], "String", "Display Resolution")
-
-    if validateDisplayResolution != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, validateDisplayResolution)
-    }
-
-    validateDpiScale := ValidateDataUsingSpecification(system["Environment"]["DPI Scale"], "String", "DPI Scale")
-
-    if validateDpiScale != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, validateDpiScale)
-    }
-
-    LogConclusion("Completed", logConclusionData)
-}
-
 ; **************************** ;
 ; Core Methods                 ;
 ; **************************** ;
@@ -2101,30 +2075,15 @@ GetActiveMonitor() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
 
+    plugAndPlayManufacturers := system["Mappings"]["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"].Clone()
+    monitorNameResult        := "Unknown Monitor"
+    primaryDisplayDeviceName := ""
+
     DISPLAY_DEVICEW_SIZE  := 840
     OFFSET_DeviceString   := 68
     OFFSET_StateFlags     := 324
     OFFSET_DeviceID       := 328
     DISPLAY_DEVICE_ACTIVE := 0x00000001
-
-    monitorNameResult        := "Unknown Monitor"
-    primaryDisplayDeviceName := ""
-
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryHash      := GetFileHash(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv", "SHA-256")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryContent   := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Official Registry.csv", unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryHash)
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryArray     := ParseDelimitedRowsToArrayOfMaps(unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryContent)
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryHash    := GetFileHash(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv", "SHA-256")
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry.csv", unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryHash)
-    unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryArray   := ParseDelimitedRowsToArrayOfMaps(unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryContent)
-
-    plugAndPlayManufacturers := Map()
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdOfficialRegistryArray {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
-
-    for manufacturer in unifiedExtensibleFirmwareInterfacePlugaAndPlayIdUnofficialRegistryArray {
-        plugAndPlayManufacturers[manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-    }
 
     primaryMonitorIndex := MonitorGetPrimary()
     if primaryMonitorIndex > 0 {
@@ -2134,7 +2093,7 @@ GetActiveMonitor() {
     monitorDeviceInstanceId     := ""
     monitorFriendlyDeviceString := ""
     if primaryDisplayDeviceName != "" {
-        enumerationIndex := 0
+        enumerationIndex    := 0
         displayDeviceBuffer := Buffer(DISPLAY_DEVICEW_SIZE, 0)
         Loop {
             NumPut("UInt", DISPLAY_DEVICEW_SIZE, displayDeviceBuffer, 0)
@@ -2161,8 +2120,8 @@ GetActiveMonitor() {
     }
 
     if monitorNameResult = "Unknown Monitor" {
-        bestBrand := ""
-        bestModel := ""
+        bestBrand          := ""
+        bestModel          := ""
         bestIsPrimaryMatch := false
 
         try {
@@ -2299,7 +2258,7 @@ GetActiveMonitor() {
     }
 
     if monitorNameResult = "Unknown Monitor" && vendorCode != "" && productCode != "" {
-        derivedBrand := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
+        derivedBrand      := plugAndPlayManufacturers.Has(vendorCode) ? plugAndPlayManufacturers[vendorCode] : vendorCode
         monitorNameResult := derivedBrand . " " . StrUpper(productCode)
     }
 
@@ -3061,12 +3020,8 @@ GetMemorySizeAndType() {
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
 
-    systemManagementBiosType17MemoryDeviceTypesHash    := GetFileHash(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv", "SHA-256")
-    systemManagementBiosType17MemoryDeviceTypesContent := ReadFileOnHashMatch(system["Directories"]["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv", systemManagementBiosType17MemoryDeviceTypesHash)
-    systemManagementBiosType17MemoryDeviceTypesArray   := ParseDelimitedRowsToArrayOfMaps(systemManagementBiosType17MemoryDeviceTypesContent)
-
     ramValues := Map()
-    for systemManagementBiosType17MemoryDeviceType in systemManagementBiosType17MemoryDeviceTypesArray {
+    for systemManagementBiosType17MemoryDeviceType in system["Mappings"]["System Management BIOS Type 17 Memory Device - Type"] {
         ramValues[systemManagementBiosType17MemoryDeviceType["Value"] + 0] := systemManagementBiosType17MemoryDeviceType["Meaning"]
     }
 

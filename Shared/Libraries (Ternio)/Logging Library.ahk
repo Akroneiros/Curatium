@@ -242,6 +242,11 @@ LogEngine() {
 
         BatchAppendRunTelemetry("Beginning", [])
 
+        environment["Computer Name"]      := A_ComputerName
+        environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
+        environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
+        environment["Username"]           := A_UserName
+
         environment["Time Zone"]     := GetTimeZone()
         environment["QPC Frequency"] := GetQueryPerformanceCounterFrequency()
 
@@ -357,6 +362,67 @@ LogEngine() {
             rowMap["Counter"] := index
         }
 
+        constants["Resolution Counters"] := Map()
+        for resolution in constants["Resolutions"] {
+            constants["Resolution Counters"][resolution["Resolution"]] := resolution["Counter"]
+        }
+
+        constants["Scale Counters"] := Map()
+        for scale in constants["Scales"] {
+            constants["Scale Counters"][scale["Scale"]] := scale["Counter"]
+        }
+
+        if !constants["Scale Counters"].Has(environment["DPI Scale"]) {
+            dpiScalePercent := RTrim(environment["DPI Scale"], "%") + 0
+            scalePercent    := constants["Scale Counters"].Clone()
+            for outerKey, innerValue in scalePercent {
+                scalePercent[outerKey] := RTrim(outerKey, "%") + 0
+            }
+
+            closestScaleValue                 := 0
+            minimumDifferenceBetweenDpiValues := 400
+
+            for outerKey, innerValue in scalePercent {
+                currentDpiScaleValue := innerValue
+
+                differenceBetweenCurrentAndTarget := Abs(currentDpiScaleValue - dpiScalePercent)
+
+                if closestScaleValue = 0 || differenceBetweenCurrentAndTarget < minimumDifferenceBetweenDpiValues || (differenceBetweenCurrentAndTarget = minimumDifferenceBetweenDpiValues && currentDpiScaleValue > closestScaleValue) {
+                    minimumDifferenceBetweenDpiValues := differenceBetweenCurrentAndTarget
+                    closestScaleValue                 := currentDpiScaleValue
+                }
+            }
+
+            LogConclusion("Error", logConclusionData, A_LineNumber, "DPI Scale currently set to " . environment["DPI Scale"] . " which is invalid. Closest supported value is " . closestScaleValue . "%.")
+        }
+
+        if !constants["Resolution Counters"].Has(environment["Display Resolution"]) {
+            displayResolutionParts      := StrSplit(environment["Display Resolution"], "x")
+            displayResolutionPixelCount := displayResolutionParts[1] * displayResolutionParts[2]
+            resolutionPixelCount        := constants["Resolution Counters"].Clone()
+            for outerKey, innerValue in resolutionPixelCount {
+                resolutionParts := StrSplit(outerKey, "x")
+                resolutionPixelCount[outerKey] := resolutionParts[1] * resolutionParts[2]
+            }
+
+            closestResolutionKey := ""
+            smallestDifference   := -1
+            
+            for resolutionKey, knownPixelCount in resolutionPixelCount {
+                currentDifference := Abs(displayResolutionPixelCount - knownPixelCount)
+                
+                if currentDifference < smallestDifference {
+                    smallestDifference   := currentDifference
+                    closestResolutionKey := resolutionKey
+                }
+            }
+
+            LogConclusion("Error", logConclusionData, A_LineNumber, "Display Resolution currently set to " . environment["Display Resolution"] . " which is invalid. Closest supported value is " . closestResolutionKey . ".")
+        }
+        
+        environment["Display Resolution Counter"] := constants["Resolution Counters"][environment["Display Resolution"]]
+        environment["DPI Scale Counter"]          := constants["Scale Counters"][environment["DPI Scale"]]
+
         mappingValues := [
             "Application Executable Directory Candidates",
             "Applications",
@@ -396,15 +462,27 @@ LogEngine() {
             applicationExecutableDirectoryCandidate["Source"] := "Shared"
         }
 
+        for commandLineExecutable in mappings["Command Line Executables"] {
+            for application in mappings["Applications"] {
+                if application["Name"] = commandLineExecutable["Name"] {
+                    application["Command Line Executable"] := commandLineExecutable["Command Line Executable"]
+                }
+            }
+        }
+
         for fileSignature in mappings["File Signatures"] {
             fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
             fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
         }
 
-        environment["Computer Name"]      := A_ComputerName
-        environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
-        environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
-        environment["Username"]           := A_UserName
+        mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"] := Map()
+        for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Official Registry"] {
+            mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+        }
+
+        for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"] {
+            mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+        }
 
         if !FileExist(paths["Project Configuration"]) {
             defaultConfiguration := StrReplace(
@@ -467,6 +545,45 @@ LogEngine() {
                         ))
                     }
                 }
+            }
+        }
+
+        mappings["Candidate Base Directories"] := []
+        for candidateBaseDirectory in [
+            EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive") . "\", EnvGet("USERPROFILE")
+        ] {
+            if DirExist(candidateBaseDirectory) {
+                if SubStr(candidateBaseDirectory, -1) = "\" {
+                    mappings["Candidate Base Directories"].Push(candidateBaseDirectory)
+                } else {
+                    mappings["Candidate Base Directories"].Push(candidateBaseDirectory . "\")
+                }
+            }
+        }
+
+        for configurationCandidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
+            if DirExist(configurationCandidateBaseDirectory) {
+                mappings["Candidate Base Directories"].Push(configurationCandidateBaseDirectory)
+            }
+        }
+
+        mappings["Candidate Base Directories"] := RemoveDuplicatesFromArray(mappings["Candidate Base Directories"])
+
+        configuration["Image Variant Preset"] := Map()
+        for index, name in system["Constants"][system["Configuration"]["Settings"]["Image Variant Preset"]] {
+            variantName := unset
+            if system["Configuration"]["Settings"]["Image Variant Preset"] = "NATO Phonetic Alphabet" {
+                variantName := name["Code Word"]
+            } else {
+                variantName := name["Name"]
+            }
+
+            firstCharacter := StrLower(SubStr(variantName, 1, 1))
+
+            configuration["Image Variant Preset"][firstCharacter] := variantName
+
+            if index = 16 {
+                break
             }
         }
 
@@ -537,8 +654,6 @@ LogEngine() {
         ] {
             AppendLineToLog(executionLogLine, "Execution Log")
         }
-
-        RegisterApplications(mappings["Applications"], mappings["Application Executable Directory Candidates"])
     }
 
     if !logConclusionData.Has("Context") {
@@ -732,16 +847,16 @@ OverlayStart() {
         rectBuffer := Buffer(16, 0),
         DllCall("Dwmapi\DwmGetWindowAttribute", "Ptr", overlay["GUI"].Hwnd, "Int", 9, "Ptr", rectBuffer, "Int", 16),
         Map(
-            "left",   NumGet(rectBuffer,  0, "Int"),
-            "top",    NumGet(rectBuffer,  4, "Int"),
-            "right",  NumGet(rectBuffer,  8, "Int"),
-            "bottom", NumGet(rectBuffer, 12, "Int")
+            "Left",   NumGet(rectBuffer,  0, "Int"),
+            "Top",    NumGet(rectBuffer,  4, "Int"),
+            "Right",  NumGet(rectBuffer,  8, "Int"),
+            "Bottom", NumGet(rectBuffer, 12, "Int")
         )
     )
 
     visualRectangle := measureVisualRectangle()
-    visualWidth     := visualRectangle["right"]  - visualRectangle["left"]
-    visualHeight    := visualRectangle["bottom"] - visualRectangle["top"]
+    visualWidth     := visualRectangle["Right"]  - visualRectangle["Left"]
+    visualHeight    := visualRectangle["Bottom"] - visualRectangle["Top"]
 
     ; Ensure the *visual* size is even on both axes. If an axis is odd, nudge the client by +1 logical pixel on that axis and re-measure.
     adjustAttemptsForWidth := 0
@@ -749,7 +864,7 @@ OverlayStart() {
         baseLogicalWidth += 1
         statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
         visualRectangle := measureVisualRectangle()
-        visualWidth := visualRectangle["right"] - visualRectangle["left"]
+        visualWidth     := visualRectangle["Right"] - visualRectangle["Left"]
         adjustAttemptsForWidth += 1
     }
 
@@ -758,7 +873,7 @@ OverlayStart() {
         baseLogicalHeight += 1
         statusTextControl.Move(, , baseLogicalWidth, baseLogicalHeight)
         visualRectangle := measureVisualRectangle()
-        visualHeight := visualRectangle["bottom"] - visualRectangle["top"]
+        visualHeight    := visualRectangle["Bottom"] - visualRectangle["Top"]
         adjustAttemptsForHeight += 1
     }
 
