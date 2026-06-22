@@ -2,6 +2,7 @@
 4K Capture Utility|101
 4K Video Downloader+|441
 7-Zip|5
+Ableton Live|451
 Access|49
 ACDSee Pro|149
 Acrobat Reader|21
@@ -11,9 +12,11 @@ After Effects|102
 Afterburner|341
 AIMP|50
 AkelPad|151
+Android Studio|452
 Angry IP Scanner|152
 Animate|103
 Anki|381
+AntiMicroX|453
 AnyDesk|51
 AnythingLLM|153
 ares|202
@@ -34,10 +37,13 @@ Base|54
 BasicMaker|55
 Battle.net|56
 BEACN App|422
+Beekeeper Studio|454
 Beyond Compare|33
 BGB|261
 BigPEmu|384
+Bitdefender Total Security|455
 Bitwarden|343
+Bitwig Studio|456
 BlastEm|205
 BleachBit|206
 Blender|57
@@ -68,17 +74,20 @@ ComfyUI|302
 CPU-Z|158
 CrystalDiskInfo|35
 CrystalDiskMark|262
+Cubase|457
 Cura|406
 CurseForge|303
 Cursor|304
 CyberChef|159
 CyberGhost|109
 darktable|160
+DataGrip|458
 DaVinci Resolve Studio|305
 DaVinci Resolve|60
 DB Browser for SQLite|407
 DBeaver|22
 DbSchema|23
+DbVisualizer|459
 DC++|263
 Deluge|385
 DeSmuME|209
@@ -92,6 +101,7 @@ Ditto|443
 DMDE|213
 Docker Desktop|41
 Dolphin|214
+Dorico|460
 DOSBox|362
 draw.io|162
 Draw|61
@@ -134,6 +144,7 @@ Floorp Browser|324
 Flycast|218
 Focusrite Control|388
 FontBase|166
+FontExpert|461
 foobar2000|63
 Foxit PDF Reader|24
 FreeCAD|167
@@ -186,6 +197,7 @@ Inkscape|46
 Inno Setup|347
 Insights Capture|427
 Insomnia|173
+IntelliJ IDEA|462
 Internet Download Manager|47
 IObit Unlocker|224
 IrfanView|37
@@ -197,6 +209,7 @@ IZArc|270
 Jabber|287
 Jan|174
 Joplin|226
+JoyToKey|463
 JRomManager|366
 KeePass|14
 Keyboard Chatter Blocker|73
@@ -235,6 +248,7 @@ Mesen|234
 MeshLab|235
 mGBA|390
 mIRC|413
+MixKey|464
 MobaXterm|432
 Mp3tag|272
 MPC-BE|77
@@ -244,6 +258,7 @@ Mullvad Browser|124
 Mullvad VPN|125
 Mumble|349
 MuMuPlayer|446
+Music Studio|465
 MusicBee|433
 Nestopia UE|236
 NetLimiter|180
@@ -270,6 +285,7 @@ Paint Shop Pro|16
 Paint.NET|26
 Pale Moon|391
 Parsec|436
+Particle Illusion Pro|466
 PCSX2|240
 PeaZip|80
 Pencil2D Animation|292
@@ -320,6 +336,7 @@ Retool|370
 RetroArch|247
 RetroBat|371
 Retrom|372
+reWASD|467
 Roblox Studio|373
 RoboTask|437
 RODECaster App|248
@@ -330,10 +347,14 @@ RPCS3|250
 Rufus|188
 Ryujinx|251
 SameBoy|276
+Samplitude|468
 ScreenToGif|28
+Sequoia|469
 ShareX|252
 Shotcut|134
 Shutter Encoder|253
+Silhouette|470
+simplewall|471
 Slack|87
 SmartFTP|277
 Snes9x|254
@@ -342,7 +363,10 @@ SoapUI|295
 Social Stream Ninja|315
 Sononym|189
 Sound Forge Audio Studio|255
+Sound Forge Plus|473
+Sound Forge|472
 Speccy|190
+SpectraLayers|474
 Spotify|88
 SQL Developer|296
 SQL Server Management Studio|3
@@ -366,6 +390,7 @@ Switch Backup Manager|376
 Switch Library Manager|377
 Syncthing Tray|353
 Synfig Studio|256
+SynthEyes|475
 System Informer|449
 SysTracer|191
 Tableau Desktop|91
@@ -401,6 +426,7 @@ Upscayl|259
 USBDeview|419
 UserBenchmark|354
 VCam|355
+Vegas Pro|476
 Ventrilo|450
 VeraCrypt|30
 Virtual Audio Cable|356
@@ -414,6 +440,8 @@ Voicemeeter Banana|195
 Voicemeeter Potato|357
 Voicemeeter|358
 Voicemod|278
+VooV Meeting|477
+VSCodium|478
 VyprVPN|146
 Wago App|337
 Wallpaper Engine|379
@@ -446,6 +474,8 @@ Xenia Edge|399
 XnView MP|40
 Yaak|420
 Ymir|400
+ytdlp-interface|479
 Yubico Authenticator|300
 Zen Browser|340
 ZenTimings|200
+Zoom Workplace|480
