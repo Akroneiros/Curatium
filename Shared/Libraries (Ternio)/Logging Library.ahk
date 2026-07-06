@@ -31,7 +31,6 @@ AbortExecution() {
 }
 
 LogEngine() {
-    global applicationRegistry
     global system
 
     static configuration := system["Configuration"]
@@ -550,7 +549,7 @@ LogEngine() {
 
         mappings["Candidate Base Directories"] := []
         for candidateBaseDirectory in [
-            EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive") . "\", EnvGet("USERPROFILE")
+            EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramData"), EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive"), EnvGet("USERPROFILE")
         ] {
             if DirExist(candidateBaseDirectory) {
                 if SubStr(candidateBaseDirectory, -1) = "\" {

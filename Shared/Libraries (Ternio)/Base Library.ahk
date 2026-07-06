@@ -150,7 +150,7 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
     LogConclusion("Completed", logConclusionData)
 }
 
-AssignSpreadsheetOperationsTemplateCombined(version := "") {
+BuildSpreadsheetOperationsTemplate(release) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -158,53 +158,72 @@ AssignSpreadsheetOperationsTemplateCombined(version := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    overlayValue      := "Assign Spreadsheet Operations Template Code" . (version = "" ? " ([Latest])" : " (" . version . ")")
-    static methodName := RegisterMethod("version As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [version], overlayValue)
+    static methodName := RegisterMethod("release As String [Constraint: Spreadsheet Operations Template]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [release], "Build Spreadsheet Operations Template (" . release . ")")
 
-    versionManifestFilePath := system["Directories"]["Spreadsheet Operations Template"] . "Version Manifest.ini"
-    version := StrReplace(version, "v", "")
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
-    if version = "" {
-        latestVersion := ""
-        latestDate    := ""
+    versionManifestPath := system["Directories"]["Spreadsheet Operations Template"] . "Version Manifest.ini"
 
-        sectionList := IniRead(versionManifestFilePath)
-        Loop Parse sectionList, "`n", "`r" {
-            candidateVersion := A_LoopField
-            if candidateVersion = "" {
-                continue
-            }
+    spreadsheetOperationsTemplate := Map()
 
-            candidateDate := IniRead(versionManifestFilePath, candidateVersion, "ReleaseDate", "")
-            if latestDate = "" || StrCompare(candidateDate, latestDate) > 0 {
-                latestVersion := candidateVersion
-                latestDate    := candidateDate
-            }
+    versions := IniRead(versionManifestPath)
+    Loop Parse versions, "`n", "`r" {
+        version     := A_LoopField
+        releaseDate := IniRead(versionManifestPath, version, "ReleaseDate")
+
+        if release = "v" . version . ", " . releaseDate {
+            spreadsheetOperationsTemplate["Version"]       := version
+            spreadsheetOperationsTemplate["Release Date"]  := releaseDate
+            spreadsheetOperationsTemplate["Intro SHA-256"] := IniRead(versionManifestPath, version, "IntroSHA-256")
+            spreadsheetOperationsTemplate["Outro SHA-256"] := IniRead(versionManifestPath, version, "OutroSHA-256")
+            spreadsheetOperationsTemplate["Intro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Intro.vba", spreadsheetOperationsTemplate["Intro SHA-256"])
+            spreadsheetOperationsTemplate["Outro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Outro.vba", spreadsheetOperationsTemplate["Outro SHA-256"])
+            break
         }
-        version := latestVersion
     }
 
-    releaseDate := IniRead(versionManifestFilePath, version, "ReleaseDate", "")
-    introHash   := IniRead(versionManifestFilePath, version, "IntroSHA-256", "")
-    outroHash   := IniRead(versionManifestFilePath, version, "OutroSHA-256", "")
+    spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . 
+        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object" . "`r`n" . "Public worksheetFunctions As Object"
 
-    if releaseDate = "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Version not found: " . version)
+    cellStyleDictionaryValues := ""
+    cellStyleDictionaryValues := cellStyleDictionaryValues . "`r`n"
+
+    environmentDictionaryValues := ""
+    for environment, value in system["Environment"] {
+        if environment != "DPI Scale" && environment != "Display Resolution" && environment != "QPC Frequency" && environment != "Username" {
+            continue
+        }
+
+        if Type(value) = "Integer" {
+            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
+        } else {
+            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
+        }
+
+        environmentDictionaryValues := environmentDictionaryValues . "`r`n"
     }
 
-    templateCombined := Map(
-        "Version",       version,
-        "Release Date",  releaseDate,
-        "Intro SHA-256", introHash,
-        "Outro SHA-256", outroHash
-    )
+    internationalDictionaryValues := ""
+    for international, value in applicationRegistry["Excel"]["International"] {
+        if Type(value) = "Integer" {
+            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = ' . value
+        } else {
+            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
+        }
 
-    templateCombined["Intro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Intro.vba", templateCombined["Intro SHA-256"])
-    templateCombined["Outro Code"] := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" version ", " releaseDate ") Outro.vba", templateCombined["Outro SHA-256"])
+        internationalDictionaryValues := internationalDictionaryValues . "`r`n"
+    }
+
+    worksheetFunctionsDictionaryValues := ""
+    worksheetFunctionsDictionaryValues := worksheetFunctionsDictionaryValues . "`r`n"
+
+    dictionary := 'CreateObject("Scripting.Dictionary")'
+    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . "    Set environment = " . dictionary . "`r`n" . 
+        "    Set international = " . dictionary . "`r`n" . "    Set worksheetFunctions = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues . worksheetFunctionsDictionaryValues)
 
     LogConclusion("Completed", logConclusionData)
-    return templateCombined
+    return spreadsheetOperationsTemplate
 }
 
 PasteText(text, commentPrefix := "") {
@@ -899,6 +918,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static base92CharacterSet := GetBaseCharacterSet(92)["Digit Map"]
     static base94CharacterSet := GetBaseCharacterSet(94)["Digit Map"]
 
+    static spreadsheetOperationsTemplateReleases := unset
+
     validation := ""
 
     switch dataType {
@@ -1186,6 +1207,24 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         if RegExMatch(dataValue, "[\r\n\v\f\x{0085}\x{2028}\x{2029}]") {
                             validation := dataConstraint . " must be a single line (no line breaks allowed)."
                         }
+                    case "Spreadsheet Operations Template":
+                        if !IsSet(spreadsheetOperationsTemplateReleases) {
+                            spreadsheetOperationsTemplateReleases := []
+
+                            outroReleases := GetFilesFromDirectory(system["Directories"]["Spreadsheet Operations Template"], "Outro")
+                            for release in outroReleases {
+                                filenameNoExtension := GetPathComponents(release)["Filename No Extension"]
+                                insideParenthesis   := StrReplace(filenameNoExtension, "Spreadsheet Operations Template (", "")
+                                insideParenthesis   := StrReplace(insideParenthesis, ") Outro", "")
+                                spreadsheetOperationsTemplateReleases.Push(insideParenthesis)
+                            }
+                        }
+
+                        validation := ValidateDataUsingSpecification(dataValue, "String", "", spreadsheetOperationsTemplateReleases)
+
+                        if validation != "" {
+                            validation := dataConstraint . " value did not match an existing release."
+                        }
                     case "Path", "Valid Path":
                         SplitPath(dataValue, &filename, &directoryPath)
                         directoryPath := directoryPath . "\"
@@ -1248,6 +1287,22 @@ CombineCode(introCode, mainCode, outroCode := "") {
     } 
 
     return combinedCode
+}
+
+CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("mainCode As String, spreadsheetOperationsTemplate As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [mainCode, spreadsheetOperationsTemplate])
+
+    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . mainCode . "`r`n`r`n" . spreadsheetOperationsTemplate["Outro Code"]
+
+    return combinedExcelCode
 }
 
 ComputeMouseMoveSpeed(startCoordinatePair, endCoordinatePair) {

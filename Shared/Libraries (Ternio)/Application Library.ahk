@@ -27,15 +27,17 @@ RegisterApplications() {
         ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
         ConfigureMethodSetting(methodName, "Excel Short Delay", 256, 64, 2048)
         ConfigureMethodSetting(methodName, "Excel Medium Delay", 640, 160, 5120)
+        ConfigureMethodSetting(methodName, "Log to Execution Log", 1, 0, 1)
 
         defaultMethodSettingsSet := true
     }
 
     settings := methodRegistry[methodName]["Settings"]
 
-    excelTinyDelay   := settings["Excel Tiny Delay"].Get("Value")
-    excelShortDelay  := settings["Excel Short Delay"].Get("Value")
-    excelMediumDelay := settings["Excel Medium Delay"].Get("Value")
+    excelTinyDelay    := settings["Excel Tiny Delay"].Get("Value")
+    excelShortDelay   := settings["Excel Short Delay"].Get("Value")
+    excelMediumDelay  := settings["Excel Medium Delay"].Get("Value")
+    logToExecutionLog := settings["Log to Execution Log"].Get("Value")
 
     applications                             := system["Mappings"]["Applications"]
     applicationExecutableDirectoryCandidates := system["Mappings"]["Application Executable Directory Candidates"]
@@ -639,6 +641,17 @@ RegisterApplications() {
                         application["International"][international["Label"]] := excelApplication.International[international["Value"]]
                     }
 
+                    for international, value in application["International"] {
+                        if Type(value) = "Float" {
+                            application["International"][international] := Round(value)
+                        }
+                    }
+
+                    application["Language"] := Map(
+                        "Execution Mode Language Code Identifier", excelApplication.LanguageSettings.LanguageID(3),
+                        "User Interface Language Code Identifier", excelApplication.LanguageSettings.LanguageID(2)
+                    )
+
                     excelWorkbook.Close(false)
                     excelApplication.DisplayAlerts := false
                     excelApplication.Quit()
@@ -665,17 +678,30 @@ RegisterApplications() {
                         application["International"][international["Label"]] := wordApplication.International[international["Value"]]
                     }
 
+                    for international, value in application["International"] {
+                        if Type(value) = "Float" {
+                            application["International"][international] := Round(value)
+                        }
+                    }
+
+                    application["Language"] := Map(
+                        "Execution Mode Language Code Identifier", wordApplication.LanguageSettings.LanguageID(3),
+                        "User Interface Language Code Identifier", wordApplication.LanguageSettings.LanguageID(2)
+                    )
+
                     wordApplication.Quit()
                     wordApplication := 0
             }
 
-            configuration := applicationName . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
-            configuration := configuration . "|" . application["Counter"] . "|" . SubStr(application["Resolution Method"], 1, 1)
+            configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
+            configuration := configuration . "|" . SubStr(application["Resolution Method"], 1, 1)
             installedApplications.Push(configuration)
         }
     }
 
-    BatchAppendExecutionLog("Application", installedApplications)
+    if logToExecutionLog {
+        BatchAppendExecutionLog("Application", installedApplications)
+    }
 
     if installedApplicationsWithImageLibraryDataCount != 0 {
         switch system["Environment"]["Display Resolution"] {
