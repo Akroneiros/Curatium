@@ -17,13 +17,17 @@ After Effects|AfterFX.exe|Adobe\Adobe After Effects CS6\Support Files
 Afterburner|MSIAfterburner.exe|MSI Afterburner
 AIMP|AIMP.exe|AIMP
 AkelPad|AkelPad.exe|AkelPad
+Alt.Binz|altbinz.exe|Alt.Binz
+Anaconda Desktop|Anaconda Desktop.exe|anaconda-desktop
 Android Studio|studio64.exe|Android\Android Studio\bin
 Angry IP Scanner|ipscan.exe|Angry IP Scanner
 Animate|Animate.exe|Adobe\Adobe Animate 2024
 Anki|anki.exe|Anki
 AntiMicroX|antimicrox.exe|AntiMicroX\bin
+AnyBurn|AnyBurn.exe|AnyBurn
 AnyDesk|AnyDesk.exe|AnyDesk
 AnythingLLM|AnythingLLM.exe|AnythingLLM
+AppControl|AppControl.exe|AppControl\ui
 ares|ares.exe|ares-v146
 ares|ares.exe|ares-v148
 Attribute Changer|acmain.exe|Attribute Changer
@@ -89,6 +93,7 @@ Cherry Studio|Cherry Studio.exe|Cherry Studio
 CherryTree|cherrytree.exe|CherryTree\ucrt64\bin
 Chrome|chrome.exe|Google\Chrome\Application
 Cinebench|Cinebench.exe|Cinebench
+Clip Studio Paint|CLIPStudio.exe|CELSYS\CLIP STUDIO 1.5\CLIP STUDIO
 ComfyUI|ComfyUI.exe|ComfyUI
 CPU-Z|cpuz.exe|CPUID\CPU-Z
 CrystalDiskInfo|DiskInfo32.exe|CrystalDiskInfo
@@ -135,6 +140,7 @@ Dreamweaver|Dreamweaver.exe|Adobe\Adobe Dreamweaver CS6
 Driver Easy|DriverEasy.exe|Easeware\DriverEasy
 Driver Store Explorer|Rapr.exe|Driver Store Explorer
 DuckStation|duckstation-qt-x64-ReleaseLTCG.exe|DuckStation
+EA App|EADesktop.exe|Electronic Arts\EA Desktop\EA Desktop
 Ecosia Browser|ecosiabrowser.exe|EcosiaBrowser\Application
 Edge|msedge.exe|Microsoft\Edge\Application
 eDrawings|eDrawings.exe|Common Files\eDrawings2026
@@ -192,6 +198,7 @@ GitHub Desktop|GitHubDesktop.exe|GitHubDesktop
 GlassWire|GlassWire.exe|GlassWire
 Godot Engine|Godot_v4.5.1-stable_win64.exe|Godot Engine
 Godot Engine|Godot_v4.6.3-stable_win64.exe|Godot Engine
+GOG GALAXY|GalaxyClient.exe|GOG Galaxy
 GoldWave|GoldWave.exe|GoldWave
 Google Earth Pro|googleearth.exe|Google\Google Earth Pro\client
 Google Play Games|client.exe|Google\Play Games\current\client
@@ -222,6 +229,7 @@ Illustrator|Illustrator.exe|Adobe\Adobe Illustrator 2025\Support Files\Contents\
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator 2026\Support Files\Contents\Windows
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6 (64 Bit)\Support Files\Contents\Windows
 Illustrator|Illustrator.exe|Adobe\Adobe Illustrator CS6\Support Files\Contents\Windows
+iMazing|iMazing.exe|DigiDNA\iMazing
 ImgBurn|ImgBurn.exe|ImgBurn
 Impress|simpress.exe|LibreOffice\program
 InCopy|InCopy.exe|Adobe\Adobe InCopy 2025
@@ -236,6 +244,7 @@ Insights Capture|Insights Capture.exe|Insights Capture V3
 Insomnia|Insomnia.exe|insomnia
 IntelliJ IDEA|idea64.exe|JetBrains\IntelliJ IDEA 2026.1.3\bin
 Internet Download Manager|IDMan.exe|Internet Download Manager
+Internet Explorer|iexplore.exe|Internet Explorer
 IObit Unlocker|IObitUnlocker.exe|IObit\IObit Unlocker
 IrfanView|i_view32.exe|IrfanView
 IrfanView|i_view64.exe|IrfanView
@@ -276,6 +285,8 @@ Logitech Options|LogiOptions.exe|Logitech\LogiOptions
 LosslessCut|LosslessCut.exe|LosslessCut
 MainType|MainType.exe|High-Logic MainType
 MAME|mame.exe|MAME
+Mangayomi|mangayomi.exe|Mangayomi
+MarCom Professional|MarComProf.exe|MarCom
 Math|smath.exe|LibreOffice\program
 Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder 2025
 Media Encoder|Adobe Media Encoder.exe|Adobe\Adobe Media Encoder 2026
@@ -301,6 +312,8 @@ Mumble|mumble.exe|Mumble\client
 MuMuPlayer|MuMuNxMain.exe|Netease\MuMuPlayer\nx_main
 Music Studio|MusicStudio_x64.exe|BorisFX\Music Studio\2026
 MusicBee|MusicBee.exe|MusicBee
+MyPaint|mypaint.exe|mypaint-w64
+NeeView|NeeView.exe|NeeLaboratory\NeeView
 Nestopia UE|nestopia.exe|Nestopia UE
 NetLimiter|NLClientApp.exe|Locktime Software\NetLimiter
 Newsbin Pro|NewsbinPro64.exe|Newsbin
@@ -318,6 +331,7 @@ OBS Studio|obs64.exe|obs-studio\bin\64bit
 Obsidian|Obsidian.exe|Obsidian
 ocenaudio|ocenaudio.exe|ocenaudio
 Ollama|ollama app.exe|Ollama
+OneDrive|OneDrive.exe|Microsoft OneDrive
 OneNote|ONENOTE.EXE|Microsoft Office\root\Office16
 OpenToonz|OpenToonz.exe|OpenToonz
 Opera|opera.exe|Opera
@@ -379,6 +393,7 @@ Rainmeter|Rainmeter.exe|Rainmeter
 RapidTyping|RapidTyping.exe|RapidTyping 5
 REAPER|reaper.exe|REAPER
 REAPER|reaper.exe|REAPER (x64)
+Rebelle|Rebelle 8.exe|Rebelle 8
 Recuva|recuva64.exe|Recuva
 Redream|redream.exe|Redream
 RegexBuddy|RegexBuddy4.exe|Just Great Software\RegexBuddy 4
@@ -406,6 +421,7 @@ SameBoy|sameboy.exe|SameBoy
 Samplitude|Sam_x64.exe|BorisFX\Samplitude\2026
 ScreenToGif|ScreenToGif.exe|ScreenToGif
 Sequoia|Sequoia_x64.exe|BorisFX\Sequoia\2026
+Seraph Secure|SeraphSecure.Desktop.exe|Seraph Secure
 ShareX|ShareX.exe|ShareX
 Shotcut|shotcut.exe|Shotcut
 Shutter Encoder|Shutter Encoder.exe|Shutter Encoder
@@ -476,6 +492,7 @@ TreeSize|TreeSizeFree.exe|JAM Software\TreeSize Free
 Trezor Suite|Trezor Suite.exe|Trezor Suite
 TrueCrypt|TrueCrypt.exe|TrueCrypt
 TypingMaster|TypingMaster.exe|TypingMaster12
+Ubisoft Connect|upc.exe|Ubisoft\Ubisoft Game Launcher
 UiPath Studio|UiPath.Studio.exe|UiPath\Studio
 UltraEdit|uedit64.exe|IDM Computer Solutions\UltraEdit
 UltraSearch|UltraSearch.exe|JAM Software\UltraSearch
@@ -506,6 +523,7 @@ Voicemod|Voicemod.exe|Voicemod V3
 VooV Meeting|VooVMeetingApp.exe|Tencent\VooVMeeting
 VSCodium|VSCodium.exe|VSCodium
 VyprVPN|VyprVPN.exe|VyprVPN
+WACUP|wacup.exe|WACUP
 Wago App|Wago App.exe|wago-app
 Wallpaper Engine|wallpaper64.exe|Steam\steamapps\common\wallpaper_engine
 Waterfox|waterfox.exe|Waterfox
@@ -514,6 +532,7 @@ WaveLab Pro|WaveLab13.exe|Steinberg\WaveLab 13
 WaveLab Pro|WaveLabPro12.exe|Steinberg\WaveLab Pro 12
 Wii Backup Manager|WiiBackupManager_Win64.exe|Wii Backup Manager
 Winamp|winamp.exe|Winamp
+WinCDEmu|vmnt64.exe|WinCDEmu
 Windhawk|windhawk.exe|Windhawk
 WinDirStat|WinDirStat.exe|WinDirStat
 Windscribe|Windscribe.exe|Windscribe
@@ -540,6 +559,7 @@ XnView MP|xnviewmp.exe|XnViewMP
 Yaak|yaak-app-client.exe|Yaak
 Yaak|yaak-app.exe|Yaak
 Ymir|ymir-sdl3.exe|Ymir
+Yomikiru|Yomikiru.exe|yomikiru\app-2.24.0
 ytdlp-interface|ytdlp-interface.exe|ytdlp-interface
 Yubico Authenticator|authenticator.exe|Yubico\Yubico Authenticator
 Zen Browser|zen.exe|Zen Browser
