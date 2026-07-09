@@ -184,17 +184,30 @@ BuildSpreadsheetOperationsTemplate(release) {
     }
 
     spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . 
-        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object" . "`r`n" . "Public worksheetFunctions As Object"
+        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object"
 
     cellStyleDictionaryValues := ""
-    cellStyleDictionaryValues := cellStyleDictionaryValues . "`r`n"
+    for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
+        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
+
+        cellStyleDictionaryValues := cellStyleDictionaryValues . "`r`n"
+    }
+
+    for namedCellStyle in [
+        "Date",
+        "Date Time",
+        "Decimal",
+        "Followed Hyperlink",
+        "Formula",
+        "Header",
+        "Hyperlink",
+        "Integer"
+    ] {
+        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . "`r`n"
+    }
 
     environmentDictionaryValues := ""
-    for environment, value in system["Environment"] {
-        if environment != "DPI Scale" && environment != "Display Resolution" && environment != "QPC Frequency" && environment != "Username" {
-            continue
-        }
-
+    for environment, value in applicationRegistry["Excel"]["Environment"] {
         if Type(value) = "Integer" {
             environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
         } else {
@@ -215,12 +228,9 @@ BuildSpreadsheetOperationsTemplate(release) {
         internationalDictionaryValues := internationalDictionaryValues . "`r`n"
     }
 
-    worksheetFunctionsDictionaryValues := ""
-    worksheetFunctionsDictionaryValues := worksheetFunctionsDictionaryValues . "`r`n"
-
     dictionary := 'CreateObject("Scripting.Dictionary")'
-    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . "    Set environment = " . dictionary . "`r`n" . 
-        "    Set international = " . dictionary . "`r`n" . "    Set worksheetFunctions = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues . worksheetFunctionsDictionaryValues)
+    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . 
+        "    Set environment = " . dictionary . "`r`n" . "    Set international = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
 
     LogConclusion("Completed", logConclusionData)
     return spreadsheetOperationsTemplate
@@ -1431,7 +1441,7 @@ ExtractRowFromArrayOfMapsOnHeaderCondition(rowsAsMaps, headerName, targetValue) 
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("rowsAsMaps As Object, headerName As String, targetValue As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("rowsAsMaps As Object, headerName As String, targetValue As Variant", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [rowsAsMaps, headerName, targetValue])
 
     foundRow := unset
@@ -3077,7 +3087,7 @@ GetMemorySizeAndType() {
 
     ramValues := Map()
     for systemManagementBiosType17MemoryDeviceType in system["Mappings"]["System Management BIOS Type 17 Memory Device - Type"] {
-        ramValues[systemManagementBiosType17MemoryDeviceType["Value"] + 0] := systemManagementBiosType17MemoryDeviceType["Meaning"]
+        ramValues[systemManagementBiosType17MemoryDeviceType["Value"]] := systemManagementBiosType17MemoryDeviceType["Meaning"]
     }
 
     memoryTypeDetailFlagCounts := Map()
@@ -3321,7 +3331,8 @@ GetMotherboard() {
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
 
     rawManufacturer := ""
-    rawProduct := ""
+    rawProduct      := ""
+    rawVersion      := ""
 
     try {
         windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
@@ -3332,7 +3343,8 @@ GetMotherboard() {
         (
             SELECT
                 Manufacturer,
-                Product
+                Product,
+                Version
             FROM
                 Win32_BaseBoard
         )"
@@ -3345,6 +3357,10 @@ GetMotherboard() {
 
             try {
                 rawProduct := Trim(record.Product . "")
+            }
+
+            try {
+                rawVersion := Trim(record.Version . "")
             }
             
             break
@@ -3359,7 +3375,16 @@ GetMotherboard() {
         rawProduct := "Unknown Product"
     }
 
-    motherboard := Trim(rawManufacturer . " " . rawProduct)
+    if rawVersion = "" {
+        rawVersion := "Unknown Version"
+    }
+
+    motherboard := Map(
+        "Manufacturer", rawManufacturer,
+        "Product",      rawProduct,
+        "Version",      rawVersion,
+        "Full Name",    rawManufacturer . " " . rawProduct
+    )
 
     return motherboard
 }
@@ -3432,8 +3457,6 @@ GetOperatingSystem() {
             }
         }
 
-    installationDate := GetWindowsInstallationDateUtcTimestamp()
-
     operatingSystem := Map(
         "Family",            family,
         "Edition",           edition,
@@ -3441,8 +3464,7 @@ GetOperatingSystem() {
         "Version",           version,
         "Display Version",   displayVersion,
         "Full Name",         "Microsoft " . family . " " . edition . " " . "(" . architecture . ")" . " Build " . version . (displayVersion != "" ? " (" . displayVersion . ")" : ""),
-        "Build Number",      currentBuildNumber,
-        "Installation Date", installationDate
+        "Build Number",      currentBuildNumber
     )
 
     return operatingSystem

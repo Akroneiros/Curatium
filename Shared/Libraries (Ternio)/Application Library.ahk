@@ -44,7 +44,7 @@ RegisterApplications() {
 
     for application in applications {
         applicationName         := application["Name"]
-        applicationCounter      := application["Counter"] + 0
+        applicationCounter      := application["Counter"]
         applicationWhitelisted  := application["Whitelisted"]
 
         applicationRegistry[applicationName] := Map(
@@ -636,6 +636,11 @@ RegisterApplications() {
 
                     application["Personal Macro Workbook"] := personalMacroWorkbookPath
 
+                    application["Environment"] := Map(
+                        "DPI Scale",             system["Environment"]["DPI Scale"],
+                        "Display Resolution",    system["Environment"]["Display Resolution"]
+                    )
+
                     application["International"] := Map()
                     for international in system["Constants"]["Excel International"] {
                         application["International"][international["Label"]] := excelApplication.International[international["Value"]]
@@ -651,6 +656,9 @@ RegisterApplications() {
                         "Execution Mode Language Code Identifier", excelApplication.LanguageSettings.LanguageID(3),
                         "User Interface Language Code Identifier", excelApplication.LanguageSettings.LanguageID(2)
                     )
+
+                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["Excel Default Cell Styles"], "User Interface Language Code Identifier", application["Language"]["User Interface Language Code Identifier"])
+                    application["Default Cell Styles"].Delete("User Interface Language Code Identifier")
 
                     excelWorkbook.Close(false)
                     excelApplication.DisplayAlerts := false
@@ -693,7 +701,7 @@ RegisterApplications() {
                     wordApplication := 0
             }
 
-            configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
+            configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . EncodeSha256HexToBase(application["Executable Hash"], 86) . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
             configuration := configuration . "|" . SubStr(application["Resolution Method"], 1, 1)
             installedApplications.Push(configuration)
         }

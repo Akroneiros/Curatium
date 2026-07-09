@@ -146,6 +146,7 @@ LogEngine() {
         paths["Application Executable Directory Candidates"]                            := directories["Mappings"] . "Application Executable Directory Candidates.csv"
         paths["Applications"]                                                           := directories["Mappings"] . "Applications.csv"
         paths["Command Line Executables"]                                               := directories["Mappings"] . "Command Line Executables.csv"
+        paths["Excel Default Cell Styles"]                                              := directories["Mappings"] . "Excel Default Cell Styles.csv"
         paths["File Signatures"]                                                        := directories["Mappings"] . "File Signatures.csv"
         paths["System Management BIOS Type 17 Memory Device - Type"]                    := directories["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv"
         paths[uefi . "Advanced Configuration and Power Interface ID Official Registry"] := directories["Mappings"] . uefi . "Advanced Configuration and Power Interface ID Official Registry.csv"
@@ -252,6 +253,8 @@ LogEngine() {
         environment["Session Startup Time"] := GetSessionStartupTime()
         environment["Operating System"]     := GetOperatingSystem()
 
+        environment["Operating System"]["Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
+
         for directory in [
             directories["Log"],
             directories["Project"]
@@ -327,38 +330,60 @@ LogEngine() {
         BatchAppendSymbolLedger("", [])
         OverlayIsVisible()
 
-        constantValues := [
-            ["BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229"],
-            ["EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf"],
-            ["Excel International",            "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"],
-            ["Heroes",                         "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d"],
-            ["Middle-earth",                   "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd"],
-            ["NATO Phonetic Alphabet",         "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf"],
-            ["Resolutions",                    "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364"],
-            ["Scales",                         "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d"],
-            ["Word International",             "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"],
-            ["XKCD Color Survey",              "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"]
-        ]
+        constantValues := Map(
+            "BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
+            "EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
+            "Excel International",            "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0",
+            "Heroes",                         "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
+            "Middle-earth",                   "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
+            "NATO Phonetic Alphabet",         "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
+            "Resolutions",                    "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
+            "Scales",                         "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
+            "Word International",             "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755",
+            "XKCD Color Survey",              "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
+        )
 
         for constant in constantValues {
-            RegisterSymbol(paths[constant[1]], "Reference")
+            RegisterSymbol(constant, "Reference")
         }
 
-        for constant in constantValues {
-            RegisterSymbol(constant[2], "Reference")
+        for constant, hashValue in constantValues {
+            RegisterSymbol(hashValue, "Reference")
         }
 
-        for constant in constantValues {
-            content := ReadFileOnHashMatch(paths[constant[1]], constant[2])
-            constants[constant[1]] := ParseDelimitedRowsToArrayOfMaps(content)
+        for constant, hashValue in constantValues {
+            content := ReadFileOnHashMatch(paths[constant], hashValue)
+            constants[constant] := ParseDelimitedRowsToArrayOfMaps(content)
+        }
+
+        for index, rowMap in system["Constants"]["BIP-39"] {
+            rowMap["Counter"] := index
+        }
+
+        for rowMap in system["Constants"]["EFF Dice-Generated Passphrases"] {
+            rowMap["Dice Sequence"] := rowMap["Dice Sequence"] + 0
+        }
+
+        for rowMap in system["Constants"]["Excel International"] {
+            rowMap["Value"] := rowMap["Value"] + 0
         }
 
         for index, rowMap in system["Constants"]["Resolutions"] {
             rowMap["Counter"] := index
+
+            parts  := StrSplit(rowMap["Resolution"], "x")
+            width  := parts[1]
+            height := parts[2]
+
+            rowMap["Total Pixel Count"] := width * height
         }
 
         for index, rowMap in system["Constants"]["Scales"] {
             rowMap["Counter"] := index
+        }
+
+        for rowMap in system["Constants"]["Word International"] {
+            rowMap["Value"] := rowMap["Value"] + 0
         }
 
         constants["Resolution Counters"] := Map()
@@ -426,6 +451,7 @@ LogEngine() {
             "Application Executable Directory Candidates",
             "Applications",
             "Command Line Executables",
+            "Excel Default Cell Styles",
             "File Signatures",
             "System Management BIOS Type 17 Memory Device - Type",
             "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry",
@@ -457,6 +483,10 @@ LogEngine() {
             }
         }
 
+        for application in mappings["Applications"] {
+            application["Counter"] := application["Counter"] + 0
+        }
+
         for applicationExecutableDirectoryCandidate in mappings["Application Executable Directory Candidates"] {
             applicationExecutableDirectoryCandidate["Source"] := "Shared"
         }
@@ -469,9 +499,17 @@ LogEngine() {
             }
         }
 
+        for excelDefaultCellStyle in mappings["Excel Default Cell Styles"] {
+            excelDefaultCellStyle["User Interface Language Code Identifier"] := excelDefaultCellStyle["User Interface Language Code Identifier"] + 0
+        }
+
         for fileSignature in mappings["File Signatures"] {
             fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
             fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
+        }
+
+        for type17MemoryDeviceType in mappings["System Management BIOS Type 17 Memory Device - Type"] {
+            type17MemoryDeviceType["Value"] := type17MemoryDeviceType["Value"] + 0
         }
 
         mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"] := Map()
@@ -586,21 +624,22 @@ LogEngine() {
             }
         }
 
-        environment["BIOS"]                 := GetBios()
         environment["Color Mode"]           := GetColorMode()
-        environment["CPU"]                  := GetCpu()
-        environment["Display GPU"]          := GetActiveDisplayGpu()
         environment["Display Language"]     := GetDisplayLanguage()
         environment["Input Language"]       := GetInputLanguage()
         environment["International"]        := GetInternationalSnapshot()
         environment["Keyboard Layout"]      := GetActiveKeyboardLayout()
-        environment["Memory Size and Type"] := GetMemorySizeAndType()
-        environment["Monitor"]              := GetActiveMonitor()
-        environment["Motherboard"]          := GetMotherboard()
         environment["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
         environment["Regional Format"]      := environment["International"]["LocaleName"]
-        environment["System Disk"]          := GetDiskModel(systemDrive)
         environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
+
+        hardware["CPU"]                     := GetCpu()
+        hardware["Display GPU"]             := GetActiveDisplayGpu()
+        hardware["Memory Size and Type"]    := GetMemorySizeAndType()
+        hardware["Monitor"]                 := GetActiveMonitor()
+        hardware["Motherboard"]             := GetMotherboard()
+        hardware["Motherboard"]["BIOS"]     := GetBios()
+        hardware["System Disk"]             := GetDiskModel(systemDrive)
 
         runtime["Project Hash"]             := GetFileHash(directories["Projects"] . runtime["Project Name"] . ".ahk", "SHA-256")
         runtime["Application Library Hash"] := GetFileHash(paths["Application Library"], "SHA-256")
@@ -636,15 +675,15 @@ LogEngine() {
             "Input Language: " .           environment["Input Language"],
             "Keyboard Layout: " .          environment["Keyboard Layout"],
             "Timeout Before Lock: " .      environment["Timeout Before Lock"],
-            "Motherboard: " .              environment["Motherboard"],
-            "CPU: " .                      environment["CPU"],
-            "Memory Size and Type: " .     environment["Memory Size and Type"],
-            "System Disk: " .              environment["System Disk"] . "|" . 
+            "Motherboard: " .              hardware["Motherboard"]["Full Name"] . "|" . 
+                "BIOS: " .                 hardware["Motherboard"]["BIOS"],
+            "CPU: " .                      hardware["CPU"],
+            "Memory Size and Type: " .     hardware["Memory Size and Type"],
+            "System Disk: " .              hardware["System Disk"] . "|" . 
                 "Disk Total Bytes: " .     telemetry["System Drive Space Snapshot"]["Total Bytes"] . "|" . 
                 "Windows Total Size: " .   telemetry["System Drive Space Snapshot"]["Windows Total Size"],
-            "Display GPU: " .              environment["Display GPU"],
-            "Monitor: " .                  environment["Monitor"],
-            "BIOS: " .                     environment["BIOS"],
+            "Display GPU: " .              hardware["Display GPU"],
+            "Monitor: " .                  hardware["Monitor"],
             "QPC Frequency: " .            environment["QPC Frequency"],
             "Display Resolution: " .       environment["Display Resolution"],
             "Refresh Rate: " .             environment["Refresh Rate"],

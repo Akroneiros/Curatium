@@ -33,7 +33,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     imageLibraryDataReferenceFilePath := directoryPath . "Image Library Data (" . referenceDirectoryName . ")" . ".csv"
     imageLibraryDataReference         := unset
     if referenceIsApplication {
-        imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["Applications"], "Name", referenceDirectoryName)["Counter"] + 0
+        imageLibraryDataReference := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["Applications"], "Name", referenceDirectoryName)["Counter"]
     } else {
         imageLibraryDataReference := referenceDirectoryName
     }
