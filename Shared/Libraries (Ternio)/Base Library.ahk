@@ -12,17 +12,17 @@ global imageRegistry := Map()
 global methodRegistry := Map(
     "LogEngine", Map(
         "Settings", Map(
-            "Start Milliseconds Treshold", Map(
+            "Start Treshold", Map(
                 "Value",   512,
                 "Default", 512,
                 "Floor",   32,
                 "Ceiling", 998,
                 "Delta",   0
             ),
-            "Telemetry Timestamp Duration in Milliseconds", Map(
-                "Value",   192,
-                "Default", 192,
-                "Floor",   16,
+            "Timestamp Duration", Map(
+                "Value",   256,
+                "Default", 256,
+                "Floor",   32,
                 "Ceiling", 1000,
                 "Delta",   0
             )
@@ -184,7 +184,8 @@ BuildSpreadsheetOperationsTemplate(release) {
     }
 
     spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . 
-        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object"
+        'Private Declare PtrSafe Function GetTickCount64 Lib "Kernel32" () As Currency' . "`r`n`r`n" . 
+        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object" . "`r`n" . "Public telemetry As Object"
 
     cellStyleDictionaryValues := ""
     for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
@@ -214,6 +215,10 @@ BuildSpreadsheetOperationsTemplate(release) {
             environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
         }
 
+        if environment = "QPC Frequency" {
+            environmentDictionaryValues := environmentDictionaryValues . "#"
+        }
+
         environmentDictionaryValues := environmentDictionaryValues . "`r`n"
     }
 
@@ -229,8 +234,8 @@ BuildSpreadsheetOperationsTemplate(release) {
     }
 
     dictionary := 'CreateObject("Scripting.Dictionary")'
-    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . 
-        "    Set environment = " . dictionary . "`r`n" . "    Set international = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
+    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . "    Set environment = " . 
+        dictionary . "`r`n" . "    Set international = " . dictionary . "`r`n" . "    Set telemetry = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
 
     LogConclusion("Completed", logConclusionData)
     return spreadsheetOperationsTemplate
@@ -1310,7 +1315,12 @@ CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
     static methodName := RegisterMethod("mainCode As String, spreadsheetOperationsTemplate As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [mainCode, spreadsheetOperationsTemplate])
 
-    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . mainCode . "`r`n`r`n" . spreadsheetOperationsTemplate["Outro Code"]
+    telemetry := system["Telemetry"]
+
+    mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . "`r`n" . '    telemetry("QPC Midpoint Timestamp") = ' telemetry["QPC Midpoint Timestamp"] . "#" . "`r`n" . '    telemetry("Tick Count") = ' . 
+        telemetry["Tick Count"] . "#" . "`r`n" . '    telemetry("UTC Timestamp Integer") = "' . telemetry["UTC Timestamp Integer"] . '"' . "`r`n" . '    telemetry("UTC Timestamp Precise") = "' . telemetry["UTC Timestamp Precise"] . '"' . "`r`n")
+
+    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . mainCodeWithTelemetry . "`r`n`r`n" . spreadsheetOperationsTemplate["Outro Code"]
 
     return combinedExcelCode
 }
@@ -2561,13 +2571,13 @@ GetColorMode() {
     systemUsesLightThemeFlag := 0
 
     try {
-        registryValue := RegRead(registryPath, "AppsUseLightTheme")
+        registryValue         := RegRead(registryPath, "AppsUseLightTheme")
         hasAppsUseLightTheme  := true
         appsUseLightThemeFlag := (registryValue + 0) ? 1 : 0
     }
 
     try {
-        registryValue := RegRead(registryPath, "SystemUsesLightTheme")
+        registryValue            := RegRead(registryPath, "SystemUsesLightTheme")
         hasSystemUsesLightTheme  := true
         systemUsesLightThemeFlag := (registryValue + 0) ? 1 : 0
     }
@@ -2598,56 +2608,6 @@ GetColorMode() {
     }
 
     return colorMode
-}
-
-GetComputerIdentifier() {
-    qpcPreBuffer    := Buffer(8, 0)
-    timestampBuffer := Buffer(8, 0)
-    qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
-
-    computerIdentifier := "N/A"
-
-    machineGuid := ""
-    try {
-        machineGuid := RegRead("HKEY_LOCAL_MACHINE\Software\Microsoft\Cryptography", "MachineGuid")
-    }
-
-    systemUniversallyUniqueIdentifier := ""
-    try {
-        windowsManagementInstrumentationLocator := ComObject("WbemScripting.SWbemLocator")
-        windowsManagementInstrumentationService := windowsManagementInstrumentationLocator.ConnectServer(".", "ROOT\CIMV2")
-        windowsManagementInstrumentationService.Security_.ImpersonationLevel := 3
-
-        win32ComputerSystemProductQuery := "
-        (
-            SELECT
-                UUID
-            FROM
-                Win32_ComputerSystemProduct
-        )"
-
-        queryResults := windowsManagementInstrumentationService.ExecQuery(win32ComputerSystemProductQuery)
-        for record in queryResults {
-            systemUniversallyUniqueIdentifier := record.UUID
-            break
-        }
-    }
-
-    if machineGuid = "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := systemUniversallyUniqueIdentifier
-    } else if systemUniversallyUniqueIdentifier = "" && machineGuid != "" {
-        computerIdentifier := machineGuid
-    } else if machineGuid != "" && systemUniversallyUniqueIdentifier != "" {
-        computerIdentifier := machineGuid . " + " . systemUniversallyUniqueIdentifier
-    }
-
-    return computerIdentifier
 }
 
 GetCpu() {
@@ -3468,28 +3428,6 @@ GetOperatingSystem() {
     )
 
     return operatingSystem
-}
-
-GetQueryPerformanceCounterFrequency() {
-    qpcPreBuffer    := Buffer(8, 0)
-    timestampBuffer := Buffer(8, 0)
-    qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
-
-    queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
-    queryPerformanceCounterFrequencyRetrievedSuccessfully := DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
-    if !queryPerformanceCounterFrequencyRetrievedSuccessfully {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to retrieve the frequency of the performance counter. [QueryPerformanceFrequency" . ", System Error Code: " . A_LastError . "]")
-    }
-
-    queryPerformanceCounterFrequency := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
-
-    return queryPerformanceCounterFrequency
 }
 
 GetTimeoutBeforeLockInSeconds() {

@@ -295,7 +295,7 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Core Methods                 ;
 ; **************************** ;
 
-LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTick, utcTimestampInteger) {
+LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTimestamp, utcTimestampInteger) {
     static fileTimeBuffer   := Buffer(8, 0)
     static systemTimeBuffer := Buffer(16, 0)
 
@@ -310,24 +310,23 @@ LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTick, utcTimestampInteger) {
     second      := NumGet(systemTimeBuffer, 12, "UShort")
     millisecond := NumGet(systemTimeBuffer, 14, "UShort")
 
-    qpcMeasurementDelta      := qpcPost - qpcPre
-    qpcMidpointTickDelta     := (qpcPre + (qpcMeasurementDelta // 2)) - qpcMidpointTick
-    utcTimestampIntegerDelta := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - utcTimestampInteger
+    qpcMeasurementDelta       := qpcPost - qpcPre
+    qpcMidpointTimestampDelta := (qpcPre + (qpcMeasurementDelta // 2)) - qpcMidpointTimestamp
+    utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - utcTimestampInteger
 
-    logDeltaTimestamp := [qpcMidpointTickDelta, utcTimestampIntegerDelta]
+    logDeltaTimestamp := [qpcMidpointTimestampDelta, utcTimestampIntegerDelta]
 
     return logDeltaTimestamp
 }
 
-TelemetryTimestamp(durationInMilliseconds) {
+TelemetryTimestamp(timestampDuration) {
     result := Map(
-        "Duration in Milliseconds", durationInMilliseconds
+        "Timestamp Duration",  timestampDuration
     )
 
     static kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
     static preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
 
-    timeReadings   := []
     pairedReadings := []
 
     originalAutoHotkeyThreadHandle   := DllCall("GetCurrentThread", "Ptr")
@@ -339,20 +338,27 @@ TelemetryTimestamp(durationInMilliseconds) {
 
     fileTimeBuffer   := Buffer(8, 0)
     systemTimeBuffer := Buffer(16, 0)
-    qpcBuffer        := Buffer(8, 0)
+    qpcBeforeBuffer  := Buffer(8, 0)
+    qpcAfterBuffer   := Buffer(8, 0)
 
-    startTime := A_TickCount
+    startTime := DllCall("Kernel32\GetTickCount64", "UInt64")
     if preciseFunctionAddress {
-        while A_TickCount - startTime < durationInMilliseconds {
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBuffer.Ptr, "Int")
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < timestampDuration {
+            tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
             DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-            timeReadings.Push([NumGet(qpcBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcAfterBuffer.Ptr, "Int")
+            tickCountAfter := DllCall("Kernel32\GetTickCount64", "UInt64")
+            pairedReadings.Push([tickCountBefore, NumGet(qpcBeforeBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64"), NumGet(qpcAfterBuffer, 0, "Int64"), tickCountAfter])
         }
     } else {
-        while A_TickCount - startTime < durationInMilliseconds {
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBuffer.Ptr, "Int")
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < timestampDuration {
+            tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
             DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-            timeReadings.Push([NumGet(qpcBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64")])
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcAfterBuffer.Ptr, "Int")
+            tickCountAfter := DllCall("Kernel32\GetTickCount64", "UInt64")
+            pairedReadings.Push([tickCountBefore, NumGet(qpcBeforeBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64"), NumGet(qpcAfterBuffer, 0, "Int64"), tickCountAfter])
         }
     }
 
@@ -360,34 +366,50 @@ TelemetryTimestamp(durationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 0) ; Change to Normal.
     }
 
-    for index, timeReading in timeReadings {
-        if index = timeReadings.Length {
-            continue
-        }
-
-        qpcBefore := timeReading[1]
-        qpcAfter  := timeReadings[index + 1][1]
-        pairedReadings.Push([qpcBefore, timeReading[2], qpcAfter, qpcAfter - qpcBefore])
-    }
-
     result["Number of Readings"] := pairedReadings.Length
 
-    bestIndex := 1
-    bestDelta := pairedReadings[1][4]
+    structuredPairedReadings := []
+    for pairedReading in pairedReadings {
+        structuredPairReading := Map(
+            "Tick Count Before",                pairedReading[1],
+            "Query Performance Counter Before", pairedReading[2],
+            "Timestamp",                        pairedReading[3],
+            "Query Performance Counter After",  pairedReading[4],
+            "Tick Count After",                 pairedReading[5]
+        )
 
-    for index, combinedReading in pairedReadings {
-        if index = 1 {
+        structuredPairReading["Query Performance Counter Delta"] := structuredPairReading["Query Performance Counter After"] - structuredPairReading["Query Performance Counter Before"]
+        structuredPairReading["Tick Count Delta"]                := structuredPairReading["Tick Count After"] - structuredPairReading["Tick Count Before"]
+
+        structuredPairedReadings.Push(structuredPairReading)
+    }
+
+    bestPairedReading := unset
+    for structuredPairedReading in structuredPairedReadings {
+        if structuredPairedReading["Tick Count Delta"] = 0 {
             continue
         }
 
-        duration := combinedReading[4]
-        if duration < bestDelta {
-            bestDelta := duration
-            bestIndex := index
+        if !IsSet(bestPairedReading) {
+            bestPairedReading := structuredPairedReading
+        } else {
+            if bestPairedReading["Query Performance Counter Delta"] > structuredPairedReading["Query Performance Counter Delta"] {
+                bestPairedReading := structuredPairedReading
+            }
+        }
+    }
+
+    if !IsSet(bestPairedReading) {
+        bestPairedReading := structuredPairedReadings[1]
+        
+        for structuredPairedReading in structuredPairedReadings {
+            if bestPairedReading["Query Performance Counter Delta"] > structuredPairedReading["Query Performance Counter Delta"] {
+                bestPairedReading := structuredPairedReading
+            }
         }
     }
     
-    NumPut("UInt64", pairedReadings[bestIndex][2], fileTimeBuffer, 0)
+    NumPut("UInt64", bestPairedReading["Timestamp"], fileTimeBuffer, 0)
     DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
 
     year        := NumGet(systemTimeBuffer,  0, "UShort")
@@ -398,11 +420,13 @@ TelemetryTimestamp(durationInMilliseconds) {
     second      := NumGet(systemTimeBuffer, 12, "UShort")
     millisecond := NumGet(systemTimeBuffer, 14, "UShort")
 
-    result["QPC Before Tick"]       := pairedReadings[bestIndex][1]
-    result["QPC After Tick"]        := pairedReadings[bestIndex][3]
-    result["QPC Delta Tick"]        := pairedReadings[bestIndex][4]
-    result["QPC Midpoint Tick"]     := result["QPC Before Tick"] + (result["QPC Delta Tick"] // 2)
-    result["UTC Timestamp Integer"] := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+    result["Tick Count"]             := bestPairedReading["Tick Count After"]
+    result["Tick Count Before"]      := bestPairedReading["Tick Count Before"]
+    result["QPC Before Timestamp"]   := bestPairedReading["Query Performance Counter Before"]
+    result["QPC After Timestamp"]    := bestPairedReading["Query Performance Counter After"]
+    result["QPC Delta Timestamp"]    := bestPairedReading["Query Performance Counter Delta"]
+    result["QPC Midpoint Timestamp"] := result["QPC Before Timestamp"] + (result["QPC Delta Timestamp"] // 2)
+    result["UTC Timestamp Integer"]  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
     if preciseFunctionAddress {
         fileTimeTicks     := NumGet(fileTimeBuffer, 0, "Int64")
         ticksWithinSecond := Mod(fileTimeTicks, 10000000)

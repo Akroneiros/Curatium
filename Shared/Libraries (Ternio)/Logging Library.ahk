@@ -55,21 +55,26 @@ LogEngine() {
 
     settings := methodRegistry["LogEngine"]["Settings"]
     
-    startMillisecondsTreshold                := settings["Start Milliseconds Treshold"].Get("Value")
-    telemetryTimestampDurationInMilliseconds := settings["Telemetry Timestamp Duration in Milliseconds"].Get("Value")
+    startTreshold     := settings["Start Treshold"].Get("Value")
+    timestampDuration := settings["Timestamp Duration"].Get("Value")
 
-    startMillisecondsTresholdCeiling := settings["Start Milliseconds Treshold"].Get("Ceiling")
-    startMillisecondsTresholdFloor   := settings["Start Milliseconds Treshold"].Get("Floor")
+    startTresholdCeiling := settings["Start Treshold"].Get("Ceiling")
+    startTresholdFloor   := settings["Start Treshold"].Get("Floor")
 
     switch logging["Log Engine State"] {
         case "Pending":
-            if startMillisecondsTreshold >= startMillisecondsTresholdFloor && startMillisecondsTreshold < startMillisecondsTresholdCeiling + 1 {
-                while A_MSec > startMillisecondsTreshold {
+            if startTreshold >= startTresholdFloor && startTreshold < startTresholdCeiling + 1 {
+                while A_MSec > startTreshold {
                     Sleep(16)
                 }
             }
 
             operationLogLineNumber := 2
+
+            ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+            queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
+            DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
+            environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
 
             logging["Log Engine State"] := "Beginning"
         case "Running":
@@ -83,7 +88,7 @@ LogEngine() {
     }
 
     runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
-    system["Telemetry"] := TelemetryTimestamp(telemetryTimestampDurationInMilliseconds)
+    system["Telemetry"] := TelemetryTimestamp(timestampDuration)
     telemetry           := system["Telemetry"]
 
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
@@ -247,9 +252,7 @@ LogEngine() {
         environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
         environment["Username"]           := A_UserName
 
-        environment["Time Zone"]     := GetTimeZone()
-        environment["QPC Frequency"] := GetQueryPerformanceCounterFrequency()
-
+        environment["Time Zone"]            := GetTimeZone()
         environment["Session Startup Time"] := GetSessionStartupTime()
         environment["Operating System"]     := GetOperatingSystem()
 
@@ -277,13 +280,16 @@ LogEngine() {
 
     logging["Log to Array"] := true
 
-    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . 
-        "|" . "Duration in Milliseconds: " . telemetry["Duration in Milliseconds"] . "|" . "Number of Readings: " .  telemetry["Number of Readings"] . 
-        "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"] . "|" . "QPC Before Tick: " . telemetry["QPC Before Tick"] . 
-        "|" . "QPC After Tick: " . telemetry["QPC After Tick"] . "|" . "QPC Midpoint Tick: " . telemetry["QPC Midpoint Tick"], "Run Telemetry")
+    numberOfReadings   := "Number of Readings: " .  telemetry["Number of Readings"] . "|"
+    qpcBeforeTimestamp := "QPC Before Timestamp: " . telemetry["QPC Before Timestamp"] - telemetry["QPC Midpoint Timestamp"] . "|"
+    qpcAfterTimestamp  := "QPC After Timestamp: " . telemetry["QPC After Timestamp"] - telemetry["QPC Midpoint Timestamp"] . "|"
+    tickCount          := "Tick Count: " . telemetry["Tick Count"] . "|"
+    tickCountBefore    := "Tick Count Before: " . telemetry["Tick Count Before"] - telemetry["Tick Count"]
+    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . "|" . "Timestamp Duration: " . telemetry["Timestamp Duration"] . "|" . numberOfReadings . 
+        qpcBeforeTimestamp . qpcAfterTimestamp . "QPC Midpoint Timestamp: " . telemetry["QPC Midpoint Timestamp"] . "|" . tickCount . tickCountBefore . "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"], "Run Telemetry")
 
     if environment.Has("QPC Frequency") && environment.Has("Session Startup Time") {
-        telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Tick"] / environment["QPC Frequency"])
+        telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
         telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
         AppendLineToLog("Computer Uptime in Seconds: " . telemetry["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . telemetry["Session Uptime in Seconds"], "Run Telemetry")
     }
@@ -986,12 +992,12 @@ AppendLineToLog(line, logType) {
 }
 
 LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayValue := unset, customOverlayMethod := unset) {
-    static lastRunTelemetryTick := unset
-    static runTelemetryInterval := 12 * 60 * 1000
+    static lastRunTelemetryTickCount := unset
+    static runTelemetryInterval      := 12 * 60 * 1000
 
-    runTelemetryTick := A_TickCount
-    if !IsSet(lastRunTelemetryTick) {
-        lastRunTelemetryTick := runTelemetryTick
+    runTelemetryTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+    if !IsSet(lastRunTelemetryTickCount) {
+        lastRunTelemetryTickCount := runTelemetryTickCount
     }
 
     logConclusionData := Map(
@@ -1000,7 +1006,7 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 
     operationSequenceNumber := IncrementCounter("Operation Sequence Number")
     if IsSet(overlayValue) {
-        logBeginningTimestamp := LogTimestamp(qpcPre, timestamp, qpcPost, system["Telemetry"]["QPC Midpoint Tick"], system["Telemetry"]["UTC Timestamp Integer"])
+        logBeginningTimestamp := LogTimestamp(qpcPre, timestamp, qpcPost, system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
 
         logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(operationSequenceNumber, 94)
         logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
@@ -1110,8 +1116,8 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
     }
 
     if IsSet(overlayValue) {
-        if runTelemetryTick - lastRunTelemetryTick >= runTelemetryInterval {
-            lastRunTelemetryTick := runTelemetryTick
+        if runTelemetryTickCount - lastRunTelemetryTickCount >= runTelemetryInterval {
+            lastRunTelemetryTickCount := runTelemetryTickCount
             system["Logging"]["Log Engine State"] := "Intermission"
             LogEngine()
         }
@@ -1124,7 +1130,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
 
     if conclusionStatus = "Failed" && logConclusionData["Overlay Key"] = -1 {
-        logBeginningTimestamp := LogTimestamp(logConclusionData["QPC Pre"], logConclusionData["Timestamp"], logConclusionData["QPC Post"], system["Telemetry"]["QPC Midpoint Tick"], system["Telemetry"]["UTC Timestamp Integer"])
+        logBeginningTimestamp := LogTimestamp(logConclusionData["QPC Pre"], logConclusionData["Timestamp"], logConclusionData["QPC Post"], system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
 
         logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(logConclusionData["Operation Sequence Number"], 94)
         logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
@@ -1168,7 +1174,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     logConclusionTimestamp := LogTimestamp(NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), 
-        system["Telemetry"]["QPC Midpoint Tick"], system["Telemetry"]["UTC Timestamp Integer"])
+        system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
 
     logConclusion := logConclusion . "|" . 
         EncodeIntegerToBase(logConclusionTimestamp[1], 94) .      "|" . ; Query Performance Counter
@@ -1274,7 +1280,7 @@ LogProcessArguments(logConclusionData, arguments) {
         argumentValueFull := argument
         argumentValueLog  := argument
         switch argumentsFormatted["Data Type"] {
-            case "Array", "Map", "Object":
+            case "Array", "Map":
                 argumentValueFull := "<Data Type: " . Type(argument) . ">"
                 argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
 
@@ -1296,13 +1302,19 @@ LogProcessArguments(logConclusionData, arguments) {
                     argumentValueFull := Format('"{1}"', argumentValueFull)
                     argumentValueLog  := Format('"{1}"', argumentValueLog)
                 }
+            case "Object":
+                argumentValueFull := "<Data Type: Object>"
+                argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+
+                argumentValueFull := Format('"{1}"', argumentValueFull)
+                argumentValueLog  := Format('"{1}"', argumentValueLog)
             case "String":
                 if Type(argument) != argumentsFormatted["Data Type"] {
                     argumentValueFull := "<Data Type: " . Type(argument) . ">"
                 } else if argumentsFormatted["Data Constraint"] = "Base64" {
                     argumentValueFull := "<Constraint: Base64>"
                 } else if InStr(argument, "`n") || InStr(argument, "`r") {
-                    argumentValueFull := "<Text Block: Length: " . StrLen(argument) . ", Rows: " . StrSplit(argument, "`n").Length . ">"
+                    argumentValueFull := "<Text Block Rows: " . StrSplit(argument, "`n").Length . ">"
                 } else {
                     if StrLen(argument) >= 255 {
                         argumentValueFull := SubStr(argument, 1, 255) . "…"

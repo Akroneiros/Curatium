@@ -637,8 +637,10 @@ RegisterApplications() {
                     application["Personal Macro Workbook"] := personalMacroWorkbookPath
 
                     application["Environment"] := Map(
-                        "DPI Scale",             system["Environment"]["DPI Scale"],
-                        "Display Resolution",    system["Environment"]["Display Resolution"]
+                        "DPI Scale",          system["Environment"]["DPI Scale"],
+                        "Display Resolution", system["Environment"]["Display Resolution"],
+                        "QPC Frequency",      system["Environment"]["QPC Frequency"],
+                        "Username",           system["Environment"]["Username"]
                     )
 
                     application["International"] := Map()
@@ -1403,12 +1405,12 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
         SendInput("{Enter}") ; Save
 
         maximumWaitMilliseconds := longDelay * 10
-        startTickCount          := A_TickCount
+        startTickCount          := DllCall("Kernel32\GetTickCount64", "UInt64")
 
         fileExistsAlready := !!FileExist(savePath)
 
         if !fileExistsAlready {
-            while !FileExist(savePath) && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+            while !FileExist(savePath) && (DllCall("Kernel32\GetTickCount64", "UInt64") - startTickCount) < maximumWaitMilliseconds {
                 Sleep(shortDelay)
             }
         }
@@ -1417,9 +1419,9 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             previousModifiedTime := FileGetTime(savePath, "M")
             Sleep(longDelay)
             SendInput("y") ; Yes
-            startTickCount := A_TickCount
+            startTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
             Sleep(longDelay)
-            while FileGetTime(savePath, "M") = previousModifiedTime && (A_TickCount - startTickCount) < maximumWaitMilliseconds {
+            while FileGetTime(savePath, "M") = previousModifiedTime && (DllCall("Kernel32\GetTickCount64", "UInt64") - startTickCount) < maximumWaitMilliseconds {
                 Sleep(shortDelay)
             }
 
@@ -1510,9 +1512,9 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     SendInput("{Backspace}") ; Remove character in case present.
     Sleep(shortDelay)
     
-    overallStartTickCount := A_TickCount
-    firstSeenTickCount := 0
-    dialogHasAppeared := false
+    overallStartTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+    firstSeenTickCount    := 0
+    dialogHasAppeared     := false
 
     while true {
         dialogExists := WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TReconnectForm")
@@ -1520,8 +1522,8 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
         if !dialogHasAppeared {
             if dialogExists != false {
                 dialogHasAppeared := true
-                firstSeenTickCount := A_TickCount
-            } else if A_TickCount - overallStartTickCount >= (longDelay + longDelay) {
+                firstSeenTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+            } else if DllCall("Kernel32\GetTickCount64", "UInt64") - overallStartTickCount >= (longDelay + longDelay) {
                 break
             }
         } else {
@@ -1529,7 +1531,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
                 break
             }
 
-            if A_TickCount - firstSeenTickCount >= massiveDelay {
+            if DllCall("Kernel32\GetTickCount64", "UInt64") - firstSeenTickCount >= massiveDelay {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "Reconnect dialog did not close within " . Round(massiveDelay / 1000) . " seconds.")
             }
         }
