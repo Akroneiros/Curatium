@@ -16,9 +16,9 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     static methodName := RegisterMethod("directoryPath As String [Constraint: Directory]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryPath], "Convert Images to Base64 Image Library (" . directoryPath . ")")
 
-    static newLine       := "`r`n"
-    static headerCatalog := "Image Library Data Reference|Counter Reference|Display Resolution|DPI Scale|Horizontal Range|Vertical Range" . newLine
-    static headerData    := "Name|Variant|Counter|SHA-256|Extension|Base64" . newLine
+    newLine       := system["Constants"]["New Line"]
+    headerCatalog := "Image Library Data Reference|Counter Reference|Display Resolution|DPI Scale|Horizontal Range|Vertical Range" . newLine
+    headerData    := "Name|Variant|Counter|SHA-256|Extension|Base64" . newLine
 
     SplitPath(RTrim(directoryPath, "\/"), &referenceDirectoryName)
     referenceIsApplication := false

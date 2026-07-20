@@ -315,6 +315,8 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static methodName := RegisterMethod("text As String [Optional], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, filePath, encoding, mode], "Write Text Into File" . " (" . filePath . ") with Mode: " . mode)
 
+    newLine := system["Constants"]["New Line"]
+
     if mode = "Create" && FileExist(filePath) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "File already exists.")
     }
@@ -330,7 +332,7 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     }
     
     if mode = "Append Break" {
-        text := "`r`n" . text
+        text := newLine . text
     }
 
     switch mode {

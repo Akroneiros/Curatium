@@ -44,9 +44,6 @@ LogEngine() {
     static runtime       := system["Runtime"]
     static telemetry     := system["Telemetry"]
 
-    static newLine     := "`r`n"
-    static systemDrive := SubStr(A_WinDir, 1, 3)
-
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -71,6 +68,9 @@ LogEngine() {
 
             operationLogLineNumber := 2
 
+            constants["New Line"]     := "`r`n"
+            constants["System Drive"] := SubStr(A_WinDir, 1, 3)
+
             ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
             queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
             DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
@@ -86,6 +86,9 @@ LogEngine() {
             OverlayChangeTransparency(255)
         }
     }
+
+    newLine     := constants["New Line"]
+    systemDrive := constants["System Drive"]
 
     runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
     system["Telemetry"] := TelemetryTimestamp(timestampDuration)
@@ -130,6 +133,7 @@ LogEngine() {
         paths["Operation Log"]         := logSharedName . logDateAndTime . " - Operation Log.csv"
         paths["Run Telemetry"]         := logSharedName . logDateAndTime . " - Run Telemetry.csv"
         paths["Symbol Ledger"]         := logSharedName . logDateAndTime . " - Symbol Ledger.csv"
+        paths["Project"]               := A_ScriptFullPath
         paths["Project Configuration"] := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
         paths["Project Symbol Ledger"] := directories["Project"] . "Symbol Ledger (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").csv"
         paths["Application Library"] := directories["Libraries"] . "Application Library.ahk"
@@ -149,6 +153,7 @@ LogEngine() {
         paths["Word International"]             := directories["Constants"] . "Word International (2025-09-26).csv"
         paths["XKCD Color Survey"]              := directories["Constants"] . "XKCD Color Survey (2026-06-02).csv"
         paths["Application Executable Directory Candidates"]                            := directories["Mappings"] . "Application Executable Directory Candidates.csv"
+        paths["Application Executable Versions"]                                        := directories["Mappings"] . "Application Executable Versions.csv"
         paths["Applications"]                                                           := directories["Mappings"] . "Applications.csv"
         paths["Command Line Executables"]                                               := directories["Mappings"] . "Command Line Executables.csv"
         paths["Excel Default Cell Styles"]                                              := directories["Mappings"] . "Excel Default Cell Styles.csv"
@@ -167,7 +172,7 @@ LogEngine() {
             }
 
             if IsSet(projectSymbolLedgerContent) {
-                projectSymbolLedgerLines  := StrSplit(projectSymbolLedgerContent, "`r`n")
+                projectSymbolLedgerLines  := StrSplit(projectSymbolLedgerContent, newLine)
                 parsedProjectSymbolLedger := []
 
                 for line in projectSymbolLedgerLines {
@@ -256,8 +261,6 @@ LogEngine() {
         environment["Session Startup Time"] := GetSessionStartupTime()
         environment["Operating System"]     := GetOperatingSystem()
 
-        environment["Operating System"]["Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
-
         for directory in [
             directories["Log"],
             directories["Project"]
@@ -276,7 +279,7 @@ LogEngine() {
         AppendLineToLog("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", "Operation Log")
         AppendLineToLog("Log|Type", "Run Telemetry")
         AppendLineToLog("Reference|Type|Symbol", "Symbol Ledger")
-    }  
+    }
 
     logging["Log to Array"] := true
 
@@ -336,6 +339,8 @@ LogEngine() {
         BatchAppendSymbolLedger("", [])
         OverlayIsVisible()
 
+        ValidateDataUsingSpecification("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
+
         constantValues := Map(
             "BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
             "EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
@@ -350,7 +355,7 @@ LogEngine() {
         )
 
         for constant in constantValues {
-            RegisterSymbol(constant, "Reference")
+            RegisterSymbol(paths[constant], "Reference")
         }
 
         for constant, hashValue in constantValues {
@@ -358,6 +363,10 @@ LogEngine() {
         }
 
         for constant, hashValue in constantValues {
+            if constant = "Excel International" || constant = "Word International" {
+                continue
+            }
+
             content := ReadFileOnHashMatch(paths[constant], hashValue)
             constants[constant] := ParseDelimitedRowsToArrayOfMaps(content)
         }
@@ -368,10 +377,6 @@ LogEngine() {
 
         for rowMap in system["Constants"]["EFF Dice-Generated Passphrases"] {
             rowMap["Dice Sequence"] := rowMap["Dice Sequence"] + 0
-        }
-
-        for rowMap in system["Constants"]["Excel International"] {
-            rowMap["Value"] := rowMap["Value"] + 0
         }
 
         for index, rowMap in system["Constants"]["Resolutions"] {
@@ -386,10 +391,6 @@ LogEngine() {
 
         for index, rowMap in system["Constants"]["Scales"] {
             rowMap["Counter"] := index
-        }
-
-        for rowMap in system["Constants"]["Word International"] {
-            rowMap["Value"] := rowMap["Value"] + 0
         }
 
         constants["Resolution Counters"] := Map()
@@ -457,12 +458,7 @@ LogEngine() {
             "Application Executable Directory Candidates",
             "Applications",
             "Command Line Executables",
-            "Excel Default Cell Styles",
-            "File Signatures",
-            "System Management BIOS Type 17 Memory Device - Type",
-            "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry",
-            "Unified Extensible Firmware Interface Plug and Play ID Official Registry",
-            "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"
+            "File Signatures"
         ]
 
         for mapping in mappingValues {
@@ -493,6 +489,8 @@ LogEngine() {
             application["Counter"] := application["Counter"] + 0
         }
 
+        ValidateDataUsingSpecification("Excel", "String", "Application Name")
+
         for applicationExecutableDirectoryCandidate in mappings["Application Executable Directory Candidates"] {
             applicationExecutableDirectoryCandidate["Source"] := "Shared"
         }
@@ -505,45 +503,29 @@ LogEngine() {
             }
         }
 
-        for excelDefaultCellStyle in mappings["Excel Default Cell Styles"] {
-            excelDefaultCellStyle["User Interface Language Code Identifier"] := excelDefaultCellStyle["User Interface Language Code Identifier"] + 0
-        }
-
         for fileSignature in mappings["File Signatures"] {
             fileSignature["Maximum Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Maximum Hex Signature"])
             fileSignature["Minimal Base64 Signature"] := ConvertHexStringToBase64(fileSignature["Minimal Hex Signature"])
         }
 
-        for type17MemoryDeviceType in mappings["System Management BIOS Type 17 Memory Device - Type"] {
-            type17MemoryDeviceType["Value"] := type17MemoryDeviceType["Value"] + 0
-        }
-
-        mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"] := Map()
-        for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Official Registry"] {
-            mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-        }
-
-        for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"] {
-            mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
-        }
-
         if !FileExist(paths["Project Configuration"]) {
             defaultConfiguration := StrReplace(
             '{' . newLine . 
-                '    "Application Whitelist": [' . newLine . 
-                    '        ' .  newLine . 
-                '    ],' . newLine . 
                 '    "Application Executable Directory Candidates": [' . newLine .
                     '        '  . newLine . 
+                '    ],' . newLine . 
+                '    "Application Whitelist": [' . newLine . 
+                    '        ' .  newLine . 
                 '    ],' . newLine . 
                 '    "Candidate Base Directories": [' . newLine . 
                     '        "' . systemDrive . 'Portable Files\' . '",' . newLine . 
                     '        "' . systemDrive . 'Program Files (Portable)\' . '"' . newLine . 
                     '    ],' . newLine . 
                 '    "Settings": {' . newLine . 
-                    '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '",' . newLine . 
+                    '        "Advanced Mode": ' . 'false' . ',' . newLine . 
                     '        "Application Image Override Directory": "' . "" . '",' . newline . 
-                    '        "Computer Alias": "' . "N/A" . '"' . newline . 
+                    '        "Computer Alias": "' . "N/A" . '",' . newline . 
+                    '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '"' . newLine . 
                 '    }' . newLine . 
             '}', "\", "\\")
             WriteTextToFile(defaultConfiguration, paths["Project Configuration"], "UTF-8", "Create")
@@ -557,7 +539,7 @@ LogEngine() {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to load Configuration File. " . StrReplace(invalidJsonError.Message, "`n", " "))
         }
 
-        ValidateConfiguration(configuration, mappings["Applications"])
+        ValidateConfiguration(configuration)
 
         if configuration["Application Whitelist"].Length != 0 {
             for application in mappings["Applications"] {
@@ -630,6 +612,38 @@ LogEngine() {
             }
         }
 
+        if configuration["Settings"]["Advanced Mode"] {
+            advancedMappingValues := [
+                "System Management BIOS Type 17 Memory Device - Type",
+                "Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry",
+                "Unified Extensible Firmware Interface Plug and Play ID Official Registry",
+                "Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"
+            ]
+
+            for advancedMapping in advancedMappingValues {
+                RegisterSymbol(paths[advancedMapping], "Reference")
+            }
+
+            for advancedMapping in advancedMappingValues {
+                fileHash := GetFileHash(paths[advancedMapping], "SHA-256")
+                content  := ReadFileOnHashMatch(paths[advancedMapping], fileHash)
+                mappings[advancedMapping] := ParseDelimitedRowsToArrayOfMaps(content)
+            }
+
+            for type17MemoryDeviceType in mappings["System Management BIOS Type 17 Memory Device - Type"] {
+                type17MemoryDeviceType["Value"] := type17MemoryDeviceType["Value"] + 0
+            }
+
+            mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"] := Map()
+            for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Official Registry"] {
+                mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+            }
+
+            for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Unofficial Registry"] {
+                mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"][manufacturer["Vendor ID"]] := manufacturer["Vendor Name"]
+            }
+        }
+
         environment["Color Mode"]           := GetColorMode()
         environment["Display Language"]     := GetDisplayLanguage()
         environment["Input Language"]       := GetInputLanguage()
@@ -639,15 +653,19 @@ LogEngine() {
         environment["Regional Format"]      := environment["International"]["LocaleName"]
         environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
 
-        hardware["CPU"]                     := GetCpu()
-        hardware["Display GPU"]             := GetActiveDisplayGpu()
-        hardware["Memory Size and Type"]    := GetMemorySizeAndType()
-        hardware["Monitor"]                 := GetActiveMonitor()
-        hardware["Motherboard"]             := GetMotherboard()
-        hardware["Motherboard"]["BIOS"]     := GetBios()
-        hardware["System Disk"]             := GetDiskModel(systemDrive)
+        if configuration["Settings"]["Advanced Mode"] {
+            environment["Operating System"]["Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
 
-        runtime["Project Hash"]             := GetFileHash(directories["Projects"] . runtime["Project Name"] . ".ahk", "SHA-256")
+            hardware["CPU"]                  := GetCpu()
+            hardware["Display GPU"]          := GetActiveDisplayGpu()
+            hardware["Memory Size and Type"] := GetMemorySizeAndType()
+            hardware["Monitor"]              := GetActiveMonitor()
+            hardware["Motherboard"]          := GetMotherboard()
+            hardware["Motherboard"]["BIOS"]  := GetBios()
+            hardware["System Disk"]          := GetDiskModel(systemDrive)
+        }
+
+        runtime["Project Hash"]             := GetFileHash(paths["Project"],             "SHA-256")
         runtime["Application Library Hash"] := GetFileHash(paths["Application Library"], "SHA-256")
         runtime["Base Library Hash"]        := GetFileHash(paths["Base Library"],        "SHA-256")
         runtime["Chrono Library Hash"]      := GetFileHash(paths["Chrono Library"],      "SHA-256")
@@ -659,42 +677,66 @@ LogEngine() {
             "Project Name: " .             runtime["Project Name"],
             "Library Release: " .          runtime["Library Release"],
             "AutoHotkey Version: " .       runtime["AutoHotkey Version"],
-            "Project Hash: " .             runtime["Project Hash"],
-            "Application Library Hash: " . runtime["Application Library Hash"],
-            "Base Library Hash: " .        runtime["Base Library Hash"],
-            "Chrono Library Hash: " .      runtime["Chrono Library Hash"],
-            "File Library Hash: " .        runtime["File Library Hash"],
-            "Image Library Hash: " .       runtime["Image Library Hash"],
-            "Logging Library Hash: " .     runtime["Logging Library Hash"],
-            "Operating System: " .         environment["Operating System"]["Full Name"] . "|" . 
-                "Installation Date: " .    environment["Operating System"]["Installation Date"],
-            "Computer Name: " .            environment["Computer Name"],
-            "Computer Alias: " .           configuration["Settings"]["Computer Alias"],
-            "Username: " .                 environment["Username"],
-            "Time Zone Key Name: " .       environment["Time Zone"]["Key Name"],
-            "Country or Region: " .        environment["International"]["Geo"]["Friendly Name"] . "|" . 
-                "ISO 3166-1 alpha-2: " .   environment["International"]["Geo"]["ISO 3166-1 alpha-2"] . "|" . 
-                "ISO 3166-1 alpha-3: " .   environment["International"]["Geo"]["ISO 3166-1 alpha-3"] . "|" . 
-                "ISO 3166-1 numeric: " .   environment["International"]["Geo"]["ISO 3166-1 numeric"],
-            "Display Language: " .         environment["Display Language"],
-            "Regional Format: " .          environment["Regional Format"],
-            "Input Language: " .           environment["Input Language"],
-            "Keyboard Layout: " .          environment["Keyboard Layout"],
-            "Timeout Before Lock: " .      environment["Timeout Before Lock"],
-            "Motherboard: " .              hardware["Motherboard"]["Full Name"] . "|" . 
-                "BIOS: " .                 hardware["Motherboard"]["BIOS"],
-            "CPU: " .                      hardware["CPU"],
-            "Memory Size and Type: " .     hardware["Memory Size and Type"],
-            "System Disk: " .              hardware["System Disk"] . "|" . 
-                "Disk Total Bytes: " .     telemetry["System Drive Space Snapshot"]["Total Bytes"] . "|" . 
-                "Windows Total Size: " .   telemetry["System Drive Space Snapshot"]["Windows Total Size"],
-            "Display GPU: " .              hardware["Display GPU"],
-            "Monitor: " .                  hardware["Monitor"],
-            "QPC Frequency: " .            environment["QPC Frequency"],
-            "Display Resolution: " .       environment["Display Resolution"],
-            "Refresh Rate: " .             environment["Refresh Rate"],
-            "DPI Scale: " .                environment["DPI Scale"],
-            "Color Mode: " .               environment["Color Mode"]
+            "Project Hash: " .             EncodeSha256HexToBase(runtime["Project Hash"], 86),
+            "Application Library Hash: " . EncodeSha256HexToBase(runtime["Application Library Hash"], 86),
+            "Base Library Hash: " .        EncodeSha256HexToBase(runtime["Base Library Hash"], 86),
+            "Chrono Library Hash: " .      EncodeSha256HexToBase(runtime["Chrono Library Hash"], 86),
+            "File Library Hash: " .        EncodeSha256HexToBase(runtime["File Library Hash"], 86),
+            "Image Library Hash: " .       EncodeSha256HexToBase(runtime["Image Library Hash"], 86),
+            "Logging Library Hash: " .     EncodeSha256HexToBase(runtime["Logging Library Hash"], 86)
+        ] {
+            AppendLineToLog(executionLogLine, "Execution Log")
+        }
+
+        if configuration["Settings"]["Advanced Mode"] {
+            executionLogOperatingSystemLine := "Operating System: " . environment["Operating System"]["Full Name"] . "|" . 
+                "Installation Date: " . environment["Operating System"]["Installation Date"]
+            AppendLineToLog(executionLogOperatingSystemLine, "Execution Log")
+        } else {
+            executionLogOperatingSystemLine := "Operating System: " . environment["Operating System"]["Full Name"]
+            AppendLineToLog(executionLogOperatingSystemLine, "Execution Log")
+        }
+
+        for executionLogLine in [
+            "Computer Name: " .          environment["Computer Name"],
+            "Computer Alias: " .         configuration["Settings"]["Computer Alias"],
+            "Username: " .               environment["Username"],
+            "Time Zone Key Name: " .     environment["Time Zone"]["Key Name"],
+            "Country or Region: " .      environment["International"]["Geo"]["Friendly Name"] . "|" . 
+                "ISO 3166-1 alpha-2: " . environment["International"]["Geo"]["ISO 3166-1 alpha-2"] . "|" . 
+                "ISO 3166-1 alpha-3: " . environment["International"]["Geo"]["ISO 3166-1 alpha-3"] . "|" . 
+                "ISO 3166-1 numeric: " . environment["International"]["Geo"]["ISO 3166-1 numeric"],
+            "Display Language: " .       environment["Display Language"],
+            "Regional Format: " .        environment["Regional Format"],
+            "Input Language: " .         environment["Input Language"],
+            "Keyboard Layout: " .        environment["Keyboard Layout"],
+            "Timeout Before Lock: " .    environment["Timeout Before Lock"]
+        ] {
+            AppendLineToLog(executionLogLine, "Execution Log")
+        }
+
+        if configuration["Settings"]["Advanced Mode"] {
+            for executionLogLine in [
+                "Motherboard: " .            hardware["Motherboard"]["Full Name"] . "|" . 
+                    "BIOS: " .               hardware["Motherboard"]["BIOS"],
+                "CPU: " .                    hardware["CPU"],
+                "Memory Size and Type: " .   hardware["Memory Size and Type"],
+                "System Disk: " .            hardware["System Disk"] . "|" . 
+                    "Disk Total Bytes: " .   telemetry["System Drive Space Snapshot"]["Total Bytes"] . "|" . 
+                    "Windows Total Size: " . telemetry["System Drive Space Snapshot"]["Windows Total Size"],
+                "Display GPU: " .            hardware["Display GPU"],
+                "Monitor: " .                hardware["Monitor"]
+            ] {
+                AppendLineToLog(executionLogLine, "Execution Log")
+            }
+        }
+
+        for executionLogLine in [
+            "QPC Frequency: " .      environment["QPC Frequency"],
+            "Display Resolution: " . environment["Display Resolution"],
+            "Refresh Rate: " .       environment["Refresh Rate"],
+            "DPI Scale: " .          environment["DPI Scale"],
+            "Color Mode: " .         environment["Color Mode"]
         ] {
             AppendLineToLog(executionLogLine, "Execution Log")
         }
@@ -971,7 +1013,7 @@ OverlayUpdateCustomLine(overlayKey, overlayValue) {
 ; **************************** ;
 
 AppendLineToLog(line, logType) {
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     if !system["Logging"]["Log to Array"] {
         callerWasCritical := A_IsCritical
@@ -1197,7 +1239,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         
         declaration := RegExReplace(methodRegistry[logConclusionData["Method Name"]]["Declaration"], " <\d+>$", "")
 
-        newLine := "`r`n"
+        newLine := system["Constants"]["New Line"]
         constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Runtime"]["Library Release"] . ")" . newLine
         if methodRegistry[logConclusionData["Method Name"]]["Parameters"] != "" {
             constructedErrorMessage := constructedErrorMessage .
@@ -1746,7 +1788,7 @@ BatchAppendExecutionLog(executionType, array) {
     static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [executionType, array])
 
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     switch executionType {
         case "Application":
@@ -1780,7 +1822,7 @@ BatchAppendOperationLog(array) {
     static methodName := RegisterMethod("array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [array])
 
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     if array.Length != 0 {
         consolidatedOperationLog := ""
@@ -1808,7 +1850,7 @@ BatchAppendRunTelemetry(appendType, array) {
     static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appendType, array])
 
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     switch appendType {
         case "Beginning":
@@ -1847,7 +1889,7 @@ BatchAppendSymbolLedger(symbolType, array) {
     static methodName := RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [symbolType, array])
 
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     symbolLedgerArray := []
     if symbolType = "" {

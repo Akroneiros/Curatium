@@ -163,6 +163,8 @@ BuildSpreadsheetOperationsTemplate(release) {
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
+    newLine := system["Constants"]["New Line"]
+
     versionManifestPath := system["Directories"]["Spreadsheet Operations Template"] . "Version Manifest.ini"
 
     spreadsheetOperationsTemplate := Map()
@@ -183,15 +185,14 @@ BuildSpreadsheetOperationsTemplate(release) {
         }
     }
 
-    spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . 
-        'Private Declare PtrSafe Function GetTickCount64 Lib "Kernel32" () As Currency' . "`r`n`r`n" . 
-        "Public cellStyles As Object" . "`r`n" . "Public environment As Object" . "`r`n" . "Public international As Object" . "`r`n" . "Public telemetry As Object"
+    spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . 
+        "Public cellStyles As Object" . newLine . "Public environment As Object" . newLine . "Public international As Object" . newLine . "Public telemetry As Object"
 
     cellStyleDictionaryValues := ""
     for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
         cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
 
-        cellStyleDictionaryValues := cellStyleDictionaryValues . "`r`n"
+        cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
     }
 
     for namedCellStyle in [
@@ -204,7 +205,7 @@ BuildSpreadsheetOperationsTemplate(release) {
         "Hyperlink",
         "Integer"
     ] {
-        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . "`r`n"
+        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . newLine
     }
 
     environmentDictionaryValues := ""
@@ -219,7 +220,7 @@ BuildSpreadsheetOperationsTemplate(release) {
             environmentDictionaryValues := environmentDictionaryValues . "#"
         }
 
-        environmentDictionaryValues := environmentDictionaryValues . "`r`n"
+        environmentDictionaryValues := environmentDictionaryValues . newLine
     }
 
     internationalDictionaryValues := ""
@@ -230,12 +231,12 @@ BuildSpreadsheetOperationsTemplate(release) {
             internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
         }
 
-        internationalDictionaryValues := internationalDictionaryValues . "`r`n"
+        internationalDictionaryValues := internationalDictionaryValues . newLine
     }
 
     dictionary := 'CreateObject("Scripting.Dictionary")'
-    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . "`r`n" . "    Set cellStyles = " . dictionary . "`r`n" . "    Set environment = " . 
-        dictionary . "`r`n" . "    Set international = " . dictionary . "`r`n" . "    Set telemetry = " . dictionary . "`r`n`r`n" . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
+    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . newLine . "    Set cellStyles = " . dictionary . newLine . "    Set environment = " . 
+        dictionary . newLine . "    Set international = " . dictionary . newLine . "    Set telemetry = " . dictionary . newLine . newLine . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
 
     LogConclusion("Completed", logConclusionData)
     return spreadsheetOperationsTemplate
@@ -252,6 +253,8 @@ PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
     static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, commentPrefix], "Paste Text")
+
+    newLine := system["Constants"]["New Line"]
 
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
@@ -274,7 +277,7 @@ PasteText(text, commentPrefix := "") {
 
     pasteSentinel := commentPrefix . " == AutoHotkey Paste Sentinel == " . commentPrefix
     if rows != 1 {
-        text := text . "`r`n" . pasteSentinel
+        text := text . newLine . pasteSentinel
     }
     
     attempts          := 0
@@ -371,8 +374,8 @@ PasteText(text, commentPrefix := "") {
                 Sleep(mediumDelay)
             }
 
-            linesInClipboard := StrSplit(A_Clipboard, ["`r`n", "`n"])
-            linesInText      := StrSplit(text, ["`r`n", "`n"])
+            linesInClipboard := StrSplit(A_Clipboard, [newLine, "`n"])
+            linesInText      := StrSplit(text, [newLine, "`n"])
 
             if linesInClipboard.Length = 0 {
                 continue ; Copy somehow failed, go to next attempt.
@@ -571,7 +574,7 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     LogConclusion("Completed", logConclusionData)
 }
 
-ValidateConfiguration(configuration, applications) {
+ValidateConfiguration(configuration) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -579,99 +582,106 @@ ValidateConfiguration(configuration, applications) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("configuration As Map, applications As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configuration, applications], "Validate Configuration")
+    static methodName := RegisterMethod("configuration As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [configuration], "Validate Configuration")
 
-    rootSettings := [["Application Executable Directory Candidates", "Array"], ["Application Whitelist", "Array"], ["Candidate Base Directories", "Array"], ["Settings", "Map"]]
-    for setting in rootSettings {
-        if !configuration.Has(setting[1]) {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root missing " . setting[1] . ".")
+    rootEntries := Map(
+        "Application Executable Directory Candidates", Map("Data Type", "Array"),
+        "Application Whitelist",                       Map("Data Type", "Array"),
+        "Candidate Base Directories",                  Map("Data Type", "Array"),
+        "Settings",                                    Map("Data Type", "Map")
+    )
+    for rootEntryName, rootEntry in rootEntries {
+        if !configuration.Has(rootEntryName) {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root missing " . rootEntryName . ".")
         }
 
-        if Type(configuration[setting[1]]) != setting[2] {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root for " . setting[1] . " did not return the data type of " . setting[2] . ".")
-        }
-    }
-
-    for applicationWhitelist in configuration["Application Whitelist"] {
-        if Type(applicationWhitelist) != "String" {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist did not return the data type of String.")
-        }
-
-        applicationFound := false
-        for application in applications {
-            if applicationWhitelist == application["Name"] {
-                applicationFound := true
-                break
-            }
-        }
-
-        if !applicationFound {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Application Whitelist refers to the application "' . applicationWhitelist . '"' . " which doesn't exist.")
+        if rootEntry["Data Type"] != Type(configuration[rootEntryName]) {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root for " . rootEntryName . " did not return the data type of " . rootEntry["Data Type"] . ".")
         }
     }
 
-    for applicationExecutableDirectoryCandidate in configuration["Application Executable Directory Candidates"] {
+    for index, applicationExecutableDirectoryCandidate in configuration["Application Executable Directory Candidates"] {
         if Type(applicationExecutableDirectoryCandidate) != "Array" {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of Array.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " did not return the data type of Array.")
         }
 
         if applicationExecutableDirectoryCandidate.Length != 3 {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not have the expected three elements.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " did not have the expected three elements.")
         }
 
-        for index, entry in applicationExecutableDirectoryCandidate {
-            if Type(entry) != "String" {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate did not return the data type of String.")
-            }
+        applicationExecutableDirectoryCandidateMap := Map(
+            "Name",       applicationExecutableDirectoryCandidate[1],
+            "Executable", applicationExecutableDirectoryCandidate[2],
+            "Directory",  applicationExecutableDirectoryCandidate[3]
+        )
 
-            if index = 1 {
-                applicationFound := false
-                for application in applications {
-                    if entry == application["Name"] {
-                        applicationFound := true
-                        break
-                    }
-                }
+        if Type(applicationExecutableDirectoryCandidateMap["Name"]) != "String" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " and Name did not return the data type of String.")
+        }
 
-                if !applicationFound {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Application Executable Directory Candidate refers to the application "' . entry . '"' . " which doesn't exist.")
-                }
-            }
+         if Type(applicationExecutableDirectoryCandidateMap["Executable"]) != "String" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " and Executable did not return the data type of String.")
+        }
+
+        if Type(applicationExecutableDirectoryCandidateMap["Directory"]) != "String" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " and Directory did not return the data type of String.")
+        }
+
+        validation := ValidateDataUsingSpecification(applicationExecutableDirectoryCandidateMap["Name"], "String", "Application Name")
+        if validation != "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " does not exist (" . applicationExecutableDirectoryCandidateMap["Name"] . ").")
         }
     }
 
-    for candidateBaseDirectory in configuration["Candidate Base Directories"] {
+    for index, applicationWhitelist in configuration["Application Whitelist"] {
+        if Type(applicationWhitelist) != "String" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist #" . index . " did not return the data type of String.")
+        }
+
+        validation := ValidateDataUsingSpecification(applicationWhitelist, "String", "Application Name")
+        if validation != "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist #" . index . " does not exist (" . applicationWhitelist . ").")
+        }
+    }
+
+    for index, candidateBaseDirectory in configuration["Candidate Base Directories"] {
         if Type(candidateBaseDirectory) != "String" {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directories did not return the data type of String.")
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directory #" . index . " did not return the data type of String.")
         }
 
         validation := ValidateDataUsingSpecification(candidateBaseDirectory, "String", "Valid Directory")
         if validation != "" {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Root entry for Candidate Base Directories of "' . candidateBaseDirectory . '" is not a Valid Directory.')
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Candidate Base Directory #" . index . " is not a Valid Directory (" . candidateBaseDirectory . ")")
         }
     }
 
-    subSettings := [["Image Variant Preset", "String", "Single Line"], ["Application Image Override Directory", "String", "Directory"], ["Computer Alias", "String", "Single Line"]]
-    for setting in subSettings {
-        if !configuration["Settings"].Has(setting[1]) {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " missing.")
+    subSettings := Map(
+        "Advanced Mode",                        Map("Data Type", "Boolean"),
+        "Application Image Override Directory", Map("Data Type", "String", "Constraint", "Directory"),
+        "Computer Alias",                       Map("Data Type", "String", "Constraint", "Single Line"),
+        "Image Variant Preset",                 Map("Data Type", "String", "Constraint", "Single Line")
+    )
+    for subSettingName, subSetting in subSettings {
+        if !configuration["Settings"].Has(subSettingName) {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings missing " . subSettingName . ".")
+        }
+        
+        validation := ValidateDataUsingSpecification(configuration["Settings"][subSettingName], subSetting["Data Type"])
+        if validation != "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings for " . subSettingName . " did not return the data type of " . subSetting["Data Type"] . ".")
         }
 
-        if Type(configuration["Settings"][setting[1]]) != setting[2] {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " did not return the data type of " . setting[2] . ".")
-        }
+        if subSetting.Has("Constraint") {
+            if subSetting["Data Type"] = "String" && configuration["Settings"][subSettingName] = "" {
+                continue
+            }
 
-        if configuration["Settings"][setting[1]] != "" {
-            settingValidation := ValidateDataUsingSpecification(configuration["Settings"][setting[1]], setting[2], setting[3])
-            if settingValidation != "" {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . setting[1] . " failed validation. " . settingValidation)
+            validation := ValidateDataUsingSpecification(configuration["Settings"][subSettingName], subSetting["Data Type"], subSetting["Constraint"])
+            if validation != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . subSettingName . " failed validation. " . validation)
             }
         }
-    }
-
-    if configuration["Settings"]["Image Variant Preset"] !== "Heroes" && configuration["Settings"]["Image Variant Preset"] !== "Middle-earth" && configuration["Settings"]["Image Variant Preset"] !== "NATO Phonetic Alphabet" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. Only three values are allowed: Heroes, Middle-earth or NATO Phonetic Alphabet.")
     }
 
     if configuration["Settings"]["Application Image Override Directory"] != "" {
@@ -684,18 +694,15 @@ ValidateConfiguration(configuration, applications) {
         for applicationFolder in applicationFolders {
             SplitPath(RTrim(applicationFolder, "\"), &applicationName)
 
-            applicationFound := false
-            for application in applications {
-                if applicationName == application["Name"] {
-                    applicationFound := true
-                    break
-                }
-            }
-
-            if !applicationFound {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, 'Configuration Settings entry for Application Image Override Directory refers to the application "' . applicationName . '"' . " which doesn't exist.")
+            validation := ValidateDataUsingSpecification(applicationName, "String", "Application Name")
+            if validation != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory does not exist (" . applicationName . ").")
             }
         }
+    }
+
+    if configuration["Settings"]["Image Variant Preset"] !== "Heroes" && configuration["Settings"]["Image Variant Preset"] !== "Middle-earth" && configuration["Settings"]["Image Variant Preset"] !== "NATO Phonetic Alphabet" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Image Variant Preset failed validation. Only three values are allowed: Heroes, Middle-earth or NATO Phonetic Alphabet.")
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -926,6 +933,8 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
     static windowsReservedDeviceNamesPattern       := "i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
 
+    static applications := unset
+
     static base52CharacterSet := GetBaseCharacterSet(52)["Digit Map"]
     static base62CharacterSet := GetBaseCharacterSet(62)["Digit Map"]
     static base66CharacterSet := GetBaseCharacterSet(66)["Digit Map"]
@@ -992,7 +1001,6 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 validation := "Value must be a String."
             } else if whitelist.Length != 0 {
                 valueIsWhitelisted := false
-
                 for whitelistEntry in whitelist {
                     if dataValue == whitelistEntry {
                         valueIsWhitelisted := true
@@ -1005,6 +1013,18 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                 }
             } else {
                 switch dataConstraint {
+                    case "Application Name":
+                        if !IsSet(applications) {
+                            applications := Map()
+
+                            for application in system["Mappings"]["Applications"] {
+                                applications[application["Name"]] := true
+                            }
+                        }
+
+                        if !applications.Has(dataValue) {
+                            validation := dataConstraint . " does not exist."
+                        }
                     case "Base52", "Base62", "Base66", "Base86", "Base92", "Base94":
                         baseCharacterSet := unset
                         
@@ -1139,16 +1159,15 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
                         } else {
                             if dataConstraint = "Raw Date Time" {
-                                dataValue :=
-                                    SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) .
+                                dataValue := SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) .
                                     " " . SubStr(dataValue, 9, 2)  . ":" . SubStr(dataValue, 11, 2) . ":" . SubStr(dataValue, 13, 2)
                             }
 
                             dateTimeparts := StrSplit(dataValue, " ")
                             dateParts     := StrSplit(dateTimeparts[1], "-")
-                            year   := dateParts[1] + 0
-                            month  := dateParts[2] + 0
-                            day    := dateParts[3] + 0
+                            year  := dateParts[1] + 0
+                            month := dateParts[2] + 0
+                            day   := dateParts[3] + 0
 
                             if validation = "" {
                                 validation := ValidateDataUsingSpecification(year, "Integer", "Year")
@@ -1194,6 +1213,31 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 validation := dataConstraint . " " . validation
                             }
                         }
+                    case "Path", "Valid Path":
+                        SplitPath(dataValue, &filename, &directoryPath)
+                        directoryPath := directoryPath . "\"
+
+                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
+
+                        if validation = "" {
+                            if dataConstraint = "Path" {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
+                            }
+                            
+                            if dataConstraint = "Valid Path" {
+                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
+                            }
+                        }
+
+                        if validation != "" {
+                            validation := dataConstraint . " " . validation
+                        }
+
+                        if validation = "" && dataConstraint = "Path" {
+                            if !FileExist(dataValue) {
+                                validation := dataConstraint . " invalid as the file doesn't exist."
+                            }
+                        }
                     case "Percent Range":
                         dataValue := StrReplace(dataValue, ",", ".")
 
@@ -1235,35 +1279,16 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             }
                         }
 
-                        validation := ValidateDataUsingSpecification(dataValue, "String", "", spreadsheetOperationsTemplateReleases)
+                        releaseIsWhitelisted := false
+                        for whitelistRelease in spreadsheetOperationsTemplateReleases {
+                            if dataValue == whitelistRelease {
+                                releaseIsWhitelisted := true
+                                break
+                            }
+                        }
 
-                        if validation != "" {
+                        if !releaseIsWhitelisted {
                             validation := dataConstraint . " value did not match an existing release."
-                        }
-                    case "Path", "Valid Path":
-                        SplitPath(dataValue, &filename, &directoryPath)
-                        directoryPath := directoryPath . "\"
-
-                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
-
-                        if validation = "" {
-                            if dataConstraint = "Path" {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
-                            }
-                            
-                            if dataConstraint = "Valid Path" {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
-                            }
-                        }
-
-                        if validation != "" {
-                            validation := dataConstraint . " " . validation
-                        }
-
-                        if validation = "" && dataConstraint = "Path" {
-                            if !FileExist(dataValue) {
-                                validation := dataConstraint . " invalid as the file doesn't exist."
-                            }
                         }
                 }
             }
@@ -1315,12 +1340,16 @@ CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
     static methodName := RegisterMethod("mainCode As String, spreadsheetOperationsTemplate As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [mainCode, spreadsheetOperationsTemplate])
 
-    telemetry := system["Telemetry"]
+    newLine := system["Constants"]["New Line"]
 
-    mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . "`r`n" . '    telemetry("QPC Midpoint Timestamp") = ' telemetry["QPC Midpoint Timestamp"] . "#" . "`r`n" . '    telemetry("Tick Count") = ' . 
-        telemetry["Tick Count"] . "#" . "`r`n" . '    telemetry("UTC Timestamp Integer") = "' . telemetry["UTC Timestamp Integer"] . '"' . "`r`n" . '    telemetry("UTC Timestamp Precise") = "' . telemetry["UTC Timestamp Precise"] . '"' . "`r`n")
+    qpcMidpointTimestamp := '    telemetry("QPC Midpoint Timestamp") = ' system["Telemetry"]["QPC Midpoint Timestamp"] . "#"
+    tickCount            := '    telemetry("Tick Count") = ' . system["Telemetry"]["Tick Count"] . "#"
+    utcTimestampInteger  := '    telemetry("UTC Timestamp Integer") = "' . system["Telemetry"]["UTC Timestamp Integer"] . '"'
+    utcTimestampPrecise  := '    telemetry("UTC Timestamp Precise") = "' . system["Telemetry"]["UTC Timestamp Precise"] . '"'
 
-    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . "`r`n`r`n" . mainCodeWithTelemetry . "`r`n`r`n" . spreadsheetOperationsTemplate["Outro Code"]
+    mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . qpcMidpointTimestamp . newLine . tickCount . newLine . utcTimestampInteger . newLine . utcTimestampPrecise . newLine)
+
+    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeWithTelemetry . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
 
     return combinedExcelCode
 }
@@ -1385,7 +1414,7 @@ ConvertArrayToLineSeparatedString(array) {
     static methodName := RegisterMethod("array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [array])
 
-    static newLine := "`r`n"
+    newLine := system["Constants"]["New Line"]
 
     lineSeparatedString := ""
     for index, value in array {
@@ -2149,6 +2178,10 @@ GetActiveMonitor() {
 
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
+
+    if !system["Configuration"]["Settings"]["Advanced Mode"] {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Method requires Advanced Mode to run.")
+    }
 
     plugAndPlayManufacturers := system["Mappings"]["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"].Clone()
     monitorNameResult        := "Unknown Monitor"
@@ -3044,6 +3077,10 @@ GetMemorySizeAndType() {
 
     static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
+
+    if !system["Configuration"]["Settings"]["Advanced Mode"] {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Method requires Advanced Mode to run.")
+    }
 
     ramValues := Map()
     for systemManagementBiosType17MemoryDeviceType in system["Mappings"]["System Management BIOS Type 17 Memory Device - Type"] {

@@ -22,6 +22,8 @@ RegisterApplications() {
 
     global applicationRegistry
 
+    newLine := system["Constants"]["New Line"]
+
     static defaultMethodSettingsSet := unset
     if !IsSet(defaultMethodSettingsSet) {
         ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
@@ -502,20 +504,98 @@ RegisterApplications() {
             }
         }
     }
-    installedApplications := []
-    installedApplicationsWithImageLibraryDataCount := 0
 
+    installedApplicationsWithImageLibraryDataCount := 0
     for applicationName, application in applicationRegistry {
         if application["Installed"] {
             if application.Has("Shared Images") {
                 installedApplicationsWithImageLibraryDataCount++
             }
+        }
+    }
+
+    if installedApplicationsWithImageLibraryDataCount != 0 {
+        switch system["Environment"]["Display Resolution"] {
+            case "1920x1080":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%":
+                        CreateImagesFromCatalog("Full High Definition")
+                }
+            case "2560x1440":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%":
+                        CreateImagesFromCatalog("Quad High Definition")
+                }
+            case "3840x2160":
+                switch system["Environment"]["DPI Scale"] {
+                    case "100%", "125%", "150%", "175%":
+                        CreateImagesFromCatalog("Ultra High Definition")
+                }
+        }
+    }
+
+    if system["Directories"].Has("Application Image Override Directory") {
+        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        for applicationFolder in applicationFolders {
+            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
+
+            actionImageDirectories := GetFoldersFromDirectory(applicationFolder)
+            for actionFolderPath in actionImageDirectories {
+                SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
+
+                if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+                }
+
+                if !imageRegistry[applicationName].Has(matchResults[1]) {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                }
+
+                variantFound := false
+                overridePath := actionFolderPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
+                for variant in imageRegistry[applicationName][matchResults[1]] {
+                    if variant["Variant"] = matchResults[2] {
+                        overridePath := overridePath . variant["Extension"]
+                        if FileExist(overridePath) {
+                            variantFound := true
+                            break
+                        }
+                    }
+                }
+
+                if !variantFound {
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
+                }
+
+                for variant in imageRegistry[applicationName][matchResults[1]] {
+                    if variant["Variant"] = matchResults[2] {
+                        variant["Path"] := overridePath
+
+                        imageDimensions   := StrSplit(GetImageDimensions(variant["Path"]), "x")
+                        variant["Width"]  := imageDimensions[1] + 0
+                        variant["Height"] := imageDimensions[2] + 0
+                    }
+                }
+            }
+        }
+    }
+
+    applicationExecutableVersionsFileHash := GetFileHash(system["Paths"]["Application Executable Versions"], "SHA-256")
+    applicationExecutableVersionsContent  := ReadFileOnHashMatch(system["Paths"]["Application Executable Versions"], applicationExecutableVersionsFileHash)
+    applicationExecutableVersionsMapping  := ParseDelimitedRowsToArrayOfMaps(applicationExecutableVersionsContent)
+
+    installedApplications := []
+    for applicationName, application in applicationRegistry {
+        if application["Installed"] {
+            for applicationExecutableVersion in applicationExecutableVersionsMapping {
+                if applicationName = applicationExecutableVersion["Name"] {
+                    if application["Executable Hash"] = applicationExecutableVersion["Executable Hash"] {
+                        application["Executable Version"] := applicationExecutableVersion["Executable Version"]
+                    }
+                }
+            }
 
             switch applicationName {
-                case "Capture2Text":
-                    if application["Executable Hash"] = "d90d3684ccd34128556d33623a2d079400754ee9732bd1df7274f00a8e4fbb72" || application["Executable Hash"] = "320da826e0eddf763fd423c497ce5cd11703ff894b39da2f7b7db3ee78b1890f" {
-                        application["Executable Version"] := "4.6.3"
-                    }
                 case "Cura":
                     if application["Executable Version"] = "N/A" {
                         SplitPath(application["Executable Path"], , &directoryName)
@@ -529,10 +609,6 @@ RegisterApplications() {
                         if RegExMatch(filename, "_v(\d+\.\d+(?:\.\d+)*)", &versionMatch) {
                             application["Executable Version"] := versionMatch[1]
                         }
-                    }
-                case "Exact Audio Copy":
-                    if application["Executable Hash"] = "a169a5cad41cc341f2b108d8a38eaf957c817df1f971ac13aa1fb731f957a204" {
-                        application["Executable Version"] := "1.8"
                     }
                 case "Excel":
                     CloseApplication("Excel")
@@ -626,7 +702,7 @@ RegisterApplications() {
                         Sleep(excelShortDelay)
                     }
 
-                    excelMacroCode := "Sub Run()" . "`r`n" . '    Range("A1").Value = "Cell"' . "`r`n" . "End Sub"
+                    excelMacroCode := "Sub Run()" . newLine . '    Range("A1").Value = "Cell"' . newLine . "End Sub"
                     OpenVisualBasicEditorAndRunCode(excelMacroCode, excelApplication)
                     Sleep(excelTinyDelay + excelTinyDelay)
 
@@ -643,8 +719,16 @@ RegisterApplications() {
                         "Username",           system["Environment"]["Username"]
                     )
 
+                    excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
+                    excelInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Excel International"], excelInternationalFileHash)
+                    excelInternationalConstant := ParseDelimitedRowsToArrayOfMaps(excelInternationalContent)
+
+                    for rowMap in excelInternationalConstant {
+                        rowMap["Value"] := rowMap["Value"] + 0
+                    }
+
                     application["International"] := Map()
-                    for international in system["Constants"]["Excel International"] {
+                    for international in excelInternationalConstant {
                         application["International"][international["Label"]] := excelApplication.International[international["Value"]]
                     }
 
@@ -659,7 +743,15 @@ RegisterApplications() {
                         "User Interface Language Code Identifier", excelApplication.LanguageSettings.LanguageID(2)
                     )
 
-                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["Excel Default Cell Styles"], "User Interface Language Code Identifier", application["Language"]["User Interface Language Code Identifier"])
+                    excelDefaultCellStylesFileHash := GetFileHash(system["Paths"]["Excel Default Cell Styles"], "SHA-256")
+                    excelDefaultCellStylesContent  := ReadFileOnHashMatch(system["Paths"]["Excel Default Cell Styles"], excelDefaultCellStylesFileHash)
+                    excelDefaultCellStylesMapping  := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
+
+                    for excelDefaultCellStyle in excelDefaultCellStylesMapping {
+                        excelDefaultCellStyle["User Interface Language Code Identifier"] := excelDefaultCellStyle["User Interface Language Code Identifier"] + 0
+                    }
+
+                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, "User Interface Language Code Identifier", application["Language"]["User Interface Language Code Identifier"])
                     application["Default Cell Styles"].Delete("User Interface Language Code Identifier")
 
                     excelWorkbook.Close(false)
@@ -670,10 +762,6 @@ RegisterApplications() {
                     excelWorkbook    := 0
                     excelApplication := 0
                     ProcessWaitClose(excelProcessIdentifier, 2)
-                case "GtkHash":
-                    if application["Executable Hash"] = "bf4ee99fac496949a6619d90994fed19b2a199b7ea6af126cb8ab84555c73928" {
-                        application["Executable Version"] := "1.5"
-                    }
                 case "SoapUI":
                     if application["Executable Version"] = "N/A" {
                         if RegExMatch(application["Executable Filename"], "i)SoapUI-(\d+\.\d+(?:\.\d+)*)\.exe$", &versionMatch) {
@@ -683,8 +771,16 @@ RegisterApplications() {
                 case "Word":
                     wordApplication := ComObject("Word.Application")
 
+                    wordInternationalFileHash := "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"
+                    wordInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Word International"], wordInternationalFileHash)
+                    wordInternationalConstant := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
+
+                    for rowMap in wordInternationalConstant {
+                        rowMap["Value"] := rowMap["Value"] + 0
+                    }
+
                     application["International"] := Map()
-                    for international in system["Constants"]["Word International"] {
+                    for international in wordInternationalConstant {
                         application["International"][international["Label"]] := wordApplication.International[international["Value"]]
                     }
 
@@ -711,72 +807,6 @@ RegisterApplications() {
 
     if logToExecutionLog {
         BatchAppendExecutionLog("Application", installedApplications)
-    }
-
-    if installedApplicationsWithImageLibraryDataCount != 0 {
-        switch system["Environment"]["Display Resolution"] {
-            case "1920x1080":
-                switch system["Environment"]["DPI Scale"] {
-                    case "100%", "125%", "150%":
-                        CreateImagesFromCatalog("Full High Definition")
-                }
-            case "2560x1440":
-                switch system["Environment"]["DPI Scale"] {
-                    case "100%", "125%", "150%":
-                        CreateImagesFromCatalog("Quad High Definition")
-                }
-            case "3840x2160":
-                switch system["Environment"]["DPI Scale"] {
-                    case "100%", "125%", "150%", "175%":
-                        CreateImagesFromCatalog("Ultra High Definition")
-                }
-        }
-    }
-
-    if system["Directories"].Has("Application Image Override Directory") {
-        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
-        for applicationFolder in applicationFolders {
-            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
-
-            actionImageDirectories := GetFoldersFromDirectory(applicationFolder)
-            for actionFolderPath in actionImageDirectories {
-                SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
-
-                if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
-                }
-
-                if !imageRegistry[applicationName].Has(matchResults[1]) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
-                }
-
-                variantFound := false
-                overridePath := actionFolderPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
-                for variant in imageRegistry[applicationName][matchResults[1]] {
-                    if variant["Variant"] = matchResults[2] {
-                        overridePath := overridePath . variant["Extension"]
-                        if FileExist(overridePath) {
-                            variantFound := true
-                            break
-                        }
-                    }
-                }
-
-                if !variantFound {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
-                }
-
-                for variant in imageRegistry[applicationName][matchResults[1]] {
-                    if variant["Variant"] = matchResults[2] {
-                        variant["Path"] := overridePath
-
-                        imageDimensions   := StrSplit(GetImageDimensions(variant["Path"]), "x")
-                        variant["Width"]  := imageDimensions[1] + 0
-                        variant["Height"] := imageDimensions[2] + 0
-                    }
-                }
-            }
-        }
     }
 
     LogConclusion("Completed", logConclusionData)
