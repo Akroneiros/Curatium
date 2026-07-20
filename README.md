@@ -16,8 +16,10 @@ Licensed under [MIT](LICENSE).
 - [XKCD Color Survey](https://xkcd.com/color/rgb/) — CC0 1.0 Universal, Randall Munroe `Shared\Constants\XKCD Color Survey (2026-06-02).csv`
 ## Mappings
 - Application Executable Directory Candidates — Unspecified, Akroneiros `Shared\Mappings\Application Executable Directory Candidates.csv`
+- Application Executable Versions — Unspecified, Akroneiros `Shared\Mappings\Application Executable Versions.csv`
 - Applications — Unspecified, Akroneiros `Shared\Mappings\Applications.csv`
 - Command Line Executables — Unspecified, Akroneiros `Shared\Mappings\Command Line Executables.csv`
+- [Excel Default Cell Styles](https://support.microsoft.com/en-US/Excel/apply-create-or-remove-a-cell-style) — Unspecified, Microsoft `Shared\Mappings\Excel Default Cell Styles.csv`
 - File Signatures — Unspecified, Akroneiros `Shared\Mappings\File Signatures.csv`
 - [System Management BIOS Type 17 Memory Device - Type](https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.9.0.pdf) — DMTF Reproduction Permission, Distributed Management Task Force (DMTF) `Shared\Mappings\System Management BIOS Type 17 Memory Device - Type.csv`
 - [Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry](https://uefi.org/ACPI_ID_List) — Unspecified, UEFI Forum `Shared\Mappings\Unified Extensible Firmware Interface Advanced Configuration and Power Interface ID Official Registry.csv`
