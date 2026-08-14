@@ -215,121 +215,122 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
 
     if relevantImages.Length = 0 {
         LogConclusion("Skipped", logConclusionData)
-    } else {
-        pendingBase64ImageWriteQueue := []
-        uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
+        return
+    }
 
-        uniqueDataReferencesDirectories := uniqueDataReferences.Clone()
-        for index, uniqueDataReferenceDirectory in uniqueDataReferencesDirectories {
-            uniqueDataReferencesDirectories[index] := system["Directories"]["Images"] . uniqueDataReferenceDirectory . "\"
-        }
+    pendingBase64ImageWriteQueue := []
+    uniqueDataReferences         := RemoveDuplicatesFromArray(uniqueDataReferences)
 
-        BatchAppendSymbolLedger("Reference", uniqueDataReferencesDirectories)
+    uniqueDataReferencesDirectories := uniqueDataReferences.Clone()
+    for index, uniqueDataReferenceDirectory in uniqueDataReferencesDirectories {
+        uniqueDataReferencesDirectories[index] := system["Directories"]["Images"] . uniqueDataReferenceDirectory . "\"
+    }
 
-        uniqueImageLibraryDataReferences := []
-        for uniqueDataReference in uniqueDataReferences {
-            uniqueImageLibraryDataReferences.Push(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
-        }
+    BatchAppendSymbolLedger("Reference", uniqueDataReferencesDirectories)
 
-        for uniqueDataReference in uniqueDataReferences {
-            uniqueImageLibraryDataReferences.Push(GetFileHash(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", "SHA-256"))
-        }
+    uniqueImageLibraryDataReferences := []
+    for uniqueDataReference in uniqueDataReferences {
+        uniqueImageLibraryDataReferences.Push(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv")
+    }
 
-        BatchAppendSymbolLedger("Reference", uniqueImageLibraryDataReferences)
+    for uniqueDataReference in uniqueDataReferences {
+        uniqueImageLibraryDataReferences.Push(GetFileHash(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", "SHA-256"))
+    }
 
-        for uniqueDataReference in uniqueDataReferences {
-            EnsureDirectoryExists(system["Directories"]["Images"] . uniqueDataReference . "\")
+    BatchAppendSymbolLedger("Reference", uniqueImageLibraryDataReferences)
 
-            libraryDataEntriesHash    := GetFileHash(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", "SHA-256")
-            libraryDataEntriesContent := ReadFileOnHashMatch(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", libraryDataEntriesHash)
-            libraryDataEntriesArray   := ParseDelimitedRowsToArrayOfMaps(libraryDataEntriesContent)
+    for uniqueDataReference in uniqueDataReferences {
+        EnsureDirectoryExists(system["Directories"]["Images"] . uniqueDataReference . "\")
 
-            for image in relevantImages {
-                for libraryData in libraryDataEntriesArray {
-                    if image["Counter Reference"] = libraryData["Counter"] && uniqueDataReference = image["Image Library Data Reference"] {
-                        if !libraryData.Has("Directory") {
-                            libraryData["Directory"] := image["Image Library Data Reference"]
-                            libraryData["Filename"]  := libraryData["Name"] . " (" . variants[libraryData["Variant"]] . ")." . libraryData["Extension"]
-                            libraryData["SHA-256"]   := DecodeBaseToSha256Hex(libraryData["SHA-256"], 86)
-                            libraryData["Base64"]    := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["File Signatures"], "Extension", libraryData["Extension"])["Maximum Base64 Signature"] . libraryData["Base64"]
-                            pendingBase64ImageWriteQueue.Push(libraryData)
+        libraryDataEntriesHash    := GetFileHash(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", "SHA-256")
+        libraryDataEntriesContent := ReadFileOnHashMatch(catalogDirectory . "Image Library Data (" . uniqueDataReference . ").csv", libraryDataEntriesHash)
+        libraryDataEntriesArray   := ParseDelimitedRowsToArrayOfMaps(libraryDataEntriesContent)
 
-                            if !imageRegistry.Has(libraryData["Directory"]) {
-                                imageRegistry[libraryData["Directory"]] := Map()
-                            }
+        for image in relevantImages {
+            for libraryData in libraryDataEntriesArray {
+                if image["Counter Reference"] = libraryData["Counter"] && uniqueDataReference = image["Image Library Data Reference"] {
+                    if !libraryData.Has("Directory") {
+                        libraryData["Directory"] := image["Image Library Data Reference"]
+                        libraryData["Filename"]  := libraryData["Name"] . " (" . variants[libraryData["Variant"]] . ")." . libraryData["Extension"]
+                        libraryData["SHA-256"]   := DecodeBaseToSha256Hex(libraryData["SHA-256"], 86)
+                        libraryData["Base64"]    := ExtractRowFromArrayOfMapsOnHeaderCondition(system["Mappings"]["File Signatures"], "Extension", libraryData["Extension"])["Maximum Base64 Signature"] . libraryData["Base64"]
+                        pendingBase64ImageWriteQueue.Push(libraryData)
 
-                            if !imageRegistry[libraryData["Directory"]].Has(libraryData["Name"]) {
-                                imageRegistry[libraryData["Directory"]][libraryData["Name"]] := []
-                            }
-
-                            path := system["Directories"]["Images"] . libraryData["Directory"] . "\" . libraryData["Filename"]
-
-                            horizontalRange      := StrReplace(image["Horizontal Range"], ",", ".")
-                            horizontalParts      := StrSplit(horizontalRange, "-")
-                            horizontalRangeStart := Floor(screenWidth * horizontalParts[1] / 100)
-                            horizontalRangeEnd   := Ceil(screenWidth * horizontalParts[2] / 100) - 1
-
-                            verticalRange        := StrReplace(image["Vertical Range"], ",", ".")
-                            verticalParts        := StrSplit(verticalRange, "-")
-                            verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
-                            verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
-
-                            imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(Map(
-                                "Path",                   path,
-                                "Name",                   libraryData["Name"],
-                                "Variant",                StrLower(libraryData["Variant"]),
-                                "Extension",              libraryData["Extension"],
-                                "Horizontal Range",       horizontalRange,
-                                "Horizontal Range Start", horizontalRangeStart,
-                                "Horizontal Range End",   horizontalRangeEnd,
-                                "Vertical Range",         verticalRange,
-                                "Vertical Range Start",   verticalRangeStart,
-                                "Vertical Range End",     verticalRangeEnd
-                            ))
-
-                            
+                        if !imageRegistry.Has(libraryData["Directory"]) {
+                            imageRegistry[libraryData["Directory"]] := Map()
                         }
+
+                        if !imageRegistry[libraryData["Directory"]].Has(libraryData["Name"]) {
+                            imageRegistry[libraryData["Directory"]][libraryData["Name"]] := []
+                        }
+
+                        path := system["Directories"]["Images"] . libraryData["Directory"] . "\" . libraryData["Filename"]
+
+                        horizontalRange      := StrReplace(image["Horizontal Range"], ",", ".")
+                        horizontalParts      := StrSplit(horizontalRange, "-")
+                        horizontalRangeStart := Floor(screenWidth * horizontalParts[1] / 100)
+                        horizontalRangeEnd   := Ceil(screenWidth * horizontalParts[2] / 100) - 1
+
+                        verticalRange        := StrReplace(image["Vertical Range"], ",", ".")
+                        verticalParts        := StrSplit(verticalRange, "-")
+                        verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
+                        verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
+
+                        imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(Map(
+                            "Path",                   path,
+                            "Name",                   libraryData["Name"],
+                            "Variant",                StrLower(libraryData["Variant"]),
+                            "Extension",              libraryData["Extension"],
+                            "Horizontal Range",       horizontalRange,
+                            "Horizontal Range Start", horizontalRangeStart,
+                            "Horizontal Range End",   horizontalRangeEnd,
+                            "Vertical Range",         verticalRange,
+                            "Vertical Range Start",   verticalRangeStart,
+                            "Vertical Range End",     verticalRangeEnd
+                        ))
+
+                        
                     }
                 }
             }
         }
-
-        references := []
-        for image in pendingBase64ImageWriteQueue {
-            references.Push(system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"])
-        }
-
-        for image in pendingBase64ImageWriteQueue {
-            references.Push(image["SHA-256"])
-        }
-
-        BatchAppendSymbolLedger("Reference", references)
-
-        for image in pendingBase64ImageWriteQueue {
-            filePath := system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"]
-            if FileExist(filePath) {
-                if image["SHA-256"] != GetFileHash(filePath, "SHA-256") {
-                    DeleteFile(filePath)
-                }
-            }
-
-            WriteBase64IntoFileWithHash(image["Base64"], filePath, image["SHA-256"])
-        }
-
-        for uniqueDataReference in uniqueDataReferences {
-            for image in imageRegistry[uniqueDataReference] {
-                directoryImages := imageRegistry[uniqueDataReference][image]
-
-                for directoryImage in directoryImages {
-                    imageDimensions := StrSplit(GetImageDimensions(directoryImage["Path"]), "x")
-                    directoryImage["Width"]  := imageDimensions[1] + 0
-                    directoryImage["Height"] := imageDimensions[2] + 0
-                }
-            }
-        }
-
-        LogConclusion("Completed", logConclusionData)
     }
+
+    references := []
+    for image in pendingBase64ImageWriteQueue {
+        references.Push(system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"])
+    }
+
+    for image in pendingBase64ImageWriteQueue {
+        references.Push(image["SHA-256"])
+    }
+
+    BatchAppendSymbolLedger("Reference", references)
+
+    for image in pendingBase64ImageWriteQueue {
+        filePath := system["Directories"]["Images"] . image["Directory"] . "\" . image["Filename"]
+        if FileExist(filePath) {
+            if image["SHA-256"] != GetFileHash(filePath, "SHA-256") {
+                DeleteFile(filePath)
+            }
+        }
+
+        WriteBase64IntoFileWithHash(image["Base64"], filePath, image["SHA-256"])
+    }
+
+    for uniqueDataReference in uniqueDataReferences {
+        for image in imageRegistry[uniqueDataReference] {
+            directoryImages := imageRegistry[uniqueDataReference][image]
+
+            for directoryImage in directoryImages {
+                imageDimensions := StrSplit(GetImageDimensions(directoryImage["Path"]), "x")
+                directoryImage["Width"]  := imageDimensions[1] + 0
+                directoryImage["Height"] := imageDimensions[2] + 0
+            }
+        }
+    }
+
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;
@@ -487,7 +488,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
 
     settings := methodRegistry[methodName]["Settings"]
     
-    mediumDelay := settings["Medium Delay"].Get("Value")
+    mediumDelay := settings["Medium Delay"]["Value"]
 
     if !imageRegistry.Has(directoryFolder) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)

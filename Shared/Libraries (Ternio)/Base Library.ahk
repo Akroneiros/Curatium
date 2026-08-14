@@ -12,18 +12,18 @@ global imageRegistry := Map()
 global methodRegistry := Map(
     "LogEngine", Map(
         "Settings", Map(
-            "Start Treshold", Map(
-                "Value",   512,
-                "Default", 512,
+            "Start Threshold in Milliseconds", Map(
+                "Value",   712,
+                "Default", 712,
                 "Floor",   32,
-                "Ceiling", 998,
+                "Ceiling", 968,
                 "Delta",   0
             ),
-            "Timestamp Duration", Map(
+            "Telemetry Duration in Milliseconds", Map(
                 "Value",   256,
                 "Default", 256,
-                "Floor",   32,
-                "Ceiling", 1000,
+                "Floor",   16,
+                "Ceiling", 4096,
                 "Delta",   0
             )
         )
@@ -89,7 +89,7 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Boolean [Optional: False]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [windowSearchResults, maximizeWindow], "Activate Window")
 
     static defaultMethodSettingsSet := unset
@@ -102,8 +102,8 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    secondsToAttempt := settings["Seconds to Attempt"].Get("Value")
-    shortDelay       := settings["Short Delay"].Get("Value")
+    secondsToAttempt := settings["Seconds to Attempt"]["Value"]
+    shortDelay       := settings["Short Delay"]["Value"]
 
     windowSearchTerm := "Window search term: " . windowSearchResults["Window Title"] . "."
     totalSleep       := Round((Round(shortDelay / 2)) + shortDelay * (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10))
@@ -185,58 +185,58 @@ BuildSpreadsheetOperationsTemplate(release) {
         }
     }
 
-    spreadsheetOperationsTemplate["Intro Code"] := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . 
-        "Public cellStyles As Object" . newLine . "Public environment As Object" . newLine . "Public international As Object" . newLine . "Public telemetry As Object"
+    introCode := spreadsheetOperationsTemplate["Intro Code"]
+    if InStr(introCode, "Public cellStyles As Object") && InStr(introCode, "Public environment As Object") && InStr(introCode, "Public international As Object") && InStr(introCode, "Public telemetry As Object") {
+        cellStyleDictionaryValues := ""
+        for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
+            cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
 
-    cellStyleDictionaryValues := ""
-    for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
-        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
-
-        cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
-    }
-
-    for namedCellStyle in [
-        "Date",
-        "Date Time",
-        "Decimal",
-        "Followed Hyperlink",
-        "Formula",
-        "Header",
-        "Hyperlink",
-        "Integer"
-    ] {
-        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . newLine
-    }
-
-    environmentDictionaryValues := ""
-    for environment, value in applicationRegistry["Excel"]["Environment"] {
-        if Type(value) = "Integer" {
-            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
-        } else {
-            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
+            cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
         }
 
-        if environment = "QPC Frequency" {
-            environmentDictionaryValues := environmentDictionaryValues . "#"
+        for namedCellStyle in [
+            "Date",
+            "Date Time",
+            "Decimal",
+            "Followed Hyperlink",
+            "Formula",
+            "Header",
+            "Hyperlink",
+            "Integer"
+        ] {
+            cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . newLine
         }
 
-        environmentDictionaryValues := environmentDictionaryValues . newLine
-    }
+        environmentDictionaryValues := ""
+        for environment, value in applicationRegistry["Excel"]["Environment"] {
+            if Type(value) = "Integer" {
+                environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
+            } else {
+                environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
+            }
 
-    internationalDictionaryValues := ""
-    for international, value in applicationRegistry["Excel"]["International"] {
-        if Type(value) = "Integer" {
-            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = ' . value
-        } else {
-            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
+            if environment = "QPC Frequency" {
+                environmentDictionaryValues := environmentDictionaryValues . "#"
+            }
+
+            environmentDictionaryValues := environmentDictionaryValues . newLine
         }
 
-        internationalDictionaryValues := internationalDictionaryValues . newLine
-    }
+        internationalDictionaryValues := ""
+        for international, value in applicationRegistry["Excel"]["International"] {
+            if Type(value) = "Integer" {
+                internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = ' . value
+            } else {
+                internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
+            }
 
-    dictionary := 'CreateObject("Scripting.Dictionary")'
-    spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . newLine . "    Set cellStyles = " . dictionary . newLine . "    Set environment = " . 
-        dictionary . newLine . "    Set international = " . dictionary . newLine . "    Set telemetry = " . dictionary . newLine . newLine . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
+            internationalDictionaryValues := internationalDictionaryValues . newLine
+        }
+
+        dictionary := 'CreateObject("Scripting.Dictionary")'
+        spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . newLine . "    Set cellStyles = " . dictionary . newLine . "    Set environment = " . 
+            dictionary . newLine . "    Set international = " . dictionary . newLine . "    Set telemetry = " . dictionary . newLine . newLine . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
+    }
 
     LogConclusion("Completed", logConclusionData)
     return spreadsheetOperationsTemplate
@@ -268,10 +268,10 @@ PasteText(text, commentPrefix := "") {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    maxAttempts               := settings["Max Attempts"].Get("Value")
-    clipboardTimeoutInSeconds := settings["Clipboard Timeout in Seconds"].Get("Value")
-    shortDelay                := settings["Short Delay"].Get("Value")
-    mediumDelay               := settings["Medium Delay"].Get("Value")
+    maxAttempts               := settings["Max Attempts"]["Value"]
+    clipboardTimeoutInSeconds := settings["Clipboard Timeout in Seconds"]["Value"]
+    shortDelay                := settings["Short Delay"]["Value"]
+    mediumDelay               := settings["Medium Delay"]["Value"]
 
     rows := StrSplit(text, "`n").Length
 
@@ -657,9 +657,9 @@ ValidateConfiguration(configuration) {
     }
 
     subSettings := Map(
-        "Advanced Mode",                        Map("Data Type", "Boolean"),
+        "Advanced Mode",                        Map("Data Type", "Integer", "Constraint", "Boolean"),
         "Application Image Override Directory", Map("Data Type", "String", "Constraint", "Directory"),
-        "Computer Alias",                       Map("Data Type", "String", "Constraint", "Single Line"),
+        "Computer Alias",                       Map("Data Type", "String", "Constraint", "Filename"),
         "Image Variant Preset",                 Map("Data Type", "String", "Constraint", "Single Line")
     )
     for subSettingName, subSetting in subSettings {
@@ -951,18 +951,22 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
             if Type(dataValue) != "Array" {
                 validation := "Value must be an Array."
             }
-        case "Boolean":
-            if !(Type(dataValue) = "Integer" && (dataValue = 0 || dataValue = 1)) {
-                validation := "Boolean must be an Integer with value 0 or 1."
+        case "Float":
+            if Type(dataValue) != "Float" {
+                validation := "Value must be a Float."
             }
         case "Integer":
             if Type(dataValue) != "Integer" {
                 validation := "Value must be an Integer."
             } else {
                 switch dataConstraint {
+                    case "Boolean":
+                        if dataValue < 0 || dataValue > 1 {
+                            validation := dataConstraint . " must be between 0 and 1."
+                        }
                     case "Byte":
                         if dataValue < 0 || dataValue > 255 {
-                            validation := dataConstraint . " out of range (0–255)."
+                            validation := dataConstraint . " must be between 0 and 255."
                         }
                     case "Day":
                         if dataValue < 1 || dataValue > 31 {
@@ -1347,9 +1351,18 @@ CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
     utcTimestampInteger  := '    telemetry("UTC Timestamp Integer") = "' . system["Telemetry"]["UTC Timestamp Integer"] . '"'
     utcTimestampPrecise  := '    telemetry("UTC Timestamp Precise") = "' . system["Telemetry"]["UTC Timestamp Precise"] . '"'
 
-    mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . qpcMidpointTimestamp . newLine . tickCount . newLine . utcTimestampInteger . newLine . utcTimestampPrecise . newLine)
+    if InStr(spreadsheetOperationsTemplate["Intro Code"], "Public telemetry As Object") {
+        startupSectionAfterTelemetry := newLine
+        if InStr(mainCode, "Sub Startup()" . newLine . "End Sub") {
+            startupSectionAfterTelemetry := ""
+        }
 
-    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeWithTelemetry . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
+        mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . qpcMidpointTimestamp . newLine . tickCount . newLine . utcTimestampInteger . newLine . utcTimestampPrecise . startupSectionAfterTelemetry)
+
+        combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeWithTelemetry . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
+    } else {
+        combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCode . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
+    }
 
     return combinedExcelCode
 }
@@ -1436,7 +1449,7 @@ ConvertHexStringToBase64(hexString, removePadding := true) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("hexString As String [Constraint: Hexadecimal String], removePadding As Boolean [Optional: true]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("hexString As String [Constraint: Hexadecimal String], removePadding As Integer [Optional: true] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [hexString])
 
     static CRYPT_STRING_BASE64 := 0x1
@@ -1649,8 +1662,8 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
 
     settings := methodRegistry[methodName]["Settings"]
     
-    tinyDelay       := settings["Tiny Delay"].Get("Value")
-    legacyThreshold := settings["Legacy Threshold"].Get("Value")
+    tinyDelay       := settings["Tiny Delay"]["Value"]
+    legacyThreshold := settings["Legacy Threshold"]["Value"]
 
     if StrLen(key) > 1 {
         key := "{" . key . "}"
@@ -1817,7 +1830,7 @@ SearchForWindow(windowTitle, secondsToAttempt, customErrorMessage := "") {
 ; Settings                     ;
 ; **************************** ;
 
-ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling, delta := 0) {
+ConfigureMethodSetting(settingMethod, settingName, settingValue, floor := 0, ceiling := 0, delta := 0) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -1825,7 +1838,7 @@ ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling,
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, floor As Integer, ceiling As Integer, delta As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer, floor As Integer [Optional], ceiling As Integer [Optional], delta As Integer [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [settingMethod, settingName, settingValue, floor, ceiling, delta])
 
     global methodRegistry
@@ -1843,24 +1856,29 @@ ConfigureMethodSetting(settingMethod, settingName, settingValue, floor, ceiling,
         methodRegistry[settingMethod]["Settings"][settingName] := Map()
     }
 
-    methodRegistry[settingMethod]["Settings"][settingName]["Default"] := settingValue
-
-    methodRegistry[settingMethod]["Settings"][settingName]["Floor"] := floor
-
-    if ceiling != 0 {
-        methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] := ceiling
-    }
-
-    methodRegistry[settingMethod]["Settings"][settingName]["Delta"] := delta
-
     if !methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
+        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
+    } else if floor = 0 && ceiling = 0 && delta = 0 {
         methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
     }
 
-    if methodRegistry[settingMethod]["Settings"][settingName]["Value"] > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
-        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
-    } else if methodRegistry[settingMethod]["Settings"][settingName]["Value"] < methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
-        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Floor"]
+    if floor != 0 || ceiling != 0 || delta != 0 {
+        if ceiling = 0 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Ceiling not allowed to be 0.")
+        }
+
+        methodRegistry[settingMethod]["Settings"][settingName]["Default"] := settingValue
+        methodRegistry[settingMethod]["Settings"][settingName]["Floor"]   := floor
+        methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] := ceiling
+        methodRegistry[settingMethod]["Settings"][settingName]["Delta"]   := delta
+    }
+
+    if methodRegistry[settingMethod]["Settings"][settingName].Has("Default") {
+        if methodRegistry[settingMethod]["Settings"][settingName]["Value"] > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
+            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
+        } else if methodRegistry[settingMethod]["Settings"][settingName]["Value"] < methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
+            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Floor"]
+        }
     }
 }
 
@@ -1875,15 +1893,17 @@ DecreaseMethodSetting(settingMethod, settingName) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [settingMethod, settingName])
 
-    global methodRegistry
-
-    if methodRegistry[settingMethod]["Settings"][settingName].Has("Value") {
-        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] - methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
-
-        if newSettingValue >= methodRegistry[settingMethod]["Settings"][settingName]["Floor"] {
-            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
+    if !methodRegistry[settingMethod]["Settings"][settingName].Has("Default") {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Method setting not initialized.")
+    } else {
+        if methodRegistry[settingMethod]["Settings"][settingName]["Delta"] = 0 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Method setting delta set to 0, unable to decrease value.")
         }
     }
+
+    decreasedSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] - methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
+
+    SetMethodSetting(settingMethod, settingName, decreasedSettingValue)
 }
 
 IncreaseMethodSetting(settingMethod, settingName) {
@@ -1897,15 +1917,17 @@ IncreaseMethodSetting(settingMethod, settingName) {
     static methodName := RegisterMethod("settingMethod As String, settingName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [settingMethod, settingName])
 
-    global methodRegistry
-
-    if methodRegistry[settingMethod]["Settings"][settingName].Has("Ceiling") {
-        newSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] + methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
-
-        if newSettingValue <= methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
-            methodRegistry[settingMethod]["Settings"][settingName]["Value"] := newSettingValue
+    if !methodRegistry[settingMethod]["Settings"][settingName].Has("Default") {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Method setting not initialized.")
+    } else {
+        if methodRegistry[settingMethod]["Settings"][settingName]["Delta"] = 0 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Method setting delta set to 0, unable to increase value.")
         }
     }
+
+    increasedSettingValue := methodRegistry[settingMethod]["Settings"][settingName]["Value"] + methodRegistry[settingMethod]["Settings"][settingName]["Delta"]
+
+    SetMethodSetting(settingMethod, settingName, increasedSettingValue)
 }
 
 SetMethodSetting(settingMethod, settingName, settingValue) {
@@ -1917,28 +1939,11 @@ SetMethodSetting(settingMethod, settingName, settingValue) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
     static methodName := RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [settingMethod, settingName, settingValue])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [settingMethod, settingName, settingValue], "Set Method Setting (" . settingMethod . ", " . settingName . ")")
 
-    global methodRegistry
+    ConfigureMethodSetting(settingMethod, settingName, settingValue)
 
-    if !methodRegistry.Has(settingMethod) {
-        methodRegistry[settingMethod] := Map()
-        methodRegistry[settingMethod]["Symbol"] := ""
-    }
-
-    if !methodRegistry[settingMethod].Has("Settings") {
-        methodRegistry[settingMethod]["Settings"] := Map()
-    }
-
-    if methodRegistry[settingMethod]["Settings"][settingName].Has("Ceiling") {
-        if methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] != 0 {
-            if settingValue > methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"] {
-                methodRegistry[settingMethod]["Settings"][settingName]["Value"] := methodRegistry[settingMethod]["Settings"][settingName]["Ceiling"]
-            }
-        }
-    } else {
-        methodRegistry[settingMethod]["Settings"][settingName]["Value"] := settingValue
-    }
+    LogConclusion("Completed", logConclusionData)
 }
 
 ; **************************** ;

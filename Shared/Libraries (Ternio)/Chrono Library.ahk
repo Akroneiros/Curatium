@@ -13,7 +13,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Boolean [Optional: false]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Integer [Optional: false] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [runtimeDate, randomizePixelMovement], "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
     
     counter := 0
@@ -104,51 +104,52 @@ SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
     currentDirectoryDateTime := GetDirectoryTimeAsUtc(directoryPath, timeType)
     if currentDirectoryDateTime = isoDateTime {
         LogConclusion("Skipped", logConclusionData)
-    } else {
-        isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
-
-        utcSystemTimeBuffer := Buffer(16, 0)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
-        NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
-        NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
-        NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
-        NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
-
-        utcFileTimeBuffer := Buffer(8, 0)
-        if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int") {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
-        }
-
-        accessMode := 0x100
-        shareMode  := 0x7
-        flags      := 0x80 | 0x02000000
-
-        directoryHandle := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
-        if directoryHandle = -1 {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open directory. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
-        }
-
-        accessTimePointer   := 0
-        creationTimePointer := 0
-        modifiedTimePointer := 0
-        switch timeType {
-            case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
-            case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
-            case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
-        }
-
-        dateAndTimeSetToDirectorySuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", directoryHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
-        if !dateAndTimeSetToDirectorySuccessfully {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
-        }
-
-        DllCall("Kernel32\CloseHandle", "Ptr", directoryHandle)
-
-        LogConclusion("Completed", logConclusionData)
+        return
     }
+
+    isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
+
+    utcSystemTimeBuffer := Buffer(16, 0)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
+    NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
+    NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
+    NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
+    NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
+
+    utcFileTimeBuffer := Buffer(8, 0)
+    if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int") {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    accessMode := 0x100
+    shareMode  := 0x7
+    flags      := 0x80 | 0x02000000
+
+    directoryHandle := DllCall("Kernel32\CreateFileW", "WStr", directoryPath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
+    if directoryHandle = -1 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open directory. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    accessTimePointer   := 0
+    creationTimePointer := 0
+    modifiedTimePointer := 0
+    switch timeType {
+        case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
+        case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
+        case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
+    }
+
+    dateAndTimeSetToDirectorySuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", directoryHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
+    if !dateAndTimeSetToDirectorySuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
+    }
+
+    DllCall("Kernel32\CloseHandle", "Ptr", directoryHandle)
+
+    LogConclusion("Completed", logConclusionData)
 }
 
 SetFileTimestamp(filePath, isoDateTime, timeType) {
@@ -166,54 +167,55 @@ SetFileTimestamp(filePath, isoDateTime, timeType) {
     currentFileDateTime := GetFileTimeAsUtc(filePath, timeType)
     if currentFileDateTime = isoDateTime {
         LogConclusion("Skipped", logConclusionData)
-    } else {
-        isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
-
-        utcSystemTimeBuffer := Buffer(16, 0)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
-        NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
-        NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
-        NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
-        NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
-        NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
-
-        utcFileTimeBuffer := Buffer(8, 0)
-
-        convertedSystemTimeToFileTimeSuccessfully := DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int")
-        if !convertedSystemTimeToFileTimeSuccessfully {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
-        }
-
-        accessMode := 0x100
-        shareMode  := 0x7
-        flags      := 0x80 | 0x02000000
-
-        fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
-        if fileHandle = -1 {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
-        }
-
-        accessTimePointer   := 0
-        creationTimePointer := 0
-        modifiedTimePointer := 0
-
-        switch timeType {
-            case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
-            case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
-            case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
-        }
-
-        dateAndTimeSetToFileSuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", fileHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
-        if !dateAndTimeSetToFileSuccessfully {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
-        }
-
-        DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
-
-        LogConclusion("Completed", logConclusionData)
+        return
     }
+
+    isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
+
+    utcSystemTimeBuffer := Buffer(16, 0)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
+    NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
+    NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
+    NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
+    NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
+    NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
+
+    utcFileTimeBuffer := Buffer(8, 0)
+
+    convertedSystemTimeToFileTimeSuccessfully := DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int")
+    if !convertedSystemTimeToFileTimeSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert system time to file time format. [Kernel32\SystemTimeToFileTime" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    accessMode := 0x100
+    shareMode  := 0x7
+    flags      := 0x80 | 0x02000000
+
+    fileHandle := DllCall("Kernel32\CreateFileW", "WStr", filePath, "UInt", accessMode, "UInt", shareMode, "Ptr", 0, "UInt", 3, "UInt", flags, "Ptr", 0, "Ptr")
+    if fileHandle = -1 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open file. [Kernel32\CreateFileW" . ", System Error Code: " . A_LastError . "]")
+    }
+
+    accessTimePointer   := 0
+    creationTimePointer := 0
+    modifiedTimePointer := 0
+
+    switch timeType {
+        case "Accessed": accessTimePointer   := utcFileTimeBuffer.Ptr
+        case "Created":  creationTimePointer := utcFileTimeBuffer.Ptr
+        case "Modified": modifiedTimePointer := utcFileTimeBuffer.Ptr
+    }
+
+    dateAndTimeSetToFileSuccessfully := DllCall("Kernel32\SetFileTime", "Ptr", fileHandle, "Ptr", creationTimePointer, "Ptr", accessTimePointer, "Ptr", modifiedTimePointer, "Int")
+    if !dateAndTimeSetToFileSuccessfully {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "SetFileTime failed")
+    }
+
+    DllCall("Kernel32\CloseHandle", "Ptr", fileHandle)
+
+    LogConclusion("Completed", logConclusionData)
 }
 
 ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
@@ -261,9 +263,9 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    checkInterval  := settings["Check Interval"].Get("Value")
-    mouseInterval  := settings["Mouse Interval"].Get("Value")
-    maxWaitMinutes := settings["Max Wait Minutes"].Get("Value")
+    checkInterval  := settings["Check Interval"]["Value"]
+    mouseInterval  := settings["Mouse Interval"]["Value"]
+    maxWaitMinutes := settings["Max Wait Minutes"]["Value"]
 
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
     maxLoops    := (maxWaitMinutes * 60000) // checkInterval
@@ -319,9 +321,9 @@ LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTimestamp, utcTimestampInteg
     return logDeltaTimestamp
 }
 
-TelemetryTimestamp(timestampDuration) {
+TelemetryTimestamp(telemetryDurationInMilliseconds) {
     result := Map(
-        "Timestamp Duration",  timestampDuration
+        "Telemetry Duration in Milliseconds",  telemetryDurationInMilliseconds
     )
 
     static kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
@@ -343,7 +345,7 @@ TelemetryTimestamp(timestampDuration) {
 
     startTime := DllCall("Kernel32\GetTickCount64", "UInt64")
     if preciseFunctionAddress {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < timestampDuration {
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < telemetryDurationInMilliseconds {
             tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
             DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
@@ -352,7 +354,7 @@ TelemetryTimestamp(timestampDuration) {
             pairedReadings.Push([tickCountBefore, NumGet(qpcBeforeBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64"), NumGet(qpcAfterBuffer, 0, "Int64"), tickCountAfter])
         }
     } else {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < timestampDuration {
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < telemetryDurationInMilliseconds {
             tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
             DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimeBuffer.Ptr)

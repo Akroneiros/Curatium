@@ -36,10 +36,10 @@ RegisterApplications() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    excelTinyDelay    := settings["Excel Tiny Delay"].Get("Value")
-    excelShortDelay   := settings["Excel Short Delay"].Get("Value")
-    excelMediumDelay  := settings["Excel Medium Delay"].Get("Value")
-    logToExecutionLog := settings["Log to Execution Log"].Get("Value")
+    excelTinyDelay    := settings["Excel Tiny Delay"]["Value"]
+    excelShortDelay   := settings["Excel Short Delay"]["Value"]
+    excelMediumDelay  := settings["Excel Medium Delay"]["Value"]
+    logToExecutionLog := settings["Log to Execution Log"]["Value"]
 
     applications                             := system["Mappings"]["Applications"]
     applicationExecutableDirectoryCandidates := system["Mappings"]["Application Executable Directory Candidates"]
@@ -160,18 +160,24 @@ RegisterApplications() {
             dispatchTypes := ["Reference", "Uninstall", "App Paths"]
         }
 
+        appPathsBaseRegistryKeys := [
+            "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
+            "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
+            "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
+        ]
+
+        uninstallBaseRegistryKeys := [
+            "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+            "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        ]
+
         for dispatchType in dispatchTypes {
             switch dispatchType {
                 case "App Paths":
                     if application.Has("Executable Path") {
                         break
                     }
-
-                    static appPathsBaseRegistryKeys := [
-                        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
-                        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
-                        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
-                    ]
 
                     for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
                         executableName  := applicationExecutableDirectoryCandidate["Executable"]
@@ -228,12 +234,6 @@ RegisterApplications() {
                         break
                     }
 
-                    static uninstallBaseKeyPaths := [
-                        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-                        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-                        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-                    ]
-
                     for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
                         executableName  := applicationExecutableDirectoryCandidate["Executable"]
 
@@ -271,13 +271,13 @@ RegisterApplications() {
                             continue
                         }
 
-                        for uninstallBaseKeyPath in uninstallBaseKeyPaths {
-                            Loop Reg, uninstallBaseKeyPath, "K" {
-                                uninstallSubKeyPath := A_LoopRegKey . "\" . A_LoopRegName
+                        for uninstallBaseRegistryKey in uninstallBaseRegistryKeys {
+                            Loop Reg, uninstallBaseRegistryKey, "K" {
+                                uninstallSubRegistryKey := A_LoopRegKey . "\" . A_LoopRegName
 
                                 displayName := ""
                                 try {
-                                    displayName := RegRead(uninstallSubKeyPath, "DisplayName")
+                                    displayName := RegRead(uninstallSubRegistryKey, "DisplayName")
                                 }
 
                                 if !displayName || !InStr(displayName, executableNameNoExtension) {
@@ -286,7 +286,7 @@ RegisterApplications() {
 
                                 displayIcon := ""
                                 try {
-                                    displayIcon := RegRead(uninstallSubKeyPath, "DisplayIcon")
+                                    displayIcon := RegRead(uninstallSubRegistryKey, "DisplayIcon")
                                 }
 
                                 if displayIcon {
@@ -308,7 +308,7 @@ RegisterApplications() {
 
                                 installLocation := ""
                                 try {
-                                    installLocation := RegRead(uninstallSubKeyPath, "InstallLocation")
+                                    installLocation := RegRead(uninstallSubRegistryKey, "InstallLocation")
                                 }
 
                                 if installLocation {
@@ -713,11 +713,22 @@ RegisterApplications() {
                     application["Personal Macro Workbook"] := personalMacroWorkbookPath
 
                     application["Environment"] := Map(
-                        "DPI Scale",          system["Environment"]["DPI Scale"],
+                        "Computer Name",      system["Environment"]["Computer Name"],
+                        "Display Language",   system["Environment"]["Display Language"],
                         "Display Resolution", system["Environment"]["Display Resolution"],
+                        "DPI Scale",          system["Environment"]["DPI Scale"],
+                        "Input Language",     system["Environment"]["Input Language"],
+                        "Keyboard Layout",    system["Environment"]["Keyboard Layout"],
+                        "Operating System",   system["Environment"]["Operating System"]["Full Name"],
                         "QPC Frequency",      system["Environment"]["QPC Frequency"],
+                        "Regional Format",    system["Environment"]["Regional Format"],
+                        "Run Identifier",     system["Runtime"]["Run Identifier"],
+                        "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
                         "Username",           system["Environment"]["Username"]
                     )
+
+                    application["Environment"]["Excel Version"] := application["Executable Version"]
+                    application["Environment"]["User Interface Language Code Identifier"] := excelApplication.LanguageSettings.LanguageID(2)
 
                     excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
                     excelInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Excel International"], excelInternationalFileHash)
@@ -738,11 +749,6 @@ RegisterApplications() {
                         }
                     }
 
-                    application["Language"] := Map(
-                        "Execution Mode Language Code Identifier", excelApplication.LanguageSettings.LanguageID(3),
-                        "User Interface Language Code Identifier", excelApplication.LanguageSettings.LanguageID(2)
-                    )
-
                     excelDefaultCellStylesFileHash := GetFileHash(system["Paths"]["Excel Default Cell Styles"], "SHA-256")
                     excelDefaultCellStylesContent  := ReadFileOnHashMatch(system["Paths"]["Excel Default Cell Styles"], excelDefaultCellStylesFileHash)
                     excelDefaultCellStylesMapping  := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
@@ -751,7 +757,7 @@ RegisterApplications() {
                         excelDefaultCellStyle["User Interface Language Code Identifier"] := excelDefaultCellStyle["User Interface Language Code Identifier"] + 0
                     }
 
-                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, "User Interface Language Code Identifier", application["Language"]["User Interface Language Code Identifier"])
+                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, "User Interface Language Code Identifier", application["Environment"]["User Interface Language Code Identifier"])
                     application["Default Cell Styles"].Delete("User Interface Language Code Identifier")
 
                     excelWorkbook.Close(false)
@@ -771,6 +777,24 @@ RegisterApplications() {
                 case "Word":
                     wordApplication := ComObject("Word.Application")
 
+                    application["Environment"] := Map(
+                        "Computer Name",      system["Environment"]["Computer Name"],
+                        "Display Language",   system["Environment"]["Display Language"],
+                        "Display Resolution", system["Environment"]["Display Resolution"],
+                        "DPI Scale",          system["Environment"]["DPI Scale"],
+                        "Input Language",     system["Environment"]["Input Language"],
+                        "Keyboard Layout",    system["Environment"]["Keyboard Layout"],
+                        "Operating System",   system["Environment"]["Operating System"]["Full Name"],
+                        "QPC Frequency",      system["Environment"]["QPC Frequency"],
+                        "Regional Format",    system["Environment"]["Regional Format"],
+                        "Run Identifier",     system["Runtime"]["Run Identifier"],
+                        "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
+                        "Username",           system["Environment"]["Username"]
+                    )
+
+                    application["Environment"]["Word Version"] := application["Executable Version"]
+                    application["Environment"]["User Interface Language Code Identifier"] := wordApplication.LanguageSettings.LanguageID(2)
+
                     wordInternationalFileHash := "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"
                     wordInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Word International"], wordInternationalFileHash)
                     wordInternationalConstant := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
@@ -789,11 +813,6 @@ RegisterApplications() {
                             application["International"][international] := Round(value)
                         }
                     }
-
-                    application["Language"] := Map(
-                        "Execution Mode Language Code Identifier", wordApplication.LanguageSettings.LanguageID(3),
-                        "User Interface Language Code Identifier", wordApplication.LanguageSettings.LanguageID(2)
-                    )
 
                     wordApplication.Quit()
                     wordApplication := 0
@@ -835,12 +854,13 @@ CloseApplication(applicationName) {
 
     if !ProcessExist(executableName) {
         LogConclusion("Skipped", logConclusionData)
-    } else {
-        ProcessClose(executableName)
-        ProcessWaitClose(executableName, 4)
-
-        LogConclusion("Completed", logConclusionData)
+        return
     }
+
+    ProcessClose(executableName)
+    ProcessWaitClose(executableName, 4)
+
+    LogConclusion("Completed", logConclusionData)
 }
 
 ValidateApplicationInstalled(applicationName) {
@@ -895,8 +915,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
     settings := methodRegistry[methodName]["Settings"]
 
-    tinyDelay  := settings["Tiny Delay"].Get("Value")
-    shortDelay := settings["Short Delay"].Get("Value")
+    tinyDelay  := settings["Tiny Delay"]["Value"]
+    shortDelay := settings["Short Delay"]["Value"]
 
     excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
@@ -1073,7 +1093,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    tinyDelay := settings["Tiny Delay"].Get("Value")
+    tinyDelay := settings["Tiny Delay"]["Value"]
 
     xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
     txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
@@ -1090,29 +1110,30 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
 
     if xlsxPath != "" {
         LogConclusion("Skipped", logConclusionData)
-    } else {
-        sidecarPath := saveDirectory . documentName . ".txt"
-        WriteTextToFile("", sidecarPath, "UTF-8")
-
-        excelApplication := ComObject("Excel.Application")
-        excelWorkbook    := excelApplication.Workbooks.Add()
-        excelApplication.Visible := true
-
-        excelWindowHandle := excelApplication.Hwnd
-        while !excelWindowHandle := excelApplication.Hwnd {
-            Sleep(tinyDelay)
-        }
-        excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
-
-        OpenVisualBasicEditorAndRunCode(code, excelApplication)
-        WaitForExcelToClose(excelProcessIdentifier)
-        excelWorkbook    := 0
-        excelApplication := 0
-        ProcessWaitClose(excelProcessIdentifier, 2)
-
-        DeleteFile(sidecarPath)
-        LogConclusion("Completed", logConclusionData)
+        return
     }
+
+    sidecarPath := saveDirectory . documentName . ".txt"
+    WriteTextToFile("", sidecarPath, "UTF-8")
+
+    excelApplication := ComObject("Excel.Application")
+    excelWorkbook    := excelApplication.Workbooks.Add()
+    excelApplication.Visible := true
+
+    excelWindowHandle := excelApplication.Hwnd
+    while !excelWindowHandle := excelApplication.Hwnd {
+        Sleep(tinyDelay)
+    }
+    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+
+    OpenVisualBasicEditorAndRunCode(code, excelApplication)
+    WaitForExcelToClose(excelProcessIdentifier)
+    excelWorkbook    := 0
+    excelApplication := 0
+    ProcessWaitClose(excelProcessIdentifier, 2)
+
+    DeleteFile(sidecarPath)
+    LogConclusion("Completed", logConclusionData)
 }
 
 OpenVisualBasicEditorAndRunCode(code, excelApplication) {
@@ -1139,9 +1160,9 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    maxAttempts := settings["Max Attempts"].Get("Value")
-    tinyDelay   := settings["Tiny Delay"].Get("Value")
-    shortDelay  := settings["Short Delay"].Get("Value")
+    maxAttempts := settings["Max Attempts"]["Value"]
+    tinyDelay   := settings["Tiny Delay"]["Value"]
+    shortDelay  := settings["Short Delay"]["Value"]
 
     attempts          := 0
     loopWasSuccessful := false
@@ -1268,8 +1289,8 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    totalSecondsToWait       := settings["Total Seconds to Wait"].Get("Value")
-    mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"].Get("Value")
+    totalSecondsToWait       := settings["Total Seconds to Wait"]["Value"]
+    mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"]["Value"]
 
     secondDelay               := 1000
     secondsSinceLastMouseMove := 0
@@ -1359,11 +1380,11 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    maxAttempts    := settings["Max Attempts"].Get("Value")
-    timesToAttempt := settings["Times to Attempt"].Get("Value")
-    shortDelay     := settings["Short Delay"].Get("Value")
-    mediumDelay    := settings["Medium Delay"].Get("Value")
-    longDelay      := settings["Long Delay"].Get("Value")
+    maxAttempts    := settings["Max Attempts"]["Value"]
+    timesToAttempt := settings["Times to Attempt"]["Value"]
+    shortDelay     := settings["Short Delay"]["Value"]
+    mediumDelay    := settings["Medium Delay"]["Value"]
+    longDelay      := settings["Long Delay"]["Value"]
 
     attempts          := 0
     loopWasSuccessful := false
@@ -1511,11 +1532,11 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     settings := methodRegistry[methodName]["Settings"]
     
-    tinyDelay    := settings["Tiny Delay"].Get("Value")
-    shortDelay   := settings["Short Delay"].Get("Value")
-    mediumDelay  := settings["Medium Delay"].Get("Value")
-    longDelay    := settings["Long Delay"].Get("Value")
-    massiveDelay := settings["Massive Delay"].Get("Value")
+    tinyDelay    := settings["Tiny Delay"]["Value"]
+    shortDelay   := settings["Short Delay"]["Value"]
+    mediumDelay  := settings["Medium Delay"]["Value"]
+    longDelay    := settings["Long Delay"]["Value"]
+    massiveDelay := settings["Massive Delay"]["Value"]
 
     static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 

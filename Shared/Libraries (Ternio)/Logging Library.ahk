@@ -30,7 +30,7 @@ AbortExecution() {
     LogConclusion("Failed", logConclusionData, A_LineNumber, "Execution aborted early by pressing escape.")
 }
 
-LogEngine() {
+LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds := unset) {
     global system
 
     static configuration := system["Configuration"]
@@ -50,20 +50,42 @@ LogEngine() {
 
     operationLogLineNumber := unset
 
-    settings := methodRegistry["LogEngine"]["Settings"]
-    
-    startTreshold     := settings["Start Treshold"].Get("Value")
-    timestampDuration := settings["Timestamp Duration"].Get("Value")
+    if !IsSet(startThresholdInMilliseconds) && !IsSet(telemetryDurationInMilliseconds) {
+        startThresholdInMilliseconds    := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
+        telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
+    } else if IsSet(startThresholdInMilliseconds) && !IsSet(telemetryDurationInMilliseconds) {
+        startThresholdInMilliseconds    := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
+        telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
+    } else {
+        if Type(startThresholdInMilliseconds) != "Integer" {
+            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
+        }
 
-    startTresholdCeiling := settings["Start Treshold"].Get("Ceiling")
-    startTresholdFloor   := settings["Start Treshold"].Get("Floor")
+        if Type(telemetryDurationInMilliseconds) != "Integer" {
+            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
+        }
+
+        if startThresholdInMilliseconds < methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Floor"] {
+            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Floor"]
+        }
+
+        if startThresholdInMilliseconds > methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Ceiling"] {
+            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Ceiling"]
+        }
+
+        if telemetryDurationInMilliseconds < methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Floor"] {
+            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Floor"]
+        }
+
+        if telemetryDurationInMilliseconds > methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Ceiling"] {
+            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Ceiling"]
+        }
+    }
 
     switch logging["Log Engine State"] {
         case "Pending":
-            if startTreshold >= startTresholdFloor && startTreshold < startTresholdCeiling + 1 {
-                while A_MSec > startTreshold {
-                    Sleep(16)
-                }
+            while A_MSec > startThresholdInMilliseconds {
+                Sleep(16)
             }
 
             operationLogLineNumber := 2
@@ -91,7 +113,7 @@ LogEngine() {
     systemDrive := constants["System Drive"]
 
     runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
-    system["Telemetry"] := TelemetryTimestamp(timestampDuration)
+    system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
     telemetry           := system["Telemetry"]
 
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
@@ -119,9 +141,7 @@ LogEngine() {
         directories["Mappings"]  := directories["Shared"] . "Mappings\"
         directories["Spreadsheet Operations Template"] := directories["Shared"] . "Spreadsheet Operations Template\"
 
-        logSharedName  := directories["Log"] . projectName . " - "
-        logDateAndTime := StrReplace(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1], ":", ".")
-        uefi           := "Unified Extensible Firmware Interface "
+        uefi := "Unified Extensible Firmware Interface "
 
         for baseCharacterSet in [
             94, 92, 86, 66, 62, 52
@@ -129,10 +149,8 @@ LogEngine() {
             GetBaseCharacterSet(baseCharacterSet)
         }
 
-        paths["Execution Log"]         := logSharedName . logDateAndTime . " - Execution Log.csv"
-        paths["Operation Log"]         := logSharedName . logDateAndTime . " - Operation Log.csv"
-        paths["Run Telemetry"]         := logSharedName . logDateAndTime . " - Run Telemetry.csv"
-        paths["Symbol Ledger"]         := logSharedName . logDateAndTime . " - Symbol Ledger.csv"
+        SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
+
         paths["Project"]               := A_ScriptFullPath
         paths["Project Configuration"] := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
         paths["Project Symbol Ledger"] := directories["Project"] . "Symbol Ledger (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").csv"
@@ -288,7 +306,7 @@ LogEngine() {
     qpcAfterTimestamp  := "QPC After Timestamp: " . telemetry["QPC After Timestamp"] - telemetry["QPC Midpoint Timestamp"] . "|"
     tickCount          := "Tick Count: " . telemetry["Tick Count"] . "|"
     tickCountBefore    := "Tick Count Before: " . telemetry["Tick Count Before"] - telemetry["Tick Count"]
-    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . "|" . "Timestamp Duration: " . telemetry["Timestamp Duration"] . "|" . numberOfReadings . 
+    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . "|" . "Telemetry Duration in Milliseconds: " . telemetry["Telemetry Duration in Milliseconds"] . "|" . numberOfReadings . 
         qpcBeforeTimestamp . qpcAfterTimestamp . "QPC Midpoint Timestamp: " . telemetry["QPC Midpoint Timestamp"] . "|" . tickCount . tickCountBefore . "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"], "Run Telemetry")
 
     if environment.Has("QPC Frequency") && environment.Has("Session Startup Time") {
@@ -524,7 +542,7 @@ LogEngine() {
                 '    "Settings": {' . newLine . 
                     '        "Advanced Mode": ' . 'false' . ',' . newLine . 
                     '        "Application Image Override Directory": "' . "" . '",' . newline . 
-                    '        "Computer Alias": "' . "N/A" . '",' . newline . 
+                    '        "Computer Alias": "' . "" . '",' . newline . 
                     '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '"' . newLine . 
                 '    }' . newLine . 
             '}', "\", "\\")
@@ -540,6 +558,10 @@ LogEngine() {
         }
 
         ValidateConfiguration(configuration)
+
+        if configuration["Settings"]["Computer Alias"] != "" {
+            SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
+        }
 
         if configuration["Application Whitelist"].Length != 0 {
             for application in mappings["Applications"] {
@@ -746,6 +768,14 @@ LogEngine() {
         logConclusionData["Context"] := "Log Engine State: " . logging["Log Engine State"] . "."
     }
 
+    if startThresholdInMilliseconds != methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"] {
+        SetMethodSetting("LogEngine", "Start Threshold in Milliseconds", startThresholdInMilliseconds)
+    }
+
+    if telemetryDurationInMilliseconds != methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"] {
+        SetMethodSetting("LogEngine", "Start Threshold in Milliseconds", telemetryDurationInMilliseconds)
+    }
+
     LogConclusion("Completed", logConclusionData)
 
     if logging["Log Engine State"] != "Beginning" && logging["Log Engine State"] != "Intermission" {
@@ -807,6 +837,58 @@ LogEngine() {
 
         logging["Log Engine State"] := "Running"
     }
+}
+
+SetLogFilenames(utcTimestamp) {
+    global system
+
+    validation := ValidateDataUsingSpecification(utcTimestamp, "String", "ISO Date Time")
+    if validation != "" {
+        return
+    }
+
+    oldLogFilenames  := Map()
+    logSharedName    := system["Directories"]["Log"] . system["Runtime"]["Project Name"] . " - "
+    logDateAndTime   := StrReplace(utcTimestamp, ":", ".")
+    logComputerAlias := ""
+
+    if system["Paths"].Has("Execution Log") && system["Paths"].Has("Operation Log") && system["Paths"].Has("Run Telemetry") && system["Paths"].Has("Symbol Ledger") {
+        oldLogFilenames["Execution Log"] := system["Paths"]["Execution Log"]
+        oldLogFilenames["Operation Log"] := system["Paths"]["Operation Log"]
+        oldLogFilenames["Run Telemetry"] := system["Paths"]["Run Telemetry"]
+        oldLogFilenames["Symbol Ledger"] := system["Paths"]["Symbol Ledger"]
+    }
+
+    if system["Configuration"].Has("Settings") {
+        if system["Configuration"]["Settings"].Has("Computer Alias") {
+            if system["Configuration"]["Settings"]["Computer Alias"] != "" {
+                logComputerAlias := system["Configuration"]["Settings"]["Computer Alias"] . " - "
+            }
+        }
+    }
+
+    system["Paths"]["Execution Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Execution Log.csv"
+    system["Paths"]["Operation Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Operation Log.csv"
+    system["Paths"]["Run Telemetry"] := logSharedName . logComputerAlias . logDateAndTime . " - Run Telemetry.csv"
+    system["Paths"]["Symbol Ledger"] := logSharedName . logComputerAlias . logDateAndTime . " - Symbol Ledger.csv"
+
+    if oldLogFilenames.Has("Execution Log") {
+        if FileExist(system["Paths"]["Execution Log"]) || FileExist(system["Paths"]["Operation Log"]) || FileExist(system["Paths"]["Run Telemetry"]) || FileExist(system["Paths"]["Symbol Ledger"]) {
+            system["Paths"]["Execution Log"] := oldLogFilenames["Execution Log"]
+            system["Paths"]["Operation Log"] := oldLogFilenames["Operation Log"]
+            system["Paths"]["Run Telemetry"] := oldLogFilenames["Run Telemetry"]
+            system["Paths"]["Symbol Ledger"] := oldLogFilenames["Symbol Ledger"]
+
+            return
+        } else {
+            FileMove(oldLogFilenames["Execution Log"], system["Paths"]["Execution Log"])
+            FileMove(oldLogFilenames["Operation Log"], system["Paths"]["Operation Log"])
+            FileMove(oldLogFilenames["Run Telemetry"], system["Paths"]["Run Telemetry"])
+            FileMove(oldLogFilenames["Symbol Ledger"], system["Paths"]["Symbol Ledger"])
+        }
+    }
+
+    system["Runtime"]["Run Identifier"] := system["Runtime"]["Project Name"] . " - " . logComputerAlias . logDateAndTime
 }
 
 OverlayChangeTransparency(transparencyValue) {
@@ -916,10 +998,10 @@ OverlayStart() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    baseLogicalWidth    := settings["Base Logical Width"].Get("Value")
-    baseLogicalHeight   := settings["Base Logical Height"].Get("Value")
-    overlayTransparency := settings["Overlay Transparency"].Get("Value")
-    fontSize            := settings["Font Size"].Get("Value")
+    baseLogicalWidth    := settings["Base Logical Width"]["Value"]
+    baseLogicalHeight   := settings["Base Logical Height"]["Value"]
+    overlayTransparency := settings["Overlay Transparency"]["Value"]
+    fontSize            := settings["Font Size"]["Value"]
 
     overlay["GUI"].BackColor := "0x000000"
     overlay["GUI"].SetFont("s" . fontSize . " cWhite", "Consolas")
@@ -1328,14 +1410,6 @@ LogProcessArguments(logConclusionData, arguments) {
 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
                 argumentValueLog  := Format('"{1}"', argumentValueLog)
-            case "Boolean":
-                if Type(argument) != "Integer" {
-                    argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
-
-                    argumentValueFull := Format('"{1}"', argumentValueFull)
-                    argumentValueLog  := Format('"{1}"', argumentValueLog)
-                }
             case "Integer":
                 if Type(argument) != argumentsFormatted["Data Type"] {
                     argumentValueFull := "<Data Type: " . Type(argument) . ">"
