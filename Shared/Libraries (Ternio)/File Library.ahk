@@ -98,11 +98,7 @@ DeleteFile(filePath) {
     try {
         FileDelete(filePath)
     } catch as fileDeleteFailedError {
-        LogConclusion("Failed", logConclusionData, fileDeleteFailedError.Line, "File delete failed: " . filePath)
-    }
-
-    if FileExist(filePath) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "File still exists after deletion attempt: " . filePath)
+        LogConclusion("Failed", logConclusionData, fileDeleteFailedError.Line, fileDeleteFailedError.Message)
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -404,49 +400,6 @@ DetermineWindowsBinaryType(executablePath) {
     return classificationResult
 }
 
-FileExistsInDirectory(filename, directoryPath, fileExtension := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodName := RegisterMethod("filename As String [Constraint: Filename], directoryPath As String [Constraint: Directory], fileExtension As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filename, directoryPath, fileExtension])
-
-    filesInDirectory := []
-    pattern := RTrim(directoryPath, "\/") . "\*"
-
-    Loop Files, pattern, "F" {
-        filesInDirectory.Push(A_LoopFileFullPath)
-    }
-
-    if filesInDirectory.Length = 0 {
-        return ""
-    }
-
-    index := filesInDirectory.Length
-    while index >= 1 {
-        filePath := filesInDirectory[index]
-        SplitPath(filePath, , , &loopFileExtension, &nameWithoutExtension)
-
-        if ((fileExtension != "" && loopFileExtension != fileExtension) || !InStr(nameWithoutExtension, filename)) {
-            filesInDirectory.RemoveAt(index)
-        }
-
-        index -= 1
-    }
-
-    if filesInDirectory.Length = 0 {
-        return ""
-    } else if filesInDirectory.Length = 1  {
-        return filesInDirectory[1]
-    } else {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Too many files match the filename (" . filename . ") in the directory: " . directoryPath)
-    }
-}
-
 GetFilesFromDirectory(directoryPath, filterValue := "") {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
@@ -567,15 +520,12 @@ GetTextFileLineCount(filePath) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
- 
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Max Fast Size", 100000000, 10, 1000000000)
+    static methodSettings := Map(
+        "Max Fast Size", Map("Default", 100000000, "Floor", 10, "Ceiling", 1000000000)
+    )
 
-        defaultMethodSettingsSet := true
-    }
+    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
 
     settings := methodRegistry[methodName]["Settings"]
     
@@ -721,4 +671,47 @@ ReadFile(filePath) {
     }
 
     return fileContents
+}
+
+SearchForUniqueFileInDirectory(filename, directoryPath, filenameExtension := "") {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("filename As String [Constraint: Filename], directoryPath As String [Constraint: Directory], filenameExtension As String [Optional] [Constraint: Filename]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filename, directoryPath, filenameExtension])
+
+    filesInDirectory := []
+    pattern := RTrim(directoryPath, "\/") . "\*"
+
+    Loop Files, pattern, "F" {
+        filesInDirectory.Push(A_LoopFileFullPath)
+    }
+
+    if filesInDirectory.Length = 0 {
+        return ""
+    }
+
+    index := filesInDirectory.Length
+    while index >= 1 {
+        filePath := filesInDirectory[index]
+        SplitPath(filePath, , , &loopFileExtension, &nameWithoutExtension)
+
+        if ((filenameExtension != "" && loopFileExtension != filenameExtension) || !InStr(nameWithoutExtension, filename)) {
+            filesInDirectory.RemoveAt(index)
+        }
+
+        index -= 1
+    }
+
+    if filesInDirectory.Length = 0 {
+        return ""
+    } else if filesInDirectory.Length = 1  {
+        return filesInDirectory[1]
+    } else {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Too many files match the filename in the directory.")
+    }
 }

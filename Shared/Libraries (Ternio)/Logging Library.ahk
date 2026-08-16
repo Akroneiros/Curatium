@@ -344,13 +344,13 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
         GetFileTimeAsUtc(paths["Scales"], "Created")
 
         DetermineWindowsBinaryType("C:\Windows\System32\find.exe")
-        FileExistsInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
         GetFileHash(paths["Scales"], "SHA-256")
         GetFilesFromDirectory(directories["Constants"])
         GetFoldersFromDirectory(directories["Constants"])
         GetPathComponents(paths["Scales"])
         GetTextFileLineCount(paths["Scales"])
         ReadFile(paths["Scales"])
+        SearchForUniqueFileInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
 
         BatchAppendExecutionLog("Beginning", [])
         BatchAppendOperationLog([])
@@ -981,20 +981,17 @@ OverlayStart() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Base Logical Width", Map("Default", 960, "Floor", 640, "Ceiling", 7680),
+        "Base Logical Height", Map("Default", 920, "Floor", 480, "Ceiling", 4320),
+        "Overlay Transparency", Map("Default", 172, "Floor", 0, "Ceiling", 255),
+        "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)
+    )
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Start")
 
     global overlay
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Base Logical Width", 960, 640, 7680)
-        ConfigureMethodSetting(methodName, "Base Logical Height", 920, 480, 4320)
-        ConfigureMethodSetting(methodName, "Overlay Transparency", 172, 0, 255)
-        ConfigureMethodSetting(methodName, "Font Size", 10, 6, 24)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1118,6 +1115,8 @@ AppendLineToLog(line, logType) {
 LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayValue := unset, customOverlayMethod := unset) {
     static lastRunTelemetryTickCount := unset
     static runTelemetryInterval      := 12 * 60 * 1000
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
 
     runTelemetryTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
     if !IsSet(lastRunTelemetryTickCount) {
@@ -1130,11 +1129,23 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 
     operationSequenceNumber := IncrementCounter("Operation Sequence Number")
     if IsSet(overlayValue) {
-        logBeginningTimestamp := LogTimestamp(qpcPre, timestamp, qpcPost, system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
+        NumPut("UInt64", timestamp, fileTimeBuffer, 0)
+        DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+        year        := NumGet(systemTimeBuffer,  0, "UShort")
+        month       := NumGet(systemTimeBuffer,  2, "UShort")
+        day         := NumGet(systemTimeBuffer,  6, "UShort")
+        hour        := NumGet(systemTimeBuffer,  8, "UShort")
+        minute      := NumGet(systemTimeBuffer, 10, "UShort")
+        second      := NumGet(systemTimeBuffer, 12, "UShort")
+        millisecond := NumGet(systemTimeBuffer, 14, "UShort")
+
+        qpcMidpointTimestampDelta := (qpcPre + (qpcPost - qpcPre) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
+        utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - system["Telemetry"]["UTC Timestamp Integer"]
 
         logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(operationSequenceNumber, 94)
-        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
-        logConclusionData["UTC Timestamp Integer"]     := logBeginningTimestamp[2]
+        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(qpcMidpointTimestampDelta, 94)
+        logConclusionData["UTC Timestamp Integer"]     := utcTimestampIntegerDelta
     } else {
         logConclusionData["Operation Sequence Number"] := operationSequenceNumber
         logConclusionData["QPC Pre"]                   := qpcPre
@@ -1251,14 +1262,29 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 }
 
 LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, errorMessage := unset) {
+    static fileTimeBuffer   := Buffer(8, 0)
+    static systemTimeBuffer := Buffer(16, 0)
+
     conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
 
     if conclusionStatus = "Failed" && logConclusionData["Overlay Key"] = -1 {
-        logBeginningTimestamp := LogTimestamp(logConclusionData["QPC Pre"], logConclusionData["Timestamp"], logConclusionData["QPC Post"], system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
+        NumPut("UInt64", logConclusionData["Timestamp"], fileTimeBuffer, 0)
+        DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+        year        := NumGet(systemTimeBuffer,  0, "UShort")
+        month       := NumGet(systemTimeBuffer,  2, "UShort")
+        day         := NumGet(systemTimeBuffer,  6, "UShort")
+        hour        := NumGet(systemTimeBuffer,  8, "UShort")
+        minute      := NumGet(systemTimeBuffer, 10, "UShort")
+        second      := NumGet(systemTimeBuffer, 12, "UShort")
+        millisecond := NumGet(systemTimeBuffer, 14, "UShort")
+
+        qpcMidpointTimestampDelta := (logConclusionData["QPC Pre"] + (logConclusionData["QPC Post"] - logConclusionData["QPC Pre"]) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
+        utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - system["Telemetry"]["UTC Timestamp Integer"]
 
         logConclusionData["Operation Sequence Number"] := EncodeIntegerToBase(logConclusionData["Operation Sequence Number"], 94)
-        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(logBeginningTimestamp[1], 94)
-        logConclusionData["UTC Timestamp Integer"]     := logBeginningTimestamp[2]
+        logConclusionData["Query Performance Counter"] := EncodeIntegerToBase(qpcMidpointTimestampDelta, 94)
+        logConclusionData["UTC Timestamp Integer"]     := utcTimestampIntegerDelta
 
         logBeginning :=
             logConclusionData["Operation Sequence Number"] . "|" .      ; Operation Sequence Number
@@ -1297,12 +1323,23 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    logConclusionTimestamp := LogTimestamp(NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), 
-        system["Telemetry"]["QPC Midpoint Timestamp"], system["Telemetry"]["UTC Timestamp Integer"])
+    NumPut("UInt64", NumGet(timestampBuffer, 0, "Int64"), fileTimeBuffer, 0)
+    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+
+    year        := NumGet(systemTimeBuffer,  0, "UShort")
+    month       := NumGet(systemTimeBuffer,  2, "UShort")
+    day         := NumGet(systemTimeBuffer,  6, "UShort")
+    hour        := NumGet(systemTimeBuffer,  8, "UShort")
+    minute      := NumGet(systemTimeBuffer, 10, "UShort")
+    second      := NumGet(systemTimeBuffer, 12, "UShort")
+    millisecond := NumGet(systemTimeBuffer, 14, "UShort")
+
+    qpcMidpointTimestampDelta := (NumGet(qpcPreBuffer, 0, "Int64") + (NumGet(qpcPostBuffer, 0, "Int64") - NumGet(qpcPreBuffer, 0, "Int64")) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
+    utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - system["Telemetry"]["UTC Timestamp Integer"]
 
     logConclusion := logConclusion . "|" . 
-        EncodeIntegerToBase(logConclusionTimestamp[1], 94) .      "|" . ; Query Performance Counter
-        logConclusionTimestamp[2]                                       ; UTC Timestamp Integer
+        EncodeIntegerToBase(qpcMidpointTimestampDelta, 94) .      "|" . ; Query Performance Counter
+        utcTimestampIntegerDelta                                        ; UTC Timestamp Integer
 
     if logConclusionData.Has("Context") {
         logConclusion := logConclusion . "|" . 
@@ -1313,7 +1350,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     constructedErrorMessage := unset
     if IsSet(errorMessage) {
         windowTitle          := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
-        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + logConclusionTimestamp[2])
+        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + utcTimestampIntegerDelta)
 
         if logConclusionData.Has("Validation") {
             errorLineNumber := methodRegistry[logConclusionData["Method Name"]]["Validation Line"]

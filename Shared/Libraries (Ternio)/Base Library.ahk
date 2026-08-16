@@ -89,16 +89,13 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Seconds to Attempt", Map("Default", 60, "Floor", 1, "Ceiling", 3600),
+        "Short Delay", Map("Default", 128, "Floor", 64, "Ceiling", 1280)
+    )
+
+    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [windowSearchResults, maximizeWindow], "Activate Window")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Seconds to Attempt", 60, 1, 3600)
-        ConfigureMethodSetting(methodName, "Short Delay", 128, 64, 1280)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -194,19 +191,6 @@ BuildSpreadsheetOperationsTemplate(release) {
             cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
         }
 
-        for namedCellStyle in [
-            "Date",
-            "Date Time",
-            "Decimal",
-            "Followed Hyperlink",
-            "Formula",
-            "Header",
-            "Hyperlink",
-            "Integer"
-        ] {
-            cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellstyles("' . namedCellStyle . '") = "' . namedCellStyle . '"' . newLine
-        }
-
         environmentDictionaryValues := ""
         for environment, value in applicationRegistry["Excel"]["Environment"] {
             if Type(value) = "Integer" {
@@ -250,21 +234,18 @@ PasteText(text, commentPrefix := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
+    static methodSettings := Map(
+        "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+        "Clipboard Timeout in Seconds", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+        "Short Delay", Map("Default", 192, "Floor", 64, "Ceiling", 1024, "Delta", 24),
+        "Medium Delay", Map("Default", 416, "Floor", 128, "Ceiling", 2080, "Delta", 48)
+    )
+
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, commentPrefix], "Paste Text")
 
     newLine := system["Constants"]["New Line"]
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
-        ConfigureMethodSetting(methodName, "Clipboard Timeout in Seconds", 4, 1, 16, 1)
-        ConfigureMethodSetting(methodName, "Short Delay", 192, 64, 1024, 24)
-        ConfigureMethodSetting(methodName, "Medium Delay", 416, 128, 2080, 48)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -730,8 +711,8 @@ IncrementCounter(counterName) {
     return counter
 }
 
-ParseMethodWithDeclaration(methodWithDeclaration) {
-    atParts     := StrSplit(methodWithDeclaration, "@", , 2)
+ParseDeclaration(declaration) {
+    atParts     := StrSplit(declaration, "@", , 2)
     signature   := RTrim(atParts[1])
     RegExMatch(atParts[2], "^\s*(.*?)\s*<\s*(\d+)\s*>\s*$", &regularExpressionMatch)
     library := Trim(regularExpressionMatch[1])
@@ -863,8 +844,8 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
         }
     }
 
-    methodWithDeclarationParsed := Map(
-        "Declaration",         methodWithDeclaration,
+    parsedDeclaration := Map(
+        "Declaration",         declaration,
         "Signature",           signature,
         "Library",             library,
         "Contract",            contract,
@@ -875,35 +856,35 @@ ParseMethodWithDeclaration(methodWithDeclaration) {
         "Parameter Contracts", parameterContracts
     )
 
-    return methodWithDeclarationParsed
+    return parsedDeclaration
 }
 
-RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
+RegisterMethod(contract, methodName, sourceFilePath, validationLineNumber, methodSettings := unset) {
     global methodRegistry
 
     SplitPath(sourceFilePath, , , , &filenameWithoutExtension)
-    libraryTag := " @ " . filenameWithoutExtension
+    libraryTag           := " @ " . filenameWithoutExtension
     validationLineNumber := " " . "<" . validationLineNumber . ">"
-    methodWithDeclaration := methodName . "(" . declaration . ")" . libraryTag . validationLineNumber
+    declaration          := methodName . "(" . contract . ")" . libraryTag . validationLineNumber
 
-    symbol := RegisterSymbol(methodWithDeclaration, "Method")
+    symbol := RegisterSymbol(declaration, "Method")
 
     if !methodRegistry.Has(methodName) {
         methodRegistry[methodName] := Map()
     }
 
     if methodRegistry[methodName].Count < 10 {
-        methodWithDeclarationParsed := ParseMethodWithDeclaration(methodWithDeclaration)
+        parsedDeclaration := ParseDeclaration(declaration)
 
-        methodRegistry[methodName]["Declaration"]         := methodWithDeclarationParsed["Declaration"]
-        methodRegistry[methodName]["Signature"]           := methodWithDeclarationParsed["Signature"]
-        methodRegistry[methodName]["Library"]             := methodWithDeclarationParsed["Library"]
-        methodRegistry[methodName]["Contract"]            := methodWithDeclarationParsed["Contract"]
-        methodRegistry[methodName]["Parameters"]          := methodWithDeclarationParsed["Parameters"]
-        methodRegistry[methodName]["Data Types"]          := methodWithDeclarationParsed["Data Types"]
-        methodRegistry[methodName]["Metadata"]            := methodWithDeclarationParsed["Metadata"]
-        methodRegistry[methodName]["Validation Line"]     := methodWithDeclarationParsed["Validation Line"]
-        methodRegistry[methodName]["Parameter Contracts"] := methodWithDeclarationParsed["Parameter Contracts"]
+        methodRegistry[methodName]["Declaration"]         := parsedDeclaration["Declaration"]
+        methodRegistry[methodName]["Signature"]           := parsedDeclaration["Signature"]
+        methodRegistry[methodName]["Library"]             := parsedDeclaration["Library"]
+        methodRegistry[methodName]["Contract"]            := parsedDeclaration["Contract"]
+        methodRegistry[methodName]["Parameters"]          := parsedDeclaration["Parameters"]
+        methodRegistry[methodName]["Data Types"]          := parsedDeclaration["Data Types"]
+        methodRegistry[methodName]["Metadata"]            := parsedDeclaration["Metadata"]
+        methodRegistry[methodName]["Validation Line"]     := parsedDeclaration["Validation Line"]
+        methodRegistry[methodName]["Parameter Contracts"] := parsedDeclaration["Parameter Contracts"]
 
         if !methodRegistry[methodName].Has("Overlay Log") {
             methodRegistry[methodName]["Overlay Log"] := false
@@ -911,15 +892,25 @@ RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber) {
 
         methodRegistry[methodName]["Symbol"] := symbol
         
-        if !methodRegistry[methodName].Has("Settings") {
-            methodRegistry[methodName]["Settings"] := Map()
-        }
-
         for parameterContract in methodRegistry[methodName]["Parameter Contracts"] {
             if parameterContract["Whitelist"].Length != 0 {
                 for whitelistValue in parameterContract["Whitelist"] {
                     RegisterSymbol(whitelistValue, "Whitelist")
                 }
+            }
+        }
+    }
+
+    if IsSet(methodSettings) {
+        if !methodRegistry[methodName].Has("Settings") {
+            methodRegistry[methodName]["Settings"] := Map()
+        }
+
+        for settingName, setting in methodSettings {
+            if setting.Has("Delta") {
+                ConfigureMethodSetting(methodName, settingName, setting["Default"], setting["Floor"], setting["Ceiling"], setting["Delta"])
+            } else {
+                ConfigureMethodSetting(methodName, settingName, setting["Default"], setting["Floor"], setting["Ceiling"])
             }
         }
     }
@@ -1134,8 +1125,10 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " uses a reserved device name (CON, PRN, AUX, NUL, COM1–COM9, LPT1–LPT9)."
                         } else if Trim(dataValue, " .") = "" {
                             validation := dataConstraint . " cannot consist only of spaces or periods."
-                        } else if RegExMatch(dataValue, "[\. ]$") {
-                            validation := dataConstraint . " cannot end with a space or period."
+                        } else if SubStr(dataValue, -1) = "." {
+                            validation := dataConstraint . " cannot end with a period."
+                        } else if SubStr(dataValue, -1) = " " {
+                            validation := dataConstraint . " cannot end with a space."
                         }
                     case "Hexadecimal String":
                         if Mod(StrLen(dataValue), 2) != 0 {
@@ -1346,18 +1339,25 @@ CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
 
     newLine := system["Constants"]["New Line"]
 
-    qpcMidpointTimestamp := '    telemetry("QPC Midpoint Timestamp") = ' system["Telemetry"]["QPC Midpoint Timestamp"] . "#"
-    tickCount            := '    telemetry("Tick Count") = ' . system["Telemetry"]["Tick Count"] . "#"
-    utcTimestampInteger  := '    telemetry("UTC Timestamp Integer") = "' . system["Telemetry"]["UTC Timestamp Integer"] . '"'
-    utcTimestampPrecise  := '    telemetry("UTC Timestamp Precise") = "' . system["Telemetry"]["UTC Timestamp Precise"] . '"'
+    if InStr(spreadsheetOperationsTemplate["Intro Code"], "Public environment As Object") && InStr(spreadsheetOperationsTemplate["Intro Code"], "Public telemetry As Object") {
+        executableVersion := "N/A"
+        try {
+            executableVersion := FileGetVersion(applicationRegistry["Excel"]["Executable Path"])
+        }
 
-    if InStr(spreadsheetOperationsTemplate["Intro Code"], "Public telemetry As Object") {
+        excelVersion         := '    environment("Excel Version") = "' . executableVersion . '"' . newLine
+        runIdentifier        := '    environment("Run Identifier") = "' . system["Runtime"]["Run Identifier"] . '"' . newLine
+        qpcMidpointTimestamp := '    telemetry("QPC Midpoint Timestamp") = ' system["Telemetry"]["QPC Midpoint Timestamp"] . "#" . newLine
+        tickCount            := '    telemetry("Tick Count") = ' . system["Telemetry"]["Tick Count"] . "#" . newLine
+        utcTimestampInteger  := '    telemetry("UTC Timestamp Integer") = "' . system["Telemetry"]["UTC Timestamp Integer"] . '"' . newLine
+        utcTimestampPrecise  := '    telemetry("UTC Timestamp Precise") = "' . system["Telemetry"]["UTC Timestamp Precise"] . '"'
+
         startupSectionAfterTelemetry := newLine
         if InStr(mainCode, "Sub Startup()" . newLine . "End Sub") {
             startupSectionAfterTelemetry := ""
         }
 
-        mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . qpcMidpointTimestamp . newLine . tickCount . newLine . utcTimestampInteger . newLine . utcTimestampPrecise . startupSectionAfterTelemetry)
+        mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . excelVersion . runIdentifier . qpcMidpointTimestamp . tickCount . utcTimestampInteger . utcTimestampPrecise . startupSectionAfterTelemetry)
 
         combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeWithTelemetry . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
     } else {
@@ -1543,7 +1543,7 @@ ExtractUniqueValuesFromSubMaps(parentMapOfMaps, subMapKeyName) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("parentMapOfMaps As Object, subMapKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("parentMapOfMaps As Map, subMapKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [parentMapOfMaps, subMapKeyName])
 
     uniqueValues := []
@@ -1648,17 +1648,14 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
+    static methodSettings := Map(
+        "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
+        "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)
+    )
+
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
-    static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [primaryModifier, key, secondaryModifier])
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 64, 16, 256, 32)
-        ConfigureMethodSetting(methodName, "Legacy Threshold", 128, 16, 256)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
     

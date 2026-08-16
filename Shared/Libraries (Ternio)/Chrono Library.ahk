@@ -249,17 +249,14 @@ WaitUntilFileIsModifiedToday(filePath) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
+        "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
+        "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)
+    )
+
+    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Check Interval", 4000, 1000, 10000)
-        ConfigureMethodSetting(methodName, "Mouse Interval", 120000, 120000, 12000)
-        ConfigureMethodSetting(methodName, "Max Wait Minutes", 360, 1, 1438)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -296,30 +293,6 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; **************************** ;
 ; Core Methods                 ;
 ; **************************** ;
-
-LogTimestamp(qpcPre, timestamp, qpcPost, qpcMidpointTimestamp, utcTimestampInteger) {
-    static fileTimeBuffer   := Buffer(8, 0)
-    static systemTimeBuffer := Buffer(16, 0)
-
-    NumPut("UInt64", timestamp, fileTimeBuffer, 0)
-    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
-
-    year        := NumGet(systemTimeBuffer,  0, "UShort")
-    month       := NumGet(systemTimeBuffer,  2, "UShort")
-    day         := NumGet(systemTimeBuffer,  6, "UShort")
-    hour        := NumGet(systemTimeBuffer,  8, "UShort")
-    minute      := NumGet(systemTimeBuffer, 10, "UShort")
-    second      := NumGet(systemTimeBuffer, 12, "UShort")
-    millisecond := NumGet(systemTimeBuffer, 14, "UShort")
-
-    qpcMeasurementDelta       := qpcPost - qpcPre
-    qpcMidpointTimestampDelta := (qpcPre + (qpcMeasurementDelta // 2)) - qpcMidpointTimestamp
-    utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - utcTimestampInteger
-
-    logDeltaTimestamp := [qpcMidpointTimestampDelta, utcTimestampIntegerDelta]
-
-    return logDeltaTimestamp
-}
 
 TelemetryTimestamp(telemetryDurationInMilliseconds) {
     result := Map(

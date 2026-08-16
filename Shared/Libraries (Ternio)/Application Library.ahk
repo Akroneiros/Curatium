@@ -17,22 +17,19 @@ RegisterApplications() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
+        "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
+        "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
+        "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)
+    )
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Register Applications")
 
     global applicationRegistry
 
     newLine := system["Constants"]["New Line"]
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Excel Tiny Delay", 16, 16, 128)
-        ConfigureMethodSetting(methodName, "Excel Short Delay", 256, 64, 2048)
-        ConfigureMethodSetting(methodName, "Excel Medium Delay", 640, 160, 5120)
-        ConfigureMethodSetting(methodName, "Log to Execution Log", 1, 0, 1)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -440,7 +437,7 @@ RegisterApplications() {
                             
                             if highestVersionExecutablePath != "" {
                                 application["Executable Path"]   := highestVersionExecutablePath
-                                application["Resolution Method"] := "Reference"
+                                application["Resolution Method"] := "Reference Multiple Dots"
                                 break
                             }
                         }
@@ -622,7 +619,7 @@ RegisterApplications() {
                     while !excelWindowHandle := excelApplication.Hwnd {
                         Sleep(excelTinyDelay)
                     }
-                    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+                    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
 
                     excelMainWindowSearchResults := SearchForWindow("ahk_exe " . application["Executable Filename"] . " ahk_class XLMAIN", 60)
                     ActivateWindow(excelMainWindowSearchResults, true)
@@ -712,6 +709,7 @@ RegisterApplications() {
 
                     application["Personal Macro Workbook"] := personalMacroWorkbookPath
 
+                    userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
                         "Computer Name",      system["Environment"]["Computer Name"],
                         "Display Language",   system["Environment"]["Display Language"],
@@ -722,13 +720,10 @@ RegisterApplications() {
                         "Operating System",   system["Environment"]["Operating System"]["Full Name"],
                         "QPC Frequency",      system["Environment"]["QPC Frequency"],
                         "Regional Format",    system["Environment"]["Regional Format"],
-                        "Run Identifier",     system["Runtime"]["Run Identifier"],
                         "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
+                        userInterfaceLCID,    excelApplication.LanguageSettings.LanguageID(2),
                         "Username",           system["Environment"]["Username"]
                     )
-
-                    application["Environment"]["Excel Version"] := application["Executable Version"]
-                    application["Environment"]["User Interface Language Code Identifier"] := excelApplication.LanguageSettings.LanguageID(2)
 
                     excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
                     excelInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Excel International"], excelInternationalFileHash)
@@ -767,7 +762,7 @@ RegisterApplications() {
                     excelWorksheet   := 0
                     excelWorkbook    := 0
                     excelApplication := 0
-                    ProcessWaitClose(excelProcessIdentifier, 2)
+                    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
                 case "SoapUI":
                     if application["Executable Version"] = "N/A" {
                         if RegExMatch(application["Executable Filename"], "i)SoapUI-(\d+\.\d+(?:\.\d+)*)\.exe$", &versionMatch) {
@@ -818,8 +813,20 @@ RegisterApplications() {
                     wordApplication := 0
             }
 
+            resolutionMethodInitialism := unset
+            switch application["Resolution Method"] {
+                case "App Paths":
+                    resolutionMethodInitialism := "AP"
+                case "Reference":
+                    resolutionMethodInitialism := "R"
+                case "Reference Multiple Dots":
+                    resolutionMethodInitialism := "RMD"
+                case "Uninstall":
+                    resolutionMethodInitialism := "U"
+            }
+
             configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . EncodeSha256HexToBase(application["Executable Hash"], 86) . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
-            configuration := configuration . "|" . SubStr(application["Resolution Method"], 1, 1)
+            configuration := configuration . "|" . resolutionMethodInitialism
             installedApplications.Push(configuration)
         }
     }
@@ -843,12 +850,16 @@ CloseApplication(applicationName) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)
+    )
+
+    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
 
-    if !applicationRegistry.Has(applicationName) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not found: " . applicationName)
-    }
+    settings := methodRegistry[methodName]["Settings"]
+
+    timeout := settings["Timeout"]["Value"]
 
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
@@ -857,10 +868,32 @@ CloseApplication(applicationName) {
         return
     }
 
-    ProcessClose(executableName)
-    ProcessWaitClose(executableName, 4)
+    closedProcessIdentifier := ProcessClose(executableName)
+    if !closedProcessIdentifier {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to close process for application.")
+    }
+
+    if ProcessWaitClose(executableName, timeout) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Process did not close within the timeout of " . timeout . " seconds.")
+    }
 
     LogConclusion("Completed", logConclusionData)
+}
+
+SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name], propertyName As String, propertyValue As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, propertyName, propertyValue])
+
+    global applicationRegistry
+
+    applicationRegistry[applicationName][propertyName] := propertyValue
 }
 
 ValidateApplicationInstalled(applicationName) {
@@ -899,26 +932,23 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
+    static methodSettings := Map(
+        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128),
+        "Short Delay", Map("Default", 256, "Floor", 128, "Ceiling", 1536)
+    )
+
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 128)
-        ConfigureMethodSetting(methodName, "Short Delay", 256, 128, 1536)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
     tinyDelay  := settings["Tiny Delay"]["Value"]
     shortDelay := settings["Short Delay"]["Value"]
 
-    excelFilePath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
+    excelFilePath := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "documentName not found: " . documentName)
     }
@@ -940,7 +970,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
     while !excelWindowHandle := excelApplication.Hwnd {
         Sleep(tinyDelay)
     }
-    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
 
     aboutWorksheet      := ""
     aboutWorksheetFound := false
@@ -995,11 +1025,11 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
         if aboutValues[aboutRange] = aboutCondition {
             OpenVisualBasicEditorAndRunCode(code, excelApplication)
-            WaitForExcelToClose(excelProcessIdentifier)
+            WaitForExcelToClose()
             aboutWorksheet   := 0
             excelWorkbook    := 0
             excelApplication := 0
-            ProcessWaitClose(excelProcessIdentifier, 2)
+            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
 
             LogConclusion("Completed", logConclusionData)
         } else if aboutRange = "ProgressionStatus" {
@@ -1023,11 +1053,11 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
 
             if matchedIndex > 0 {
                 OpenVisualBasicEditorAndRunCode(code, excelApplication)
-                WaitForExcelToClose(excelProcessIdentifier)
+                WaitForExcelToClose()
                 aboutWorksheet   := 0
                 excelWorkbook    := 0
                 excelApplication := 0
-                ProcessWaitClose(excelProcessIdentifier, 2)
+                ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
 
                 LogConclusion("Completed", logConclusionData)
             } else {
@@ -1060,11 +1090,11 @@ ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRan
         }
     } else {
         OpenVisualBasicEditorAndRunCode(code, excelApplication)
-        WaitForExcelToClose(excelProcessIdentifier)
+        WaitForExcelToClose()
         aboutWorksheet   := 0
         excelWorkbook    := 0
         excelApplication := 0
-        ProcessWaitClose(excelProcessIdentifier, 2)
+        ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
 
         LogConclusion("Completed", logConclusionData)
     }
@@ -1078,43 +1108,59 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
+    static methodSettings := Map(
+        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)
+    )
+
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Starting Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 32, 16, 128)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
     tinyDelay := settings["Tiny Delay"]["Value"]
 
-    xlsxPath := FileExistsInDirectory(documentName, saveDirectory, "xlsx")
-    txtPath  := FileExistsInDirectory(documentName, saveDirectory, "txt")
+    excelFilePath    := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
+    sentinelFilePath := SearchForUniqueFileInDirectory(documentName . " (Sentinel)", saveDirectory, "txt")
 
-    if txtPath != "" && xlsxPath != "" {
-        DeleteFile(txtPath)
-        DeleteFile(xlsxPath)
-        xlsxPath := ""
-    } else {
-        if txtPath != "" {
-            DeleteFile(txtPath)
+    if excelFilePath != "" && sentinelFilePath != "" {
+        try {
+            FileDelete(excelFilePath)
+        } catch as excelFileDeleteFailedError {
+            LogConclusion("Failed", logConclusionData, excelFileDeleteFailedError.Line, excelFileDeleteFailedError.Message)
+        }
+
+        try {
+            FileDelete(sentinelFilePath)
+        } catch as sentinelFileDeleteFailedError {
+            LogConclusion("Failed", logConclusionData, sentinelFileDeleteFailedError.Line, sentinelFileDeleteFailedError.Message)
+        }
+
+        excelFilePath := ""
+    } else if excelFilePath = "" && sentinelFilePath != "" {
+        try {
+            FileDelete(sentinelFilePath)
+        } catch as sentinelFileDeleteFailedError {
+            LogConclusion("Failed", logConclusionData, sentinelFileDeleteFailedError.Line, sentinelFileDeleteFailedError.Message)
         }
     }
 
-    if xlsxPath != "" {
+    if excelFilePath != "" {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
-    sidecarPath := saveDirectory . documentName . ".txt"
-    WriteTextToFile("", sidecarPath, "UTF-8")
+    sentinelFilePath := saveDirectory . documentName . " (Sentinel)" . ".txt"
+
+    try {
+        sentinelFileHandle := FileOpen(sentinelFilePath, "w", "UTF-8-RAW")
+        sentinelFileHandle.Write(system["Runtime"]["Run Identifier"])
+        sentinelFileHandle.Close()
+    } catch as sentinelFileWriteError {
+        LogConclusion("Failed", logConclusionData, sentinelFileWriteError.Line, sentinelFileWriteError.Message)
+    }
 
     excelApplication := ComObject("Excel.Application")
     excelWorkbook    := excelApplication.Workbooks.Add()
@@ -1124,15 +1170,20 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     while !excelWindowHandle := excelApplication.Hwnd {
         Sleep(tinyDelay)
     }
-    excelProcessIdentifier := WinGetPID("ahk_id " . excelWindowHandle)
+    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
 
     OpenVisualBasicEditorAndRunCode(code, excelApplication)
-    WaitForExcelToClose(excelProcessIdentifier)
+    WaitForExcelToClose()
     excelWorkbook    := 0
     excelApplication := 0
-    ProcessWaitClose(excelProcessIdentifier, 2)
+    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
 
-    DeleteFile(sidecarPath)
+    try {
+        FileDelete(sentinelFilePath)
+    } catch as sentinelFileDeleteFailedError {
+        LogConclusion("Failed", logConclusionData, sentinelFileDeleteFailedError.Line, sentinelFileDeleteFailedError.Message)
+    }
+
     LogConclusion("Completed", logConclusionData)
 }
 
@@ -1144,19 +1195,16 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("code As String, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+        "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 192, "Delta", 32),
+        "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)
+    )
+
+    static methodName := RegisterMethod("code As String, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
-        ConfigureMethodSetting(methodName, "Tiny Delay", 64, 16, 192, 32)
-        ConfigureMethodSetting(methodName, "Short Delay", 384, 128, 1280, 64)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1266,7 +1314,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     LogConclusion("Completed", logConclusionData)
 }
 
-WaitForExcelToClose(excelProcessIdentifier) {
+WaitForExcelToClose() {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -1274,18 +1322,15 @@ WaitForExcelToClose(excelProcessIdentifier) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("excelProcessIdentifier As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [excelProcessIdentifier], "Wait for Excel to Close (PID: " . excelProcessIdentifier . ")")
+    static methodSettings := Map(
+        "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
+        "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)
+    )
+
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Wait for Excel to Close")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Total Seconds to Wait", 14400, 10, 43200)
-        ConfigureMethodSetting(methodName, "Mouse Move Interval Seconds", 120, 1, 840)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1297,7 +1342,7 @@ WaitForExcelToClose(excelProcessIdentifier) {
 
     userInterfaceIsGone := false
     Loop totalSecondsToWait {
-        windowCount := WinGetList("ahk_pid " . excelProcessIdentifier).Length
+        windowCount := WinGetList("ahk_pid " . applicationRegistry["Excel"]["Process Identifier"]).Length
         if windowCount = 0 {
             Sleep(secondDelay)
             userInterfaceIsGone := true
@@ -1362,21 +1407,18 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+        "Times to Attempt", Map("Default", 120, "Floor", 1, "Ceiling", 7200),
+        "Short Delay", Map("Default", 128, "Floor", 32, "Ceiling", 1280, "Delta", 32),
+        "Medium Delay", Map("Default", 512, "Floor", 128, "Ceiling", 3072, "Delta", 48),
+        "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)
+    )
+
+    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Max Attempts", 4, 1, 16, 1)
-        ConfigureMethodSetting(methodName, "Times to Attempt", 120, 1, 7200)
-        ConfigureMethodSetting(methodName, "Short Delay", 128, 32, 1280, 32)
-        ConfigureMethodSetting(methodName, "Medium Delay", 512, 128, 3072, 48)
-        ConfigureMethodSetting(methodName, "Long Delay", 1024, 256, 6144, 96)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1514,21 +1556,18 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    static methodSettings := Map(
+        "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
+        "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
+        "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
+        "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
+        "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)
+    )
+
+    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
-
-    static defaultMethodSettingsSet := unset
-    if !IsSet(defaultMethodSettingsSet) {
-        ConfigureMethodSetting(methodName, "Tiny Delay", 16, 16, 128)
-        ConfigureMethodSetting(methodName, "Short Delay", 448, 128, 1536)
-        ConfigureMethodSetting(methodName, "Medium Delay", 896, 256, 3584)
-        ConfigureMethodSetting(methodName, "Long Delay", 1280, 640, 5120)
-        ConfigureMethodSetting(methodName, "Massive Delay", 30000, 10000, 60000)
-
-        defaultMethodSettingsSet := true
-    }
 
     settings := methodRegistry[methodName]["Settings"]
     
