@@ -89,12 +89,9 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 3, Map(
         "Seconds to Attempt", Map("Default", 60, "Floor", 1, "Ceiling", 3600),
-        "Short Delay", Map("Default", 128, "Floor", 64, "Ceiling", 1280)
-    )
-
-    static methodName := RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Short Delay", Map("Default", 128, "Floor", 64, "Ceiling", 1280)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [windowSearchResults, maximizeWindow], "Activate Window")
 
     settings := methodRegistry[methodName]["Settings"]
@@ -182,46 +179,6 @@ BuildSpreadsheetOperationsTemplate(release) {
         }
     }
 
-    introCode := spreadsheetOperationsTemplate["Intro Code"]
-    if InStr(introCode, "Public cellStyles As Object") && InStr(introCode, "Public environment As Object") && InStr(introCode, "Public international As Object") && InStr(introCode, "Public telemetry As Object") {
-        cellStyleDictionaryValues := ""
-        for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
-            cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
-
-            cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
-        }
-
-        environmentDictionaryValues := ""
-        for environment, value in applicationRegistry["Excel"]["Environment"] {
-            if Type(value) = "Integer" {
-                environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
-            } else {
-                environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
-            }
-
-            if environment = "QPC Frequency" {
-                environmentDictionaryValues := environmentDictionaryValues . "#"
-            }
-
-            environmentDictionaryValues := environmentDictionaryValues . newLine
-        }
-
-        internationalDictionaryValues := ""
-        for international, value in applicationRegistry["Excel"]["International"] {
-            if Type(value) = "Integer" {
-                internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = ' . value
-            } else {
-                internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
-            }
-
-            internationalDictionaryValues := internationalDictionaryValues . newLine
-        }
-
-        dictionary := 'CreateObject("Scripting.Dictionary")'
-        spreadsheetOperationsTemplate["Outro Code"] := StrReplace(spreadsheetOperationsTemplate["Outro Code"], "Sub Run()", "Sub Run()" . newLine . "    Set cellStyles = " . dictionary . newLine . "    Set environment = " . 
-            dictionary . newLine . "    Set international = " . dictionary . newLine . "    Set telemetry = " . dictionary . newLine . newLine . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues)
-    }
-
     LogConclusion("Completed", logConclusionData)
     return spreadsheetOperationsTemplate
 }
@@ -234,15 +191,12 @@ PasteText(text, commentPrefix := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
+    static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 5, Map(
         "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
         "Clipboard Timeout in Seconds", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
         "Short Delay", Map("Default", 192, "Floor", 64, "Ceiling", 1024, "Delta", 24),
-        "Medium Delay", Map("Default", 416, "Floor", 128, "Ceiling", 2080, "Delta", 48)
-    )
-
-    static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
-    static methodName := RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Medium Delay", Map("Default", 416, "Floor", 128, "Ceiling", 2080, "Delta", 48)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [text, commentPrefix], "Paste Text")
 
     newLine := system["Constants"]["New Line"]
@@ -1326,7 +1280,7 @@ CombineCode(introCode, mainCode, outroCode := "") {
     return combinedCode
 }
 
-CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
+CombineExcelCode(mainCode, spreadsheetOperationsTemplate, excelApplication) {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -1334,35 +1288,112 @@ CombineExcelCode(mainCode, spreadsheetOperationsTemplate) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodName := RegisterMethod("mainCode As String, spreadsheetOperationsTemplate As Map", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [mainCode, spreadsheetOperationsTemplate])
+    static methodName := RegisterMethod("mainCode As String, spreadsheetOperationsTemplate As Map, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [mainCode, spreadsheetOperationsTemplate, excelApplication])
+
+    global applicationRegistry
 
     newLine := system["Constants"]["New Line"]
 
-    if InStr(spreadsheetOperationsTemplate["Intro Code"], "Public environment As Object") && InStr(spreadsheetOperationsTemplate["Intro Code"], "Public telemetry As Object") {
-        executableVersion := "N/A"
-        try {
-            executableVersion := FileGetVersion(applicationRegistry["Excel"]["Executable Path"])
+    dictionaries := ["cellStyles", "environment", "international", "methodRegistry", "report", "telemetry"]
+    for dictionary in dictionaries {
+        if !InStr(spreadsheetOperationsTemplate["Intro Code"], "Public " . dictionary . " As Object") {
+            combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCode . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
+            return combinedExcelCode
         }
-
-        excelVersion         := '    environment("Excel Version") = "' . executableVersion . '"' . newLine
-        runIdentifier        := '    environment("Run Identifier") = "' . system["Runtime"]["Run Identifier"] . '"' . newLine
-        qpcMidpointTimestamp := '    telemetry("QPC Midpoint Timestamp") = ' system["Telemetry"]["QPC Midpoint Timestamp"] . "#" . newLine
-        tickCount            := '    telemetry("Tick Count") = ' . system["Telemetry"]["Tick Count"] . "#" . newLine
-        utcTimestampInteger  := '    telemetry("UTC Timestamp Integer") = "' . system["Telemetry"]["UTC Timestamp Integer"] . '"' . newLine
-        utcTimestampPrecise  := '    telemetry("UTC Timestamp Precise") = "' . system["Telemetry"]["UTC Timestamp Precise"] . '"'
-
-        startupSectionAfterTelemetry := newLine
-        if InStr(mainCode, "Sub Startup()" . newLine . "End Sub") {
-            startupSectionAfterTelemetry := ""
-        }
-
-        mainCodeWithTelemetry := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . excelVersion . runIdentifier . qpcMidpointTimestamp . tickCount . utcTimestampInteger . utcTimestampPrecise . startupSectionAfterTelemetry)
-
-        combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeWithTelemetry . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
-    } else {
-        combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCode . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
     }
+
+    executableVersion := "N/A"
+    try {
+        executableVersion := FileGetVersion(applicationRegistry["Excel"]["Executable Path"])
+    }
+
+    applicationRegistry["Excel"]["Environment"]["Excel Version"]  := executableVersion
+    applicationRegistry["Excel"]["Environment"]["Run Identifier"] := system["Runtime"]["Run Identifier"]
+
+    userInterfaceLCID := "User Interface Language Code Identifier"
+    if excelApplication.LanguageSettings.LanguageID(2) != applicationRegistry["Excel"]["Environment"][userInterfaceLCID] {
+        applicationRegistry["Excel"]["Environment"][userInterfaceLCID] := excelApplication.LanguageSettings.LanguageID(2)
+        
+        applicationRegistry["Excel"]["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(applicationRegistry["Excel"]["Default Cell Styles Mapping"], userInterfaceLCID, applicationRegistry["Excel"]["Environment"][userInterfaceLCID])
+        applicationRegistry["Excel"]["Default Cell Styles"].Delete(userInterfaceLCID)
+    }
+
+    applicationRegistry["Excel"]["International"] := Map()
+    for international in applicationRegistry["Excel"]["International Constant"] {
+        applicationRegistry["Excel"]["International"][international["Label"]] := excelApplication.International[international["Value"]]
+    }
+
+    for international, value in applicationRegistry["Excel"]["International"] {
+        if Type(value) = "Float" {
+            applicationRegistry["Excel"]["International"][international] := Round(value)
+        }
+    }
+
+    applicationRegistry["Excel"]["Telemetry"] := Map(
+        "QPC Midpoint Timestamp", system["Telemetry"]["QPC Midpoint Timestamp"],
+        "Tick Count",             system["Telemetry"]["Tick Count"],
+        "UTC Timestamp Integer",  system["Telemetry"]["UTC Timestamp Integer"] . "",
+        "UTC Timestamp Precise",  system["Telemetry"]["UTC Timestamp Precise"]
+    )
+
+    cellStyleDictionaryValues := ""
+    for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
+        cellStyleDictionaryValues := cellStyleDictionaryValues . '    cellStyles("' . cellStyle . '") = "' . value . '"'
+
+        cellStyleDictionaryValues := cellStyleDictionaryValues . newLine
+    }
+
+    environmentDictionaryValues := ""
+    for environment, value in applicationRegistry["Excel"]["Environment"] {
+        if Type(value) = "Integer" {
+            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = ' . value
+        } else {
+            environmentDictionaryValues := environmentDictionaryValues . '    environment("' . environment . '") = "' . value . '"'
+        }
+
+        if environment = "QPC Frequency" or environment = "User Interface Language Code Identifier" {
+            environmentDictionaryValues := environmentDictionaryValues . "#"
+        }
+
+        environmentDictionaryValues := environmentDictionaryValues . newLine
+    }
+
+    internationalDictionaryValues := ""
+    for international, value in applicationRegistry["Excel"]["International"] {
+        if Type(value) = "Integer" {
+            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = ' . value
+        } else {
+            internationalDictionaryValues := internationalDictionaryValues . '    international("' . international . '") = "' . value . '"'
+        }
+
+        internationalDictionaryValues := internationalDictionaryValues . newLine
+    }
+
+    telemetryDictionaryValues := ""
+    for telemetry, value in applicationRegistry["Excel"]["Telemetry"] {
+        if Type(value) = "Integer" {
+            telemetryDictionaryValues := telemetryDictionaryValues . '    telemetry("' . telemetry . '") = ' . value
+        } else {
+            telemetryDictionaryValues := telemetryDictionaryValues . '    telemetry("' . telemetry . '") = "' . value . '"'
+        }
+
+        if telemetry = "QPC Midpoint Timestamp" Or telemetry = "Tick Count" {
+            telemetryDictionaryValues := telemetryDictionaryValues . "#"
+        }
+
+        telemetryDictionaryValues := telemetryDictionaryValues . newLine
+    }
+
+    if InStr(mainCode, "Sub Startup()" . newLine . "End Sub") {
+        if (SubStr(telemetryDictionaryValues, -StrLen(newLine)) = newLine) {
+            telemetryDictionaryValues := SubStr(telemetryDictionaryValues, 1, -StrLen(newLine))
+        }
+    }
+
+    mainCodeCombined := StrReplace(mainCode, "Sub Startup()", "Sub Startup()" . newLine . cellStyleDictionaryValues . environmentDictionaryValues . internationalDictionaryValues . telemetryDictionaryValues)
+
+    combinedExcelCode := spreadsheetOperationsTemplate["Intro Code"] . newLine . newLine . mainCodeCombined . newLine . newLine . spreadsheetOperationsTemplate["Outro Code"]
 
     return combinedExcelCode
 }
@@ -1648,13 +1679,11 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
-        "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
-        "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)
-    )
-
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
-    static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    static methodName := RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]",
+        A_ThisFunc, A_LineFile, A_LineNumber + 3, Map(
+            "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
+            "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [primaryModifier, key, secondaryModifier])
 
     settings := methodRegistry[methodName]["Settings"]

@@ -17,14 +17,11 @@ RegisterApplications() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 5, Map(
         "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
         "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
         "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
-        "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)
-    )
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Register Applications")
 
     global applicationRegistry
@@ -139,6 +136,18 @@ RegisterApplications() {
         }
     }
 
+    appPathsBaseRegistryKeys := [
+        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
+        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
+        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
+    ]
+
+    uninstallBaseRegistryKeys := [
+        "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    ]
+
     for applicationName, application in applicationRegistry {
         if !application["Whitelisted"] {
             continue
@@ -157,32 +166,59 @@ RegisterApplications() {
             dispatchTypes := ["Reference", "Uninstall", "App Paths"]
         }
 
-        appPathsBaseRegistryKeys := [
-            "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
-            "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
-            "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
-        ]
-
-        uninstallBaseRegistryKeys := [
-            "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-            "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-            "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-        ]
-
         for dispatchType in dispatchTypes {
-            switch dispatchType {
-                case "App Paths":
-                    if application.Has("Executable Path") {
-                        break
+            if application.Has("Executable Path") {
+                break
+            }
+
+            for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
+                executableDirectory       := applicationExecutableDirectoryCandidate["Directory"]
+                executableName            := applicationExecutableDirectoryCandidate["Executable"]
+                executableNameNoExtension := unset
+                executablePath            := ""
+                executableRootDirectory   := applicationExecutableDirectoryCandidate["Root Directory"]
+                resolutionMethod          := unset
+
+                if dispatchType != "Reference" {
+                    if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
+                        continue
                     }
 
-                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-                        executableName  := applicationExecutableDirectoryCandidate["Executable"]
+                    requiredLength := 4
+                    applicationNamePartiallyMatchesExecutableNameCondition := false
+                    
+                    SplitPath(executableName, , , , &executableNameNoExtension)
+                    shorterText   := StrLower(applicationName)
+                    longerText    := StrLower(executableNameNoExtension)
+                    shorterLength := StrLen(shorterText)
+                    longerLength  := StrLen(longerText)
+                    if shorterLength > longerLength {
+                        temporarySwapHolder := shorterText
+                        shorterText := longerText
+                        longerText  := temporarySwapHolder
+                        shorterLength := StrLen(shorterText)
+                        longerLength  := StrLen(longerText)
+                    }
 
+                    maximumStartIndex := shorterLength - requiredLength + 1
+                    Loop maximumStartIndex {
+                        substringToSearch := SubStr(shorterText, A_Index, requiredLength)
+                        if InStr(longerText, substringToSearch) {
+                            applicationNamePartiallyMatchesExecutableNameCondition := true
+                            break
+                        }
+                    }
+
+                    if !applicationNamePartiallyMatchesExecutableNameCondition {
+                        continue
+                    }
+                }
+
+                switch dispatchType {
+                    case "App Paths":
                         for appPathsBaseRegistryKey in appPathsBaseRegistryKeys {
                             subkeyPath := appPathsBaseRegistryKey . "\" . executableName
 
-                            executablePath := ""
                             try {
                                 executablePath := RegRead(subkeyPath, "")
                             }
@@ -195,79 +231,26 @@ RegisterApplications() {
                                         }
                                     }
 
-                                    application["Executable Path"]   := executablePath
-                                    application["Resolution Method"] := "App Paths"
+                                    resolutionMethod := "App Paths"
                                     break
                                 }
                             }
                         }
-                    }
-                case "Reference":
-                    if application.Has("Executable Path") {
-                        break
-                    }
-
-                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-                        applicationExecutableDirectory     := applicationExecutableDirectoryCandidate["Directory"]
-                        applicationExecutableFilename      := applicationExecutableDirectoryCandidate["Executable"]
-                        applicationExecutableRootDirectory := applicationExecutableDirectoryCandidate["Root Directory"]
-
+                    case "Reference":
                         for applicationDirectory in applicationDirectories {
-                            if applicationExecutableRootDirectory = applicationDirectory["Root"] {
-                                applicationDirectory := applicationDirectory["Parent"] . "\" . applicationExecutableDirectory . "\"
-                                executablePath       := applicationDirectory . applicationExecutableFilename
+                            if executableRootDirectory = applicationDirectory["Root"] {
+                                applicationDirectory := StrReplace(applicationDirectory["Parent"] . "\", "\\", "\") . executableDirectory . "\"
+                                executablePath       := applicationDirectory . executableName
                                 if FileExist(executablePath) {
                                     application["Executable Path"]   := executablePath
                                     application["Resolution Method"] := "Reference"
-                                    break
+                                    break 2
                                 } else {
                                     application["Application Directory"] := applicationDirectory
                                 }
                             }
                         }
-                    }
-                case "Uninstall":
-                    if application.Has("Executable Path") {
-                        break
-                    }
-
-                    for applicationExecutableDirectoryCandidate in application["Application Executable Directory Candidates"] {
-                        executableName  := applicationExecutableDirectoryCandidate["Executable"]
-
-                        if StrLen(applicationName) < 4 || StrLen(executableName) < 8 {
-                            continue
-                        }
-
-                        requiredLength := 4
-                        applicationNamePartiallyMatchesExecutableNameCondition := false
-                        
-                        SplitPath(executableName, , , , &executableNameNoExtension)
-                        shorterText   := StrLower(applicationName)
-                        longerText    := StrLower(executableNameNoExtension)
-                        shorterLength := StrLen(shorterText)
-                        longerLength  := StrLen(longerText)
-                        if shorterLength > longerLength {
-                            temporarySwapHolder := shorterText
-                            shorterText := longerText
-                            longerText  := temporarySwapHolder
-                            shorterLength := StrLen(shorterText)
-                            longerLength  := StrLen(longerText)
-                        }
-
-                        maximumStartIndex := shorterLength - requiredLength + 1
-                        Loop maximumStartIndex {
-                            currentStartIndex := A_Index
-                            substringToSearch := SubStr(shorterText, currentStartIndex, requiredLength)
-                            if InStr(longerText, substringToSearch) {
-                                applicationNamePartiallyMatchesExecutableNameCondition := true
-                                break
-                            }
-                        }
-
-                        if !applicationNamePartiallyMatchesExecutableNameCondition {
-                            continue
-                        }
-
+                    case "Uninstall":
                         for uninstallBaseRegistryKey in uninstallBaseRegistryKeys {
                             Loop Reg, uninstallBaseRegistryKey, "K" {
                                 uninstallSubRegistryKey := A_LoopRegKey . "\" . A_LoopRegName
@@ -297,8 +280,7 @@ RegisterApplications() {
                                             }
                                         }
 
-                                        application["Executable Path"]   := executablePath
-                                        application["Resolution Method"] := "Uninstall"
+                                        resolutionMethod := "Uninstall Display Icon"
                                         break 2
                                     }
                                 }
@@ -319,17 +301,55 @@ RegisterApplications() {
                                             }
                                         }
 
-                                        application["Executable Path"]   := executablePath
-                                        application["Resolution Method"] := "Uninstall"
+                                        resolutionMethod := "Uninstall Install Location"
                                         break 2
                                     }
                                 }
                             }
                         }
+                }
+
+                if IsSet(resolutionMethod) {
+                    SplitPath(executablePath, , &executableDirectory)
+
+                    requiredLength := 4
+                    directoryPartiallyMatchesApplicationName := false
+
+                    shorterText   := StrLower(applicationName)
+                    longerText    := StrLower(executableDirectory)
+                    shorterLength := StrLen(shorterText)
+                    longerLength  := StrLen(longerText)
+
+                    if shorterLength > longerLength {
+                        temporarySwapHolder := shorterText
+                        shorterText := longerText
+                        longerText  := temporarySwapHolder
+                        shorterLength := StrLen(shorterText)
+                        longerLength  := StrLen(longerText)
                     }
+
+                    maximumStartIndex := shorterLength - requiredLength + 1
+                    if maximumStartIndex > 0 {
+                        Loop maximumStartIndex {
+                            substringToSearch := SubStr(shorterText, A_Index, requiredLength)
+                            if InStr(longerText, substringToSearch) {
+                                directoryPartiallyMatchesApplicationName := true
+                                break
+                            }
+                        }
+                    }
+
+                    if !directoryPartiallyMatchesApplicationName {
+                        continue
+                    }
+
+                    application["Executable Path"]   := executablePath
+                    application["Resolution Method"] := resolutionMethod
+                    break 2
+                }
             }
         }
-
+        
         if !application.Has("Executable Path") && application.Has("Application Directory") {
             if application["Application Executable Directory Candidates"].Length != 1 {
                 totalDotOccurencesInDirectoryName := 0
@@ -699,15 +719,15 @@ RegisterApplications() {
                         Sleep(excelShortDelay)
                     }
 
+                    application["Personal Macro Workbook"] := personalMacroWorkbookPath
+
                     excelMacroCode := "Sub Run()" . newLine . '    Range("A1").Value = "Cell"' . newLine . "End Sub"
-                    OpenVisualBasicEditorAndRunCode(excelMacroCode, excelApplication)
+                    OpenVisualBasicEditorAndRunCode(excelApplication, excelMacroCode)
                     Sleep(excelTinyDelay + excelTinyDelay)
 
                     if excelWorksheet.Range("A1").Value != "Cell" {
                         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute Excel Macro Code.")
                     }
-
-                    application["Personal Macro Workbook"] := personalMacroWorkbookPath
 
                     userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
@@ -715,11 +735,13 @@ RegisterApplications() {
                         "Display Language",   system["Environment"]["Display Language"],
                         "Display Resolution", system["Environment"]["Display Resolution"],
                         "DPI Scale",          system["Environment"]["DPI Scale"],
+                        "Excel Version",      application["Executable Version"],
                         "Input Language",     system["Environment"]["Input Language"],
                         "Keyboard Layout",    system["Environment"]["Keyboard Layout"],
                         "Operating System",   system["Environment"]["Operating System"]["Full Name"],
                         "QPC Frequency",      system["Environment"]["QPC Frequency"],
                         "Regional Format",    system["Environment"]["Regional Format"],
+                        "Run Identifier",     system["Runtime"]["Run Identifier"],
                         "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
                         userInterfaceLCID,    excelApplication.LanguageSettings.LanguageID(2),
                         "Username",           system["Environment"]["Username"]
@@ -733,8 +755,10 @@ RegisterApplications() {
                         rowMap["Value"] := rowMap["Value"] + 0
                     }
 
+                    application["International Constant"] := excelInternationalConstant
+
                     application["International"] := Map()
-                    for international in excelInternationalConstant {
+                    for international in application["International Constant"] {
                         application["International"][international["Label"]] := excelApplication.International[international["Value"]]
                     }
 
@@ -749,11 +773,13 @@ RegisterApplications() {
                     excelDefaultCellStylesMapping  := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
 
                     for excelDefaultCellStyle in excelDefaultCellStylesMapping {
-                        excelDefaultCellStyle["User Interface Language Code Identifier"] := excelDefaultCellStyle["User Interface Language Code Identifier"] + 0
+                        excelDefaultCellStyle[userInterfaceLCID] := excelDefaultCellStyle[userInterfaceLCID] + 0
                     }
 
-                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, "User Interface Language Code Identifier", application["Environment"]["User Interface Language Code Identifier"])
-                    application["Default Cell Styles"].Delete("User Interface Language Code Identifier")
+                    application["Default Cell Styles Mapping"] := excelDefaultCellStylesMapping
+
+                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, userInterfaceLCID, application["Environment"][userInterfaceLCID])
+                    application["Default Cell Styles"].Delete(userInterfaceLCID)
 
                     excelWorkbook.Close(false)
                     excelApplication.DisplayAlerts := false
@@ -772,6 +798,7 @@ RegisterApplications() {
                 case "Word":
                     wordApplication := ComObject("Word.Application")
 
+                    userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
                         "Computer Name",      system["Environment"]["Computer Name"],
                         "Display Language",   system["Environment"]["Display Language"],
@@ -784,11 +811,10 @@ RegisterApplications() {
                         "Regional Format",    system["Environment"]["Regional Format"],
                         "Run Identifier",     system["Runtime"]["Run Identifier"],
                         "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
-                        "Username",           system["Environment"]["Username"]
+                        userInterfaceLCID,    wordApplication.LanguageSettings.LanguageID(2),
+                        "Username",           system["Environment"]["Username"],
+                        "Word Version",       application["Executable Version"]
                     )
-
-                    application["Environment"]["Word Version"] := application["Executable Version"]
-                    application["Environment"]["User Interface Language Code Identifier"] := wordApplication.LanguageSettings.LanguageID(2)
 
                     wordInternationalFileHash := "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"
                     wordInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Word International"], wordInternationalFileHash)
@@ -821,8 +847,10 @@ RegisterApplications() {
                     resolutionMethodInitialism := "R"
                 case "Reference Multiple Dots":
                     resolutionMethodInitialism := "RMD"
-                case "Uninstall":
-                    resolutionMethodInitialism := "U"
+                case "Uninstall Display Icon":
+                    resolutionMethodInitialism := "UDI"
+                case "Uninstall Install Location":
+                    resolutionMethodInitialism := "UIL"
             }
 
             configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . EncodeSha256HexToBase(application["Executable Hash"], 86) . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
@@ -850,11 +878,8 @@ CloseApplication(applicationName) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
-        "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)
-    )
-
-    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
+        "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
 
     settings := methodRegistry[methodName]["Settings"]
@@ -924,203 +949,19 @@ ValidateApplicationInstalled(applicationName) {
 ; Excel                        ;
 ; **************************** ;
 
-ExcelExtensionRun(documentName, saveDirectory, code, displayName := "", aboutRange := "", aboutCondition := "") {
+ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName := "") {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodSettings := Map(
-        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128),
-        "Short Delay", Map("Default", 256, "Floor", 128, "Ceiling", 1536)
-    )
-
-    overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional], aboutRange As String [Optional], aboutCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, displayName, aboutRange, aboutCondition], overlayValue)
-
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    settings := methodRegistry[methodName]["Settings"]
-
-    tinyDelay  := settings["Tiny Delay"]["Value"]
-    shortDelay := settings["Short Delay"]["Value"]
-
-    excelFilePath := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
-    if excelFilePath = "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "documentName not found: " . documentName)
-    }
-
-    excelApplication := ComObject("Excel.Application")
-    excelApplication.Workbooks.Open(excelFilePath, 0)
-    excelWorkbook    := excelApplication.ActiveWorkbook
-    excelApplication.Visible := true
-
-    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-    excelApplication.Workbooks.Open(personalMacroWorkbookPath)
-
-    excelApplication.CalculateUntilAsyncQueriesDone()
-    while excelApplication.CalculationState != 0 {
-        Sleep(tinyDelay + tinyDelay)
-    }
-
-    excelWindowHandle := excelApplication.Hwnd
-    while !excelWindowHandle := excelApplication.Hwnd {
-        Sleep(tinyDelay)
-    }
-    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
-
-    aboutWorksheet      := ""
-    aboutWorksheetFound := false
-
-    for worksheet in excelWorkbook.Worksheets {
-        if worksheet.Name = "About" {
-            aboutWorksheet      := worksheet
-            worksheet           := 0
-            aboutWorksheetFound := true
-            break
-        }
-
-        worksheet := 0
-    }
-
-    if (aboutRange != "" || aboutCondition != "") && !aboutWorksheetFound {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with arguments passed in.")
-    }
-
-    if aboutRange = "Progression Status" {
-        aboutRange := "ProgressionStatus"
-    }
-
-    if aboutRange = "Augmentation Modules" {
-        aboutRange := "AugmentationModules"
-    }
-
-    if aboutRange = "Dependencies List" {
-        aboutRange := "DependenciesList"
-    }
-
-    if aboutRange = "Retrieved Date" {
-        aboutRange := "RetrievedDate"
-    } 
-
-    if aboutWorksheetFound && (aboutRange != "" || aboutCondition != "") {
-        aboutValues := Map(
-            "ProgressionStatus",   "A3",
-            "AugmentationModules", "A4",
-            "RetrievedDate",       "C1",
-            "EditionName",         "C2"
-        )
-
-        for fieldName, cellAddress in aboutValues {
-            aboutValues[fieldName] := aboutWorksheet.Range(cellAddress).Value
-        }
-
-        aboutValues["ProgressionStatus"] := StrReplace(aboutValues["ProgressionStatus"], "Progression Status: ", "")
-        aboutValues["AugmentationModules"] := StrReplace(aboutValues["AugmentationModules"], "Augmentation Modules: ", "")
-        aboutValues["RetrievedDate"] := SubStr(StrReplace(aboutValues["RetrievedDate"], "Retrieved Date: ", ""), 1, -1)
-        aboutValues["EditionName"] := StrReplace(aboutValues["EditionName"], "Edition Name: ", "")
-
-        if aboutValues[aboutRange] = aboutCondition {
-            OpenVisualBasicEditorAndRunCode(code, excelApplication)
-            WaitForExcelToClose()
-            aboutWorksheet   := 0
-            excelWorkbook    := 0
-            excelApplication := 0
-            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
-
-            LogConclusion("Completed", logConclusionData)
-        } else if aboutRange = "ProgressionStatus" {
-            conditionParts := StrSplit(aboutCondition, ", ")
-            builtPrefix    := ""
-            matchedIndex   := 0
-
-            for index, currentPart in conditionParts {
-                if index = 1 {
-                    builtPrefix := currentPart
-                } else {
-                    builtPrefix := builtPrefix . ", " . currentPart
-                }
-
-                candidateValue := builtPrefix . "."
-                if aboutValues[aboutRange] = candidateValue {
-                    matchedIndex := index
-                    break
-                }
-            }
-
-            if matchedIndex > 0 {
-                OpenVisualBasicEditorAndRunCode(code, excelApplication)
-                WaitForExcelToClose()
-                aboutWorksheet   := 0
-                excelWorkbook    := 0
-                excelApplication := 0
-                ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
-
-                LogConclusion("Completed", logConclusionData)
-            } else {
-                activeWorkbook := excelApplication.ActiveWorkbook
-                activeWorkbook.Close(false)
-                excelApplication.DisplayAlerts := false
-                excelApplication.Quit()
-
-                aboutWorksheet   := 0
-                activeWorkbook   := 0
-                excelWorkbook    := 0
-                excelApplication := 0
-                Sleep(shortDelay * 4)
-
-                LogConclusion("Skipped", logConclusionData)
-            }
-        } else {
-            activeWorkbook := excelApplication.ActiveWorkbook
-            activeWorkbook.Close(false)
-            excelApplication.DisplayAlerts := false
-            excelApplication.Quit()
-
-            aboutWorksheet   := 0
-            activeWorkbook   := 0
-            excelWorkbook    := 0
-            excelApplication := 0
-            Sleep(shortDelay * 4)
-
-            LogConclusion("Skipped", logConclusionData)
-        }
-    } else {
-        OpenVisualBasicEditorAndRunCode(code, excelApplication)
-        WaitForExcelToClose()
-        aboutWorksheet   := 0
-        excelWorkbook    := 0
-        excelApplication := 0
-        ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
-
-        LogConclusion("Completed", logConclusionData)
-    }
-}
-
-ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
-
-    static methodSettings := Map(
-        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)
-    )
 
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Starting Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, displayName], overlayValue)
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
-
-    settings := methodRegistry[methodName]["Settings"]
-
-    tinyDelay := settings["Tiny Delay"]["Value"]
 
     excelFilePath    := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
     sentinelFilePath := SearchForUniqueFileInDirectory(documentName . " (Sentinel)", saveDirectory, "txt")
@@ -1162,19 +1003,11 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
         LogConclusion("Failed", logConclusionData, sentinelFileWriteError.Line, sentinelFileWriteError.Message)
     }
 
-    excelApplication := ComObject("Excel.Application")
-    excelWorkbook    := excelApplication.Workbooks.Add()
-    excelApplication.Visible := true
+    excelApplication  := StartExcel()
+    combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
 
-    excelWindowHandle := excelApplication.Hwnd
-    while !excelWindowHandle := excelApplication.Hwnd {
-        Sleep(tinyDelay)
-    }
-    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
-
-    OpenVisualBasicEditorAndRunCode(code, excelApplication)
+    OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
     WaitForExcelToClose()
-    excelWorkbook    := 0
     excelApplication := 0
     ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
 
@@ -1187,7 +1020,7 @@ ExcelStartingRun(documentName, saveDirectory, code, displayName := "") {
     LogConclusion("Completed", logConclusionData)
 }
 
-OpenVisualBasicEditorAndRunCode(code, excelApplication) {
+ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName := "", progressionStatusCondition := "", augmentationModulesCondition := "") {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
     static qpcPostBuffer   := Buffer(8, 0)
@@ -1195,14 +1028,166 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
+    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " . 
+        "progressionStatusCondition As String [Optional], augmentationModulesCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
+            "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)))
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"),
+        [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName, progressionStatusCondition, augmentationModulesCondition], overlayValue)
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
+    settings := methodRegistry[methodName]["Settings"]
+
+    mediumDelay := settings["Medium Delay"]["Value"]
+
+    excelFilePath := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
+    if excelFilePath = "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "documentName" . '" failed validation. ' . "Unable to find file.")
+    }
+
+    excelApplication  := StartExcel(excelFilePath)
+    combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
+
+    aboutWorksheet      := unset
+    aboutWorksheetFound := false
+
+    for worksheet in excelApplication.ActiveWorkbook.Worksheets {
+        if worksheet.Name = "About" {
+            aboutWorksheetFound := true
+            break
+        }
+    }
+
+    if !aboutWorksheetFound && (progressionStatusCondition != "" || augmentationModulesCondition != "") {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with conditions passed in.")
+    }
+
+    if progressionStatusCondition = "" && augmentationModulesCondition != "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "If conditions for Augmentation Modules are present it also requires conditions for Progression Status.")
+    }
+
+    if progressionStatusCondition = "" && augmentationModulesCondition = "" {
+        OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
+        WaitForExcelToClose()
+        excelApplication := 0
+        ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+
+        LogConclusion("Completed", logConclusionData)
+        return
+    }
+
+    aboutValues := unset
+    if aboutWorksheetFound {
+        aboutWorksheet := excelApplication.ActiveWorkbook.Worksheets("About")
+
+        aboutValues := Map(
+            "ProgressionStatus",   "A3",
+            "AugmentationModules", "A4"
+        )
+
+        for fieldName, cellAddress in aboutValues {
+            aboutValues[fieldName] := aboutWorksheet.Range(cellAddress).Value
+        }
+
+        aboutValues["ProgressionStatus"]   := StrReplace(aboutValues["ProgressionStatus"], "Progression Status: ", "")
+        aboutValues["AugmentationModules"] := StrReplace(aboutValues["AugmentationModules"], "Augmentation Modules: ", "")
+    }
+
+    progressionConditionParts := StrSplit(progressionStatusCondition, ", ")
+    progressionMatchedIndex   := 0
+    progressionBuiltPrefix    := ""
+
+    for index, currentPart in progressionConditionParts {
+        if progressionBuiltPrefix = "" {
+            progressionBuiltPrefix := currentPart
+        } else {
+            progressionBuiltPrefix .= ", " . currentPart
+        }
+
+        if aboutValues["ProgressionStatus"] = progressionBuiltPrefix . "." {
+            progressionMatchedIndex := index
+            break
+        }
+    }
+
+    if progressionStatusCondition != "" && augmentationModulesCondition = "" {
+        if progressionMatchedIndex > 0 {
+            OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
+            WaitForExcelToClose()
+            aboutWorksheet   := 0
+            excelApplication := 0
+            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+
+            LogConclusion("Completed", logConclusionData)
+        } else {
+            activeWorkbook := excelApplication.ActiveWorkbook
+            activeWorkbook.Close(false)
+            excelApplication.DisplayAlerts := false
+            excelApplication.Quit()
+
+            aboutWorksheet   := 0
+            activeWorkbook   := 0
+            excelApplication := 0
+            Sleep(mediumDelay)
+
+            LogConclusion("Skipped", logConclusionData)
+        }
+    } else if progressionStatusCondition != "" && augmentationModulesCondition != "" {
+        augmentationConditionParts := StrSplit(augmentationModulesCondition, ", ")
+        augmentationMatchedIndex   := 0
+        augmentationBuiltPrefix    := ""
+
+        for index, currentPart in augmentationConditionParts {
+            if augmentationBuiltPrefix = "" {
+                augmentationBuiltPrefix := currentPart
+            } else {
+                augmentationBuiltPrefix .= ", " . currentPart
+            }
+
+            if aboutValues["AugmentationModules"] = augmentationBuiltPrefix . "." {
+                augmentationMatchedIndex := index
+                break
+            }
+        }
+
+        if progressionMatchedIndex > 0 && augmentationMatchedIndex > 0 {
+            OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
+            WaitForExcelToClose()
+            aboutWorksheet   := 0
+            excelApplication := 0
+            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+
+            LogConclusion("Completed", logConclusionData)
+        } else {
+            activeWorkbook := excelApplication.ActiveWorkbook
+            activeWorkbook.Close(false)
+            excelApplication.DisplayAlerts := false
+            excelApplication.Quit()
+
+            aboutWorksheet   := 0
+            activeWorkbook   := 0
+            excelApplication := 0
+            Sleep(mediumDelay)
+
+            LogConclusion("Skipped", logConclusionData)
+        }
+    }
+}
+
+OpenVisualBasicEditorAndRunCode(excelApplication, code) {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("excelApplication As Object, code As String", A_ThisFunc, A_LineFile, A_LineNumber + 4, Map(
         "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
         "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 192, "Delta", 32),
-        "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)
-    )
-
-    static methodName := RegisterMethod("code As String, excelApplication As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [code, excelApplication], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
+        "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)))
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [excelApplication, code], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1215,8 +1200,7 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     attempts          := 0
     loopWasSuccessful := false
 
-    static personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-    excelApplication.Workbooks.Open(personalMacroWorkbookPath)
+    excelApplication.Workbooks.Open(applicationRegistry["Excel"]["Personal Macro Workbook"])
 
     excelMainWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class XLMAIN", 60)
     ActivateWindow(excelMainWindowSearchResults)
@@ -1314,6 +1298,49 @@ OpenVisualBasicEditorAndRunCode(code, excelApplication) {
     LogConclusion("Completed", logConclusionData)
 }
 
+StartExcel(excelFilePath := "") {
+    static qpcPreBuffer    := Buffer(8, 0)
+    static timestampBuffer := Buffer(8, 0)
+    static qpcPostBuffer   := Buffer(8, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+
+    static methodName := RegisterMethod("excelFilePath As String [Optional] [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, Map(
+        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)))
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [excelFilePath])
+
+    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+
+    settings := methodRegistry[methodName]["Settings"]
+
+    tinyDelay := settings["Tiny Delay"]["Value"]
+
+    If excelFilePath != "" {
+        If !InStr(excelFilePath, ".xlsx") {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "excelFilePath" . '" failed validation. ' . "Path lacks the required extension of xlsx.")
+        }
+    }
+
+    excelApplication := ComObject("Excel.Application")
+    if excelFilePath = "" {
+        excelApplication.Workbooks.Add()
+    } else {
+        excelApplication.Workbooks.Open(excelFilePath, 0)
+    }
+
+    excelApplication.Visible := true
+
+    excelWindowHandle := excelApplication.Hwnd
+    while !excelWindowHandle := excelApplication.Hwnd {
+        Sleep(tinyDelay)
+    }
+
+    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
+
+    return excelApplication
+}
+
 WaitForExcelToClose() {
     static qpcPreBuffer    := Buffer(8, 0)
     static timestampBuffer := Buffer(8, 0)
@@ -1322,12 +1349,9 @@ WaitForExcelToClose() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 3, Map(
         "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-        "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)
-    )
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Wait for Excel to Close")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
@@ -1407,15 +1431,12 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 6, Map(
         "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
         "Times to Attempt", Map("Default", 120, "Floor", 1, "Ceiling", 7200),
         "Short Delay", Map("Default", 128, "Floor", 32, "Ceiling", 1280, "Delta", 32),
         "Medium Delay", Map("Default", 512, "Floor", 128, "Ceiling", 3072, "Delta", 48),
-        "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)
-    )
-
-    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
@@ -1556,15 +1577,12 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 6, Map(
         "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
         "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
         "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
         "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
-        "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)
-    )
-
-    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")

@@ -476,11 +476,8 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
-        "Medium Delay", Map("Default", 1000, "Floor", 100, "Ceiling", 10000)
-    )
-
-    static methodName := RegisterMethod("directoryFolder As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    static methodName := RegisterMethod("directoryFolder As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
+        "Medium Delay", Map("Default", 1000, "Floor", 100, "Ceiling", 10000)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryFolder, imageName, timesToAttempt, variant])
 
     settings := methodRegistry[methodName]["Settings"]

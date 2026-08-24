@@ -520,11 +520,8 @@ GetTextFileLineCount(filePath) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
-        "Max Fast Size", Map("Default", 100000000, "Floor", 10, "Ceiling", 1000000000)
-    )
-
-    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+    static methodName := RegisterMethod("filePath As String [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
+        "Max Fast Size", Map("Default", 100000000, "Floor", 10, "Ceiling", 1000000000)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath])
 
     settings := methodRegistry[methodName]["Settings"]

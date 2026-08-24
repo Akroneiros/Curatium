@@ -981,14 +981,11 @@ OverlayStart() {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 5, Map(
         "Base Logical Width", Map("Default", 960, "Floor", 640, "Ceiling", 7680),
         "Base Logical Height", Map("Default", 920, "Floor", 480, "Ceiling", 4320),
         "Overlay Transparency", Map("Default", 172, "Floor", 0, "Ceiling", 255),
-        "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)
-    )
-
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Start")
 
     global overlay

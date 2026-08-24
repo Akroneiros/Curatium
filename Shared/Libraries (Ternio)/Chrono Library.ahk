@@ -249,13 +249,10 @@ WaitUntilFileIsModifiedToday(filePath) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
 
-    static methodSettings := Map(
+    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 4, Map(
         "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
         "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
-        "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)
-    )
-
-    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, methodSettings)
+        "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)))
     logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
 
     settings := methodRegistry[methodName]["Settings"]
