@@ -10,19 +10,24 @@
 ; **************************** ;
 
 RegisterApplications() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 5, Map(
-        "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
-        "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
-        "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
-        "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Register Applications")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
+            "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
+            "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
+            "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
+            "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Register Applications")
 
     global applicationRegistry
 
@@ -138,14 +143,14 @@ RegisterApplications() {
 
     appPathsBaseRegistryKeys := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\App Paths",
-        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths",
-        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
+        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths",
+        "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"
     ]
 
     uninstallBaseRegistryKeys := [
         "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ]
 
     for applicationName, application in applicationRegistry {
@@ -630,16 +635,18 @@ RegisterApplications() {
                 case "Excel":
                     CloseApplication("Excel")
 
-                    excelApplication := ComObject("Excel.Application")
-                    excelWorkbook    := excelApplication.Workbooks.Add()
-                    excelWorksheet   := excelWorkbook.ActiveSheet
-                    excelApplication.Visible := true
+                    excelApplication := StartExcel()
+                    excelWorkbook    := unset
+                    for workbook in excelApplication.Workbooks {
+                        if workbook.Name = "PERSONAL.XLSB" {
+                            continue
+                        }
 
-                    excelWindowHandle := excelApplication.Hwnd
-                    while !excelWindowHandle := excelApplication.Hwnd {
-                        Sleep(excelTinyDelay)
+                        excelWorkbook := workbook
+
+                        break
                     }
-                    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
+                    excelWorksheet := excelWorkbook.ActiveSheet
 
                     excelMainWindowSearchResults := SearchForWindow("ahk_exe " . application["Executable Filename"] . " ahk_class XLMAIN", 60)
                     ActivateWindow(excelMainWindowSearchResults, true)
@@ -731,20 +738,22 @@ RegisterApplications() {
 
                     userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
-                        "Computer Name",      system["Environment"]["Computer Name"],
-                        "Display Language",   system["Environment"]["Display Language"],
-                        "Display Resolution", system["Environment"]["Display Resolution"],
-                        "DPI Scale",          system["Environment"]["DPI Scale"],
-                        "Excel Version",      application["Executable Version"],
-                        "Input Language",     system["Environment"]["Input Language"],
-                        "Keyboard Layout",    system["Environment"]["Keyboard Layout"],
-                        "Operating System",   system["Environment"]["Operating System"]["Full Name"],
-                        "QPC Frequency",      system["Environment"]["QPC Frequency"],
-                        "Regional Format",    system["Environment"]["Regional Format"],
-                        "Run Identifier",     system["Runtime"]["Run Identifier"],
-                        "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
-                        userInterfaceLCID,    excelApplication.LanguageSettings.LanguageID(2),
-                        "Username",           system["Environment"]["Username"]
+                        "Color Mode",           system["Environment"]["Color Mode"],
+                        "Computer Name",        system["Environment"]["Computer Name"],
+                        "Display Language",     system["Environment"]["Display Language"],
+                        "Display Resolution",   system["Environment"]["Display Resolution"],
+                        "DPI Scale",            system["Environment"]["DPI Scale"],
+                        "Excel Version",        application["Executable Version"],
+                        "Input Language",       system["Environment"]["Input Language"],
+                        "Keyboard Layout",      system["Environment"]["Keyboard Layout"],
+                        "Operating System",     system["Environment"]["Operating System"]["Full Name"],
+                        "QPC Frequency",        system["Environment"]["QPC Frequency"],
+                        "Regional Format",      system["Environment"]["Regional Format"],
+                        "Run Identifier",       system["Runtime"]["Run Identifier"],
+                        "Time Zone Key Name",   system["Environment"]["Time Zone"]["Key Name"],
+                        "Time Zone UTC Offset", system["Environment"]["Time Zone"]["UTC Offset"],
+                        userInterfaceLCID,      excelApplication.LanguageSettings.LanguageID(2),
+                        "Username",             system["Environment"]["Username"]
                     )
 
                     excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
@@ -800,20 +809,22 @@ RegisterApplications() {
 
                     userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
-                        "Computer Name",      system["Environment"]["Computer Name"],
-                        "Display Language",   system["Environment"]["Display Language"],
-                        "Display Resolution", system["Environment"]["Display Resolution"],
-                        "DPI Scale",          system["Environment"]["DPI Scale"],
-                        "Input Language",     system["Environment"]["Input Language"],
-                        "Keyboard Layout",    system["Environment"]["Keyboard Layout"],
-                        "Operating System",   system["Environment"]["Operating System"]["Full Name"],
-                        "QPC Frequency",      system["Environment"]["QPC Frequency"],
-                        "Regional Format",    system["Environment"]["Regional Format"],
-                        "Run Identifier",     system["Runtime"]["Run Identifier"],
-                        "Time Zone",          system["Environment"]["Time Zone"]["Key Name"],
-                        userInterfaceLCID,    wordApplication.LanguageSettings.LanguageID(2),
-                        "Username",           system["Environment"]["Username"],
-                        "Word Version",       application["Executable Version"]
+                        "Color Mode",           system["Environment"]["Color Mode"],
+                        "Computer Name",        system["Environment"]["Computer Name"],
+                        "Display Language",     system["Environment"]["Display Language"],
+                        "Display Resolution",   system["Environment"]["Display Resolution"],
+                        "DPI Scale",            system["Environment"]["DPI Scale"],
+                        "Input Language",       system["Environment"]["Input Language"],
+                        "Keyboard Layout",      system["Environment"]["Keyboard Layout"],
+                        "Operating System",     system["Environment"]["Operating System"]["Full Name"],
+                        "QPC Frequency",        system["Environment"]["QPC Frequency"],
+                        "Regional Format",      system["Environment"]["Regional Format"],
+                        "Run Identifier",       system["Runtime"]["Run Identifier"],
+                        "Time Zone Key Name",   system["Environment"]["Time Zone"]["Key Name"],
+                        "Time Zone UTC Offset", system["Environment"]["Time Zone"]["UTC Offset"],
+                        userInterfaceLCID,      wordApplication.LanguageSettings.LanguageID(2),
+                        "Username",             system["Environment"]["Username"],
+                        "Word Version",         application["Executable Version"]
                     )
 
                     wordInternationalFileHash := "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"
@@ -860,7 +871,7 @@ RegisterApplications() {
     }
 
     if logToExecutionLog {
-        BatchAppendExecutionLog("Application", installedApplications)
+        BatchAppendExecutionLog(installedApplications)
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -871,16 +882,21 @@ RegisterApplications() {
 ; **************************** ;
 
 CloseApplication(applicationName) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
-        "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registration")) {
+        RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 3, Map(
+            "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -906,15 +922,20 @@ CloseApplication(applicationName) {
 }
 
 SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("applicationName As String [Constraint: Application Name], propertyName As String, propertyValue As Object", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName, propertyName, propertyValue])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("applicationName As String [Constraint: Application Name], propertyName As String, propertyValue As Object", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName, propertyName, propertyValue])
 
     global applicationRegistry
 
@@ -922,15 +943,20 @@ SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
 }
 
 ValidateApplicationInstalled(applicationName) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("applicationName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [applicationName])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("applicationName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName])
 
     if !applicationRegistry.Has(applicationName) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Application doesn't exist: " . applicationName)
@@ -950,16 +976,21 @@ ValidateApplicationInstalled(applicationName) {
 ; **************************** ;
 
 ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Starting Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName], overlayValue)
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1020,20 +1051,25 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
     LogConclusion("Completed", logConclusionData)
 }
 
-ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName := "", progressionStatusCondition := "", augmentationModulesCondition := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName := "", foundationCheckpointsCondition := "", augmentationCheckpointsCondition := "") {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
-    static methodName := RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " . 
-        "progressionStatusCondition As String [Optional], augmentationModulesCondition As String [Optional]", A_ThisFunc, A_LineFile, A_LineNumber + 2, Map(
-            "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"),
-        [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName, progressionStatusCondition, augmentationModulesCondition], overlayValue)
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " . 
+            "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 3, Map(
+                "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"),
+        [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName, foundationCheckpointsCondition, augmentationCheckpointsCondition], overlayValue)
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1059,15 +1095,15 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         }
     }
 
-    if !aboutWorksheetFound && (progressionStatusCondition != "" || augmentationModulesCondition != "") {
+    if !aboutWorksheetFound && (foundationCheckpointsCondition != "" || augmentationCheckpointsCondition != "") {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with conditions passed in.")
     }
 
-    if progressionStatusCondition = "" && augmentationModulesCondition != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "If conditions for Augmentation Modules are present it also requires conditions for Progression Status.")
+    if foundationCheckpointsCondition = "" && augmentationCheckpointsCondition != "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "If conditions for Augmentation Checkpoints are present it also requires conditions for Foundation Checkpoints.")
     }
 
-    if progressionStatusCondition = "" && augmentationModulesCondition = "" {
+    if foundationCheckpointsCondition = "" && augmentationCheckpointsCondition = "" {
         OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
         WaitForExcelToClose()
         excelApplication := 0
@@ -1082,37 +1118,37 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         aboutWorksheet := excelApplication.ActiveWorkbook.Worksheets("About")
 
         aboutValues := Map(
-            "ProgressionStatus",   "A3",
-            "AugmentationModules", "A4"
+            "FoundationCheckpoints",   "A3",
+            "AugmentationCheckpoints", "A4"
         )
 
         for fieldName, cellAddress in aboutValues {
             aboutValues[fieldName] := aboutWorksheet.Range(cellAddress).Value
         }
 
-        aboutValues["ProgressionStatus"]   := StrReplace(aboutValues["ProgressionStatus"], "Progression Status: ", "")
-        aboutValues["AugmentationModules"] := StrReplace(aboutValues["AugmentationModules"], "Augmentation Modules: ", "")
+        aboutValues["FoundationCheckpoints"]   := SubStr(aboutValues["FoundationCheckpoints"], InStr(aboutValues["FoundationCheckpoints"], ":") + 2)
+        aboutValues["AugmentationCheckpoints"] := SubStr(aboutValues["AugmentationCheckpoints"], InStr(aboutValues["AugmentationCheckpoints"], ":") + 2)
     }
 
-    progressionConditionParts := StrSplit(progressionStatusCondition, ", ")
-    progressionMatchedIndex   := 0
-    progressionBuiltPrefix    := ""
+    foundationConditionParts := StrSplit(foundationCheckpointsCondition, ", ")
+    foundationMatchedIndex   := 0
+    foundationBuiltPrefix    := ""
 
-    for index, currentPart in progressionConditionParts {
-        if progressionBuiltPrefix = "" {
-            progressionBuiltPrefix := currentPart
+    for index, currentPart in foundationConditionParts {
+        if foundationBuiltPrefix = "" {
+            foundationBuiltPrefix := currentPart
         } else {
-            progressionBuiltPrefix .= ", " . currentPart
+            foundationBuiltPrefix .= ", " . currentPart
         }
 
-        if aboutValues["ProgressionStatus"] = progressionBuiltPrefix . "." {
-            progressionMatchedIndex := index
+        if aboutValues["FoundationCheckpoints"] = foundationBuiltPrefix . "." {
+            foundationMatchedIndex := index
             break
         }
     }
 
-    if progressionStatusCondition != "" && augmentationModulesCondition = "" {
-        if progressionMatchedIndex > 0 {
+    if foundationCheckpointsCondition != "" && augmentationCheckpointsCondition = "" {
+        if foundationMatchedIndex > 0 {
             OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
             WaitForExcelToClose()
             aboutWorksheet   := 0
@@ -1133,8 +1169,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
 
             LogConclusion("Skipped", logConclusionData)
         }
-    } else if progressionStatusCondition != "" && augmentationModulesCondition != "" {
-        augmentationConditionParts := StrSplit(augmentationModulesCondition, ", ")
+    } else if foundationCheckpointsCondition != "" && augmentationCheckpointsCondition != "" {
+        augmentationConditionParts := StrSplit(augmentationCheckpointsCondition, ", ")
         augmentationMatchedIndex   := 0
         augmentationBuiltPrefix    := ""
 
@@ -1145,13 +1181,13 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
                 augmentationBuiltPrefix .= ", " . currentPart
             }
 
-            if aboutValues["AugmentationModules"] = augmentationBuiltPrefix . "." {
+            if aboutValues["AugmentationCheckpoints"] = augmentationBuiltPrefix . "." {
                 augmentationMatchedIndex := index
                 break
             }
         }
 
-        if progressionMatchedIndex > 0 && augmentationMatchedIndex > 0 {
+        if foundationMatchedIndex > 0 && augmentationMatchedIndex > 0 {
             OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
             WaitForExcelToClose()
             aboutWorksheet   := 0
@@ -1176,18 +1212,23 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
 }
 
 OpenVisualBasicEditorAndRunCode(excelApplication, code) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("excelApplication As Object, code As String", A_ThisFunc, A_LineFile, A_LineNumber + 4, Map(
-        "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
-        "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 192, "Delta", 32),
-        "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [excelApplication, code], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("excelApplication As Object, code As String", methodName, A_LineFile, A_LineNumber + 5, Map(
+            "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+            "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 192, "Delta", 32),
+            "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelApplication, code], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1299,16 +1340,21 @@ OpenVisualBasicEditorAndRunCode(excelApplication, code) {
 }
 
 StartExcel(excelFilePath := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("excelFilePath As String [Optional] [Constraint: Path]", A_ThisFunc, A_LineFile, A_LineNumber + 1, Map(
-        "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [excelFilePath])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("excelFilePath As String [Optional] [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 2, Map(
+            "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelFilePath])
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1316,8 +1362,8 @@ StartExcel(excelFilePath := "") {
 
     tinyDelay := settings["Tiny Delay"]["Value"]
 
-    If excelFilePath != "" {
-        If !InStr(excelFilePath, ".xlsx") {
+    if excelFilePath != "" {
+        if !InStr(excelFilePath, ".xlsx") {
             LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "excelFilePath" . '" failed validation. ' . "Path lacks the required extension of xlsx.")
         }
     }
@@ -1342,17 +1388,22 @@ StartExcel(excelFilePath := "") {
 }
 
 WaitForExcelToClose() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 3, Map(
-        "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-        "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Wait for Excel to Close")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
+            "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
 
     static excelIsInstalled := ValidateApplicationInstalled("Excel")
 
@@ -1395,15 +1446,20 @@ WaitForExcelToClose() {
 ; **************************** ;
 
 StartSqlServerManagementStudioAndConnect() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Start SQL Server Management Studio and Connect")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Start SQL Server Management Studio and Connect")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1424,20 +1480,25 @@ StartSqlServerManagementStudioAndConnect() {
 }
 
 ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]",  A_ThisFunc, A_LineFile, A_LineNumber + 6, Map(
-        "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
-        "Times to Attempt", Map("Default", 120, "Floor", 1, "Ceiling", 7200),
-        "Short Delay", Map("Default", 128, "Floor", 32, "Ceiling", 1280, "Delta", 32),
-        "Medium Delay", Map("Default", 512, "Floor", 128, "Ceiling", 3072, "Delta", 48),
-        "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]", methodName, A_LineFile, A_LineNumber + 7, Map(
+            "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
+            "Times to Attempt", Map("Default", 120, "Floor", 1, "Ceiling", 7200),
+            "Short Delay", Map("Default", 128, "Floor", 32, "Ceiling", 1280, "Delta", 32),
+            "Medium Delay", Map("Default", 512, "Floor", 128, "Ceiling", 3072, "Delta", 48),
+            "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
     static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
 
@@ -1570,20 +1631,25 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; **************************** ;
 
 ExecuteAutomationApp(appName, runtimeDate := "") {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", A_ThisFunc, A_LineFile, A_LineNumber + 6, Map(
-        "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
-        "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
-        "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
-        "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
-        "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", methodName, A_LineFile, A_LineNumber + 7, Map(
+            "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
+            "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
+            "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
+            "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
+            "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
     static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
 

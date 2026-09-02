@@ -6,15 +6,21 @@
 #Include Logging Library.ahk
 
 PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Integer [Optional: false] [Constraint: Boolean]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [runtimeDate, randomizePixelMovement], "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Integer [Optional: false] [Constraint: Boolean]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [runtimeDate, randomizePixelMovement], 
+        "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
     
     counter := 0
 
@@ -88,16 +94,21 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
 }
 
 SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("directoryPath As String [Constraint: Directory], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
 
     directoryPath := RTrim(directoryPath, "\")
 
@@ -153,16 +164,21 @@ SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
 }
 
 SetFileTimestamp(filePath, isoDateTime, timeType) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("filePath As String [Constraint: Path], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, isoDateTime, timeType], "Set File Timestamp")
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("filePath As String [Constraint: Path], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath, isoDateTime, timeType], "Set File Timestamp")
 
     currentFileDateTime := GetFileTimeAsUtc(filePath, timeType)
     if currentFileDateTime = isoDateTime {
@@ -219,15 +235,20 @@ SetFileTimestamp(filePath, isoDateTime, timeType) {
 }
 
 ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], minimumStartupInSeconds As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [runtimeDate, minimumStartupInSeconds], "Validate Runtime Date (" . runtimeDate . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], minimumStartupInSeconds As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [runtimeDate, minimumStartupInSeconds], "Validate Runtime Date (" . runtimeDate . ")")
 
     if runtimeDate <= A_Now {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "runtimeDate is in the past.")
@@ -242,18 +263,23 @@ ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
 }
 
 WaitUntilFileIsModifiedToday(filePath) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("filePath As String [Constraint: Valid Path]", A_ThisFunc, A_LineFile, A_LineNumber + 4, Map(
-        "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
-        "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
-        "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 5, Map(
+            "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
+            "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
+            "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -291,9 +317,9 @@ WaitUntilFileIsModifiedToday(filePath) {
 ; Core Methods                 ;
 ; **************************** ;
 
-TelemetryTimestamp(telemetryDurationInMilliseconds) {
+TelemetryTimestamp(durationInMilliseconds) {
     result := Map(
-        "Telemetry Duration in Milliseconds",  telemetryDurationInMilliseconds
+        "Duration in Milliseconds",  durationInMilliseconds
     )
 
     static kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
@@ -308,29 +334,30 @@ TelemetryTimestamp(telemetryDurationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
-    fileTimeBuffer   := Buffer(8, 0)
+    timingBuffer     := Buffer(24, 0)
     systemTimeBuffer := Buffer(16, 0)
-    qpcBeforeBuffer  := Buffer(8, 0)
-    qpcAfterBuffer   := Buffer(8, 0)
+    qpcPrePointer    := timingBuffer.Ptr
+    fileTimePointer  := timingBuffer.Ptr + 8
+    qpcPostPointer   := timingBuffer.Ptr + 16
 
     startTime := DllCall("Kernel32\GetTickCount64", "UInt64")
     if preciseFunctionAddress {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < telemetryDurationInMilliseconds {
-            tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
-            DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcAfterBuffer.Ptr, "Int")
-            tickCountAfter := DllCall("Kernel32\GetTickCount64", "UInt64")
-            pairedReadings.Push([tickCountBefore, NumGet(qpcBeforeBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64"), NumGet(qpcAfterBuffer, 0, "Int64"), tickCountAfter])
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < durationInMilliseconds {
+            tickCountPre := DllCall("Kernel32\GetTickCount64", "UInt64")
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+            DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimePointer)
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+            tickCountPost := DllCall("Kernel32\GetTickCount64", "UInt64")
+            pairedReadings.Push([tickCountPre, NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), tickCountPost])
         }
     } else {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < telemetryDurationInMilliseconds {
-            tickCountBefore := DllCall("Kernel32\GetTickCount64", "UInt64")
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcBeforeBuffer.Ptr, "Int")
-            DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimeBuffer.Ptr)
-            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcAfterBuffer.Ptr, "Int")
-            tickCountAfter := DllCall("Kernel32\GetTickCount64", "UInt64")
-            pairedReadings.Push([tickCountBefore, NumGet(qpcBeforeBuffer, 0, "Int64"), NumGet(fileTimeBuffer, 0, "UInt64"), NumGet(qpcAfterBuffer, 0, "Int64"), tickCountAfter])
+        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < durationInMilliseconds {
+            tickCountPre := DllCall("Kernel32\GetTickCount64", "UInt64")
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+            DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimePointer)
+            DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+            tickCountPost := DllCall("Kernel32\GetTickCount64", "UInt64")
+            pairedReadings.Push([tickCountPre, NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), tickCountPost])
         }
     }
 
@@ -338,20 +365,22 @@ TelemetryTimestamp(telemetryDurationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 0) ; Change to Normal.
     }
 
-    result["Number of Readings"] := pairedReadings.Length
+    result["Number of Readings"]   := pairedReadings.Length
+    result["QPC Earliest Reading"] := pairedReadings[1][2]
+    result["QPC Latest Reading"]   := pairedReadings[-1][4]
 
     structuredPairedReadings := []
     for pairedReading in pairedReadings {
         structuredPairReading := Map(
-            "Tick Count Before",                pairedReading[1],
-            "Query Performance Counter Before", pairedReading[2],
-            "Timestamp",                        pairedReading[3],
-            "Query Performance Counter After",  pairedReading[4],
-            "Tick Count After",                 pairedReading[5]
+            "Tick Count Pre",                 pairedReading[1],
+            "Query Performance Counter Pre",  pairedReading[2],
+            "Timestamp",                      pairedReading[3],
+            "Query Performance Counter Post", pairedReading[4],
+            "Tick Count Post",                pairedReading[5]
         )
 
-        structuredPairReading["Query Performance Counter Delta"] := structuredPairReading["Query Performance Counter After"] - structuredPairReading["Query Performance Counter Before"]
-        structuredPairReading["Tick Count Delta"]                := structuredPairReading["Tick Count After"] - structuredPairReading["Tick Count Before"]
+        structuredPairReading["Query Performance Counter Delta"] := structuredPairReading["Query Performance Counter Post"] - structuredPairReading["Query Performance Counter Pre"]
+        structuredPairReading["Tick Count Delta"]                := structuredPairReading["Tick Count Post"] - structuredPairReading["Tick Count Pre"]
 
         structuredPairedReadings.Push(structuredPairReading)
     }
@@ -381,8 +410,8 @@ TelemetryTimestamp(telemetryDurationInMilliseconds) {
         }
     }
     
-    NumPut("UInt64", bestPairedReading["Timestamp"], fileTimeBuffer, 0)
-    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
+    NumPut("UInt64", bestPairedReading["Timestamp"], fileTimePointer)
+    DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimePointer, "Ptr", systemTimeBuffer.Ptr, "Int")
 
     year        := NumGet(systemTimeBuffer,  0, "UShort")
     month       := NumGet(systemTimeBuffer,  2, "UShort")
@@ -392,15 +421,16 @@ TelemetryTimestamp(telemetryDurationInMilliseconds) {
     second      := NumGet(systemTimeBuffer, 12, "UShort")
     millisecond := NumGet(systemTimeBuffer, 14, "UShort")
 
-    result["Tick Count"]             := bestPairedReading["Tick Count After"]
-    result["Tick Count Before"]      := bestPairedReading["Tick Count Before"]
-    result["QPC Before Timestamp"]   := bestPairedReading["Query Performance Counter Before"]
-    result["QPC After Timestamp"]    := bestPairedReading["Query Performance Counter After"]
-    result["QPC Delta Timestamp"]    := bestPairedReading["Query Performance Counter Delta"]
-    result["QPC Midpoint Timestamp"] := result["QPC Before Timestamp"] + (result["QPC Delta Timestamp"] // 2)
-    result["UTC Timestamp Integer"]  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
+    result["Tick Count"]              := bestPairedReading["Tick Count Post"]
+    result["Tick Count Pre"]          := bestPairedReading["Tick Count Pre"]
+    result["QPC Pre Timestamp"]       := bestPairedReading["Query Performance Counter Pre"]
+    result["QPC Post Timestamp"]      := bestPairedReading["Query Performance Counter Post"]
+    result["QPC Delta Timestamp"]     := bestPairedReading["Query Performance Counter Delta"]
+    result["QPC Midpoint Timestamp"]  := result["QPC Pre Timestamp"] + (result["QPC Delta Timestamp"] // 2)
+    result["UTC Timestamp File Time"] := bestPairedReading["Timestamp"]
+    result["UTC Timestamp Integer"]   := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0
     if preciseFunctionAddress {
-        fileTimeTicks     := NumGet(fileTimeBuffer, 0, "Int64")
+        fileTimeTicks     := NumGet(fileTimePointer, "Int64")
         ticksWithinSecond := Mod(fileTimeTicks, 10000000)
         microsecond       := ticksWithinSecond // 10
 
@@ -417,15 +447,20 @@ TelemetryTimestamp(telemetryDurationInMilliseconds) {
 ; **************************** ;
 
 ConvertIntegerToUtcTimestamp(integerValue) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("integerValue As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [integerValue])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("integerValue As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [integerValue])
 
     digitText := integerValue . ""
     if !RegExMatch(digitText, "^\d+$") {
@@ -465,15 +500,20 @@ ConvertIntegerToUtcTimestamp(integerValue) {
 }
 
 ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyName) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("localTimestamp As String, timeZoneKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [localTimestamp, timeZoneKeyName])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("localTimestamp As String, timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [localTimestamp, timeZoneKeyName])
 
     parts := StrSplit(localTimestamp, " ")
     dateParts := StrSplit(parts[1], "-")
@@ -540,15 +580,20 @@ ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyNa
 }
 
 ConvertUnixTimeToUtcTimestamp(unixSeconds) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("unixSeconds As Integer", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [unixSeconds])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("unixSeconds As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [unixSeconds])
 
     if unixSeconds < -11644473600 {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Unix Seconds predates 1601-01-01 UTC and cannot be represented as FILETIME: " . unixSeconds)
@@ -578,15 +623,20 @@ ConvertUnixTimeToUtcTimestamp(unixSeconds) {
 }
 
 ConvertUtcTimestampToInteger(utcTimestamp) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("utcTimestamp As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [utcTimestamp])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("utcTimestamp As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp])
     
     utcTimestampLength := StrLen(utcTimestamp)
     if utcTimestampLength != 19 && utcTimestampLength != 23 && utcTimestampLength != 26 {
@@ -622,15 +672,20 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
 }
 
 ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("utcTimestamp As String, timeZoneKeyName As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [utcTimestamp, timeZoneKeyName])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("utcTimestamp As String, timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp, timeZoneKeyName])
 
     parts := StrSplit(utcTimestamp, " ")
     dateParts := StrSplit(parts[1], "-")
@@ -701,16 +756,21 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
 }
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static dateOrderWhitelist := Format('"{1}", "{2}", "{3}"', "Day-Month-Year", "Month-Day-Year", "Year-Month-Day")
-    static methodName := RegisterMethod("inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [inputValue, dateOrder])
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("inputValue As String, dateOrder As String [Whitelist: " . dateOrderWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [inputValue, dateOrder])
 
     isoDate         := ""
     lastMatch       := unset
@@ -796,16 +856,21 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
 }
 
 GetDirectoryTimeAsUtc(directoryPath, timeType) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("directoryPath As String [Constraint: Directory], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [directoryPath, timeType])
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("directoryPath As String [Constraint: Directory], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, timeType])
 
     directoryPath := RTrim(directoryPath, "\")
 
@@ -854,16 +919,21 @@ GetDirectoryTimeAsUtc(directoryPath, timeType) {
 }
 
 GetFileTimeAsUtc(filePath, timeType) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
-    static methodName := RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [filePath, timeType])
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("filePath As String [Constraint: Path], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath, timeType])
 
     offset := unset
     switch timeType {

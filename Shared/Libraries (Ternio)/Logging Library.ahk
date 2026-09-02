@@ -8,7 +8,7 @@
 
 ; Press Escape to abort the script early when running or to close the script when it's completed.
 $Esc:: {
-    if system["Logging"]["Log Engine State"] != "Stopped" {
+    if system["Logging"]["Cycle"] != "Stopped" {
         Critical "On"
         AbortExecution()
     } else {
@@ -17,21 +17,28 @@ $Esc:: {
 }
 
 AbortExecution() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Abort Execution")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Abort Execution")
 
     LogConclusion("Failed", logConclusionData, A_LineNumber, "Execution aborted early by pressing escape.")
 }
 
-LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds := unset) {
+LogEngine(runtimeOverride := Map()) {
+    global methodRegistry
     global system
+    global logToFile
 
     static configuration := system["Configuration"]
     static constants     := system["Constants"]
@@ -44,83 +51,44 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
     static runtime       := system["Runtime"]
     static telemetry     := system["Telemetry"]
 
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
+    settings := methodRegistry["LogEngine"]["Settings"]
+
+    fileLoggingEnabled              := settings["File Logging Enabled"]["Value"]
+    telemetryDurationInMilliseconds := settings["Telemetry Duration in Milliseconds"]["Value"]
+
+    system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
+    telemetry           := system["Telemetry"]
+    runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
 
     operationLogLineNumber := unset
 
-    if !IsSet(startThresholdInMilliseconds) && !IsSet(telemetryDurationInMilliseconds) {
-        startThresholdInMilliseconds    := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
-        telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
-    } else if IsSet(startThresholdInMilliseconds) && !IsSet(telemetryDurationInMilliseconds) {
-        startThresholdInMilliseconds    := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
-        telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
-    } else {
-        if Type(startThresholdInMilliseconds) != "Integer" {
-            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"]
-        }
-
-        if Type(telemetryDurationInMilliseconds) != "Integer" {
-            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"]
-        }
-
-        if startThresholdInMilliseconds < methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Floor"] {
-            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Floor"]
-        }
-
-        if startThresholdInMilliseconds > methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Ceiling"] {
-            startThresholdInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Ceiling"]
-        }
-
-        if telemetryDurationInMilliseconds < methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Floor"] {
-            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Floor"]
-        }
-
-        if telemetryDurationInMilliseconds > methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Ceiling"] {
-            telemetryDurationInMilliseconds := methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Ceiling"]
-        }
-    }
-
-    switch logging["Log Engine State"] {
+    switch logging["Cycle"] {
         case "Pending":
-            while A_MSec > startThresholdInMilliseconds {
-                Sleep(16)
-            }
-
-            operationLogLineNumber := 2
-
             constants["New Line"]     := "`r`n"
             constants["System Drive"] := SubStr(A_WinDir, 1, 3)
 
-            ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
-            queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
-            DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
-            environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
+            operationLogLineNumber := 2
 
-            logging["Log Engine State"] := "Beginning"
+            logging["Cycle"] := "Beginning"
         case "Running":
-            logging["Log Engine State"] := "Completed"
-    }
-
-    if logging["Log Engine State"] != "Beginning" && logging["Log Engine State"] != "Intermission" {
-        if OverlayIsVisible() {
-            OverlayChangeTransparency(255)
-        }
+            logging["Cycle"] := "Completed"
     }
 
     newLine     := constants["New Line"]
     systemDrive := constants["System Drive"]
 
-    runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
-    system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
-    telemetry           := system["Telemetry"]
+    if logging["Cycle"] != "Beginning" && logging["Cycle"] != "Intermission" {
+        if OverlayIsVisible() {
+            OverlayChangeTransparency(255)
+        }
+    }
 
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    if logging["Cycle"] = "Beginning" {
+        ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+        queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
+        DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
+        environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
 
-    if logging["Log Engine State"] = "Beginning" {
         SplitPath(A_ScriptFullPath, , , , &projectName)
         SplitPath(A_LineFile, , &librariesFolderPath)
         SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
@@ -150,6 +118,55 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
         }
 
         SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
+
+        logging["Execution Log"].Push("Log|Value")
+        logging["Operation Log"].Push("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value")
+        logging["Run Telemetry"].Push("Log|Value|Type")
+        logging["Symbol Ledger"].Push("Reference|Type|Symbol")
+
+        for context in [
+            "Cycle: Beginning.", "Cycle: Completed.", "Cycle: Failed.", "Cycle: Intermission."
+        ] {
+            RegisterSymbol(context, "Context")
+        }
+
+        for error in [
+            "Execution aborted early by pressing escape."
+        ] {
+            RegisterSymbol(error, "Error")
+        }
+
+        for overlayValue in [
+            "",
+            "Initializing Variables" . overlay["Status"]["Beginning"], "Verifying Requirements" . overlay["Status"]["Beginning"], "Loading Code to Memory" . overlay["Status"]["Beginning"], "Selecting Configuration" . overlay["Status"]["Beginning"],
+            "Initializing Variables" . overlay["Status"]["Completed"], "Verifying Requirements" . overlay["Status"]["Completed"], "Loading Code to Memory" . overlay["Status"]["Completed"], "Selecting Configuration" . overlay["Status"]["Completed"]
+        ] {
+            RegisterSymbol(overlayValue, "Overlay")
+        }
+
+        for reference in [
+            "", "|",
+            "<Constraint: Base64>",
+            "<Data Type: Array>", "<Data Type: Map>", "<Data Type: Object>"
+        ] {
+            RegisterSymbol(reference, "Reference")
+        }
+
+        for whitelist in [
+            "",
+            "Context", "Error", "Method", "Overlay", "Reference", "Whitelist",
+            "Beginning", "Completed", "Failed", "Intermission",
+            "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS",
+            "Day-Month-Year", "Month-Day-Year", "Year-Month-Day",
+            "Accessed", "Created", "Modified",
+            "MD2", "MD4", "MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512",
+            "'", "--", "#", "%", "//", ";",
+            "Left", "Middle", "Move", "Move Smooth", "Right", "Wheel Down", "Wheel Up",
+            "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM",
+            "Append", "Append Break", "Create", "Overwrite"
+        ] {
+            RegisterSymbol(whitelist, "Whitelist")
+        }
 
         paths["Project"]               := A_ScriptFullPath
         paths["Project Configuration"] := directories["Project"] . "Configuration (" . runtime["Project Name"] . ", " . "Library Release" . " " . runtime["Library Release"] . ").json"
@@ -186,7 +203,7 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
             try {
                 projectSymbolLedgerContent := FileRead(paths["Project Symbol Ledger"], "UTF-8")
             } catch {
-                logConclusionData["Context"] := "Log Engine State: " . logging["Log Engine State"] . ". Project Symbol Ledger found but failed to read it."
+                logConclusionData["Context"] := "Cycle: " . logging["Cycle"] . ". Project Symbol Ledger found but failed to read it."
             }
 
             if IsSet(projectSymbolLedgerContent) {
@@ -248,27 +265,51 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
             }
         }
     } else {
-        operationLogLineNumber := GetTextFileLineCount(paths["Operation Log"])
+        if logToFile {
+            operationLogLineNumber := GetTextFileLineCount(paths["Operation Log"])
+        } else {
+            operationLogLineNumber := logging["Operation Log"].Length
+        }
     }
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Log Engine")
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("runtimeOverride As Map [Optional]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, telemetry["QPC Pre Timestamp"], telemetry["UTC Timestamp File Time"], telemetry["QPC Post Timestamp"], [runtimeOverride], "Log Engine")
 
-    system["Telemetry"]["System Drive Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
+    if logging["Cycle"] = "Beginning" {
+        RemoveDuplicatesFromArray([])
 
-    if logging["Log Engine State"] = "Beginning" {
-        for reference in [
-            "",
-            "|",
-            "<Constraint: Base64>",
-            "<Data Type: Array>",
-            "<Data Type: Map>",
-            "<Data Type: Object>"
-        ] {
-            RegisterSymbol(reference, "Reference")
+        BatchAppendExecutionLog([])
+        BatchAppendOperationLog([])
+        BatchAppendSymbolLedger("", [])
+        BatchAppendRunTelemetry("Beginning", [])
+
+        if runtimeOverride.Count != 0 {
+            if runtimeOverride.Has("Disable File Logging") && runtimeOverride["Disable File Logging"] = true {
+                methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Default"] := false
+                methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Value"]   := false
+                fileLoggingEnabled := false
+                logToFile          := false
+            }
+        } else {
+            if fileLoggingEnabled {
+                logToFile := true
+            }
         }
 
-        BatchAppendRunTelemetry("Beginning", [])
+        if fileLoggingEnabled && logToFile {
+            BatchAppendExecutionLog(logging["Execution Log"])
+            BatchAppendOperationLog(logging["Operation Log"])
+            BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"], true)
+            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
+
+            logging["Execution Log"] := []
+            logging["Operation Log"] := []
+            logging["Run Telemetry"] := []
+            logging["Symbol Ledger"] := []
+        }
 
         environment["Computer Name"]      := A_ComputerName
         environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
@@ -291,43 +332,47 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
                 }
             }
         }
-
-        logging["Log to Array"] := false
-        AppendLineToLog("Log|Type", "Execution Log")
-        AppendLineToLog("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value", "Operation Log")
-        AppendLineToLog("Log|Type", "Run Telemetry")
-        AppendLineToLog("Reference|Type|Symbol", "Symbol Ledger")
     }
 
-    logging["Log to Array"] := true
+    telemetry["System Disk Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
+    telemetry["System Resource Snapshot"]   := GetSystemResourceSnapshot()
+    telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
+    telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
 
-    numberOfReadings   := "Number of Readings: " .  telemetry["Number of Readings"] . "|"
-    qpcBeforeTimestamp := "QPC Before Timestamp: " . telemetry["QPC Before Timestamp"] - telemetry["QPC Midpoint Timestamp"] . "|"
-    qpcAfterTimestamp  := "QPC After Timestamp: " . telemetry["QPC After Timestamp"] - telemetry["QPC Midpoint Timestamp"] . "|"
-    tickCount          := "Tick Count: " . telemetry["Tick Count"] . "|"
-    tickCountBefore    := "Tick Count Before: " . telemetry["Tick Count Before"] - telemetry["Tick Count"]
-    AppendLineToLog("Run Telemetry Order: " . runTelemetryOrder . "|" . "Operation Log Line Number: " . operationLogLineNumber . "|" . "Telemetry Duration in Milliseconds: " . telemetry["Telemetry Duration in Milliseconds"] . "|" . numberOfReadings . 
-        qpcBeforeTimestamp . qpcAfterTimestamp . "QPC Midpoint Timestamp: " . telemetry["QPC Midpoint Timestamp"] . "|" . tickCount . tickCountBefore . "|" . "UTC Timestamp Precise: " . telemetry["UTC Timestamp Precise"], "Run Telemetry")
-
-    if environment.Has("QPC Frequency") && environment.Has("Session Startup Time") {
-        telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
-        telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
-        AppendLineToLog("Computer Uptime in Seconds: " . telemetry["Computer Uptime in Seconds"] . "|" . "Session Uptime in Seconds: " . telemetry["Session Uptime in Seconds"], "Run Telemetry")
+    for runTelemetryLine in [
+        "Run Telemetry Order|" .           runTelemetryOrder,
+        "Operation Log Line Number|" .     operationLogLineNumber,
+        "Duration in Milliseconds|" .      telemetry["Duration in Milliseconds"],
+        "Number of Readings|" .            telemetry["Number of Readings"],
+        "QPC Pre Timestamp|" .             telemetry["QPC Pre Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+        "QPC Post Timestamp|" .            telemetry["QPC Post Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+        "QPC Midpoint Timestamp|" .        telemetry["QPC Midpoint Timestamp"],
+        "Tick Count|" .                    telemetry["Tick Count"],
+        "Tick Count Pre|" .                telemetry["Tick Count Pre"] - telemetry["Tick Count"],
+        "UTC Timestamp Precise|" .         telemetry["UTC Timestamp Precise"],
+        "Computer Uptime in Seconds|" .    telemetry["Computer Uptime in Seconds"],
+        "Session Uptime in Seconds|" .     telemetry["Session Uptime in Seconds"],
+        "Commit Total Bytes|" .            telemetry["System Resource Snapshot"]["Commit Total Bytes"],
+        "Commit Limit Bytes" .             telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
+        "Commit Peak Bytes|" .             telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
+        "Commit Used Percent|" .           telemetry["System Resource Snapshot"]["Commit Used Percent"],
+        "Kernel Total Bytes|" .            telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
+        "Kernel Paged Bytes|" .            telemetry["System Resource Snapshot"]["Kernel Paged Bytes"],
+        "Kernel Nonpaged Bytes|" .         telemetry["System Resource Snapshot"]["Kernel Nonpaged Bytes"],
+        "Physical Used Bytes|" .           telemetry["System Resource Snapshot"]["Physical Used Bytes"],
+        "Physical Total Bytes|" .          telemetry["System Resource Snapshot"]["Physical Total Bytes"],
+        "Physical Used Percent|" .         telemetry["System Resource Snapshot"]["Physical Used Percent"],
+        "System Cache Bytes|" .            telemetry["System Resource Snapshot"]["System Cache Bytes"],
+        "System Handle Count|" .           telemetry["System Resource Snapshot"]["System Handle Count"],
+        "System Process Count|" .          telemetry["System Resource Snapshot"]["System Process Count"],
+        "System Thread Count|" .           telemetry["System Resource Snapshot"]["System Thread Count"],
+        "System Disk Free Bytes|" .        telemetry["System Disk Space Snapshot"]["Free Bytes"],
+        "System Disk Windows Free Size|" . telemetry["System Disk Space Snapshot"]["Windows Free Size"]
+    ] {
+        logging["Run Telemetry"].Push(runTelemetryLine)
     }
 
-    system["Telemetry"]["System Resource Snapshot"] := GetSystemResourceSnapshot()
-    AppendLineToLog("Physical: " . telemetry["System Resource Snapshot"]["Physical Used Percent"] . "%" . "|" . "Commit: " . telemetry["System Resource Snapshot"]["Commit Used Percent"] . "%" . 
-        "|" . "Processes: " . telemetry["System Resource Snapshot"]["System Process Count"] . "|" . "Threads: " . telemetry["System Resource Snapshot"]["System Thread Count"], "Run Telemetry")
-
-    AppendLineToLog("Disk Free Bytes: " . telemetry["System Drive Space Snapshot"]["Free Bytes"] . "|" . "Windows Free Size: " . telemetry["System Drive Space Snapshot"]["Windows Free Size"], "Run Telemetry")
-
-    logging["Log to Array"] := false
-    BatchAppendRunTelemetry(logging["Log Engine State"], logging["Log Entries"]["Run Telemetry"])
-    logging["Log Entries"]["Run Telemetry"] := []
-
-    if logging["Log Engine State"] = "Beginning" {
-        logging["Log to Array"] := true
-
+    if logging["Cycle"] = "Beginning" {
         CombineCode("Intro", "Main")
         ComputeMouseMoveSpeed("0x0", "2x2")
         ConvertArrayToLineSeparatedString(["1st Line", "2nd Line"])
@@ -335,7 +380,6 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
         GetBase64FromFile(paths["Scales"])
         KeyboardShortcut("CTRL", "F16")
         ModifyScreenCoordinates(2, 2, "0x0")
-        RemoveDuplicatesFromArray([])
 
         ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
         ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
@@ -352,9 +396,6 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
         ReadFile(paths["Scales"])
         SearchForUniqueFileInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
 
-        BatchAppendExecutionLog("Beginning", [])
-        BatchAppendOperationLog([])
-        BatchAppendSymbolLedger("", [])
         OverlayIsVisible()
 
         ValidateDataUsingSpecification("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
@@ -559,9 +600,7 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
 
         ValidateConfiguration(configuration)
 
-        if configuration["Settings"]["Computer Alias"] != "" {
-            SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
-        }
+        SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
 
         if configuration["Application Whitelist"].Length != 0 {
             for application in mappings["Applications"] {
@@ -666,14 +705,16 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
             }
         }
 
-        environment["Color Mode"]           := GetColorMode()
-        environment["Display Language"]     := GetDisplayLanguage()
-        environment["Input Language"]       := GetInputLanguage()
-        environment["International"]        := GetInternationalSnapshot()
-        environment["Keyboard Layout"]      := GetActiveKeyboardLayout()
-        environment["Refresh Rate"]         := GetActiveMonitorRefreshRateHz()
-        environment["Regional Format"]      := environment["International"]["LocaleName"]
-        environment["Timeout Before Lock"]  := GetTimeoutBeforeLockInSeconds()
+        environment["Color Mode"]          := GetColorMode()
+        environment["Display Language"]    := GetDisplayLanguage()
+        environment["Input Language"]      := GetInputLanguage()
+        environment["International"]       := GetInternationalSnapshot()
+        environment["Keyboard Layout"]     := GetActiveKeyboardLayout()
+        environment["Refresh Rate"]        := GetActiveMonitorRefreshRateHz()
+        environment["Regional Format"]     := environment["International"]["LocaleName"]
+        environment["Timeout Before Lock"] := GetTimeoutBeforeLockInSeconds()
+
+        hardware["Monitor Count"] := MonitorGetCount()
 
         if configuration["Settings"]["Advanced Mode"] {
             environment["Operating System"]["Installation Date"] := GetWindowsInstallationDateUtcTimestamp()
@@ -696,90 +737,111 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
         runtime["Logging Library Hash"]     := GetFileHash(paths["Logging Library"],     "SHA-256")
 
         for executionLogLine in [
-            "Project Name: " .             runtime["Project Name"],
-            "Library Release: " .          runtime["Library Release"],
-            "AutoHotkey Version: " .       runtime["AutoHotkey Version"],
-            "Project Hash: " .             EncodeSha256HexToBase(runtime["Project Hash"], 86),
-            "Application Library Hash: " . EncodeSha256HexToBase(runtime["Application Library Hash"], 86),
-            "Base Library Hash: " .        EncodeSha256HexToBase(runtime["Base Library Hash"], 86),
-            "Chrono Library Hash: " .      EncodeSha256HexToBase(runtime["Chrono Library Hash"], 86),
-            "File Library Hash: " .        EncodeSha256HexToBase(runtime["File Library Hash"], 86),
-            "Image Library Hash: " .       EncodeSha256HexToBase(runtime["Image Library Hash"], 86),
-            "Logging Library Hash: " .     EncodeSha256HexToBase(runtime["Logging Library Hash"], 86)
+            "Project Name|" .             runtime["Project Name"],
+            "Library Release|" .          runtime["Library Release"],
+            "AutoHotkey Version|" .       runtime["AutoHotkey Version"],
+            "Project Hash|" .             EncodeSha256HexToBase(runtime["Project Hash"], 86),
+            "Application Library Hash|" . EncodeSha256HexToBase(runtime["Application Library Hash"], 86),
+            "Base Library Hash|" .        EncodeSha256HexToBase(runtime["Base Library Hash"], 86),
+            "Chrono Library Hash|" .      EncodeSha256HexToBase(runtime["Chrono Library Hash"], 86),
+            "File Library Hash|" .        EncodeSha256HexToBase(runtime["File Library Hash"], 86),
+            "Image Library Hash|" .       EncodeSha256HexToBase(runtime["Image Library Hash"], 86),
+            "Logging Library Hash|" .     EncodeSha256HexToBase(runtime["Logging Library Hash"], 86),
+            "Operating System|" .         environment["Operating System"]["Full Name"]
         ] {
-            AppendLineToLog(executionLogLine, "Execution Log")
+            logging["Execution Log"].Push(executionLogLine)
         }
 
         if configuration["Settings"]["Advanced Mode"] {
-            executionLogOperatingSystemLine := "Operating System: " . environment["Operating System"]["Full Name"] . "|" . 
-                "Installation Date: " . environment["Operating System"]["Installation Date"]
-            AppendLineToLog(executionLogOperatingSystemLine, "Execution Log")
-        } else {
-            executionLogOperatingSystemLine := "Operating System: " . environment["Operating System"]["Full Name"]
-            AppendLineToLog(executionLogOperatingSystemLine, "Execution Log")
+            logging["Execution Log"].Push("Windows Installation Date|" . environment["Operating System"]["Installation Date"])
         }
 
         for executionLogLine in [
-            "Computer Name: " .          environment["Computer Name"],
-            "Computer Alias: " .         configuration["Settings"]["Computer Alias"],
-            "Username: " .               environment["Username"],
-            "Time Zone Key Name: " .     environment["Time Zone"]["Key Name"],
-            "Country or Region: " .      environment["International"]["Geo"]["Friendly Name"] . "|" . 
-                "ISO 3166-1 alpha-2: " . environment["International"]["Geo"]["ISO 3166-1 alpha-2"] . "|" . 
-                "ISO 3166-1 alpha-3: " . environment["International"]["Geo"]["ISO 3166-1 alpha-3"] . "|" . 
-                "ISO 3166-1 numeric: " . environment["International"]["Geo"]["ISO 3166-1 numeric"],
-            "Display Language: " .       environment["Display Language"],
-            "Regional Format: " .        environment["Regional Format"],
-            "Input Language: " .         environment["Input Language"],
-            "Keyboard Layout: " .        environment["Keyboard Layout"],
-            "Timeout Before Lock: " .    environment["Timeout Before Lock"]
+            "Computer Name|" .          environment["Computer Name"],
+            "Computer Alias|" .         configuration["Settings"]["Computer Alias"],
+            "Username|" .               environment["Username"],
+            "Time Zone Key Name|" .     environment["Time Zone"]["Key Name"],
+            "Time Zone UTC Offset|" .   environment["Time Zone"]["UTC Offset"],
+            "QPC Frequency|" .          environment["QPC Frequency"],
+            "Country or Region|" .      environment["International"]["Geo"]["Friendly Name"],
+            "Display Language|" .       environment["Display Language"],
+            "Regional Format|" .        environment["Regional Format"],
+            "Input Language|" .         environment["Input Language"],
+            "Keyboard Layout|" .        environment["Keyboard Layout"]
         ] {
-            AppendLineToLog(executionLogLine, "Execution Log")
+            logging["Execution Log"].Push(executionLogLine)
         }
 
         if configuration["Settings"]["Advanced Mode"] {
             for executionLogLine in [
-                "Motherboard: " .            hardware["Motherboard"]["Full Name"] . "|" . 
-                    "BIOS: " .               hardware["Motherboard"]["BIOS"],
-                "CPU: " .                    hardware["CPU"],
-                "Memory Size and Type: " .   hardware["Memory Size and Type"],
-                "System Disk: " .            hardware["System Disk"] . "|" . 
-                    "Disk Total Bytes: " .   telemetry["System Drive Space Snapshot"]["Total Bytes"] . "|" . 
-                    "Windows Total Size: " . telemetry["System Drive Space Snapshot"]["Windows Total Size"],
-                "Display GPU: " .            hardware["Display GPU"],
-                "Monitor: " .                hardware["Monitor"]
+                "Motherboard|" .                    hardware["Motherboard"]["Full Name"],
+                "BIOS|" .                           hardware["Motherboard"]["BIOS"],
+                "CPU|" .                            hardware["CPU"],
+                "Memory Size and Type|" .           hardware["Memory Size and Type"],
+                "System Disk|" .                    hardware["System Disk"],
+                "System Disk Total Bytes|" .        telemetry["System Disk Space Snapshot"]["Total Bytes"],
+                "System Disk Windows Total Size|" . telemetry["System Disk Space Snapshot"]["Windows Total Size"],
+                "Display GPU|" .                    hardware["Display GPU"],
+                "Monitor|" .                        hardware["Monitor"]
             ] {
-                AppendLineToLog(executionLogLine, "Execution Log")
+                logging["Execution Log"].Push(executionLogLine)
             }
         }
 
         for executionLogLine in [
-            "QPC Frequency: " .      environment["QPC Frequency"],
-            "Display Resolution: " . environment["Display Resolution"],
-            "Refresh Rate: " .       environment["Refresh Rate"],
-            "DPI Scale: " .          environment["DPI Scale"],
-            "Color Mode: " .         environment["Color Mode"]
+            "Monitor Count|" .       hardware["Monitor Count"],
+            "Display Resolution|" .  environment["Display Resolution"],
+            "Refresh Rate|" .        environment["Refresh Rate"],
+            "DPI Scale|" .           environment["DPI Scale"],
+            "Color Mode|" .          environment["Color Mode"],
+            "Timeout Before Lock|" . environment["Timeout Before Lock"]
         ] {
-            AppendLineToLog(executionLogLine, "Execution Log")
+            logging["Execution Log"].Push(executionLogLine)
+        }
+
+        if fileLoggingEnabled && logToFile {
+            BatchAppendExecutionLog(logging["Execution Log"])
+
+            logging["Execution Log"] := []
+        }
+    } else {
+        if fileLoggingEnabled && logToFile {
+            BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"])
+
+            logging["Run Telemetry"] := []
         }
     }
 
     if !logConclusionData.Has("Context") {
-        logConclusionData["Context"] := "Log Engine State: " . logging["Log Engine State"] . "."
-    }
-
-    if startThresholdInMilliseconds != methodRegistry["LogEngine"]["Settings"]["Start Threshold in Milliseconds"]["Value"] {
-        SetMethodSetting("LogEngine", "Start Threshold in Milliseconds", startThresholdInMilliseconds)
-    }
-
-    if telemetryDurationInMilliseconds != methodRegistry["LogEngine"]["Settings"]["Telemetry Duration in Milliseconds"]["Value"] {
-        SetMethodSetting("LogEngine", "Start Threshold in Milliseconds", telemetryDurationInMilliseconds)
+        logConclusionData["Context"] := "Cycle: " . logging["Cycle"] . "."
     }
 
     LogConclusion("Completed", logConclusionData)
 
-    if logging["Log Engine State"] != "Beginning" && logging["Log Engine State"] != "Intermission" {
+    if logging["Cycle"] != "Beginning" && logging["Cycle"] != "Intermission" {
         timestampNow := A_Now
+
+        if fileLoggingEnabled = false || logToFile = false {
+            if runtimeOverride.Count != 0 {
+                if runtimeOverride.Has("Enable File Logging") && runtimeOverride["Enable File Logging"] = true {
+                    methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Default"] := true
+                    methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Value"]   := true
+                    fileLoggingEnabled := true
+                    logToFile          := true
+                }
+
+                BatchAppendExecutionLog(logging["Execution Log"])
+                BatchAppendOperationLog(logging["Operation Log"])
+                BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"], true)
+                BatchAppendSymbolLedger("", logging["Symbol Ledger"])
+
+                logging["Execution Log"] := []
+                logging["Operation Log"] := []
+                logging["Run Telemetry"] := []
+                logging["Symbol Ledger"] := []
+            }
+        }
+
         for logFilePath in [
             paths["Execution Log"],
             paths["Operation Log"],
@@ -814,93 +876,29 @@ LogEngine(startThresholdInMilliseconds := unset, telemetryDurationInMilliseconds
             FileSetTime(timestampNow, logFilePath, "M")
         }
 
-        logging["Log Engine State"] := "Stopped"
+        logging["Cycle"] := "Stopped"
     }
 
-    if logging["Log Engine State"] = "Intermission" {
-        logging["Log Engine State"] := "Running"
+    if logging["Cycle"] = "Beginning" || logging["Cycle"] = "Intermission" {
+        logging["Cycle"] := "Running"
     }
-
-    if logging["Log Engine State"] = "Beginning" {
-        logging["Log to Array"] := false
-        BatchAppendExecutionLog(logging["Log Engine State"], logging["Log Entries"]["Execution Log"])
-        BatchAppendOperationLog(logging["Log Entries"]["Operation Log"])
-        BatchAppendRunTelemetry(logging["Log Engine State"], logging["Log Entries"]["Run Telemetry"])
-        BatchAppendSymbolLedger("", logging["Log Entries"]["Symbol Ledger"])
-
-        logging["Log Entries"] := Map(
-            "Execution Log", [],
-            "Operation Log", [],
-            "Run Telemetry", [],
-            "Symbol Ledger", []
-        )
-
-        logging["Log Engine State"] := "Running"
-    }
-}
-
-SetLogFilenames(utcTimestamp) {
-    global system
-
-    validation := ValidateDataUsingSpecification(utcTimestamp, "String", "ISO Date Time")
-    if validation != "" {
-        return
-    }
-
-    oldLogFilenames  := Map()
-    logSharedName    := system["Directories"]["Log"] . system["Runtime"]["Project Name"] . " - "
-    logDateAndTime   := StrReplace(utcTimestamp, ":", ".")
-    logComputerAlias := ""
-
-    if system["Paths"].Has("Execution Log") && system["Paths"].Has("Operation Log") && system["Paths"].Has("Run Telemetry") && system["Paths"].Has("Symbol Ledger") {
-        oldLogFilenames["Execution Log"] := system["Paths"]["Execution Log"]
-        oldLogFilenames["Operation Log"] := system["Paths"]["Operation Log"]
-        oldLogFilenames["Run Telemetry"] := system["Paths"]["Run Telemetry"]
-        oldLogFilenames["Symbol Ledger"] := system["Paths"]["Symbol Ledger"]
-    }
-
-    if system["Configuration"].Has("Settings") {
-        if system["Configuration"]["Settings"].Has("Computer Alias") {
-            if system["Configuration"]["Settings"]["Computer Alias"] != "" {
-                logComputerAlias := system["Configuration"]["Settings"]["Computer Alias"] . " - "
-            }
-        }
-    }
-
-    system["Paths"]["Execution Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Execution Log.csv"
-    system["Paths"]["Operation Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Operation Log.csv"
-    system["Paths"]["Run Telemetry"] := logSharedName . logComputerAlias . logDateAndTime . " - Run Telemetry.csv"
-    system["Paths"]["Symbol Ledger"] := logSharedName . logComputerAlias . logDateAndTime . " - Symbol Ledger.csv"
-
-    if oldLogFilenames.Has("Execution Log") {
-        if FileExist(system["Paths"]["Execution Log"]) || FileExist(system["Paths"]["Operation Log"]) || FileExist(system["Paths"]["Run Telemetry"]) || FileExist(system["Paths"]["Symbol Ledger"]) {
-            system["Paths"]["Execution Log"] := oldLogFilenames["Execution Log"]
-            system["Paths"]["Operation Log"] := oldLogFilenames["Operation Log"]
-            system["Paths"]["Run Telemetry"] := oldLogFilenames["Run Telemetry"]
-            system["Paths"]["Symbol Ledger"] := oldLogFilenames["Symbol Ledger"]
-
-            return
-        } else {
-            FileMove(oldLogFilenames["Execution Log"], system["Paths"]["Execution Log"])
-            FileMove(oldLogFilenames["Operation Log"], system["Paths"]["Operation Log"])
-            FileMove(oldLogFilenames["Run Telemetry"], system["Paths"]["Run Telemetry"])
-            FileMove(oldLogFilenames["Symbol Ledger"], system["Paths"]["Symbol Ledger"])
-        }
-    }
-
-    system["Runtime"]["Run Identifier"] := system["Runtime"]["Project Name"] . " - " . logComputerAlias . logDateAndTime
 }
 
 OverlayChangeTransparency(transparencyValue) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("transparencyValue As Integer [Constraint: Byte]", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("transparencyValue As Integer [Constraint: Byte]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [transparencyValue], "Overlay Change Transparency (" . transparencyValue . ")")
 
     WinSetTransparent(transparencyValue, "ahk_id " . overlay["GUI"].Hwnd)
 
@@ -908,15 +906,20 @@ OverlayChangeTransparency(transparencyValue) {
 }
 
 OverlayChangeVisibility() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Change Visibility")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Overlay Change Visibility")
 
     if DllCall("User32\IsWindowVisible", "Ptr", overlay["GUI"].Hwnd) {
         overlay["GUI"].Hide()
@@ -928,15 +931,20 @@ OverlayChangeVisibility() {
 }
 
 OverlayHideLogForMethod(methodNameInput) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("methodNameInput As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
     
@@ -950,15 +958,20 @@ OverlayHideLogForMethod(methodNameInput) {
 }
 
 OverlayShowLogForMethod(methodNameInput) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("methodNameInput As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("methodNameInput As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [methodNameInput], "Overlay Show Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
 
@@ -974,19 +987,24 @@ OverlayShowLogForMethod(methodNameInput) {
 }
 
 OverlayStart() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 5, Map(
-        "Base Logical Width", Map("Default", 960, "Floor", 640, "Ceiling", 7680),
-        "Base Logical Height", Map("Default", 920, "Floor", 480, "Ceiling", 4320),
-        "Overlay Transparency", Map("Default", 172, "Floor", 0, "Ceiling", 255),
-        "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)))
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Start")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
+            "Base Logical Width", Map("Default", 960, "Floor", 640, "Ceiling", 7680),
+            "Base Logical Height", Map("Default", 920, "Floor", 480, "Ceiling", 4320),
+            "Overlay Transparency", Map("Default", 172, "Floor", 0, "Ceiling", 255),
+            "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)))
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Overlay Start")
 
     global overlay
 
@@ -1053,15 +1071,20 @@ OverlayStart() {
 }
 
 OverlayInsertSpacer() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [], "Overlay Insert Spacer", true)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Overlay Insert Spacer", true)
     
     ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
 
@@ -1069,15 +1092,20 @@ OverlayInsertSpacer() {
 }
 
 OverlayUpdateCustomLine(overlayKey, overlayValue) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("overlayKey As Integer, value As String", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [overlayKey, overlayValue], "Overlay Update Custom Line", true)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("overlayKey As Integer, value As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [overlayKey, overlayValue], "Overlay Update Custom Line", true)
 
     ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
 
@@ -1088,32 +1116,13 @@ OverlayUpdateCustomLine(overlayKey, overlayValue) {
 ; Core Methods                 ;
 ; **************************** ;
 
-AppendLineToLog(line, logType) {
-    newLine := system["Constants"]["New Line"]
-
-    if !system["Logging"]["Log to Array"] {
-        callerWasCritical := A_IsCritical
-        if !callerWasCritical {
-            Critical "On"
-        }
-
-        try {
-            FileAppend(line . newLine, system["Paths"][logType], "UTF-8-RAW")
-        } finally {
-            if !callerWasCritical {
-                Critical "Off"
-            }
-        }
-    } else {
-        system["Logging"]["Log Entries"][logType].Push(line)
-    }
-}
-
 LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayValue := unset, customOverlayMethod := unset) {
     static lastRunTelemetryTickCount := unset
     static runTelemetryInterval      := 12 * 60 * 1000
     static fileTimeBuffer   := Buffer(8, 0)
     static systemTimeBuffer := Buffer(16, 0)
+
+    newLine := system["Constants"]["New Line"]
 
     runTelemetryTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
     if !IsSet(lastRunTelemetryTickCount) {
@@ -1240,7 +1249,11 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
     }
 
     if IsSet(logBeginning) {
-        AppendLineToLog(logBeginning, "Operation Log")
+        if logToFile {
+            FileAppend(logBeginning . newLine, system["Paths"]["Operation Log"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Operation Log"].Push(logBeginning)
+        }
     }
 
     if logConclusionData.Has("Validation") {
@@ -1250,7 +1263,7 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
     if IsSet(overlayValue) {
         if runTelemetryTickCount - lastRunTelemetryTickCount >= runTelemetryInterval {
             lastRunTelemetryTickCount := runTelemetryTickCount
-            system["Logging"]["Log Engine State"] := "Intermission"
+            system["Logging"]["Cycle"] := "Intermission"
             LogEngine()
         }
     }
@@ -1261,6 +1274,8 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, errorMessage := unset) {
     static fileTimeBuffer   := Buffer(8, 0)
     static systemTimeBuffer := Buffer(16, 0)
+
+    newLine := system["Constants"]["New Line"]
 
     conclusionStatus := StrUpper(SubStr(conclusionStatus, 1, 1)) . StrLower(SubStr(conclusionStatus, 2))
 
@@ -1297,7 +1312,11 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
                     logConclusionData["Arguments Log"]                  ; Arguments or Error Message
             }
 
-            AppendLineToLog(logBeginning, "Operation Log")
+            if logToFile {
+                FileAppend(logBeginning . newLine, system["Paths"]["Operation Log"], "UTF-8-RAW")
+            } else {
+                system["Logging"]["Operation Log"].Push(logBeginning)
+            }
     }
 
     logConclusion := 
@@ -1313,14 +1332,16 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         logConclusionData["Context"] := contextSymbol
     }
 
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    NumPut("UInt64", NumGet(timestampBuffer, 0, "Int64"), fileTimeBuffer, 0)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    NumPut("UInt64", NumGet(timestampPointer, "Int64"), fileTimeBuffer, 0)
     DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimeBuffer.Ptr, "Ptr", systemTimeBuffer.Ptr, "Int")
 
     year        := NumGet(systemTimeBuffer,  0, "UShort")
@@ -1331,7 +1352,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     second      := NumGet(systemTimeBuffer, 12, "UShort")
     millisecond := NumGet(systemTimeBuffer, 14, "UShort")
 
-    qpcMidpointTimestampDelta := (NumGet(qpcPreBuffer, 0, "Int64") + (NumGet(qpcPostBuffer, 0, "Int64") - NumGet(qpcPreBuffer, 0, "Int64")) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
+    qpcMidpointTimestampDelta := (NumGet(qpcPrePointer, "Int64") + (NumGet(qpcPostPointer, "Int64") - NumGet(qpcPrePointer, "Int64")) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
     utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - system["Telemetry"]["UTC Timestamp Integer"]
 
     logConclusion := logConclusion . "|" . 
@@ -1398,7 +1419,11 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         copyButton.OnEvent("Click", (*) => A_Clipboard := constructedErrorMessage)
     }
 
-    AppendLineToLog(logConclusion, "Operation Log")
+    if logToFile {
+        FileAppend(logConclusion . newLine, system["Paths"]["Operation Log"], "UTF-8-RAW")
+    } else {
+        system["Logging"]["Operation Log"].Push(logConclusion)
+    }
 
     if logConclusionData["Overlay Key"] >= 1 {
         OverlayUpdateStatus(logConclusionData, conclusionStatus)
@@ -1406,7 +1431,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
 
     if IsSet(errorMessage) { 
         if system["Environment"].Has("Time Zone") && FileExist(system["Paths"]["Run Telemetry"]) {
-            system["Logging"]["Log Engine State"] := "Failed"
+            system["Logging"]["Cycle"] := "Failed"
             LogEngine()
         }
 
@@ -1541,6 +1566,8 @@ OverlayUpdateStatus(logConclusionData, newStatus) {
 RegisterSymbol(value, type, writeToSymbolLedger := true) {
     global symbolLedger
 
+    newLine := system["Constants"]["New Line"]
+
     typeCharacter := SubStr(type, 1, 1)
     entryExists   := true
 
@@ -1562,12 +1589,70 @@ RegisterSymbol(value, type, writeToSymbolLedger := true) {
             typeCharacter . "|" . 
             symbolLedger[type][value]
 
-        AppendLineToLog(symbolLine, "Symbol Ledger")
+        if logToFile {
+            FileAppend(symbolLine . newLine, system["Paths"]["Symbol Ledger"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Symbol Ledger"].Push(symbolLine)
+        }
     }
 
     symbol := symbolLedger[type][value]
 
     return symbol
+}
+
+SetLogFilenames(utcTimestamp) {
+    global system
+
+    validation := ValidateDataUsingSpecification(utcTimestamp, "String", "ISO Date Time")
+    if validation != "" {
+        return
+    }
+
+    oldLogFilenames  := Map()
+    logSharedName    := system["Directories"]["Log"] . system["Runtime"]["Project Name"] . " - "
+    logDateAndTime   := StrReplace(utcTimestamp, ":", ".")
+    logComputerAlias := ""
+
+    if system["Paths"].Has("Execution Log") && system["Paths"].Has("Operation Log") && system["Paths"].Has("Run Telemetry") && system["Paths"].Has("Symbol Ledger") {
+        oldLogFilenames["Execution Log"] := system["Paths"]["Execution Log"]
+        oldLogFilenames["Operation Log"] := system["Paths"]["Operation Log"]
+        oldLogFilenames["Run Telemetry"] := system["Paths"]["Run Telemetry"]
+        oldLogFilenames["Symbol Ledger"] := system["Paths"]["Symbol Ledger"]
+    }
+
+    if system["Configuration"].Has("Settings") {
+        if system["Configuration"]["Settings"].Has("Computer Alias") {
+            if system["Configuration"]["Settings"]["Computer Alias"] != "" {
+                logComputerAlias := system["Configuration"]["Settings"]["Computer Alias"] . " - "
+            }
+        }
+    }
+
+    system["Paths"]["Execution Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Execution Log.csv"
+    system["Paths"]["Operation Log"] := logSharedName . logComputerAlias . logDateAndTime . " - Operation Log.csv"
+    system["Paths"]["Run Telemetry"] := logSharedName . logComputerAlias . logDateAndTime . " - Run Telemetry.csv"
+    system["Paths"]["Symbol Ledger"] := logSharedName . logComputerAlias . logDateAndTime . " - Symbol Ledger.csv"
+
+    if oldLogFilenames.Has("Execution Log") {
+        if FileExist(system["Paths"]["Execution Log"]) || FileExist(system["Paths"]["Operation Log"]) || FileExist(system["Paths"]["Run Telemetry"]) || FileExist(system["Paths"]["Symbol Ledger"]) {
+            system["Paths"]["Execution Log"] := oldLogFilenames["Execution Log"]
+            system["Paths"]["Operation Log"] := oldLogFilenames["Operation Log"]
+            system["Paths"]["Run Telemetry"] := oldLogFilenames["Run Telemetry"]
+            system["Paths"]["Symbol Ledger"] := oldLogFilenames["Symbol Ledger"]
+
+            return
+        } else {
+            try {
+                FileMove(oldLogFilenames["Execution Log"], system["Paths"]["Execution Log"])
+                FileMove(oldLogFilenames["Operation Log"], system["Paths"]["Operation Log"])
+                FileMove(oldLogFilenames["Run Telemetry"], system["Paths"]["Run Telemetry"])
+                FileMove(oldLogFilenames["Symbol Ledger"], system["Paths"]["Symbol Ledger"])
+            }
+        }
+    }
+
+    system["Runtime"]["Run Identifier"] := system["Runtime"]["Project Name"] . " - " . logComputerAlias . logDateAndTime
 }
 
 ; **************************** ;
@@ -1884,51 +1969,57 @@ DecodeBaseToSha256Hex(baseText, baseType) {
 ; Helper Methods               ;
 ; **************************** ;
 
-BatchAppendExecutionLog(executionType, array) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+BatchAppendExecutionLog(array) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static executionTypeWhitelist := Format('"{1}", "{2}"', "Application", "Beginning")
-    static methodName := RegisterMethod("executionType As String [Whitelist: " . executionTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [executionType, array])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("array as Array", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [array])
 
     newLine := system["Constants"]["New Line"]
-
-    switch executionType {
-        case "Application":
-            executionType := "A"
-        case "Beginning":
-            executionType := "B"
-    }
 
     if array.Length != 0 {
         consolidatedExecutionLog := ""
         for index, value in array {
             if array.Length != index {
-                consolidatedExecutionLog := consolidatedExecutionLog . value . "|" . executionType . newLine
+                consolidatedExecutionLog := consolidatedExecutionLog . value . newLine
             } else {
-                consolidatedExecutionLog := consolidatedExecutionLog . value . "|" . executionType
+                consolidatedExecutionLog := consolidatedExecutionLog . value
             }
         }
 
-        AppendLineToLog(consolidatedExecutionLog, "Execution Log")
+        if logToFile {
+            FileAppend(consolidatedExecutionLog . newLine, system["Paths"]["Execution Log"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Execution Log"].Push(consolidatedExecutionLog)
+        }
     }
 }
 
 BatchAppendOperationLog(array) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [array])
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("array as Array", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [array])
 
     newLine := system["Constants"]["New Line"]
 
@@ -1942,21 +2033,30 @@ BatchAppendOperationLog(array) {
             }
         }
 
-        AppendLineToLog(consolidatedOperationLog, "Operation Log")
+        if logToFile {
+            FileAppend(consolidatedOperationLog . newLine, system["Paths"]["Operation Log"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Operation Log"].Push(consolidatedOperationLog)
+        }
     }
 }
 
-BatchAppendRunTelemetry(appendType, array) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+BatchAppendRunTelemetry(appendType, array, ignoreAppendTypeOnFirstLine := false) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Beginning", "Completed", "Failed", "Intermission")
-    static methodName := RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [appendType, array])
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appendType, array])
 
     newLine := system["Constants"]["New Line"]
 
@@ -1974,6 +2074,16 @@ BatchAppendRunTelemetry(appendType, array) {
     if array.Length != 0 {
         consolidatedRunTelemetry := ""
         for index, value in array {
+            if ignoreAppendTypeOnFirstLine && index = 1 {
+                if array.Length != index {
+                    consolidatedRunTelemetry := consolidatedRunTelemetry . value . newLine
+                    continue
+                } else {
+                    consolidatedRunTelemetry := consolidatedRunTelemetry . value
+                    continue
+                }
+            }
+
             if array.Length != index {
                 consolidatedRunTelemetry := consolidatedRunTelemetry . value . "|" . appendType . newLine
             } else {
@@ -1981,21 +2091,30 @@ BatchAppendRunTelemetry(appendType, array) {
             }
         }
 
-        AppendLineToLog(consolidatedRunTelemetry, "Run Telemetry")
+        if logToFile {
+            FileAppend(consolidatedRunTelemetry . newLine, system["Paths"]["Run Telemetry"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Run Telemetry"].Push(consolidatedRunTelemetry)
+        }
     }
 }
 
 BatchAppendSymbolLedger(symbolType, array) {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Context", "Error", "Method", "Overlay", "Reference", "Whitelist")
-    static methodName := RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"), [symbolType, array])
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [symbolType, array])
 
     newLine := system["Constants"]["New Line"]
 
@@ -2038,20 +2157,29 @@ BatchAppendSymbolLedger(symbolType, array) {
             }
         }
 
-        AppendLineToLog(consolidatedSymbolLedger, "Symbol Ledger")
+        if logToFile {
+            FileAppend(consolidatedSymbolLedger . newLine, system["Paths"]["Symbol Ledger"], "UTF-8-RAW")
+        } else {
+            system["Logging"]["Symbol Ledger"].Push(consolidatedSymbolLedger)
+        }
     }
 }
 
 OverlayIsVisible() {
-    static qpcPreBuffer    := Buffer(8, 0)
-    static timestampBuffer := Buffer(8, 0)
-    static qpcPostBuffer   := Buffer(8, 0)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPreBuffer.Ptr, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampBuffer.Ptr)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostBuffer.Ptr, "Int")
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
 
-    static methodName := RegisterMethod("", A_ThisFunc, A_LineFile, A_LineNumber + 1)
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPreBuffer, 0, "Int64"), NumGet(timestampBuffer, 0, "Int64"), NumGet(qpcPostBuffer, 0, "Int64"))
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"))
 
     windowHandle  := overlay["GUI"].Hwnd
     windowVisible := unset
