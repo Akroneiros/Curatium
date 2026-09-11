@@ -633,26 +633,44 @@ RegisterApplications() {
                         }
                     }
                 case "Excel":
+                    application["Environment"] := Map(
+                        "Color Mode",           system["Environment"]["Color Mode"],
+                        "Computer Name",        system["Environment"]["Computer Name"],
+                        "Display Language",     system["Environment"]["Display Language"],
+                        "Display Resolution",   system["Environment"]["Display Resolution"],
+                        "DPI Scale",            system["Environment"]["DPI Scale"],
+                        "Excel Version",        application["Executable Version"],
+                        "Input Language",       system["Environment"]["Input Language"],
+                        "Keyboard Layout",      system["Environment"]["Keyboard Layout"],
+                        "Operating System",     system["Environment"]["Operating System"]["Full Name"],
+                        "QPC Frequency",        system["Environment"]["QPC Frequency"],
+                        "Regional Format",      system["Environment"]["Regional Format"],
+                        "Time Zone Key Name",   system["Environment"]["Time Zone"]["Key Name"],
+                        "Time Zone UTC Offset", system["Environment"]["Time Zone"]["UTC Offset"],
+                        "Username",             system["Environment"]["Username"]
+                    )
+
+                    excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
+                    excelInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Excel International"], excelInternationalFileHash)
+                    application["International Constants"] := ParseDelimitedRowsToArrayOfMaps(excelInternationalContent)
+                    application["International Constants"] := ConvertValueForKeyInArrayOfMapsToInteger("Value", application["International Constants"])
+
+                    excelDefaultCellStylesFileHash := GetFileHash(system["Paths"]["Excel Default Cell Styles"], "SHA-256")
+                    excelDefaultCellStylesContent  := ReadFileOnHashMatch(system["Paths"]["Excel Default Cell Styles"], excelDefaultCellStylesFileHash)
+                    excelDefaultCellStylesMappings := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
+                    excelDefaultCellStylesMappings := ConvertValueForKeyInArrayOfMapsToInteger("User Interface Language Code Identifier", excelDefaultCellStylesMappings)
+
                     CloseApplication("Excel")
 
                     excelApplication := StartExcel()
-                    excelWorkbook    := unset
-                    for workbook in excelApplication.Workbooks {
-                        if workbook.Name = "PERSONAL.XLSB" {
-                            continue
-                        }
-
-                        excelWorkbook := workbook
-
-                        break
-                    }
-                    excelWorksheet := excelWorkbook.ActiveSheet
+                    excelWorkbook    := excelApplication.ActiveWorkbook
+                    excelWorksheet   := excelWorkbook.ActiveSheet
 
                     excelMainWindowSearchResults := SearchForWindow("ahk_exe " . application["Executable Filename"] . " ahk_class XLMAIN", 60)
                     ActivateWindow(excelMainWindowSearchResults, true)
 
-                    personalMacroWorkbookPath := excelApplication.StartupPath . "\PERSONAL.XLSB"
-                    if !FileExist(personalMacroWorkbookPath) {
+                    application["Personal Macro Workbook"] := excelApplication.StartupPath . "\PERSONAL.XLSB"
+                    if !FileExist(application["Personal Macro Workbook"]) {
                         KeyboardShortcut("ALT", "Q") ; Microsoft Search
                         Sleep(excelMediumDelay)
                         PasteText("Record Macro")
@@ -715,7 +733,7 @@ RegisterApplications() {
 
                         Loop excelApplication.Workbooks.Count {
                             currentWorkbook := excelApplication.Workbooks.Item(A_Index)
-                            if personalMacroWorkbookPath = currentWorkbook.FullName {
+                            if application["Personal Macro Workbook"] = currentWorkbook.FullName {
                                 currentWorkbook.Save()
                                 break
                             }
@@ -726,8 +744,6 @@ RegisterApplications() {
                         Sleep(excelShortDelay)
                     }
 
-                    application["Personal Macro Workbook"] := personalMacroWorkbookPath
-
                     excelMacroCode := "Sub Run()" . newLine . '    Range("A1").Value = "Cell"' . newLine . "End Sub"
                     OpenVisualBasicEditorAndRunCode(excelApplication, excelMacroCode)
                     Sleep(excelTinyDelay + excelTinyDelay)
@@ -736,62 +752,70 @@ RegisterApplications() {
                         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute Excel Macro Code.")
                     }
 
-                    userInterfaceLCID := "User Interface Language Code Identifier"
-                    application["Environment"] := Map(
-                        "Color Mode",           system["Environment"]["Color Mode"],
-                        "Computer Name",        system["Environment"]["Computer Name"],
-                        "Display Language",     system["Environment"]["Display Language"],
-                        "Display Resolution",   system["Environment"]["Display Resolution"],
-                        "DPI Scale",            system["Environment"]["DPI Scale"],
-                        "Excel Version",        application["Executable Version"],
-                        "Input Language",       system["Environment"]["Input Language"],
-                        "Keyboard Layout",      system["Environment"]["Keyboard Layout"],
-                        "Operating System",     system["Environment"]["Operating System"]["Full Name"],
-                        "QPC Frequency",        system["Environment"]["QPC Frequency"],
-                        "Regional Format",      system["Environment"]["Regional Format"],
-                        "Run Identifier",       system["Runtime"]["Run Identifier"],
-                        "Time Zone Key Name",   system["Environment"]["Time Zone"]["Key Name"],
-                        "Time Zone UTC Offset", system["Environment"]["Time Zone"]["UTC Offset"],
-                        userInterfaceLCID,      excelApplication.LanguageSettings.LanguageID(2),
-                        "Username",             system["Environment"]["Username"]
-                    )
+                    application["Cell Styles VBA"]   := ""
+                    application["Constants VBA"]     := ""
+                    application["Environment VBA"]   := ""
+                    application["International VBA"] := ""
+                    application["Mappings VBA"]      := ""
 
-                    excelInternationalFileHash := "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0"
-                    excelInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Excel International"], excelInternationalFileHash)
-                    excelInternationalConstant := ParseDelimitedRowsToArrayOfMaps(excelInternationalContent)
-
-                    for rowMap in excelInternationalConstant {
-                        rowMap["Value"] := rowMap["Value"] + 0
-                    }
-
-                    application["International Constant"] := excelInternationalConstant
+                    application["Environment"]["User Interface Language Code Identifier"] := excelApplication.LanguageSettings.LanguageID(2)
+                    application["Default Cell Styles"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(excelDefaultCellStylesMappings, "User Interface Language Code Identifier", application["Environment"]["User Interface Language Code Identifier"])
+                    application["Default Cell Styles"].Delete("User Interface Language Code Identifier")
 
                     application["International"] := Map()
-                    for international in application["International Constant"] {
+                    for international in application["International Constants"] {
                         application["International"][international["Label"]] := excelApplication.International[international["Value"]]
                     }
 
-                    for international, value in application["International"] {
+                    for settingName, value in application["International"] {
                         if Type(value) = "Float" {
-                            application["International"][international] := Round(value)
+                            application["International"][settingName] := Round(value)
+                        }
+                    }
+   
+                    for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
+                        application["Cell Styles VBA"] := application["Cell Styles VBA"] . '    cellStyles("' . cellStyle . '") = ' . ConvertStringToVbaStringExpression(value) . newLine
+                    }
+
+                    for name, filePath in system["Paths"] {
+                        if InStr(filePath, system["Directories"]["Constants"]) {
+                            application["Constants VBA"] := application["Constants VBA"] . '    constants("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
                         }
                     }
 
-                    excelDefaultCellStylesFileHash := GetFileHash(system["Paths"]["Excel Default Cell Styles"], "SHA-256")
-                    excelDefaultCellStylesContent  := ReadFileOnHashMatch(system["Paths"]["Excel Default Cell Styles"], excelDefaultCellStylesFileHash)
-                    excelDefaultCellStylesMapping  := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
+                    for environment, value in application["Environment"] {
+                        if Type(value) = "Integer" {
+                            application["Environment VBA"] := application["Environment VBA"] . '    environment("' . environment . '") = ' . value . "#"
+                        } else {
+                            application["Environment VBA"] := application["Environment VBA"] . '    environment("' . environment . '") = ' . ConvertStringToVbaStringExpression(value)
+                        }
 
-                    for excelDefaultCellStyle in excelDefaultCellStylesMapping {
-                        excelDefaultCellStyle[userInterfaceLCID] := excelDefaultCellStyle[userInterfaceLCID] + 0
+                        application["Environment VBA"] := application["Environment VBA"] . newLine
                     }
 
-                    application["Default Cell Styles Mapping"] := excelDefaultCellStylesMapping
+                    for settingName, value in applicationRegistry["Excel"]["International"] {
+                        if Type(value) = "Integer" {
+                            switch settingName {
+                                case "Country Code", "Country Setting", "Currency Digits", "Currency Negative", "Noncurrency Digits", "Date Order", "Month Name Chars", "Weekday Name Chars":
+                                    application["International VBA"] := application["International VBA"] . '    international("' . settingName . '") = ' . value
+                                default:
+                                    application["International VBA"] := application["International VBA"] . '    international("' . settingName . '") = ' . "CBool(" . value . ")"
+                            }
+                        } else {                            
+                            application["International VBA"] := application["International VBA"] . '    international("' . settingName . '") = ' . ConvertStringToVbaStringExpression(value)
+                        }
 
-                    application["Default Cell Styles"] := ExtractRowFromArrayOfMapsOnHeaderCondition(excelDefaultCellStylesMapping, userInterfaceLCID, application["Environment"][userInterfaceLCID])
-                    application["Default Cell Styles"].Delete(userInterfaceLCID)
+                        application["International VBA"] := application["International VBA"] . newLine
+                    }
 
-                    excelWorkbook.Close(false)
+                    for name, filePath in system["Paths"] {
+                        if InStr(filePath, system["Directories"]["Mappings"]) {
+                            application["Mappings VBA"] := application["Mappings VBA"] . '    mappings("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
+                        }
+                    }
+
                     excelApplication.DisplayAlerts := false
+                    excelWorkbook.Close(false)
                     excelApplication.Quit()
 
                     excelWorksheet   := 0
@@ -805,9 +829,6 @@ RegisterApplications() {
                         }
                     }
                 case "Word":
-                    wordApplication := ComObject("Word.Application")
-
-                    userInterfaceLCID := "User Interface Language Code Identifier"
                     application["Environment"] := Map(
                         "Color Mode",           system["Environment"]["Color Mode"],
                         "Computer Name",        system["Environment"]["Computer Name"],
@@ -819,24 +840,40 @@ RegisterApplications() {
                         "Operating System",     system["Environment"]["Operating System"]["Full Name"],
                         "QPC Frequency",        system["Environment"]["QPC Frequency"],
                         "Regional Format",      system["Environment"]["Regional Format"],
-                        "Run Identifier",       system["Runtime"]["Run Identifier"],
                         "Time Zone Key Name",   system["Environment"]["Time Zone"]["Key Name"],
                         "Time Zone UTC Offset", system["Environment"]["Time Zone"]["UTC Offset"],
-                        userInterfaceLCID,      wordApplication.LanguageSettings.LanguageID(2),
                         "Username",             system["Environment"]["Username"],
                         "Word Version",         application["Executable Version"]
                     )
 
                     wordInternationalFileHash := "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755"
                     wordInternationalContent  := ReadFileOnHashMatch(system["Paths"]["Word International"], wordInternationalFileHash)
-                    wordInternationalConstant := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
+                    application["International Constants"] := ParseDelimitedRowsToArrayOfMaps(wordInternationalContent)
+                    application["International Constants"] := ConvertValueForKeyInArrayOfMapsToInteger("Value", application["International Constants"])
 
-                    for rowMap in wordInternationalConstant {
-                        rowMap["Value"] := rowMap["Value"] + 0
+                    wordBuiltInStyleEnumerationsFileHash  := "4ac373c7f0bc8cf725e55453e0c20ccea9076d1fc9321e9841243bac06e6a1e3"
+                    wordBuiltInStyleEnumerationsContent   := ReadFileOnHashMatch(system["Paths"]["Word Built-In Style Enumerations"], wordBuiltInStyleEnumerationsFileHash)
+                    wordBuiltInStyleEnumerationsConstants := ParseDelimitedRowsToArrayOfMaps(wordBuiltInStyleEnumerationsContent)
+                    wordBuiltInStyleEnumerationsConstants := ConvertValueForKeyInArrayOfMapsToInteger("Value", wordBuiltInStyleEnumerationsConstants)
+
+                    wordApplication := ComObject("Word.Application")
+                    wordDocument := wordApplication.Documents.Add()
+
+                    application["Environment"]["User Interface Language Code Identifier"] := wordApplication.LanguageSettings.LanguageID(2)
+
+                    application["Environment VBA"] := ""
+                    for environment, value in application["Environment"] {
+                        if Type(value) = "Integer" {
+                            application["Environment VBA"] := application["Environment VBA"] . '    environment("' . environment . '") = ' . value . "#"
+                        } else {
+                            application["Environment VBA"] := application["Environment VBA"] . '    environment("' . environment . '") = ' . ConvertStringToVbaStringExpression(value)
+                        }
+
+                        application["Environment VBA"] := application["Environment VBA"] . newLine
                     }
 
                     application["International"] := Map()
-                    for international in wordInternationalConstant {
+                    for international in application["International Constants"] {
                         application["International"][international["Label"]] := wordApplication.International[international["Value"]]
                     }
 
@@ -846,7 +883,16 @@ RegisterApplications() {
                         }
                     }
 
-                    wordApplication.Quit()
+                    application["Styles VBA"] := ""
+                    for wordBuiltInStyleEnumeration in wordBuiltInStyleEnumerationsConstants {
+                        styleName := wordDocument.Styles.Item(wordBuiltInStyleEnumeration["Value"]).NameLocal
+
+                        application["Styles VBA"] := application["Styles VBA"] . '    styles("' . wordBuiltInStyleEnumeration["Name"] . '") = ' . ConvertStringToVbaStringExpression(styleName) . newLine
+                    }
+
+                    wordApplication.DisplayAlerts := false
+                    wordApplication.Quit(false)
+                    wordDocument    := 0
                     wordApplication := 0
             }
 
@@ -864,7 +910,7 @@ RegisterApplications() {
                     resolutionMethodInitialism := "UIL"
             }
 
-            configuration := application["Counter"] . "|" . application["Executable Path"] . "|" . EncodeSha256HexToBase(application["Executable Hash"], 86) . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
+            configuration := applicationName . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
             configuration := configuration . "|" . resolutionMethodInitialism
             installedApplications.Push(configuration)
         }
@@ -942,35 +988,6 @@ SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
     applicationRegistry[applicationName][propertyName] := propertyValue
 }
 
-ValidateApplicationInstalled(applicationName) {
-    static timingBuffer     := Buffer(24, 0)
-    static qpcPrePointer    := timingBuffer.Ptr
-    static timestampPointer := timingBuffer.Ptr + 8
-    static qpcPostPointer   := timingBuffer.Ptr + 16
-
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-
-    static methodName := A_ThisFunc
-    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("applicationName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
-    }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName])
-
-    if !applicationRegistry.Has(applicationName) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application doesn't exist: " . applicationName)
-    }
-
-    if !applicationRegistry[applicationName]["Installed"] {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Application not installed: " . applicationName)
-    }
-
-    applicationIsInstalled := true
-
-    return applicationIsInstalled
-}
-
 ; **************************** ;
 ; Excel                        ;
 ; **************************** ;
@@ -992,7 +1009,10 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName], overlayValue)
 
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+    applicationName := "Excel"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     excelFilePath    := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
     sentinelFilePath := SearchForUniqueFileInDirectory(documentName . " (Sentinel)", saveDirectory, "txt")
@@ -1071,7 +1091,10 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"),
         [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName, foundationCheckpointsCondition, augmentationCheckpointsCondition], overlayValue)
 
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+    applicationName := "Excel"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1230,7 +1253,10 @@ OpenVisualBasicEditorAndRunCode(excelApplication, code) {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelApplication, code], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+    applicationName := "Excel"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1356,7 +1382,10 @@ StartExcel(excelFilePath := "") {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelFilePath])
 
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+    applicationName := "Excel"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1405,7 +1434,10 @@ WaitForExcelToClose() {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
 
-    static excelIsInstalled := ValidateApplicationInstalled("Excel")
+    applicationName := "Excel"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1461,7 +1493,10 @@ StartSqlServerManagementStudioAndConnect() {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Start SQL Server Management Studio and Connect")
 
-    static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
+    applicationName := "SQL Server Management Studio"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
     sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], 60, "Connect to Server Window not found.")
@@ -1500,7 +1535,10 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
-    static sqlServerManagementStudioIsInstalled := ValidateApplicationInstalled("SQL Server Management Studio")
+    applicationName := "SQL Server Management Studio"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
 
@@ -1651,7 +1689,10 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 
-    static toadForOracleIsInstalled := ValidateApplicationInstalled("Toad for Oracle")
+    applicationName := "Toad for Oracle"
+    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+    }
 
     settings := methodRegistry[methodName]["Settings"]
     
@@ -1661,7 +1702,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     longDelay    := settings["Long Delay"]["Value"]
     massiveDelay := settings["Massive Delay"]["Value"]
 
-    static toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
+    toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
     if !ProcessExist(toadForOracleExecutableFilename) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Toad for Oracle process is not running.")

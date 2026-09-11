@@ -109,8 +109,6 @@ LogEngine(runtimeOverride := Map()) {
         directories["Mappings"]  := directories["Shared"] . "Mappings\"
         directories["Spreadsheet Operations Template"] := directories["Shared"] . "Spreadsheet Operations Template\"
 
-        uefi := "Unified Extensible Firmware Interface "
-
         for baseCharacterSet in [
             94, 92, 86, 66, 62, 52
         ] {
@@ -119,9 +117,9 @@ LogEngine(runtimeOverride := Map()) {
 
         SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
 
-        logging["Execution Log"].Push("Log|Value")
+        logging["Execution Log"].Push("Label|Value")
         logging["Operation Log"].Push("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value")
-        logging["Run Telemetry"].Push("Log|Value|Type")
+        logging["Run Telemetry"].Push("Label|Value")
         logging["Symbol Ledger"].Push("Reference|Type|Symbol")
 
         for context in [
@@ -144,17 +142,17 @@ LogEngine(runtimeOverride := Map()) {
             RegisterSymbol(overlayValue, "Overlay")
         }
 
-        for reference in [
+        for argument in [
             "", "|",
             "<Constraint: Base64>",
             "<Data Type: Array>", "<Data Type: Map>", "<Data Type: Object>"
         ] {
-            RegisterSymbol(reference, "Reference")
+            RegisterSymbol(argument, "Argument")
         }
 
         for whitelist in [
             "",
-            "Context", "Error", "Method", "Overlay", "Reference", "Whitelist",
+            "Argument", "Context", "Error", "Method", "Overlay", "Whitelist",
             "Beginning", "Completed", "Failed", "Intermission",
             "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS",
             "Day-Month-Year", "Month-Day-Year", "Year-Month-Day",
@@ -177,26 +175,6 @@ LogEngine(runtimeOverride := Map()) {
         paths["File Library"]        := directories["Libraries"] . "File Library.ahk"
         paths["Image Library"]       := directories["Libraries"] . "Image Library.ahk"
         paths["Logging Library"]     := directories["Libraries"] . "Logging Library.ahk"
-        paths["BIP-39"]                         := directories["Constants"] . "BIP-39 (2025-09-20).csv"
-        paths["EFF Dice-Generated Passphrases"] := directories["Constants"] . "EFF Dice-Generated Passphrases (2026-06-02).csv"
-        paths["Excel International"]            := directories["Constants"] . "Excel International (2025-09-26).csv"
-        paths["Heroes"]                         := directories["Constants"] . "Heroes (2025-09-20).csv"
-        paths["Middle-earth"]                   := directories["Constants"] . "Middle-earth (2025-12-20).csv"
-        paths["NATO Phonetic Alphabet"]         := directories["Constants"] . "NATO Phonetic Alphabet (2026-06-02).csv"
-        paths["Resolutions"]                    := directories["Constants"] . "Resolutions (2025-09-20).csv"
-        paths["Scales"]                         := directories["Constants"] . "Scales (2025-09-20).csv"
-        paths["Word International"]             := directories["Constants"] . "Word International (2025-09-26).csv"
-        paths["XKCD Color Survey"]              := directories["Constants"] . "XKCD Color Survey (2026-06-02).csv"
-        paths["Application Executable Directory Candidates"]                            := directories["Mappings"] . "Application Executable Directory Candidates.csv"
-        paths["Application Executable Versions"]                                        := directories["Mappings"] . "Application Executable Versions.csv"
-        paths["Applications"]                                                           := directories["Mappings"] . "Applications.csv"
-        paths["Command Line Executables"]                                               := directories["Mappings"] . "Command Line Executables.csv"
-        paths["Excel Default Cell Styles"]                                              := directories["Mappings"] . "Excel Default Cell Styles.csv"
-        paths["File Signatures"]                                                        := directories["Mappings"] . "File Signatures.csv"
-        paths["System Management BIOS Type 17 Memory Device - Type"]                    := directories["Mappings"] . "System Management BIOS Type 17 Memory Device - Type.csv"
-        paths[uefi . "Advanced Configuration and Power Interface ID Official Registry"] := directories["Mappings"] . uefi . "Advanced Configuration and Power Interface ID Official Registry.csv"
-        paths[uefi . "Plug and Play ID Official Registry"]                              := directories["Mappings"] . uefi . "Plug and Play ID Official Registry.csv"
-        paths[uefi . "Plug and Play ID Unofficial Registry"]                            := directories["Mappings"] . uefi . "Plug and Play ID Unofficial Registry.csv"
 
         projectSymbolLedgerContent := unset
         if FileExist(paths["Project Symbol Ledger"]) {
@@ -221,11 +199,11 @@ LogEngine(runtimeOverride := Map()) {
                     typeSection                := SubStr(line, positionOfReferenceDivider + 1, positionOfTypeDivider - positionOfReferenceDivider - 1)
 
                     switch typeSection {
+                        case "A": typeSection := "Argument"
                         case "C": typeSection := "Context"
                         case "E": typeSection := "Error"
                         case "M": typeSection := "Method"
                         case "O": typeSection := "Overlay"
-                        case "R": typeSection := "Reference"
                         case "W": typeSection := "Whitelist"
                     }
 
@@ -284,7 +262,7 @@ LogEngine(runtimeOverride := Map()) {
         BatchAppendExecutionLog([])
         BatchAppendOperationLog([])
         BatchAppendSymbolLedger("", [])
-        BatchAppendRunTelemetry("Beginning", [])
+        BatchAppendRunTelemetry([])
 
         if runtimeOverride.Count != 0 {
             if runtimeOverride.Has("Disable File Logging") && runtimeOverride["Disable File Logging"] = true {
@@ -299,27 +277,6 @@ LogEngine(runtimeOverride := Map()) {
             }
         }
 
-        if fileLoggingEnabled && logToFile {
-            BatchAppendExecutionLog(logging["Execution Log"])
-            BatchAppendOperationLog(logging["Operation Log"])
-            BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"], true)
-            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
-
-            logging["Execution Log"] := []
-            logging["Operation Log"] := []
-            logging["Run Telemetry"] := []
-            logging["Symbol Ledger"] := []
-        }
-
-        environment["Computer Name"]      := A_ComputerName
-        environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
-        environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
-        environment["Username"]           := A_UserName
-
-        environment["Time Zone"]            := GetTimeZone()
-        environment["Session Startup Time"] := GetSessionStartupTime()
-        environment["Operating System"]     := GetOperatingSystem()
-
         for directory in [
             directories["Log"],
             directories["Project"]
@@ -332,6 +289,41 @@ LogEngine(runtimeOverride := Map()) {
                 }
             }
         }
+
+        if fileLoggingEnabled && logToFile {
+            BatchAppendExecutionLog(logging["Execution Log"])
+            BatchAppendOperationLog(logging["Operation Log"])
+            BatchAppendRunTelemetry(logging["Run Telemetry"])
+            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
+
+            logging["Execution Log"] := []
+            logging["Operation Log"] := []
+            logging["Run Telemetry"] := []
+            logging["Symbol Ledger"] := []
+        }
+
+        Loop Files, RTrim(directories["Constants"], "\/") . "\*", "F" {
+            SplitPath(A_LoopFileFullPath, , , , &filenameNoExtension)
+
+            positionOfSuffixStart := InStr(filenameNoExtension, " (", false, -1)
+            filenameBeforeRightmostParentheticalSuffix := SubStr(filenameNoExtension, 1, positionOfSuffixStart - 1)
+            paths[filenameBeforeRightmostParentheticalSuffix] := A_LoopFileFullPath
+        }
+
+        Loop Files, RTrim(directories["Mappings"], "\/") . "\*", "F" {
+            SplitPath(A_LoopFileFullPath, , , , &filenameNoExtension)
+
+            paths[filenameNoExtension] := A_LoopFileFullPath
+        }
+
+        environment["Computer Name"]      := A_ComputerName
+        environment["Display Resolution"] := A_ScreenWidth . "x" . A_ScreenHeight
+        environment["DPI Scale"]          := Round(A_ScreenDPI / 96 * 100) . "%"
+        environment["Username"]           := A_UserName
+
+        environment["Time Zone"]            := GetTimeZone()
+        environment["Session Startup Time"] := GetSessionStartupTime()
+        environment["Operating System"]     := GetOperatingSystem()
     }
 
     telemetry["System Disk Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
@@ -353,7 +345,7 @@ LogEngine(runtimeOverride := Map()) {
         "Computer Uptime in Seconds|" .    telemetry["Computer Uptime in Seconds"],
         "Session Uptime in Seconds|" .     telemetry["Session Uptime in Seconds"],
         "Commit Total Bytes|" .            telemetry["System Resource Snapshot"]["Commit Total Bytes"],
-        "Commit Limit Bytes" .             telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
+        "Commit Limit Bytes|" .             telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
         "Commit Peak Bytes|" .             telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
         "Commit Used Percent|" .           telemetry["System Resource Snapshot"]["Commit Used Percent"],
         "Kernel Total Bytes|" .            telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
@@ -377,6 +369,7 @@ LogEngine(runtimeOverride := Map()) {
         ComputeMouseMoveSpeed("0x0", "2x2")
         ConvertArrayToLineSeparatedString(["1st Line", "2nd Line"])
         ConvertHexStringToBase64("48656c6c6f20576f726c6421")
+        ConvertStringToVbaStringExpression("Text")
         GetBase64FromFile(paths["Scales"])
         KeyboardShortcut("CTRL", "F16")
         ModifyScreenCoordinates(2, 2, "0x0")
@@ -401,24 +394,25 @@ LogEngine(runtimeOverride := Map()) {
         ValidateDataUsingSpecification("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
 
         constantValues := Map(
-            "BIP-39",                         "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
-            "EFF Dice-Generated Passphrases", "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
-            "Excel International",            "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0",
-            "Heroes",                         "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
-            "Middle-earth",                   "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
-            "NATO Phonetic Alphabet",         "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
-            "Resolutions",                    "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
-            "Scales",                         "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
-            "Word International",             "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755",
-            "XKCD Color Survey",              "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
+            "BIP-39",                           "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
+            "EFF Dice-Generated Passphrases",   "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
+            "Excel International",              "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0",
+            "Heroes",                           "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
+            "Middle-earth",                     "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
+            "NATO Phonetic Alphabet",           "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
+            "Resolutions",                      "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
+            "Scales",                           "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
+            "Word Built-In Style Enumerations", "4ac373c7f0bc8cf725e55453e0c20ccea9076d1fc9321e9841243bac06e6a1e3",
+            "Word International",               "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755",
+            "XKCD Color Survey",                "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
         )
 
         for constant in constantValues {
-            RegisterSymbol(paths[constant], "Reference")
+            RegisterSymbol(paths[constant], "Argument")
         }
 
         for constant, hashValue in constantValues {
-            RegisterSymbol(hashValue, "Reference")
+            RegisterSymbol(hashValue, "Argument")
         }
 
         for constant, hashValue in constantValues {
@@ -434,9 +428,7 @@ LogEngine(runtimeOverride := Map()) {
             rowMap["Counter"] := index
         }
 
-        for rowMap in system["Constants"]["EFF Dice-Generated Passphrases"] {
-            rowMap["Dice Sequence"] := rowMap["Dice Sequence"] + 0
-        }
+        system["Constants"]["EFF Dice-Generated Passphrases"] := ConvertValueForKeyInArrayOfMapsToInteger("Dice Sequence", system["Constants"]["EFF Dice-Generated Passphrases"])
 
         for index, rowMap in system["Constants"]["Resolutions"] {
             rowMap["Counter"] := index
@@ -521,7 +513,7 @@ LogEngine(runtimeOverride := Map()) {
         ]
 
         for mapping in mappingValues {
-            RegisterSymbol(paths[mapping], "Reference")
+            RegisterSymbol(paths[mapping], "Argument")
         }
 
         for mapping in mappingValues {
@@ -544,9 +536,7 @@ LogEngine(runtimeOverride := Map()) {
             }
         }
 
-        for application in mappings["Applications"] {
-            application["Counter"] := application["Counter"] + 0
-        }
+        mappings["Applications"] := ConvertValueForKeyInArrayOfMapsToInteger("Counter", mappings["Applications"])
 
         ValidateDataUsingSpecification("Excel", "String", "Application Name")
 
@@ -682,7 +672,7 @@ LogEngine(runtimeOverride := Map()) {
             ]
 
             for advancedMapping in advancedMappingValues {
-                RegisterSymbol(paths[advancedMapping], "Reference")
+                RegisterSymbol(paths[advancedMapping], "Argument")
             }
 
             for advancedMapping in advancedMappingValues {
@@ -691,9 +681,7 @@ LogEngine(runtimeOverride := Map()) {
                 mappings[advancedMapping] := ParseDelimitedRowsToArrayOfMaps(content)
             }
 
-            for type17MemoryDeviceType in mappings["System Management BIOS Type 17 Memory Device - Type"] {
-                type17MemoryDeviceType["Value"] := type17MemoryDeviceType["Value"] + 0
-            }
+            mappings["System Management BIOS Type 17 Memory Device - Type"] := ConvertValueForKeyInArrayOfMapsToInteger("Value", mappings["System Management BIOS Type 17 Memory Device - Type"])
 
             mappings["Unified Extensible Firmware Interface Plug and Play ID Curated Registry"] := Map()
             for manufacturer in mappings["Unified Extensible Firmware Interface Plug and Play ID Official Registry"] {
@@ -801,12 +789,14 @@ LogEngine(runtimeOverride := Map()) {
 
         if fileLoggingEnabled && logToFile {
             BatchAppendExecutionLog(logging["Execution Log"])
+            BatchAppendRunTelemetry(logging["Run Telemetry"])
 
             logging["Execution Log"] := []
+            logging["Run Telemetry"] := []
         }
     } else {
         if fileLoggingEnabled && logToFile {
-            BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"])
+            BatchAppendRunTelemetry(logging["Run Telemetry"])
 
             logging["Run Telemetry"] := []
         }
@@ -832,7 +822,7 @@ LogEngine(runtimeOverride := Map()) {
 
                 BatchAppendExecutionLog(logging["Execution Log"])
                 BatchAppendOperationLog(logging["Operation Log"])
-                BatchAppendRunTelemetry(logging["Cycle"], logging["Run Telemetry"], true)
+                BatchAppendRunTelemetry(logging["Run Telemetry"])
                 BatchAppendSymbolLedger("", logging["Symbol Ledger"])
 
                 logging["Execution Log"] := []
@@ -1465,21 +1455,21 @@ LogProcessArguments(logConclusionData, arguments) {
         switch argumentsFormatted["Data Type"] {
             case "Array", "Map":
                 argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
                 argumentValueLog  := Format('"{1}"', argumentValueLog)
             case "Integer":
                 if Type(argument) != argumentsFormatted["Data Type"] {
                     argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
 
                     argumentValueFull := Format('"{1}"', argumentValueFull)
                     argumentValueLog  := Format('"{1}"', argumentValueLog)
                 }
             case "Object":
                 argumentValueFull := "<Data Type: Object>"
-                argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
                 argumentValueLog  := Format('"{1}"', argumentValueLog)
@@ -1500,14 +1490,14 @@ LogProcessArguments(logConclusionData, arguments) {
                     argumentValueLog  := symbolLedger["Whitelist"][argumentValueLog]
                     argumentValueLog  := Format('\{1}\', argumentValueLog)
                 } else {
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
                     argumentValueLog  := Format('"{1}"', argumentValueLog)
                 }
 
                 argumentValueFull := Format('"{1}"', argumentValueFull)
             case "Variant":
                 if Type(argument) = "String" {
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Reference")
+                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
 
                     argumentValueFull := Format('"{1}"', argumentValueFull)
                     argumentValueLog  := Format('"{1}"', argumentValueLog)
@@ -1576,7 +1566,7 @@ RegisterSymbol(value, type, writeToSymbolLedger := true) {
         entryExists := false
         counter     := IncrementCounter(type)
 
-        if type = "Reference" || type = "Whitelist" {
+        if type = "Argument" || type = "Whitelist" {
             symbolLedger[type][value] := EncodeIntegerToBase(counter, 92)
         } else {
             symbolLedger[type][value] := EncodeIntegerToBase(counter, 94)
@@ -2041,7 +2031,7 @@ BatchAppendOperationLog(array) {
     }
 }
 
-BatchAppendRunTelemetry(appendType, array, ignoreAppendTypeOnFirstLine := false) {
+BatchAppendRunTelemetry(array) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -2051,43 +2041,21 @@ BatchAppendRunTelemetry(appendType, array, ignoreAppendTypeOnFirstLine := false)
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    static appendTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Beginning", "Completed", "Failed", "Intermission")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("appendType As String [Whitelist: " . appendTypeWhitelist . "], array as Array", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("array as Array", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appendType, array])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [array])
 
     newLine := system["Constants"]["New Line"]
-
-    switch appendType {
-        case "Beginning":
-            appendType := "B"
-        case "Completed":
-            appendType := "C"
-        case "Failed":
-            appendType := "F"
-        case "Intermission":
-            appendType := "I"
-    }
 
     if array.Length != 0 {
         consolidatedRunTelemetry := ""
         for index, value in array {
-            if ignoreAppendTypeOnFirstLine && index = 1 {
-                if array.Length != index {
-                    consolidatedRunTelemetry := consolidatedRunTelemetry . value . newLine
-                    continue
-                } else {
-                    consolidatedRunTelemetry := consolidatedRunTelemetry . value
-                    continue
-                }
-            }
-
             if array.Length != index {
-                consolidatedRunTelemetry := consolidatedRunTelemetry . value . "|" . appendType . newLine
+                consolidatedRunTelemetry := consolidatedRunTelemetry . value . newLine
             } else {
-                consolidatedRunTelemetry := consolidatedRunTelemetry . value . "|" . appendType
+                consolidatedRunTelemetry := consolidatedRunTelemetry . value
             }
         }
 
@@ -2109,7 +2077,7 @@ BatchAppendSymbolLedger(symbolType, array) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Context", "Error", "Method", "Overlay", "Reference", "Whitelist")
+    static symbolTypeWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Argument", "Context", "Error", "Label", "Method", "Overlay", "Value", "Whitelist")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("symbolType As String [Optional] [Whitelist: " . symbolTypeWhitelist . "], array As Array", methodName, A_LineFile, A_LineNumber + 2, Map())
@@ -2130,7 +2098,6 @@ BatchAppendSymbolLedger(symbolType, array) {
             }
         }
     }
-
   
     if symbolLedgerArray.Length != 0 {
         symbolLedgerArray := RemoveDuplicatesFromArray(symbolLedgerArray)
