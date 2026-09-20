@@ -21,11 +21,12 @@ RegisterApplications() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 7, Map(
             "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
             "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
-            "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)))
+            "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Register Applications")
 
@@ -426,19 +427,19 @@ RegisterApplications() {
                             highestVersionExecutablePath := ""
                             
                             Loop Files, parentDirectory . "*", "D" {
-                                folderName := A_LoopFileName
+                                directoryName := A_LoopFileName
                                 
-                                StrReplace(folderName, ".", "", , &dotOccurrencesInFolderName)
-                                if dotOccurrencesInFolderName < 2 {
+                                StrReplace(directoryName, ".", "", , &dotOccurrencesInDirectoryName)
+                                if dotOccurrencesInDirectoryName < 2 {
                                     continue
                                 }
                                 
-                                firstDigitPositionInFolderName := RegExMatch(folderName, "\d")
-                                if firstDigitPositionInFolderName = 0 {
+                                firstDigitPositionInDirectoryName := RegExMatch(directoryName, "\d")
+                                if firstDigitPositionInDirectoryName = 0 {
                                     continue
                                 }
                                 
-                                versionText := SubStr(folderName, firstDigitPositionInFolderName)
+                                versionText := SubStr(directoryName, firstDigitPositionInDirectoryName)
                                 if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
                                     continue
                                 }
@@ -448,7 +449,7 @@ RegisterApplications() {
                                     versionKey .= Format("{:06}", Number(versionPart))
                                 }
                                 
-                                executablePath := parentDirectory . folderName
+                                executablePath := parentDirectory . directoryName
                                 if relativePathAfterVersionSegment != "" {
                                     executablePath .= "\" . relativePathAfterVersionSegment
                                 }
@@ -493,7 +494,7 @@ RegisterApplications() {
                 executableVersion := FileGetVersion(application["Executable Path"])
             }
 
-            application["Executable Binary Type"] := DetermineWindowsBinaryType(application["Executable Path"])
+            application["Executable Binary Type"] := GetWindowsBinaryType(application["Executable Path"])
             application["Executable Filename"]    := executableFilename
             application["Executable Hash"]        := GetFileHash(application["Executable Path"], "SHA-256")
             application["Executable Version"]     := executableVersion
@@ -557,16 +558,16 @@ RegisterApplications() {
     }
 
     if system["Directories"].Has("Application Image Override Directory") {
-        applicationFolders := GetFoldersFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
-        for applicationFolder in applicationFolders {
-            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
+        applicationDirectories := GetDirectoriesFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
+        for applicationDirectory in applicationDirectories {
+            SplitPath(RTrim(applicationDirectory, "\"), &applicationName)
 
-            actionImageDirectories := GetFoldersFromDirectory(applicationFolder)
-            for actionFolderPath in actionImageDirectories {
-                SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
+            actionImageDirectories := GetDirectoriesFromDirectory(applicationDirectory)
+            for actionDirectoryPath in actionImageDirectories {
+                SplitPath(RTrim(actionDirectoryPath, "\/"), &actionDirectoryName)
 
                 if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory does not match format of Action Name (a...p): " . actionDirectoryName)
                 }
 
                 if !imageRegistry[applicationName].Has(matchResults[1]) {
@@ -574,7 +575,7 @@ RegisterApplications() {
                 }
 
                 variantFound := false
-                overridePath := actionFolderPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
+                overridePath := actionDirectoryPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
                 for variant in imageRegistry[applicationName][matchResults[1]] {
                     if variant["Variant"] = matchResults[2] {
                         overridePath := overridePath . variant["Extension"]
@@ -660,9 +661,7 @@ RegisterApplications() {
                     excelDefaultCellStylesMappings := ParseDelimitedRowsToArrayOfMaps(excelDefaultCellStylesContent)
                     excelDefaultCellStylesMappings := ConvertValueForKeyInArrayOfMapsToInteger("User Interface Language Code Identifier", excelDefaultCellStylesMappings)
 
-                    CloseApplication("Excel")
-
-                    excelApplication := StartExcel()
+                    excelApplication := StartOfficeApplication("Excel")
                     excelWorkbook    := excelApplication.ActiveWorkbook
                     excelWorksheet   := excelWorkbook.ActiveSheet
 
@@ -856,8 +855,8 @@ RegisterApplications() {
                     wordBuiltInStyleEnumerationsConstants := ParseDelimitedRowsToArrayOfMaps(wordBuiltInStyleEnumerationsContent)
                     wordBuiltInStyleEnumerationsConstants := ConvertValueForKeyInArrayOfMapsToInteger("Value", wordBuiltInStyleEnumerationsConstants)
 
-                    wordApplication := ComObject("Word.Application")
-                    wordDocument := wordApplication.Documents.Add()
+                    wordApplication := StartOfficeApplication("Word")
+                    wordDocument    := wordApplication.ActiveDocument
 
                     application["Environment"]["User Interface Language Code Identifier"] := wordApplication.LanguageSettings.LanguageID(2)
 
@@ -939,8 +938,9 @@ CloseApplication(applicationName) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registration")) {
-        RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 3, Map(
-            "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)))
+        RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
 
@@ -967,7 +967,7 @@ CloseApplication(applicationName) {
     LogConclusion("Completed", logConclusionData)
 }
 
-SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
+StartOfficeApplication(applicationName, filePath := "") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -977,15 +977,197 @@ SetApplicationRegistryValue(applicationName, propertyName, propertyValue) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
+    static applicationNameWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "Access", "Excel", "Outlook", "PowerPoint", "Project", "Visio", "Word")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("applicationName As String [Constraint: Application Name], propertyName As String, propertyValue As Object", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("applicationName As String [Whitelist: " . applicationNameWhitelist . "], filePath As String [Optional] [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 7, Map(
+            "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16),
+            "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128),
+            "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
+            "Window Timeout in Seconds", Map("Default", 2, "Floor", 1, "Ceiling", 8)
+        ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName, propertyName, propertyValue])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName, filePath])
 
     global applicationRegistry
 
-    applicationRegistry[applicationName][propertyName] := propertyValue
+    settings := methodRegistry[methodName]["Settings"]
+
+    maxAttempts            := settings["Max Attempts"]["Value"]
+    tinyDelay              := settings["Tiny Delay"]["Value"]
+    longDelay              := settings["Long Delay"]["Value"]
+    windowTimeoutInSeconds := settings["Window Timeout in Seconds"]["Value"]
+
+    switch applicationName {
+        case "Access", "Excel", "Outlook", "PowerPoint", "Project", "Visio", "Word":
+            if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
+            }
+        default:
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not supported.")
+    }
+
+    if ProcessExist(applicationRegistry[applicationName]["Executable Filename"]) {
+        CloseApplication(applicationName)
+    }
+
+    static programmaticIdentifiers := Map(
+        "Access",     "Access.Application",
+        "Excel",      "Excel.Application",
+        "Outlook",    "Outlook.Application",
+        "PowerPoint", "PowerPoint.Application",
+        "Project",    "MSProject.Application",
+        "Visio",      "Visio.Application",
+        "Word",       "Word.Application"
+    )
+
+    officeApplication := unset
+
+    index := 1
+    while index <= maxAttempts {
+        try {
+            officeApplication := ComObject(programmaticIdentifiers[applicationName])
+            break
+        } catch as failedToStartOfficeApplicationError {
+            if index = maxAttempts {
+                LogConclusion("Failed", logConclusionData, failedToStartOfficeApplicationError.Line, failedToStartOfficeApplicationError.Message)
+            }
+
+            index += 1
+
+            Sleep(longDelay)
+        }
+    }
+
+    switch applicationName {
+        case "Access":
+            if filePath = "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't create new database for Access, an existing one must be provided via filePath.")
+            }
+
+            try {
+                officeApplication.OpenCurrentDatabase(filePath)
+            } catch as failedToOpenAccessDatabaseError {
+                LogConclusion("Failed", logConclusionData, failedToOpenAccessDatabaseError.Line, failedToOpenAccessDatabaseError.Message)
+            }
+        case "Excel":
+            try {
+                if filePath = "" {
+                    officeApplication.Workbooks.Add()
+                } else {
+                    officeApplication.Workbooks.Open(filePath, 0)
+                }
+            } catch as failedToAddOrOpenExcelWorkbookError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenExcelWorkbookError.Line, failedToAddOrOpenExcelWorkbookError.Message)
+            }
+        case "Outlook":
+            if filePath != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't start Outlook by opening an e-mail, must start without a filePath.")
+            }
+
+            try {
+                outlookNameSpace   := officeApplication.GetNamespace("MAPI")
+                outlookInboxFolder := outlookNameSpace.GetDefaultFolder(6)
+
+                if !officeApplication.ActiveExplorer {
+                    outlookInboxFolder.Display()
+                }
+            } catch as failedToDisplayOutlookExplorerError {
+                LogConclusion("Failed", logConclusionData, failedToDisplayOutlookExplorerError.Line, failedToDisplayOutlookExplorerError.Message)
+            }
+        case "PowerPoint":
+            try {
+                if filePath = "" {
+                    officeApplication.Presentations.Add()
+                } else {
+                    officeApplication.Presentations.Open(filePath)
+                }
+            } catch as failedToAddOrOpenPowerPointPresentationError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenPowerPointPresentationError.Line, failedToAddOrOpenPowerPointPresentationError.Message)
+            }
+        case "Project":
+            try {
+                if filePath = "" {
+                    officeApplication.FileNew()
+                } else {
+                    officeApplication.FileOpen(filePath)
+                }
+            } catch as failedToAddOrOpenProjectFileError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenProjectFileError.Line, failedToAddOrOpenProjectFileError.Message)
+            }
+        case "Visio":
+            try {
+                if filePath = "" {
+                    officeApplication.Documents.Add("")
+                } else {
+                    officeApplication.Documents.Open(filePath)
+                }
+            } catch as failedToAddOrOpenVisioDocumentError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenVisioDocumentError.Line, failedToAddOrOpenVisioDocumentError.Message)
+            }
+        case "Word":
+            try {
+                if filePath = "" {
+                    officeApplication.Documents.Add()
+                } else {
+                    officeApplication.Documents.Open(filePath, 0)
+                }
+            } catch as failedToAddOrOpenWordDocumentError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenWordDocumentError.Line, failedToAddOrOpenWordDocumentError.Message)
+            }
+    }
+
+    if applicationName != "Outlook" {
+        officeApplication.Visible := true
+    }
+
+    officeWindowHandle       := 0
+    windowWaitStartTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+
+    while !officeWindowHandle {
+        if DllCall("Kernel32\GetTickCount64", "UInt64") - windowWaitStartTickCount > windowTimeoutInSeconds * 1000 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, applicationName . " window handle stayed at 0.")
+        }
+
+        try {
+            switch applicationName {
+                case "Access":
+                    officeWindowHandle := officeApplication.hWndAccessApp()
+                case "Excel":
+                    officeWindowHandle := officeApplication.Hwnd
+                case "Outlook":
+                    officeWindowHandleSearch := SearchForWindow("ahk_class rctrl_renwnd32 ahk_exe " . applicationRegistry[applicationName]["Executable Filename"], 1)
+                    if officeWindowHandleSearch.Has("Window Handle") {
+                        officeWindowHandle := officeWindowHandleSearch["Window Handle"]
+                    }
+                case "Visio":
+                    officeWindowHandle := officeApplication.WindowHandle32
+                case "PowerPoint":
+                    officeWindowHandleSearch := SearchForWindow("ahk_class PPTFrameClass ahk_exe " . applicationRegistry[applicationName]["Executable Filename"], 1)
+                    if officeWindowHandleSearch.Has("Window Handle") {
+                        officeWindowHandle := officeWindowHandleSearch["Window Handle"]
+                    }
+                case "Project":
+                    officeWindowHandleSearch := SearchForWindow("ahk_class JWinproj-WhimperMainClass ahk_exe " . applicationRegistry[applicationName]["Executable Filename"], 1)
+                    if officeWindowHandleSearch.Has("Window Handle") {
+                        officeWindowHandle := officeWindowHandleSearch["Window Handle"]
+                    }
+                case "Word":
+                    officeWindowHandle := officeApplication.ActiveWindow.Hwnd
+            }
+        }
+
+        Sleep(tinyDelay)
+    }
+
+    if !WinWait("ahk_id " . officeWindowHandle, , windowTimeoutInSeconds) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, applicationName . " window was not available to AutoHotkey within the timeout.")
+    }
+
+    applicationRegistry[applicationName]["Process Identifier"] := WinGetPID("ahk_id " . officeWindowHandle)
+
+
+    return officeApplication
 }
 
 ; **************************** ;
@@ -1054,7 +1236,7 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
         LogConclusion("Failed", logConclusionData, sentinelFileWriteError.Line, sentinelFileWriteError.Message)
     }
 
-    excelApplication  := StartExcel()
+    excelApplication  := StartOfficeApplication("Excel")
     combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
 
     OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
@@ -1085,8 +1267,9 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " . 
-            "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 3, Map(
-                "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)))
+            "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
+                "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)
+            ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"),
         [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName, foundationCheckpointsCondition, augmentationCheckpointsCondition], overlayValue)
@@ -1105,7 +1288,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "documentName" . '" failed validation. ' . "Unable to find file.")
     }
 
-    excelApplication  := StartExcel(excelFilePath)
+    excelApplication  := StartOfficeApplication("Excel", excelFilePath)
     combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
 
     aboutWorksheet      := unset
@@ -1246,10 +1429,11 @@ OpenVisualBasicEditorAndRunCode(excelApplication, code) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("excelApplication As Object, code As String", methodName, A_LineFile, A_LineNumber + 5, Map(
+        RegisterMethod("excelApplication As Object, code As String", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
             "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 192, "Delta", 32),
-            "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)))
+            "Short Delay", Map("Default", 384, "Floor", 128, "Ceiling", 1280, "Delta", 64)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelApplication, code], "Open Visual Basic Editor and Run Code (Length: " . StrLen(code) . ")")
 
@@ -1365,57 +1549,6 @@ OpenVisualBasicEditorAndRunCode(excelApplication, code) {
     LogConclusion("Completed", logConclusionData)
 }
 
-StartExcel(excelFilePath := "") {
-    static timingBuffer     := Buffer(24, 0)
-    static qpcPrePointer    := timingBuffer.Ptr
-    static timestampPointer := timingBuffer.Ptr + 8
-    static qpcPostPointer   := timingBuffer.Ptr + 16
-
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-
-    static methodName := A_ThisFunc
-    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("excelFilePath As String [Optional] [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 2, Map(
-            "Tiny Delay", Map("Default", 32, "Floor", 16, "Ceiling", 128)))
-    }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [excelFilePath])
-
-    applicationName := "Excel"
-    if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
-    }
-
-    settings := methodRegistry[methodName]["Settings"]
-
-    tinyDelay := settings["Tiny Delay"]["Value"]
-
-    if excelFilePath != "" {
-        if !InStr(excelFilePath, ".xlsx") {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "excelFilePath" . '" failed validation. ' . "Path lacks the required extension of xlsx.")
-        }
-    }
-
-    excelApplication := ComObject("Excel.Application")
-    if excelFilePath = "" {
-        excelApplication.Workbooks.Add()
-    } else {
-        excelApplication.Workbooks.Open(excelFilePath, 0)
-    }
-
-    excelApplication.Visible := true
-
-    excelWindowHandle := excelApplication.Hwnd
-    while !excelWindowHandle := excelApplication.Hwnd {
-        Sleep(tinyDelay)
-    }
-
-    SetApplicationRegistryValue("Excel", "Process Identifier", WinGetPID("ahk_id " . excelWindowHandle))
-
-    return excelApplication
-}
-
 WaitForExcelToClose() {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
@@ -1428,9 +1561,10 @@ WaitForExcelToClose() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 4, Map(
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 5, Map(
             "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-            "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)))
+            "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
 
@@ -1526,12 +1660,13 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]", methodName, A_LineFile, A_LineNumber + 7, Map(
+        RegisterMethod("code As String, saveDirectory As String [Constraint: Directory], filename As String [Constraint: Filename]", methodName, A_LineFile, A_LineNumber + 8, Map(
             "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
             "Times to Attempt", Map("Default", 120, "Floor", 1, "Ceiling", 7200),
             "Short Delay", Map("Default", 128, "Floor", 32, "Ceiling", 1280, "Delta", 32),
             "Medium Delay", Map("Default", 512, "Floor", 128, "Ceiling", 3072, "Delta", 48),
-            "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)))
+            "Long Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 6144, "Delta", 96)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [code, saveDirectory, filename], "Execute SQL Query and Save (" . filename . ")")
 
@@ -1680,12 +1815,13 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", methodName, A_LineFile, A_LineNumber + 7, Map(
+        RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", methodName, A_LineFile, A_LineNumber + 8, Map(
             "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
             "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
             "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
-            "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)))
+            "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
 

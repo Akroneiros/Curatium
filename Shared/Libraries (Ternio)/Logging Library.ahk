@@ -90,19 +90,19 @@ LogEngine(runtimeOverride := Map()) {
         environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
 
         SplitPath(A_ScriptFullPath, , , , &projectName)
-        SplitPath(A_LineFile, , &librariesFolderPath)
-        SplitPath(librariesFolderPath, , &sharedFolderPath, , &librariesVersion)
-        SplitPath(sharedFolderPath, , &curatiumFolderPath)
+        SplitPath(A_LineFile, , &librariesDirectoryPath)
+        SplitPath(librariesDirectoryPath, , &sharedDirectoryPath, , &librariesVersion)
+        SplitPath(sharedDirectoryPath, , &curatiumDirectoryPath)
 
         runtime["Project Name"]       := projectName
         runtime["Library Release"]    := SubStr(librariesVersion, InStr(librariesVersion, "(") + 1, InStr(librariesVersion, ")") - InStr(librariesVersion, "(") - 1)
         runtime["AutoHotkey Version"] := A_AhkVersion
 
-        directories["Curatium"]  := curatiumFolderPath . "\"
+        directories["Curatium"]  := curatiumDirectoryPath . "\"
         directories["Log"]       := directories["Curatium"] . "Log\"
         directories["Project"]   := directories["Curatium"] . "Projects\" . RTrim(SubStr(projectName, 1, InStr(projectName, "(") - 1)) . "\"
         directories["Projects"]  := directories["Curatium"] . "Projects\"
-        directories["Shared"]    := sharedFolderPath . "\"
+        directories["Shared"]    := sharedDirectoryPath . "\"
         directories["Constants"] := directories["Shared"] . "Constants\"
         directories["Images"]    := directories["Shared"] . "Images\"
         directories["Libraries"] := directories["Shared"] . "Libraries (" . runtime["Library Release"] . ")" . "\"
@@ -380,12 +380,12 @@ LogEngine(runtimeOverride := Map()) {
         GetDirectoryTimeAsUtc(directories["Constants"], "Created")
         GetFileTimeAsUtc(paths["Scales"], "Created")
 
-        DetermineWindowsBinaryType("C:\Windows\System32\find.exe")
-        GetFileHash(paths["Scales"], "SHA-256")
+        GetDirectoriesFromDirectory(directories["Constants"])
         GetFilesFromDirectory(directories["Constants"])
-        GetFoldersFromDirectory(directories["Constants"])
+        GetFileHash(paths["Scales"], "SHA-256")
         GetPathComponents(paths["Scales"])
         GetTextFileLineCount(paths["Scales"])
+        GetWindowsBinaryType("C:\Windows\System32\find.exe")
         ReadFile(paths["Scales"])
         SearchForUniqueFileInDirectory("Scales (2025-09-20)", directories["Constants"], "csv")
 
@@ -522,7 +522,7 @@ LogEngine(runtimeOverride := Map()) {
             mappings[mapping] := ParseDelimitedRowsToArrayOfMaps(content)
         }
 
-        applicationsWithSharedImageLibraryData := GetFilesFromDirectory(directories["Images"], "Image Library Data (")
+        applicationsWithSharedImageLibraryData := GetFilesFromDirectory(directories["Images"], "Image Library Data (*")
         for imageLibraryDataFile in applicationsWithSharedImageLibraryData {
             applicationName := GetPathComponents(imageLibraryDataFile)["Filename No Extension"]
             applicationName := SubStr(applicationName, StrLen("Image Library Data (") + 1)
@@ -988,11 +988,12 @@ OverlayStart() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 7, Map(
             "Base Logical Width", Map("Default", 960, "Floor", 640, "Ceiling", 7680),
             "Base Logical Height", Map("Default", 920, "Floor", 480, "Ceiling", 4320),
             "Overlay Transparency", Map("Default", 172, "Floor", 0, "Ceiling", 255),
-            "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)))
+            "Font Size", Map("Default", 10, "Floor", 6, "Ceiling", 24)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Overlay Start")
 

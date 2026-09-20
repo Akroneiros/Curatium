@@ -70,19 +70,19 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
     catalogEntries  := []
     dataEntries     := []
 
-    actionImageDirectories := GetFoldersFromDirectory(directoryPath)
-    for actionFolderPath in actionImageDirectories {
-        SplitPath(RTrim(actionFolderPath, "\/"), &actionDirectoryName)
+    actionImageDirectories := GetDirectoriesFromDirectory(directoryPath)
+    for actionDirectoryPath in actionImageDirectories {
+        SplitPath(RTrim(actionDirectoryPath, "\/"), &actionDirectoryName)
 
         if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-            LogConclusion("Failed", logConclusionData, A_LineNumber, "Folder does not match format of Action Name (a...p): " . actionDirectoryName)
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory does not match format of Action Name (a...p): " . actionDirectoryName)
         }
 
         actionName    := Trim(matchResults[1])
         actionLetter  := matchResults[2]
         hashToCounter := Map()
 
-        Loop Files, actionFolderPath . "*", "F" {
+        Loop Files, actionDirectoryPath . "*", "F" {
             SplitPath(A_LoopFileName, , , , &filenameWithoutExtension)
             lastOpenParenthesisIndex := InStr(filenameWithoutExtension, "(", "On", -1)
             baseTextWithoutRanges    := RTrim(SubStr(filenameWithoutExtension, 1, lastOpenParenthesisIndex - 1))
@@ -95,8 +95,8 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
                 validation := ValidateDataUsingSpecification(rangePart, "String", "Percent Range")
 
                 if validation != "" {
-                    subfolder := StrSplit(RTrim(actionFolderPath, "\"), "\").Pop()
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, 'File "' . A_LoopFileName . '" in subfolder "' . subfolder . '" has invalid range value in parenthesis after percent. ' . validation)
+                    subdirectory := StrSplit(RTrim(actionDirectoryPath, "\"), "\").Pop()
+                    LogConclusion("Failed", logConclusionData, A_LineNumber, 'File "' . A_LoopFileName . '" in subdirectory "' . subdirectory . '" has invalid range value in parenthesis after percent. ' . validation)
                 }
             }
 
@@ -362,18 +362,14 @@ ExtractImagesFromCatalogToDirectory(imageLibraryCatalogPath, extractDirectory) {
     imageLibraryCatalogEntries := ConvertValueForKeyInArrayOfMapsToInteger("Counter Reference", imageLibraryCatalogEntries)
     imageLibraryCatalogEntries := ConvertValueForKeyInArrayOfMapsToInteger("DPI Scale", imageLibraryCatalogEntries)
     imageLibraryCatalogEntries := ConvertValueForKeyInArrayOfMapsToInteger("Display Resolution", imageLibraryCatalogEntries)
+    imageLibraryCatalogPathComponents := GetPathComponents(imageLibraryCatalogPath)
 
     for image in imageLibraryCatalogEntries {
         image["DPI Scale"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(system["Constants"]["Scales"], "Counter", image["DPI Scale"])["Scale"]
         image["Display Resolution"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(system["Constants"]["Resolutions"], "Counter", image["Display Resolution"])["Resolution"]
-    }
 
-    imageLibraryCatalogPathComponents := GetPathComponents(imageLibraryCatalogPath)
-    if imageLibraryCatalogPathComponents["Directory"] = system["Directories"]["Images"] {
-        for image in imageLibraryCatalogEntries {
-            if IsInteger(image["Image Library Data Reference"]) {
-                image["Image Library Data Reference"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(system["Mappings"]["Applications"], "Counter", image["Image Library Data Reference"])["Name"]
-            }
+        if IsInteger(image["Image Library Data Reference"]) {
+            image["Image Library Data Reference"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(system["Mappings"]["Applications"], "Counter", image["Image Library Data Reference"])["Name"]
         }
     }
 
@@ -504,7 +500,7 @@ GetImageDimensions(imagePath) {
     return imageDimensions
 }
 
-OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRange, verticalRange) {
+OverrideDirectoryImageVariant(directoryName, imageName, variant, horizontalRange, verticalRange) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -516,9 +512,9 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("directoryFolder As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("directoryName As String, imageName As String, variant As String, horizontalRange As String [Constraint: Percent Range], verticalRange As String [Constraint: Percent Range]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryFolder, imageName, variant, horizontalRange, verticalRange])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryName, imageName, variant, horizontalRange, verticalRange])
 
     global imageRegistry
 
@@ -526,17 +522,17 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
     static screenWidth  := displayResolution[1] + 0
     static screenHeight := displayResolution[2] + 0
 
-    if !imageRegistry.Has(directoryFolder) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
+    if !imageRegistry.Has(directoryName) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory name for image not found: " . directoryName)
     }
 
-    if !imageRegistry[directoryFolder].Has(imageName) {
+    if !imageRegistry[directoryName].Has(imageName) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Image name not found: " . imageName)
     }
 
     variant := StrLower(variant)
     variantFound := false
-    for image in imageRegistry[directoryFolder][imageName] {
+    for image in imageRegistry[directoryName][imageName] {
         if variant = image["Variant"] {
             variantFound := true
         }
@@ -556,7 +552,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
     verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
     verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
 
-    for image in imageRegistry[directoryFolder][imageName] {
+    for image in imageRegistry[directoryName][imageName] {
         if variant = image["Variant"] {
             image["Horizontal Range"]       := horizontalRange
             image["Horizontal Range Start"] := horizontalRangeStart
@@ -570,7 +566,7 @@ OverrideDirectoryImageVariant(directoryFolder, imageName, variant, horizontalRan
     }
 }
 
-SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, variant := "") {
+SearchForDirectoryImage(directoryName, imageName, timesToAttempt := 60, variant := "") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -582,20 +578,21 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("directoryFolder As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", methodName, A_LineFile, A_LineNumber + 3, Map(
-            "Medium Delay", Map("Default", 1000, "Floor", 100, "Ceiling", 10000)))
+        RegisterMethod("directoryName As String, imageName As String, timesToAttempt As Integer [Optional: 60], variant As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Medium Delay", Map("Default", 1000, "Floor", 100, "Ceiling", 10000)
+        ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryFolder, imageName, timesToAttempt, variant])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryName, imageName, timesToAttempt, variant])
 
     settings := methodRegistry[methodName]["Settings"]
     
     mediumDelay := settings["Medium Delay"]["Value"]
 
-    if !imageRegistry.Has(directoryFolder) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory folder for image not found: " . directoryFolder)
+    if !imageRegistry.Has(directoryName) {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory name for image not found: " . directoryName)
     }
 
-    if !imageRegistry[directoryFolder].Has(imageName) {
+    if !imageRegistry[directoryName].Has(imageName) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Image name not found: " . imageName)
     }
 
@@ -606,7 +603,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     variant := StrLower(variant)
     if variant != "" {
         variantFound := false
-        for image in imageRegistry[directoryFolder][imageName] {
+        for image in imageRegistry[directoryName][imageName] {
             if variant = image["Variant"] {
                 variantFound := true
             }
@@ -619,10 +616,10 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
 
     directoryImageVariants := unset
     if variant = "" {
-        directoryImageVariants := imageRegistry[directoryFolder][imageName]
+        directoryImageVariants := imageRegistry[directoryName][imageName]
     } else {
         directoryImageVariants := []
-        directoryImageVariantsLookup := imageRegistry[directoryFolder][imageName]
+        directoryImageVariantsLookup := imageRegistry[directoryName][imageName]
         for directoryImageVariantLookup in directoryImageVariantsLookup {
             if variant = directoryImageVariantLookup["Variant"] {
                 directoryImageVariants.Push(directoryImageVariantLookup)
@@ -631,7 +628,7 @@ SearchForDirectoryImage(directoryFolder, imageName, timesToAttempt := 60, varian
     }
 
     imageSearchResults := Map(
-        "Directory",        directoryFolder,
+        "Directory",        directoryName,
         "Name",             imageName,
         "Times to Attempt", timesToAttempt,
         "Medium Delay",     mediumDelay,

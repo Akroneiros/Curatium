@@ -6,7 +6,7 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-CleanOfficeLocksInFolder(directoryPath) {
+CleanOfficeLocksInDirectory(directoryPath) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -20,10 +20,10 @@ CleanOfficeLocksInFolder(directoryPath) {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("directoryPath As String [Constraint: Directory]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath], "Clean Office Locks in Folder (" . directoryPath . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath], "Clean Office Locks in Directory (" . directoryPath . ")")
 
     deletedCount     := 0
-    filesInDirectory := GetFilesFromDirectory(directoryPath)
+    filesInDirectory := GetFilesFromDirectory(directoryPath, "~$*")
 
     if filesInDirectory.Length = 0 {
         LogConclusion("Skipped", logConclusionData)
@@ -31,20 +31,16 @@ CleanOfficeLocksInFolder(directoryPath) {
     }
 
     for filePath in filesInDirectory {
-        SplitPath(filePath, &fileName)
+        try {
+            size := FileGetSize(filePath)
 
-        if SubStr(fileName, 1, 2) = "~$" {
-            try {
-                size := FileGetSize(filePath)
-
-                if size >= 0 && size <= 8192 {
-                    FileDelete(filePath)
-                    deletedCount++
-                    logConclusionData["Context"] := "Office lock files deleted: " . deletedCount
-                }
-            } catch {
-                continue
+            if size >= 0 && size <= 8192 {
+                FileDelete(filePath)
+                deletedCount++
+                logConclusionData["Context"] := "Office lock files deleted: " . deletedCount
             }
+        } catch {
+            continue
         }
     }
 
@@ -395,7 +391,7 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
 ; Helper Methods               ;
 ; **************************** ;
 
-DetermineWindowsBinaryType(executablePath) {
+GetDirectoriesFromDirectory(directoryPath, directoryNamePattern := "*") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -407,45 +403,21 @@ DetermineWindowsBinaryType(executablePath) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("executablePath As String [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("directoryPath As String [Constraint: Directory], directoryNamePattern As String [Optional: *]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [executablePath])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, directoryNamePattern])
 
-    static SCS_32BIT_BINARY := 0
-    static SCS_DOS_BINARY   := 1
-    static SCS_WOW_BINARY   := 2
-    static SCS_PIF_BINARY   := 3
-    static SCS_POSIX_BINARY := 4
-    static SCS_OS216_BINARY := 5
-    static SCS_64BIT_BINARY := 6
+    directories := []
+    pattern := directoryPath . directoryNamePattern
 
-    classificationResult := "N/A"
-    binaryType           := 0
-
-    binaryTypeRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &binaryType, "Int")
-    if binaryTypeRetrievedSuccessfully {
-        switch binaryType {
-            case SCS_32BIT_BINARY:
-                classificationResult := "32-bit"
-            case SCS_64BIT_BINARY:
-                classificationResult := "64-bit"
-            case SCS_DOS_BINARY:
-                classificationResult := "DOS"
-            case SCS_WOW_BINARY:
-                classificationResult := "Windows 16-bit"
-            case SCS_PIF_BINARY:
-                classificationResult := "PIF"
-            case SCS_POSIX_BINARY:
-                classificationResult := "POSIX"
-            case SCS_OS216_BINARY:
-                classificationResult := "OS/2"
-        }
+    Loop Files, pattern, "D" {
+        directories.Push(A_LoopFileFullPath . "\")
     }
 
-    return classificationResult
+    return directories
 }
 
-GetFilesFromDirectory(directoryPath, filterValue := "") {
+GetFilesFromDirectory(directoryPath, filenamePattern := "*") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -457,23 +429,15 @@ GetFilesFromDirectory(directoryPath, filterValue := "") {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("directoryPath As String [Constraint: Directory], filterValue As String [Optional]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("directoryPath As String [Constraint: Directory], filenamePattern As String [Optional: *]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, filenamePattern])
 
-    files := []
-    pattern := RTrim(directoryPath, "\/") . "\*"
+    pattern := directoryPath . filenamePattern
+    files   := []
 
-    if filterValue = "" {
-        Loop Files, pattern, "F" {
-            files.Push(A_LoopFileFullPath)
-        }
-    } else {
-        Loop Files, pattern, "F" {
-            if InStr(A_LoopFileFullPath, filterValue) {
-                files.Push(A_LoopFileFullPath)
-            }
-        }
+    Loop Files, pattern, "F" {
+        files.Push(A_LoopFileFullPath)
     }
 
     return files
@@ -515,32 +479,6 @@ GetFileHash(filePath, algorithm) {
     return fileHash
 }
 
-GetFoldersFromDirectory(directoryPath) {
-    static timingBuffer     := Buffer(24, 0)
-    static qpcPrePointer    := timingBuffer.Ptr
-    static timestampPointer := timingBuffer.Ptr + 8
-    static qpcPostPointer   := timingBuffer.Ptr + 16
-
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-
-    static methodName := A_ThisFunc
-    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("directoryPath As String [Constraint: Directory]", methodName, A_LineFile, A_LineNumber + 2, Map())
-    }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath])
-
-    folders := []
-    pattern := RTrim(directoryPath, "\/") . "\*"
-
-    Loop Files, pattern, "D" {
-        folders.Push(A_LoopFileFullPath . "\")
-    }
-
-    return folders
-}
-
 GetPathComponents(filePath) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
@@ -558,10 +496,10 @@ GetPathComponents(filePath) {
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath])
 
     SplitPath(filePath, &filenameWithExtension, &directoryPath, &filenameExtension, &filenameNoExtension, &drive)
-    SplitPath(directoryPath, , &parentFolderPath)
+    SplitPath(directoryPath, , &parentDirectoryPath)
 
-    if directoryPath = parentFolderPath {
-        parentFolderPath := ""
+    if directoryPath = parentDirectoryPath {
+        parentDirectoryPath := ""
     }
 
     pathComponents := Map(
@@ -569,7 +507,7 @@ GetPathComponents(filePath) {
         "Extension", filenameExtension,
         "Filename", filenameWithExtension,
         "Filename No Extension", filenameNoExtension,
-        "Parent Directory", (parentFolderPath = "" ? "" : parentFolderPath . "\"),
+        "Parent Directory", (parentDirectoryPath = "" ? "" : parentDirectoryPath . "\"),
         "Path", filePath,
         "Root", drive . "\"
     )
@@ -589,8 +527,9 @@ GetTextFileLineCount(filePath) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("filePath As String [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 3, Map(
-            "Max Fast Size", Map("Default", 100000000, "Floor", 10, "Ceiling", 1000000000)))
+        RegisterMethod("filePath As String [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Max Fast Size", Map("Default", 100000000, "Floor", 10, "Ceiling", 1000000000)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath])
 
@@ -639,6 +578,56 @@ GetTextFileLineCount(filePath) {
     }
 
     return totalLineCount
+}
+
+GetWindowsBinaryType(executablePath) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("executablePath As String [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [executablePath])
+
+    static SCS_32BIT_BINARY := 0
+    static SCS_DOS_BINARY   := 1
+    static SCS_WOW_BINARY   := 2
+    static SCS_PIF_BINARY   := 3
+    static SCS_POSIX_BINARY := 4
+    static SCS_OS216_BINARY := 5
+    static SCS_64BIT_BINARY := 6
+
+    classificationResult := "N/A"
+    binaryType           := 0
+
+    binaryTypeRetrievedSuccessfully := DllCall("Kernel32\GetBinaryTypeW", "Str", executablePath, "UInt*", &binaryType, "Int")
+    if binaryTypeRetrievedSuccessfully {
+        switch binaryType {
+            case SCS_32BIT_BINARY:
+                classificationResult := "32-bit"
+            case SCS_64BIT_BINARY:
+                classificationResult := "64-bit"
+            case SCS_DOS_BINARY:
+                classificationResult := "DOS"
+            case SCS_WOW_BINARY:
+                classificationResult := "Windows 16-bit"
+            case SCS_PIF_BINARY:
+                classificationResult := "PIF"
+            case SCS_POSIX_BINARY:
+                classificationResult := "POSIX"
+            case SCS_OS216_BINARY:
+                classificationResult := "OS/2"
+        }
+    }
+
+    return classificationResult
 }
 
 ParseDelimitedRowsToArrayOfMaps(content, delimiter := "|") {

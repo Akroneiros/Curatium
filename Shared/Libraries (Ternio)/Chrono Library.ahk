@@ -274,10 +274,11 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 5, Map(
+        RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
             "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
-            "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)))
+            "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath], "Wait Until File is Modified Today: " . filePath)
 

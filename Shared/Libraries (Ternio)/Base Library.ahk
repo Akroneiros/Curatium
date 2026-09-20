@@ -17,13 +17,18 @@ global methodRegistry := Map(
                 "Default", true,
                 "Floor",   false,
                 "Ceiling", true,
-                "Delta",   0),
+                "Delta",   0
+            ),
             "Telemetry Duration in Milliseconds", Map(
                 "Value",   256,
                 "Default", 256,
                 "Floor",   16,
                 "Ceiling", 4096,
-                "Delta",   0))))
+                "Delta",   0
+            )
+        )
+    )
+)
 global overlay := Map(
     "GUI", Gui("+AlwaysOnTop -Caption +ToolWindow +E0x80000 +E0x20 +DPIScale -SysMenu -Border"),
     "Counter", 0,
@@ -33,14 +38,19 @@ global overlay := Map(
         "Beginning", "... Beginning " . "▶️",
         "Skipped",   "... Skipped " .   "➡️",
         "Completed", "... Completed " . "✔️",
-        "Failed",    "... Failed " .    "✖️"))
+        "Failed",    "... Failed " .    "✖️"
+    )
+)
 global symbolLedger := Map(
     "Argument", Map(),
     "Context", Map(),
     "Error", Map(),
+    "Label", Map(),
     "Method", Map(),
     "Overlay", Map(),
-    "Whitelist", Map())
+    "Value", Map(),
+    "Whitelist", Map()
+)
 global system := Map(
     "Configuration", Map(),
     "Constants", Map(),
@@ -58,16 +68,19 @@ global system := Map(
             "Value", 0,
             "Whitelist", 0,
             "Operation Sequence Number", 0,
-            "Run Telemetry Order", 0),
+            "Run Telemetry Order", 0
+        ),
         "Cycle", "Pending",
         "Execution Log", [],
         "Operation Log", [],
         "Run Telemetry", [],
-        "Symbol Ledger", []),
+        "Symbol Ledger", []
+    ),
     "Mappings", Map(),
     "Paths", Map(),
     "Runtime", Map(),
-    "Telemetry", Map())
+    "Telemetry", Map()
+)
 global logToFile := false
 
 ActivateWindow(windowSearchResults, maximizeWindow := false) {
@@ -82,9 +95,10 @@ ActivateWindow(windowSearchResults, maximizeWindow := false) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: False] [Constraint: Boolean]", methodName, A_LineFile, A_LineNumber + 4, Map(
+        RegisterMethod("windowSearchResults As Map, maximizeWindow As Integer [Optional: false] [Constraint: Boolean]", methodName, A_LineFile, A_LineNumber + 5, Map(
             "Seconds to Attempt", Map("Default", 60, "Floor", 1, "Ceiling", 3600),
-            "Short Delay", Map("Default", 128, "Floor", 64, "Ceiling", 1280)))
+            "Short Delay", Map("Default", 128, "Floor", 64, "Ceiling", 1280)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [windowSearchResults, maximizeWindow], "Activate Window")
 
@@ -198,12 +212,13 @@ PasteText(text, commentPrefix := "") {
     static commentPrefixWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "'", "--", "#", "%", "//", ";")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", methodName, A_LineFile, A_LineNumber + 6, Map(
+        RegisterMethod("text As String, commentPrefix As String [Optional] [Whitelist: " . commentPrefixWhitelist . "]", methodName, A_LineFile, A_LineNumber + 7, Map(
             "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
             "Clipboard Timeout in Seconds", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
             "Short Delay", Map("Default", 192, "Floor", 64, "Ceiling", 1024, "Delta", 24),
             "Medium Delay", Map("Default", 416, "Floor", 128, "Ceiling", 2080, "Delta", 48),
-            "Use Navigation Keys to Select All", Map("Default", 0, "Floor", 0, "Ceiling", 1, "Delta", 1)))
+            "Use Navigation Keys to Select All", Map("Default", 0, "Floor", 0, "Ceiling", 1, "Delta", 1)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [text, commentPrefix], "Paste Text")
 
@@ -671,9 +686,9 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for Application Image Override Directory failed validation. Expected no files in directory but found " . filesInDirectory.Length . ".")
         }
 
-        applicationFolders := GetFoldersFromDirectory(configuration["Settings"]["Application Image Override Directory"])
-        for applicationFolder in applicationFolders {
-            SplitPath(RTrim(applicationFolder, "\"), &applicationName)
+        applicationDirectories := GetDirectoriesFromDirectory(configuration["Settings"]["Application Image Override Directory"])
+        for applicationDirectory in applicationDirectories {
+            SplitPath(RTrim(applicationDirectory, "\"), &applicationName)
 
             validation := ValidateDataUsingSpecification(applicationName, "String", "Application Name")
             if validation != "" {
@@ -1269,7 +1284,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         if !IsSet(spreadsheetOperationsTemplateReleases) {
                             spreadsheetOperationsTemplateReleases := []
 
-                            outroReleases := GetFilesFromDirectory(system["Directories"]["Spreadsheet Operations Template"], "Outro")
+                            outroReleases := GetFilesFromDirectory(system["Directories"]["Spreadsheet Operations Template"], "*Outro*")
                             for release in outroReleases {
                                 filenameNoExtension := GetPathComponents(release)["Filename No Extension"]
                                 insideParenthesis   := StrReplace(filenameNoExtension, "Spreadsheet Operations Template (", "")
@@ -1851,9 +1866,10 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", 
-            methodName, A_LineFile, A_LineNumber + 4, Map(
+            methodName, A_LineFile, A_LineNumber + 5, Map(
                 "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
-                "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)))
+                "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)
+            ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [primaryModifier, key, secondaryModifier])
 
