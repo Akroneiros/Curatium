@@ -143,12 +143,12 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
         }
     }
 
-    WriteTextToFile(headerCatalog . ConvertArrayToLineSeparatedString(catalogEntries), imageLibraryCatalogFilePath, "UTF-8-BOM")
+    WriteTextToFile(headerCatalog . ConvertArrayToLineSeparatedString(catalogEntries), imageLibraryCatalogFilePath, "UTF-8-BOM", "Overwrite")
 
     if counterModified {
         WriteTextToFile(ConvertArrayToLineSeparatedString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM", "Append Break")
     } else {
-        WriteTextToFile(headerData . ConvertArrayToLineSeparatedString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM")
+        WriteTextToFile(headerData . ConvertArrayToLineSeparatedString(dataEntries), imageLibraryDataReferenceFilePath, "UTF-8-BOM", "Overwrite")
     }
 
     LogConclusion("Completed", logConclusionData)

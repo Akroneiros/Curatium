@@ -1732,7 +1732,7 @@ ExtractValuesFromArrayDimension(array, dimension) {
     return arrayDimension
 }
 
-ExtractUniqueValuesForKeyFromArrayOfMaps(arrayOfMaps, keyName) {
+ExtractUniqueValuesForKeyFromArrayOfMaps(arrayOfMaps, keyName, includeEmptyValue := true) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -1744,34 +1744,79 @@ ExtractUniqueValuesForKeyFromArrayOfMaps(arrayOfMaps, keyName) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("arrayOfMaps As Array, keyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("arrayOfMaps As Array, keyName As String, includeEmptyValue As Integer [Constraint: Boolean] [Optional: true]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [arrayOfMaps, keyName])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [arrayOfMaps, keyName, includeEmptyValue])
 
     uniqueValues := []
+    seenValues   := Map()
 
-    for outerKey, innerValue in arrayOfMaps {
-        if !innerValue.Has(keyName) {
+    for index, innerMap in arrayOfMaps {
+        if Type(innerMap) != "Map" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected Map at array index " . index . " but found " . Type(innerMap) . ".")
+        }
+
+        if !innerMap.Has(keyName) {
             continue
         }
 
-        currentValue := innerValue[keyName]
+        currentValue := innerMap[keyName]
 
-        if currentValue = "" {
+        if currentValue = "" && !includeEmptyValue {
             continue
         }
 
-        valueExists := false
-        for existingValue in uniqueValues {
-            if existingValue = currentValue {
-                valueExists := true
-                break
-            }
+        if seenValues.Has(currentValue) {
+            continue
         }
 
-        if !valueExists {
-            uniqueValues.Push(currentValue)
+        seenValues[currentValue] := true
+        uniqueValues.Push(currentValue)
+    }
+
+    return uniqueValues
+}
+
+ExtractUniqueValuesForKeyFromMapOfMaps(mapOfMaps, keyName, includeEmptyValue := false) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("mapOfMaps As Map, keyName As String, includeEmptyValue As Integer [Constraint: Boolean] [Optional: false]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [mapOfMaps, keyName, includeEmptyValue])
+
+    uniqueValues := []
+    seenValues   := Map()
+
+    for outerKey, innerMap in mapOfMaps {
+        if Type(innerMap) != "Map" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected Map at outer key " . outerKey . " but found " . Type(innerMap) . ".")
         }
+
+        if !innerMap.Has(keyName) {
+            continue
+        }
+
+        currentValue := innerMap[keyName]
+
+        if currentValue = "" && !includeEmptyValue {
+            continue
+        }
+
+        if seenValues.Has(currentValue) {
+            continue
+        }
+
+        seenValues[currentValue] := true
+        uniqueValues.Push(currentValue)
     }
 
     return uniqueValues

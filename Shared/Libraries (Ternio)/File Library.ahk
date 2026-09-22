@@ -47,6 +47,68 @@ CleanOfficeLocksInDirectory(directoryPath) {
     LogConclusion("Completed", logConclusionData)
 }
 
+CombineCsvFilesFromPaths(paths, savePath, encoding, mode) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static encodingWhitelist := Format('"{1}", "{2}", "{3}"', "UTF-8", "UTF-8-BOM", "UTF-16 LE BOM")
+    static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("paths As Array, savePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], mode as String [Whitelist: " . modeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [paths, savePath, encoding, mode], "Combine CSV Files from Paths")
+
+    headerRow := unset
+    dataRows  := []
+
+    for index, csvFilePath in paths {
+        validation := ValidateDataUsingSpecification(csvFilePath, "String", "Path")
+        if validation != "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "CSV file in array index " . index . " has an invalid path.")
+        }
+
+        csvContent := ReadFile(csvFilePath)
+        if csvContent = "" {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "CSV file in array index " . index . " is empty.")
+        }
+
+        lineParts := StrSplit(csvContent, "`n", "`r")
+        if lineParts.Length < 2 {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "CSV file in array index " . index . " only contains one row.")
+        }
+
+        if index = 1 {
+            headerRow := lineParts[1]
+            dataRows.Push(headerRow)
+        } else {
+            if headerRow != lineParts[1] {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "CSV file in array index " . index . " has a header row that isn't identical to the first CSV file.")
+            }
+        }
+
+        for indexRow, row in lineParts {
+            if indexRow = 1 {
+                continue
+            }
+
+            dataRows.Push(row)
+        }
+    }
+
+    combinedCsvContent := ConvertArrayToLineSeparatedString(dataRows)
+
+    WriteTextToFile(combinedCsvContent, savePath, encoding, mode)
+
+    LogConclusion("Completed", logConclusionData)
+}
+
 CopyFileToTarget(filePath, targetDirectory, findValue := "", replaceValue := "") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
@@ -333,7 +395,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
     LogConclusion("Completed", logConclusionData)
 }
 
-WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
+WriteTextToFile(text, filePath, encoding, mode) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -347,9 +409,9 @@ WriteTextToFile(text, filePath, encoding := "UTF-8-BOM", mode := "Overwrite") {
     static modeWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Append", "Append Break", "Create", "Overwrite")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("text As String [Optional], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], Mode as String [Whitelist: " . modeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("text As String [Optional], filePath As String [Constraint: Valid Path], encoding As String [Whitelist: " . encodingWhitelist . "], mode as String [Whitelist: " . modeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [text, filePath, encoding, mode], "Write Text Into File" . " (" . filePath . ") with Mode: " . mode)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [text, filePath, encoding, mode], "Write Text to File" . " (" . filePath . ") with Mode: " . mode)
 
     newLine := system["Constants"]["New Line"]
 
