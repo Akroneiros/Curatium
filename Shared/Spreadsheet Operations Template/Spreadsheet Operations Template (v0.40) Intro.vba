@@ -12,10 +12,14 @@
 Option Compare Text
 Option Explicit
 
+Public logEngineActive As Boolean
 Public baseTickCount As Double
 Public depth As Long
-Public helperColumn As String
 Public operationSequenceNumber As Long
+Public helperColumn As String
+Public formulaColumn As String
+Public sortingColumn As String
+Public templateVersion As String
 Public cellStyles As Object
 Public constants As Object
 Public environment As Object
