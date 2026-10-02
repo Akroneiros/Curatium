@@ -122,18 +122,46 @@ ApplyFormulaToColumnOnWorksheetError:
 End Sub
 
 Sub FindAndReplaceInColumnOnWorksheet(ByVal findValue As String, ByVal replaceValue As String, ByVal columnName As String, ByVal worksheetName As String, Optional ByVal exactMatch As Boolean) ' Repeat Support: columnName. '
-
-If InputContainsValue(columnName, "|") Then
-    Call RepeatFindAndReplaceInColumnOnWorksheet(findValue, replaceValue, columnName, worksheetName, exactMatch)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "FindAndReplaceInColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNames As Variant
+    Dim columnNamesHasMultipleValues As Boolean
+
+    If Len(columnName) <> 0 And InStr(columnName, "|") Then
+        columnNames = ParseMethodArgumentsIntoValues(columnName)
+        If LBound(columnNames) < UBound(columnNames) Then columnNamesHasMultipleValues = True
+    End If
+
+    If columnNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal findValue As String, ByVal replaceValue As String, ByVal columnNames As String, ByVal worksheetName As String, ByVal exactMatch As Boolean", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & findValue & """" & ", " & """" & replaceValue & """" & ", " & """" & columnName & """" & ", " & """" & worksheetName & """" & ", " & IIf(exactMatch, "TRUE", "FALSE"))
+
+        Dim columnNameIndex As Long
+
+        For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+            columnName = columnNames(columnNameIndex)
+
+            Call FindAndReplaceInColumnOnWorksheet(findValue, replaceValue, columnName, worksheetName, exactMatch)
+        Next columnNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal findValue As String, ByVal replaceValue As String, ByVal columnName As String, ByVal worksheetName As String, Optional ByVal exactMatch As Boolean", methodName, "Alteration")
+    End If
+
+    If Len(columnName) >= 3 And InStr(columnName, "|") And Left$(columnName, 1) = """" And Right$(columnName, 1) = """" Then
+        columnName = Mid$(columnName, 2, Len(columnName) - 2)
     End If
 
     Dim validation As String
@@ -159,70 +187,49 @@ Else
     Call columnDataRange.Replace(What:=findValue, Replacement:=replaceValue, LookAt:=lookAtMode, SearchOrder:=xlByRows, MatchCase:=False, MatchByte:=False, SearchFormat:=False, ReplaceFormat:=False)
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
-End Sub
-
-Sub HideWorksheet(ByVal worksheetName As String, Optional ByVal veryHidden As Boolean) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatHideWorksheet(worksheetName, veryHidden)
-Else
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "HideWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetName As String, Optional ByVal veryHidden As Boolean", methodName, "Alteration")
-    End If
-
-    Dim validation As String
-    Call ValidateWorksheet(worksheetName, "worksheetName", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetName & """" & ", " & IIf(veryHidden, "TRUE", "FALSE"), validation)
-
-    Dim worksheet As Worksheet
-    Dim visibleSheetCount As Long
-    Dim currentSheet As Object
-
-    Set worksheet = mainWorkbook.Worksheets(worksheetName)
-
-    For Each currentSheet In mainWorkbook.Sheets
-        If currentSheet.Visible = xlSheetVisible Then
-            visibleSheetCount = visibleSheetCount + 1
-        End If
-    Next currentSheet
-
-    If worksheet.Visible = xlSheetVisible And visibleSheetCount = 1 Then
-        Call LogConclusion("Failed", logConclusionData, "A workbook must contain at least one visible sheet.")
-    End If
-
-    If veryHidden = True Then
-        worksheet.Visible = xlSheetVeryHidden
-    Else
-        worksheet.Visible = xlSheetHidden
-    End if
-
-    Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 Sub MoveColumnBesideColumnOnWorksheet(ByVal sourceColumnName As String, ByVal sideToInsertOn As String, ByVal anchorColumnName As String, ByVal worksheetName As String) ' Repeat Support: sourceColumnName. '
-
-If InputContainsValue(sourceColumnName, "|") Then
-    Call RepeatMoveColumnBesideColumnOnWorksheet(sourceColumnName, sideToInsertOn, anchorColumnName, worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "MoveColumnBesideColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim sourceColumnNames As Variant
+    Dim sourceColumnNamesHasMultipleValues As Boolean
+
+    If Len(sourceColumnName) <> 0 And InStr(sourceColumnName, "|") Then
+        sourceColumnNames = ParseMethodArgumentsIntoValues(sourceColumnName)
+        If LBound(sourceColumnNames) < UBound(sourceColumnNames) Then sourceColumnNamesHasMultipleValues = True
+    End If
+
+    If sourceColumnNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal sourceColumnNames As String, ByVal sideToInsertOn As String, ByVal anchorColumnName As String, ByVal worksheetName As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & sourceColumnName & """" & ", " & """" & sideToInsertOn & """" & ", " & """" & anchorColumnName & """" & ", " & """" & worksheetName & """")
+
+        Dim sourceColumnNameIndex As Long
+
+        For sourceColumnNameIndex = LBound(sourceColumnNames) To UBound(sourceColumnNames)
+            sourceColumnName = sourceColumnNames(sourceColumnNameIndex)
+
+            Call MoveColumnBesideColumnOnWorksheet(sourceColumnName, sideToInsertOn, anchorColumnName, worksheetName)
+        Next sourceColumnNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
-        Call RegisterMethod("ByVal sourceColumnName As String, ByVal anchorColumnName As String, ByVal worksheetName As String", methodName, "Alteration")
+        Call RegisterMethod("ByVal sourceColumnName As String, ByVal sideToInsertOn As String, ByVal anchorColumnName As String, ByVal worksheetName As String", methodName, "Alteration")
+    End If
+
+    If Len(sourceColumnName) >= 3 And InStr(sourceColumnName, "|") And Left$(sourceColumnName, 1) = """" And Right$(sourceColumnName, 1) = """" Then
+        sourceColumnName = Mid$(sourceColumnName, 2, Len(sourceColumnName) - 2)
     End If
 
     Dim validation As String
@@ -235,13 +242,16 @@ Else
     Dim worksheet As Worksheet
     Dim sourceColumnLetter As String
     Dim anchorColumnLetter As String
+    Dim sourceColumnNumber As Long
     Dim anchorColumnNumber As Long
     Dim lastColumnLetter As String
     Dim numberOfColumnsInUse As Long
+    Dim worksheetVisibility As Long
 
     Set worksheet = mainWorkbook.Worksheets(worksheetName)
     sourceColumnLetter = FindColumnLetterOnWorksheet(sourceColumnName, worksheetName)
     anchorColumnLetter = FindColumnLetterOnWorksheet(anchorColumnName, worksheetName)
+    sourceColumnNumber = ConvertColumnLetterToColumnNumber(sourceColumnLetter)
     anchorColumnNumber = ConvertColumnLetterToColumnNumber(anchorColumnLetter)
     lastColumnLetter = LastUsedColumnLetterOnWorksheet(worksheetName)
     numberOfColumnsInUse = ConvertColumnLetterToColumnNumber(lastColumnLetter)
@@ -253,6 +263,25 @@ Else
     If sourceColumnLetter = anchorColumnLetter Then
         Call LogConclusion("Failed", logConclusionData, "Source column and anchor column are the same column.")
     End If
+
+    If (sideToInsertOn = "Left" And sourceColumnNumber = anchorColumnNumber - 1) Or (sideToInsertOn = "Right" And sourceColumnNumber = anchorColumnNumber + 1) Then
+        Call LogConclusion("Skipped", logConclusionData)
+
+        Exit Sub
+    End If
+
+    Select Case worksheet.Visible
+        Case xlSheetHidden, xlSheetVeryHidden
+            worksheetVisibility = worksheet.Visible
+        Case Else
+            worksheetVisibility = -1
+    End Select
+
+    If worksheetVisibility <> -1 Then
+        worksheet.Visible = xlSheetVisible
+    End If
+
+    worksheet.Select
 
     On Error GoTo MoveColumnBesideColumnOnWorksheetError
     Call worksheet.Columns(sourceColumnLetter).Select
@@ -279,27 +308,57 @@ Else
         End If
     End If
 
+    If worksheetVisibility <> -1 Then
+        worksheet.Visible = worksheetVisibility
+    End If
+
     Call LogConclusion("Completed", logConclusionData)
     Exit Sub
 MoveColumnBesideColumnOnWorksheetError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
 Sub MoveWorksheetToEnd(ByVal worksheetName As String) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatMoveWorksheetToEnd(worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "MoveWorksheetToEnd"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call MoveWorksheetToEnd(worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal worksheetName As String", methodName, "Alteration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -308,26 +367,28 @@ Else
     Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetName & """", validation)
 
     Dim worksheet As Worksheet
-    Dim worksheetIsHidden As Boolean
+    Dim worksheetVisibility As Long
 
     Set worksheet = mainWorkbook.Worksheets(worksheetName)
-    worksheetIsHidden = False
 
-    If worksheet.Visible = xlSheetHidden Then worksheetIsHidden = True
+    Select Case worksheet.Visible
+        Case xlSheetHidden, xlSheetVeryHidden
+            worksheetVisibility = worksheet.Visible
+        Case Else
+            worksheetVisibility = -1
+    End Select
 
-    If worksheetIsHidden = True Then
+    If worksheetVisibility <> -1 Then
         worksheet.Visible = xlSheetVisible
     End If
 
     worksheet.Move After:=Sheets(Worksheets.Count)
 
-    If worksheetIsHidden = True Then
-        worksheet.Visible = xlSheetHidden
+    If worksheetVisibility <> -1 Then
+        worksheet.Visible = worksheetVisibility
     End If
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 Sub RenameWorksheet(ByVal currentWorksheetName As String, ByVal newWorksheetName As String)
@@ -407,19 +468,141 @@ Sub SetMethodSetting(ByVal settingMethod As String, ByVal settingName As String,
     Call LogConclusion("Completed", logConclusionData)
 End Sub
 
-Sub SetWidthOnColumnOnWorksheet(ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
+Sub SetVisibilityOfWorksheet(ByVal visibilityState As String, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
+    Dim tickCount As Currency: tickCount = GetTickCount64()
+    Const methodName As String = "SetVisibilityOfWorksheet"
+    Dim isRegistered As Boolean
+    Dim logConclusionData As LogEntry
 
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatSetWidthOnColumnOnWorksheet(columnWidth, columnName, worksheetName)
-Else
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal visibilityState As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & visibilityState & """" & ", " & """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call SetVisibilityOfWorksheet(visibilityState, worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
+    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
+    If isRegistered = False Then
+        Call RegisterMethod("ByVal visibilityState As String, ByVal worksheetName As String", methodName, "Alteration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
+    End If
+
+    Dim validation As String
+    Call ValidateWhitelist(visibilityState, "visibilityState", Array("Hidden", "Very Hidden", "Visible"), validation)
+    Call ValidateWorksheet(worksheetName, "worksheetName", validation)
+
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & visibilityState & """" & ", " & """" & worksheetName & """", validation)
+
+    Dim worksheet As Worksheet
+    Dim alreadyMatchesRequestedVisibility As Boolean
+    Dim currentSheet As Object
+    Dim visibleSheetCount As Long
+
+    Set worksheet = mainWorkbook.Worksheets(worksheetName)
+
+    Select Case visibilityState
+        Case "Hidden"
+            alreadyMatchesRequestedVisibility = (worksheet.Visible = xlSheetHidden)
+        Case "Very Hidden"
+            alreadyMatchesRequestedVisibility = (worksheet.Visible = xlSheetVeryHidden)
+        Case "Visible"
+            alreadyMatchesRequestedVisibility = (worksheet.Visible = xlSheetVisible)
+    End Select
+
+    If alreadyMatchesRequestedVisibility = True Then
+        Call LogConclusion("Skipped", logConclusionData)
+        Exit Sub
+    End If
+
+    If visibilityState = "Hidden" Or visibilityState = "Very Hidden" Then
+        For Each currentSheet In mainWorkbook.Sheets
+            If currentSheet.Visible = xlSheetVisible Then
+                visibleSheetCount = visibleSheetCount + 1
+            End If
+        Next currentSheet
+
+        If worksheet.Visible = xlSheetVisible And visibleSheetCount = 1 Then
+            Call LogConclusion("Failed", logConclusionData, "A workbook must contain at least one visible sheet.")
+        End If
+    End If
+
+    Select Case visibilityState
+        Case "Hidden"
+            worksheet.Visible = xlSheetHidden
+        Case "Very Hidden"
+            worksheet.Visible = xlSheetVeryHidden
+        Case "Visible"
+            worksheet.Visible = xlSheetVisible
+    End Select
+
+    Call LogConclusion("Completed", logConclusionData)
+End Sub
+
+Sub SetWidthOnColumnOnWorksheet(ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "SetWidthOnColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, columnWidth & ", " & """" & columnName & """" & ", " & """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call SetWidthOnColumnOnWorksheet(columnWidth, columnName, worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetName As String", methodName, "Alteration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -442,23 +625,78 @@ Else
     Exit Sub
 SetWidthOnColumnOnWorksheetError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
-Sub SortColumnByOrderOnWorksheet(ByVal columnName As String, ByVal sortOrder As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName/worksheetName. '
-
-If InputContainsValue(columnName, "|") Or InputContainsValue(worksheetName, "|") Then
-    Call RepeatSortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetName)
-Else
+Sub SortColumnByOrderOnWorksheet(ByVal columnName As String, ByVal sortOrder As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName + worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "SortColumnByOrderOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNames As Variant
+    Dim worksheetNames As Variant
+    Dim columnNamesHasMultipleValues As Boolean
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(columnName) <> 0 And InStr(columnName, "|") Then
+        columnNames = ParseMethodArgumentsIntoValues(columnName)
+        If LBound(columnNames) < UBound(columnNames) Then columnNamesHasMultipleValues = True
+    End If
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If columnNamesHasMultipleValues = True Or worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal columnNames As String, ByVal sortOrder As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & columnName & """" & ", " & """" & sortOrder & """" & ", " & """" & worksheetName & """")
+
+        Dim columnNameIndex As Long
+        Dim worksheetNameIndex As Long
+
+        If columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = True Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                    columnName = columnNames(columnNameIndex)
+                    worksheetName = worksheetNames(worksheetNameIndex)
+
+                    Call SortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetName)
+                Next worksheetNameIndex
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = False Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                columnName = columnNames(columnNameIndex)
+
+                Call SortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetName)
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = False And worksheetNamesHasMultipleValues = True Then
+            For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                worksheetName = worksheetNames(worksheetNameIndex)
+
+                Call SortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetName)
+            Next worksheetNameIndex
+        End If
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal columnName As String, ByVal sortOrder As String, ByVal worksheetName As String", methodName, "Alteration")
+    End If
+
+    If Len(columnName) >= 3 And InStr(columnName, "|") And Left$(columnName, 1) = """" And Right$(columnName, 1) = """" Then
+        columnName = Mid$(columnName, 2, Len(columnName) - 2)
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -491,8 +729,6 @@ Else
     Exit Sub
 SortColumnByOrderOnWorksheetError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
 Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal worksheetName As String)
@@ -571,7 +807,7 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
             lineText = CStr(sourceValues(lineIndex, 1) & "")
             lineParts = Split(lineText, columnDelimiter)
 
-            For columnIndex = 0 To UBound(lineParts)
+            For columnIndex = LBound(lineParts) To UBound(lineParts)
                 parsedValues(lineIndex, columnIndex + 1) = lineParts(columnIndex)
             Next columnIndex
         Next lineIndex
@@ -708,546 +944,79 @@ End Sub
 ' Functions: Alteration '
 
 ' ************ '
-' Background   '
-' ************ '
-
-Sub ConfigureMethodSetting(ByVal methodName As String, ByVal settingName As String, ByVal settingValue As Long, Optional ByVal floor As Long, Optional ByVal ceiling As Long)
-    Dim setMethodSettingOnly As Boolean
-    Dim methodDictionary As Object
-    Dim methodSettingsDictionary As Object
-    Dim methodSubSettingDictionary As Object
-
-    If floor = 0 And ceiling = 0 Then
-        setMethodSettingOnly = True
-    End If
-
-    If methodRegistry.Exists(methodName) = False Then
-        Set methodDictionary = CreateObject("Scripting.Dictionary")
-        Set methodRegistry(methodName) = methodDictionary
-    Else
-        Set methodDictionary = methodRegistry(methodName)
-    End If
-	
-    If methodDictionary.Exists("Settings") = False Then
-        Set methodSettingsDictionary = CreateObject("Scripting.Dictionary")
-        Set methodDictionary("Settings") = methodSettingsDictionary
-    Else
-        Set methodSettingsDictionary = methodDictionary("Settings")
-    End If
-
-    If methodSettingsDictionary.Exists(settingName) = False Then
-        Set methodSubSettingDictionary = CreateObject("Scripting.Dictionary")
-        Set methodSettingsDictionary(settingName) = methodSubSettingDictionary
-    Else
-        Set methodSubSettingDictionary = methodSettingsDictionary(settingName)
-    End If
-
-    If setMethodSettingOnly = False Then
-        methodSubSettingDictionary("Default") = settingValue
-        methodSubSettingDictionary("Floor")   = floor
-        methodSubSettingDictionary("Ceiling") = ceiling
-    End If
-
-    If methodSubSettingDictionary.Exists("Value") = False Then
-        methodSubSettingDictionary("Value") = settingValue
-    Else
-        If setMethodSettingOnly = True Then
-            methodSubSettingDictionary("Value") = settingValue
-        End If
-    End If
-
-
-    If methodSubSettingDictionary.Exists("Default") Then
-        If VarType(methodSubSettingDictionary("Default")) = vbBoolean Then
-            methodSubSettingDictionary("Default") = Abs(CLng(methodSubSettingDictionary("Default")))
-        End If
-
-        If VarType(methodSubSettingDictionary("Floor")) = vbBoolean Then
-            methodSubSettingDictionary("Floor") = Abs(CLng(methodSubSettingDictionary("Floor")))
-        End If
-
-        If VarType(methodSubSettingDictionary("Ceiling")) = vbBoolean Then
-            methodSubSettingDictionary("Ceiling") = Abs(CLng(methodSubSettingDictionary("Ceiling")))
-        End If
-
-        If VarType(methodSubSettingDictionary("Value")) = vbBoolean Then
-            methodSubSettingDictionary("Value") = Abs(CLng(methodSubSettingDictionary("Value")))
-        End If
-
-        If methodSubSettingDictionary("Value") > methodSubSettingDictionary("Ceiling") Then
-            methodSubSettingDictionary("Value") = methodSubSettingDictionary("Ceiling")
-        ElseIf methodSubSettingDictionary("Value") < methodSubSettingDictionary("Floor") Then
-            methodSubSettingDictionary("Value") = methodSubSettingDictionary("Floor")
-        End If
-    End If
-
-    If methodSubSettingDictionary.Exists("Default") Then
-        If methodSubSettingDictionary("Floor") = 0 And methodSubSettingDictionary("Ceiling") = 1 Then
-            methodSubSettingDictionary("Default") = CBool(methodSubSettingDictionary("Default"))
-            methodSubSettingDictionary("Floor") = CBool(methodSubSettingDictionary("Floor"))
-            methodSubSettingDictionary("Ceiling") = CBool(methodSubSettingDictionary("Ceiling"))
-            methodSubSettingDictionary("Value") = CBool(methodSubSettingDictionary("Value"))
-        End If
-    End If
-End Sub
-
-Sub Intermission(ByVal intermissionsArray As Variant, ByVal checkpointName As String)
-If IsArray(intermissionsArray) = False Then Exit Sub
-
-    Application.ScreenUpdating = False
-    Application.DisplayAlerts = False
-    Application.EnableEvents = False
-
-    ' https://learn.microsoft.com/en-us/office/vba/api/excel.range.replace
-    mainWorkbook.Worksheets("About").Range("A1").Replace What:="", Replacement:="", LookAt:=xlPart
-
-    Dim intermissionState As String
-
-    Dim index As Integer
-    For index = 0 To UBound(intermissionsArray)
-        intermissionState = intermissionsArray(index)
-
-        Select Case intermissionState
-            Case "Break Script", "Break", "BS", "B"
-                End
-            Case "Delete About Names", "DAN"
-                Dim aboutNamedRanges As String: aboutNamedRanges = "AugmentationCheckpoints|AugmentationModules|CreationDate|DependenciesList|DurationMilliseconds|EditionName|FoundationCheckpoints|LogSummary|" & _
-                    "ProgressionStatus|ReportDetails|ReportName|ReportVision|RetrievedDate|ScriptDuration|TemplateDetails|TemplateVersion"
-                Dim aboutNamedRangesArray() As String: aboutNamedRangesArray = Split(aboutNamedRanges, "|")
-                Dim aboutNamedRange As String
-
-                Dim aboutNameIndex As Integer
-                For aboutNameIndex = 0 To UBound(aboutNamedRangesArray)
-                    aboutNamedRange = aboutNamedRangesArray(aboutNameIndex)
-
-                    If NamedRangeExists(aboutNamedRange) Then
-                        mainWorkbook.Names(aboutNamedRange).Delete
-                    End If
-                Next aboutNameIndex
-            Case "Delete Worksheet Log", "DWL"
-                If WorksheetExists("Log") Then
-                    mainWorkbook.Worksheets("Log").Delete
-                End If
-            Case "Delete Worksheet Run Status", "DWRS"
-                If WorksheetExists("Run Status") Then
-                    mainWorkbook.Worksheets("Run Status").Delete
-                End If
-            Case "Duplicate Workbook", "Duplicate", "DW", "D"
-                mainWorkbook.SaveCopyAs Left(mainWorkbook.FullName, Len(mainWorkbook.FullName) - 5) & " (" & checkpointName & ")" & ".xlsx"
-            Case "End Workbook", "End", "EW", "E"
-                mainWorkbook.Close
-            Case "Open Workbook", "Open", "OW", "O"
-                Dim closingWorkbook As Workbook
-                Set closingWorkbook = ActiveWorkbook
-                
-                Workbooks.Open checkpointName
-                Set mainWorkbook = ActiveWorkbook
-                closingWorkbook.Close
-            Case "Quit Excel", "Quit", "QE", "Q"
-                Excel.Application.Quit
-                Workbooks(2).Close SaveChanges:=False
-                Workbooks(1).Close SaveChanges:=False
-            Case "Reset View", "Reset", "RW", "R"
-                Dim worksheetCount As Long: worksheetCount = mainWorkbook.Worksheets.Count
-                Dim worksheetIsHidden As Boolean
-
-                Dim indexResetView As Long
-                For indexResetView = 1 To worksheetCount
-                    If mainWorkbook.Worksheets(indexResetView).Name <> "Log" Then
-                        worksheetIsHidden = False
-                        If mainWorkbook.Worksheets(indexResetView).Visible = xlSheetHidden Then worksheetIsHidden = True
-
-                        If worksheetIsHidden = True Then
-                            mainWorkbook.Worksheets(indexResetView).Visible = xlSheetVisible
-                        End If
-
-                        mainWorkbook.Worksheets(indexResetView).Select
-                        Application.Goto Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A1"), Scroll:=True
-
-                        If worksheetIsHidden = True Then
-                            mainWorkbook.Worksheets(indexResetView).Visible = xlSheetHidden
-                        End If
-                    End If
-                Next indexResetView
-
-                mainWorkbook.Activate
-                mainWorkbook.Worksheets("About").Select
-                mainWorkbook.Worksheets("About").Activate
-            Case "Save Workbook", "Save", "SW", "S"
-                mainWorkbook.Save
-            Case "Testing Mode", "Testing", "TM", "T"
-                If NamedRangeExists("Foundation Checkpoints") Then
-                    Call SetAboutNamedRange("N/A", "Foundation Checkpoints", True)
-                End If
-
-                If NamedRangeExists("Augmentation Checkpoints") Then
-                    Call SetAboutNamedRange("N/A", "Augmentation Checkpoints", True)
-                End If
-        End Select
-    Next index
-End Sub
-
-Sub RegisterMethod(ByVal contract As String, ByVal methodName As String, ByVal categoryName As String)
-    Dim methodDictionary As Object
-    
-    If methodRegistry.Exists(methodName) = False Then
-        Set methodDictionary = CreateObject("Scripting.Dictionary")
-        Set methodRegistry(methodName) = methodDictionary
-    Else
-        Set methodDictionary = methodRegistry(methodName)
-    End If
-    
-    methodDictionary("Category")    = categoryName
-    methodDictionary("Declaration") = methodName & "(" & contract & ") @ " & categoryName & " (" & templateVersion & ")"
-    methodDictionary("Registered")  = True
-
-    If contract <> "" Then
-        methodDictionary("Contract") = contract
-    Else
-        Exit Sub
-    End If
-
-    Dim parameters() As String
-    Dim parameter As String
-    Dim positionOfAs As Integer
-    Dim result As String
-    
-    parameters = Split(contract, ",")
-    
-    Dim index As Integer
-    For index = 0 To UBound(parameters)
-        parameter = Trim(parameters(index))
-
-        If Left(parameter, 8) = "Context " Then
-            parameter = Trim(Mid(parameter, 9))
-        End If
-
-        If Left(parameter, 9) = "Withheld " Then
-            parameter = Trim(Mid(parameter, 10))
-        End If
-
-        If Left(parameter, 9) = "Optional " Then
-            parameter = Trim(Mid(parameter, 10))
-        End If
-
-        If Left(parameter, 6) = "ByVal " Then
-            parameter = Trim(Mid(parameter, 7))
-        End If
-
-        If Left(parameter, 6) = "ByRef " Then
-            parameter = Trim(Mid(parameter, 7))
-        End If
-
-        If Left(parameter, 11) = "ParamArray " Then
-            parameter = Trim(Mid(parameter, 12))
-        End If
-
-        positionOfAs = InStr(1, parameter, " As ", vbTextCompare)
-        parameter = Left(parameter, positionOfAs - 1)
-    
-        result = result & parameter & ", "
-
-        If index = UBound(parameters) Then
-            result = Left(result, Len(result) - 2)
-        End If
-    Next index
-
-    methodDictionary("Parameters") = result
-End Sub
-
-Sub SaveWorkbook(ByVal workbookName As String, ByVal directoryPath As String)
-    Dim fullFilePath As String
-    Dim previousDisplayAlerts As Boolean: previousDisplayAlerts = Application.DisplayAlerts
-    
-    If Right$(directoryPath, 1) <> "\" Then
-        directoryPath = directoryPath & "\"
-    End If
-
-    fullFilePath = directoryPath & workbookName & ".xlsx"
-    
-    If Dir(fullFilePath) <> "" Then
-        Application.DisplayAlerts = False
-    End If
-
-    Call mainWorkbook.SaveAs(Filename:=fullFilePath, FileFormat:=xlOpenXMLWorkbook)
-    
-    Application.DisplayAlerts = previousDisplayAlerts
-End Sub
-
-Sub SetAboutNamedRange(ByVal namedRangeValue As String, ByVal aboutNamedRange As String, Optional ByVal overwrite As Boolean)
-    Dim currentNamedRangeValue As String
-
-    With mainWorkbook.Worksheets("About")
-        Select Case aboutNamedRange
-            Case "ReportName", "ReportName", "Report", "Name"
-                If NamedRangeExists("ReportName") Then
-                    .Range("ReportName").Value = namedRangeValue
-                    .Range("ReportName").Font.Bold = True
-                End If
-            Case "TemplateVersion", "Template Version", "Template", "Version"
-                If NamedRangeExists("TemplateVersion") Then
-                    .Range("TemplateVersion").Value = "Spreadsheet Operations Template (" & namedRangeValue & ")"
-                    .Range("TemplateVersion").Font.Bold = True
-                End If
-            Case "FoundationCheckpoints", "Foundation Checkpoints", "Foundation"
-                If NamedRangeExists("FoundationCheckpoints") Then
-                    currentNamedRangeValue = GetAboutNamedRange("Foundation Checkpoints")
-
-                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
-                        .Range("FoundationCheckpoints").Value = "Foundation Checkpoints: " & namedRangeValue & "."
-                    Else
-                        .Range("FoundationCheckpoints").Value = "Foundation Checkpoints: " & currentNamedRangeValue & ", " & namedRangeValue & "."
-                    End If
-
-                    .Range("FoundationCheckpoints").Font.Bold = False
-                    .Range("FoundationCheckpoints").Characters(Start:=1, Length:=22).Font.Bold = True
-                End If
-            Case "AugmentationCheckpoints", "Augmentation Checkpoints", "Augmentation"
-                If NamedRangeExists("AugmentationCheckpoints") Then
-                    currentNamedRangeValue = GetAboutNamedRange("Augmentation Checkpoints")
-
-                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
-                        .Range("AugmentationCheckpoints").Value = "Augmentation Checkpoints: " & namedRangeValue & "."
-                    Else
-                        .Range("AugmentationCheckpoints").Value = "Augmentation Checkpoints: " & currentNamedRangeValue & ", " & namedRangeValue & "."
-                    End If
-
-                    .Range("AugmentationCheckpoints").Font.Bold = False
-                    .Range("AugmentationCheckpoints").Characters(Start:=1, Length:=24).Font.Bold = True
-                End If
-            Case "ReportVision", "Report Vision", "Vision"
-                If NamedRangeExists("ReportVision") Then
-                    .Range("ReportVision").Value = namedRangeValue
-                    .Range("ReportVision").Font.Bold = False
-                End If
-            Case "DependenciesList", "Dependencies List", "Dependencies"
-                If NamedRangeExists("DependenciesList") Then
-                    currentNamedRangeValue = GetAboutNamedRange("Dependencies List")
-
-                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
-                        .Range("DependenciesList").Value = "Dependencies List: " & namedRangeValue & "."
-                    Else
-                        .Range("DependenciesList").Value = "Dependencies List: " & currentNamedRangeValue & ", " & namedRangeValue & "."
-                    End If
-
-                    .Range("DependenciesList").Font.Bold = False
-                    .Range("DependenciesList").Characters(Start:=1, Length:=17).Font.Bold = True
-                End If
-            Case "CreationDate", "Creation Date", "Creation", "CD"
-                If NamedRangeExists("CreationDate") Then
-                    .Range("CreationDate").Value = "Creation Date: " & namedRangeValue & "."
-                    .Range("CreationDate").Font.Bold = False
-                    .Range("CreationDate").Characters(Start:=1, Length:=13).Font.Bold = True
-                End If
-            Case "EditionName", "Edition Name", "Edition"
-                If NamedRangeExists("EditionName") Then
-                    .Range("EditionName").Value = "Edition Name: " & namedRangeValue & "."
-                    .Range("EditionName").Font.Bold = False
-                    .Range("EditionName").Characters(Start:=1, Length:=12).Font.Bold = True
-                End If
-            Case "Duration (Milliseconds)", "Duration Milliseconds", "Duration"
-                If NamedRangeExists("DurationMilliseconds") Then
-                    currentNamedRangeValue = GetAboutNamedRange("Duration (Milliseconds)")
-
-                    If overwrite = True Then
-                        .Range("DurationMilliseconds").Value = "Duration (Milliseconds): " & namedRangeValue & "."
-                    Else
-                        .Range("DurationMilliseconds").Value = "Duration (Milliseconds): " & (CDbl(currentNamedRangeValue) + CDbl(namedRangeValue)) & "."
-                    End If
-
-                    .Range("DurationMilliseconds").Font.Bold = False
-                    .Range("DurationMilliseconds").Characters(Start:=1, Length:=23).Font.Bold = True
-                End If
-            Case "LogSummary", "Log Summary", "Summary"
-                If NamedRangeExists("LogSummary") Then
-                    currentNamedRangeValue = GetAboutNamedRange("Log Summary")
-
-                    Dim logRows As Long
-                    Dim logRowsSummary As String
-                    
-                    If WorksheetExists("Log") = False Then
-                        logRows = 0
-                        logRowsSummary = logRows & " Rows."
-                    Else
-                        Dim logWorksheet As Worksheet: Set logWorksheet = mainWorkbook.Worksheets("Log")
-                        logRows = logWorksheet.Cells(logWorksheet.Rows.Count, 1).End(xlUp).Row - 1
-
-                        If logRows = 1 Then
-                            logRowsSummary = logRows & " Row."
-                        Else
-                            logRowsSummary = logRows & " Rows."
-                        End If
-                    End If
-
-                    Dim currentRunsValue As Long
-                    Dim currentCheckpointsValue As Long
-
-                    Dim argumentRunsValue As Long
-                    Dim argumentCheckpointsValue As Long
-
-                    Dim currentParts() As String
-                    Dim argumentParts() As String
-
-                    If currentNamedRangeValue = "N/A" Then
-                        currentNamedRangeValue = "0 Runs. 0 Checkpoints. 0 Rows."
-                    End If
-
-                    currentParts  = Split(currentNamedRangeValue, ". ")
-                    argumentParts = Split(namedRangeValue, ". ")
-
-                    currentRunsValue        = CLng(Val(currentParts(0)))
-                    currentCheckpointsValue = CLng(Val(currentParts(1)))
-
-                    argumentRunsValue        = CLng(Val(argumentParts(0)))
-                    argumentCheckpointsValue = CLng(Val(argumentParts(1)))
-
-                    Dim combinedRunsValue As Long: combinedRunsValue = currentRunsValue + argumentRunsValue
-                    Dim runsSummary As String
-
-                    If combinedRunsValue = 1 Then
-                        runsSummary = combinedRunsValue & " Run. "
-                    Else
-                        runsSummary = combinedRunsValue & " Runs. "
-                    End If
-
-                    Dim combinedCheckpointsValue As Long: combinedCheckpointsValue = currentCheckpointsValue + argumentCheckpointsValue
-                    Dim checkpointsSummary As String
-
-                    If combinedCheckpointsValue = 1 Then
-                        checkpointsSummary = combinedCheckpointsValue & " Checkpoint. "
-                    Else
-                        checkpointsSummary = combinedCheckpointsValue & " Checkpoints. "
-                    End If
-
-                    .Range("LogSummary").Value = "Log Summary: " & runsSummary & checkpointsSummary & logRowsSummary
-                    .Range("LogSummary").Font.Bold = False
-                    .Range("LogSummary").Characters(Start:=1, Length:=11).Font.Bold = True
-                End If
-        End Select
-    End With
-End Sub
-
-' Functions: Background '
-
-Function CheckpointIsNew(ByVal checkpointName As String) As Boolean
-    If WorksheetExists("About") = False Then
-        CheckpointIsNew = True
-
-        Exit Function
-    End If
-
-    Dim foundationCheckpointsValue As String
-    Dim augmentationCheckpointsValue As String
-
-    foundationCheckpointsValue = mainWorkbook.Worksheets("About").Range("A3").Value
-    foundationCheckpointsValue = Replace(foundationCheckpointsValue, "Progression Status: ", "")
-    foundationCheckpointsValue = Replace(foundationCheckpointsValue, "Foundation Checkpoints: ", "")
-
-    augmentationCheckpointsValue = mainWorkbook.Worksheets("About").Range("A4").Value
-    augmentationCheckpointsValue = Replace(augmentationCheckpointsValue, "Augmentation Modules: ", "")
-    augmentationCheckpointsValue = Replace(augmentationCheckpointsValue, "Augmentation Checkpoints: ", "")
-    
-    If InputContainsValue(foundationCheckpointsValue, checkpointName) Or InputContainsValue(augmentationCheckpointsValue, checkpointName) Then
-        CheckpointIsNew = False
-    Else
-        CheckpointIsNew = True
-    End If
-End Function
-
-Function GetAboutNamedRange(ByVal aboutNamedRange As String) As String
-    Dim namedRangeValue As String
-
-    Select Case aboutNamedRange
-        Case "ReportDetails", "Report Details", "ReportName", "ReportName", "Report", "Name"
-            If NamedRangeExists("ReportDetails") Then
-                namedRangeValue = aboutWorksheet.Range("ReportDetails").Value
-            ElseIf NamedRangeExists("ReportName") Then
-                namedRangeValue = aboutWorksheet.Range("ReportName").Value
-            End If
-        Case "TemplateDetails", "Template Details", "TemplateVersion", "Template Version", "Template", "Version"
-            If NamedRangeExists("TemplateDetails") Then
-                namedRangeValue = aboutWorksheet.Range("TemplateDetails").Value
-            ElseIf NamedRangeExists("TemplateVersion") Then
-                namedRangeValue = aboutWorksheet.Range("TemplateVersion").Value
-            End If
-
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, "(") + 1)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "FoundationCheckpoints", "Foundation Checkpoints", "Foundation", "ProgressionStatus", "Progression Status", "Progression"
-            If NamedRangeExists("FoundationCheckpoints") Then
-                namedRangeValue = aboutWorksheet.Range("FoundationCheckpoints").Value
-            ElseIf NamedRangeExists("ProgressionStatus") Then
-                namedRangeValue = aboutWorksheet.Range("ProgressionStatus").Value
-            End If
-
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "AugmentationCheckpoints", "Augmentation Checkpoints", "Augmentation", "AugmentationModules", "Augmentation Modules"
-            If NamedRangeExists("AugmentationCheckpoints") Then
-                namedRangeValue = aboutWorksheet.Range("AugmentationCheckpoints").Value
-            ElseIf NamedRangeExists("AugmentationModules") Then
-                namedRangeValue = aboutWorksheet.Range("AugmentationModules").Value
-            End If
-
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "ReportVision", "Report Vision", "Vision"
-            namedRangeValue = aboutWorksheet.Range("ReportVision").Value
-        Case "DependenciesList", "Dependencies List", "Dependencies"
-            namedRangeValue = aboutWorksheet.Range("DependenciesList").Value
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "CreationDate", "Creation Date", "Creation", "CD", "RetrievedDate", "Retrieved Date", "Retrieved"
-            If NamedRangeExists("CreationDate") Then
-                namedRangeValue = aboutWorksheet.Range("CreationDate").Value
-            ElseIf NamedRangeExists("RetrievedDate") Then
-                namedRangeValue = aboutWorksheet.Range("RetrievedDate").Value
-            End If
-
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "EditionName", "Edition Name", "Edition"
-            namedRangeValue = aboutWorksheet.Range("EditionName").Value
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "ScriptDuration", "Script Duration", "Duration (Milliseconds)", "Duration Milliseconds", "Duration"
-            namedRangeValue = aboutWorksheet.Range("DurationMilliseconds").Value
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case "LogSummary", "Log Summary", "Summary"
-            namedRangeValue = aboutWorksheet.Range("LogSummary").Value
-            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
-            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
-        Case Else
-            namedRangeValue = ""
-    End Select
-
-    GetAboutNamedRange = namedRangeValue
-End Function
-
-Function GetQueryPerformanceCounter() As Double
-    Dim queryPerformanceCounterValue As Currency
-    Call QueryPerformanceCounter(queryPerformanceCounterValue)
-    GetQueryPerformanceCounter = CDbl(queryPerformanceCounterValue) * 10000#
-End Function
-
-' ************ '
 ' Conjuration  '
 ' ************ '
 
-Sub AddColumnOnWorksheet(ByVal columnName As String, ByVal columnWidth As Double, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName/worksheetName. '
-
-If InputContainsValue(columnName, "|") Or InputContainsValue(worksheetName, "|") Then
-    Call RepeatAddColumnOnWorksheet(columnName, columnWidth, worksheetName)
-Else
+Sub AddColumnOnWorksheet(ByVal columnName As String, ByVal columnWidth As Double, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName + worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "AddColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNames As Variant
+    Dim worksheetNames As Variant
+    Dim columnNamesHasMultipleValues As Boolean
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(columnName) <> 0 And InStr(columnName, "|") Then
+        columnNames = ParseMethodArgumentsIntoValues(columnName)
+        If LBound(columnNames) < UBound(columnNames) Then columnNamesHasMultipleValues = True
+    End If
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If columnNamesHasMultipleValues = True Or worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal columnNames As String, ByVal columnWidth As Double, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & columnName & """" & ", " & columnWidth & ", " & """" & worksheetName & """")
+
+        Dim columnNameIndex As Long
+        Dim worksheetNameIndex As Long
+
+        If columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = True Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                    columnName = columnNames(columnNameIndex)
+                    worksheetName = worksheetNames(worksheetNameIndex)
+
+                    Call AddColumnOnWorksheet(columnName, columnWidth, worksheetName)
+                Next worksheetNameIndex
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = False Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                columnName = columnNames(columnNameIndex)
+
+                Call AddColumnOnWorksheet(columnName, columnWidth, worksheetName)
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = False And worksheetNamesHasMultipleValues = True Then
+            For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                worksheetName = worksheetNames(worksheetNameIndex)
+
+                Call AddColumnOnWorksheet(columnName, columnWidth, worksheetName)
+            Next worksheetNameIndex
+        End If
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal columnName As String, ByVal columnWidth As Double, ByVal worksheetName As String", methodName, "Conjuration")
+    End If
+
+    If Len(columnName) >= 3 And InStr(columnName, "|") And Left$(columnName, 1) = """" And Right$(columnName, 1) = """" Then
+        columnName = Mid$(columnName, 2, Len(columnName) - 2)
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -1290,8 +1059,6 @@ Else
     worksheet.Range("A1:" & columnLetter & "1").AutoFilter
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 Sub CopyWorksheetAs(ByVal currentWorksheetName As String, ByVal newWorksheetName As String)
@@ -1330,19 +1097,47 @@ CopyWorksheetAsError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
 End Sub
 
-Sub CreateWorksheet(ByVal worksheetName As String, Optional ByVal insertAfterWorksheetName As String) ' Repeat Support: worksheetName '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatCreateWorksheet(worksheetName, insertAfterWorksheetName)
-Else
+Sub CreateWorksheet(ByVal worksheetName As String, Optional ByVal insertAfterWorksheetName As String) ' Repeat Support: worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "CreateWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal worksheetNames As String, Optional ByVal insertAfterWorksheetName As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & worksheetName & """" & ", " & """" & insertAfterWorksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call CreateWorksheet(worksheetName, insertAfterWorksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal worksheetName As String, Optional ByVal insertAfterWorksheetName As String", methodName, "Conjuration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -1367,8 +1162,6 @@ Else
     Exit Sub
 CreateWorksheetError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
 Sub ImportTextFileOntoNewWorksheet(ByVal filePath As String, ByVal worksheetName As String, ByVal characterEncoding As String)
@@ -1448,18 +1241,46 @@ ImportTextFileOntoNewWorksheetError:
 End Sub
 
 Sub InsertValueOnNextEmptyRowInColumnOnWorksheet(ByVal value As String, ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatInsertValueOnNextEmptyRowInColumnOnWorksheet(value, columnName, worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "InsertValueOnNextEmptyRowInColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal value As String, ByVal columnName As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & value & """" & ", " & """" & columnName & """" & ", " & """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call InsertValueOnNextEmptyRowInColumnOnWorksheet(value, columnName, worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal value As String, ByVal columnName As String, ByVal worksheetName As String", methodName, "Conjuration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -1482,8 +1303,6 @@ Else
     worksheet.Range(columnLetter & lastEmptyRow).Value = value
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 Sub OpenWorkbook(ByVal filePath As String, ByRef workbook As Workbook, ByVal workbookVariableName As String)
@@ -1526,19 +1345,47 @@ OpenWorkbookError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
 End Sub
 
-Sub PopulateColumnFromWorksheetOntoWorksheet(ByVal columnNameToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String) ' Repeat Support: columnNameToPopulate '
-
-If InputContainsValue(columnNameToPopulate, "|") Then
-    Call RepeatPopulateColumnFromWorksheetOntoWorksheet(columnNameToPopulate, fromKeyColumnName, fromWorksheetName, ontoKeyColumnName, ontoWorksheetName)
-Else
+Sub PopulateColumnFromWorksheetOntoWorksheet(ByVal columnNameToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String) ' Repeat Support: columnNameToPopulate. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "PopulateColumnFromWorksheetOntoWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNamesToPopulate As Variant
+    Dim columnNamesToPopulateHasMultipleValues As Boolean
+
+    If Len(columnNameToPopulate) <> 0 And InStr(columnNameToPopulate, "|") Then
+        columnNamesToPopulate = ParseMethodArgumentsIntoValues(columnNameToPopulate)
+        If LBound(columnNamesToPopulate) < UBound(columnNamesToPopulate) Then columnNamesToPopulateHasMultipleValues = True
+    End If
+
+    If columnNamesToPopulateHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal columnNamesToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & columnNameToPopulate & """" & ", " & """" & fromKeyColumnName & """" & ", " & """" & fromWorksheetName & """" & ", " & """" & ontoKeyColumnName & """" & ", " & """" & ontoWorksheetName & """")
+
+        Dim columnNameToPopulateIndex As Long
+
+        For columnNameToPopulateIndex = LBound(columnNamesToPopulate) To UBound(columnNamesToPopulate)
+            columnNameToPopulate = columnNamesToPopulate(columnNameToPopulateIndex)
+
+            Call PopulateColumnFromWorksheetOntoWorksheet(columnNameToPopulate, fromKeyColumnName, fromWorksheetName, ontoKeyColumnName, ontoWorksheetName)
+        Next columnNameToPopulateIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal columnNameToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String", methodName, "Conjuration")
+    End If
+
+    If Len(columnNameToPopulate) >= 3 And InStr(columnNameToPopulate, "|") And Left$(columnNameToPopulate, 1) = """" And Right$(columnNameToPopulate, 1) = """" Then
+        columnNameToPopulate = Mid$(columnNameToPopulate, 2, Len(columnNameToPopulate) - 2)
     End If
 
     Dim validation As String
@@ -1645,8 +1492,6 @@ Else
     workingWorksheet.Range(workingValueColumnLetter & "2:" & workingValueColumnLetter & workingLastRowNumber).Value = populatedValues
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 ' Functions: Conjuration '
@@ -1752,18 +1597,46 @@ CloseWorkbookError:
 End Sub
 
 Sub DeleteCellStyle(ByVal cellStyleName As String) ' Repeat Support: cellStyleName. '
-
-If InputContainsValue(cellStyleName, "|") Then
-    Call RepeatDeleteCellStyle(cellStyleName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "DeleteCellStyle"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim cellStyleNames As Variant
+    Dim cellStyleNamesHasMultipleValues As Boolean
+
+    If Len(cellStyleName) <> 0 And InStr(cellStyleName, "|") Then
+        cellStyleNames = ParseMethodArgumentsIntoValues(cellStyleName)
+        If LBound(cellStyleNames) < UBound(cellStyleNames) Then cellStyleNamesHasMultipleValues = True
+    End If
+
+    If cellStyleNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal cellStyleNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & cellStyleName & """")
+
+        Dim cellStyleNameIndex As Long
+
+        For cellStyleNameIndex = LBound(cellStyleNames) To UBound(cellStyleNames)
+            cellStyleName = cellStyleNames(cellStyleNameIndex)
+
+            Call DeleteCellStyle(cellStyleName)
+        Next cellStyleNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal cellStyleName As String, Context regionalizedCellStyleName As String", methodName, "Destruction")
+    End If
+
+    If Len(cellStyleName) >= 3 And InStr(cellStyleName, "|") And Left$(cellStyleName, 1) = """" And Right$(cellStyleName, 1) = """" Then
+        cellStyleName = Mid$(cellStyleName, 2, Len(cellStyleName) - 2)
     End If
 
     Call LogBeginning(methodName, tickCount, logConclusionData, """" & cellStyleName & """" & ", ")
@@ -1796,23 +1669,78 @@ Else
 
     mainWorkbook.Styles(deleteCellStyleName).Delete
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
-Sub DeleteColumnOnWorksheet(ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName/worksheetName. '
-
-If InputContainsValue(columnName, "|") Or InputContainsValue(worksheetName, "|") Then
-    Call RepeatDeleteColumnOnWorksheet(columnName, worksheetName)
-Else
+Sub DeleteColumnOnWorksheet(ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName + worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "DeleteColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNames As Variant
+    Dim worksheetNames As Variant
+    Dim columnNamesHasMultipleValues As Boolean
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(columnName) <> 0 And InStr(columnName, "|") Then
+        columnNames = ParseMethodArgumentsIntoValues(columnName)
+        If LBound(columnNames) < UBound(columnNames) Then columnNamesHasMultipleValues = True
+    End If
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If columnNamesHasMultipleValues = True Or worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal columnNames As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & columnName & """" & ", " & """" & worksheetName & """")
+
+        Dim columnNameIndex As Long
+        Dim worksheetNameIndex As Long
+
+        If columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = True Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                    columnName = columnNames(columnNameIndex)
+                    worksheetName = worksheetNames(worksheetNameIndex)
+
+                    Call DeleteColumnOnWorksheet(columnName, worksheetName)
+                Next worksheetNameIndex
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = False Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                columnName = columnNames(columnNameIndex)
+
+                Call DeleteColumnOnWorksheet(columnName, worksheetName)
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = False And worksheetNamesHasMultipleValues = True Then
+            For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                worksheetName = worksheetNames(worksheetNameIndex)
+
+                Call DeleteColumnOnWorksheet(columnName, worksheetName)
+            Next worksheetNameIndex
+        End If
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal columnName As String, ByVal worksheetName As String", methodName, "Destruction")
+    End If
+
+    If Len(columnName) >= 3 And InStr(columnName, "|") And Left$(columnName, 1) = """" And Right$(columnName, 1) = """" Then
+        columnName = Mid$(columnName, 2, Len(columnName) - 2)
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -1834,23 +1762,49 @@ Else
     Exit Sub
 DeleteColumnError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
 Sub DeleteWorksheet(ByVal worksheetName As String) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatDeleteWorksheet(worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "DeleteWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call DeleteWorksheet(worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal worksheetName As String", methodName, "Destruction")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -1865,8 +1819,6 @@ Else
     worksheet.Delete
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 ' Functions: Destruction '
@@ -2278,19 +2230,76 @@ End Sub
 ' Formatting   '
 ' ************ '
 
-Sub ApplyCellStyleToColumnOnWorksheet(ByVal cellStyle As String, ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName. '
-
-If InputContainsValue(columnName, "|") Or InputContainsValue(worksheetName, "|") Then
-    Call RepeatApplyCellStyleToColumnOnWorksheet(cellStyle, columnName, worksheetName)
-Else
+Sub ApplyCellStyleToColumnOnWorksheet(ByVal cellStyle As String, ByVal columnName As String, ByVal worksheetName As String) ' Repeat Support: columnName, worksheetName, columnName + worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "ApplyCellStyleToColumnOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim columnNames As Variant
+    Dim worksheetNames As Variant
+    Dim columnNamesHasMultipleValues As Boolean
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(columnName) <> 0 And InStr(columnName, "|") Then
+        columnNames = ParseMethodArgumentsIntoValues(columnName)
+        If LBound(columnNames) < UBound(columnNames) Then columnNamesHasMultipleValues = True
+    End If
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If columnNamesHasMultipleValues = True Or worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal cellStyle As String, ByVal columnNames As String, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & cellStyle & """" & ", " & """" & columnName & """" & ", " & """" & worksheetName & """")
+
+        Dim columnNameIndex As Long
+        Dim worksheetNameIndex As Long
+
+        If columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = True Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                    columnName = columnNames(columnNameIndex)
+                    worksheetName = worksheetNames(worksheetNameIndex)
+
+                    Call ApplyCellStyleToColumnOnWorksheet(cellStyle, columnName, worksheetName)
+                Next worksheetNameIndex
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = True And worksheetNamesHasMultipleValues = False Then
+            For columnNameIndex = LBound(columnNames) To UBound(columnNames)
+                columnName = columnNames(columnNameIndex)
+
+                Call ApplyCellStyleToColumnOnWorksheet(cellStyle, columnName, worksheetName)
+            Next columnNameIndex
+        ElseIf columnNamesHasMultipleValues = False And worksheetNamesHasMultipleValues = True Then
+            For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+                worksheetName = worksheetNames(worksheetNameIndex)
+
+                Call ApplyCellStyleToColumnOnWorksheet(cellStyle, columnName, worksheetName)
+            Next worksheetNameIndex
+        End If
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal cellStyle As String, ByVal columnName As String, ByVal worksheetName As String", methodName, "Formatting")
+    End If
+
+    If Len(columnName) >= 3 And InStr(columnName, "|") And Left$(columnName, 1) = """" And Right$(columnName, 1) = """" Then
+        columnName = Mid$(columnName, 2, Len(columnName) - 2)
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -2335,23 +2344,49 @@ Else
     End If
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
-Sub ColorWorksheet(ByVal colorName As String, ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetName As String) ' Repeat Support: worksheetName '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatColorWorksheet(colorName, colorDictionary, colorDictionaryVariableName, worksheetName)
-Else
+Sub ColorWorksheet(ByVal colorName As String, ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "ColorWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal colorName As String, Withheld ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetName As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & colorName & """" & ", " & """" & colorDictionaryVariableName & """" & ", " & """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call ColorWorksheet(colorName, colorDictionary, colorDictionaryVariableName, worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal colorName As String, Withheld ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetName As String, Context hex As String", methodName, "Formatting")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -2395,8 +2430,6 @@ Else
     Exit Sub
 ColorWorksheetError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
-End If
-
 End Sub
 
 Sub CreateColorDictionaryFromColumnsOnWorksheet(ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal colorColumnName As String, ByVal hexColumnName As String, ByVal worksheetName As String)
@@ -2627,14 +2660,38 @@ Sub FormatCoreWorksheet(ByVal worksheetName As String)
 End Sub
 
 Sub NormalizeLayoutOnWorksheet(ByVal worksheetName As String) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatNormalizeLayoutOnWorksheet(worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "NormalizeLayoutOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
+
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call NormalizeLayoutOnWorksheet(worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
 
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
@@ -2642,6 +2699,10 @@ Else
 
         Call ConfigureMethodSetting(methodName, "Apply Auto Filter", 1, 0, 1)
         Call ConfigureMethodSetting(methodName, "Header Style", 1, 0, 1)
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -2683,23 +2744,49 @@ Else
     End If
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-    
 End Sub
 
 Sub SetFrozenPanesOnWorksheet(ByVal frozenRowCount As Long, ByVal frozenColumnCount As Long, ByVal worksheetName As String) ' Repeat Support: worksheetName. '
-
-If InputContainsValue(worksheetName, "|") Then
-    Call RepeatSetFrozenPanesOnWorksheet(frozenRowCount, frozenColumnCount, worksheetName)
-Else
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Const methodName As String = "SetFrozenPanesOnWorksheet"
     Dim isRegistered As Boolean
     Dim logConclusionData As LogEntry
 
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal frozenRowCount As Long, ByVal frozenColumnCount As Long, ByVal worksheetNames As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, frozenRowCount & ", " & frozenColumnCount & ", " & """" & worksheetName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call SetFrozenPanesOnWorksheet(frozenRowCount, frozenColumnCount, worksheetName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
         Call RegisterMethod("ByVal frozenRowCount As Long, ByVal frozenColumnCount As Long, ByVal worksheetName As String", methodName, "Formatting")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
     End If
 
     Dim validation As String
@@ -2747,8 +2834,6 @@ Else
     End If
 
     Call LogConclusion("Completed", logConclusionData)
-End If
-
 End Sub
 
 ' Functions: Formatting '
@@ -3302,18 +3387,18 @@ If logEngineActive = True Then Exit Sub
         Dim customCellStyle As String
 
         Dim customCellStyleIndex As Integer
-        For customCellStyleIndex = 0 To UBound(customCellStylesArray)
+        For customCellStyleIndex = LBound(customCellStylesArray) To UBound(customCellStylesArray)
             customCellStyle = customCellStylesArray(customCellStyleIndex)
 
             If CellStyleExists(customCellStyle) = False Then
                 Call mainWorkbook.Styles.Add(Name:=customCellStyle)
 
                 If customCellStyle = "Date" Then
-                    mainWorkbook.Styles("Date").NumberFormat = "dd/mm/yyyy"
+                    mainWorkbook.Styles("Date").NumberFormat = "yyyy-mm-dd"
                 End If
 
                 If customCellStyle = "Date Time" Then
-                    mainWorkbook.Styles("Date Time").NumberFormat = "dd/mm/yyyy HH:mm:ss"
+                    mainWorkbook.Styles("Date Time").NumberFormat = "yyyy-mm-dd HH:mm:ss"
                 End If
 
                 If customCellStyle = "Decimal" Then
@@ -3433,6 +3518,124 @@ If logEngineActive = True Then Exit Sub
     End With
 End Sub
 
+' Functions: Logging '
+
+Function ParseMethodArgumentsIntoValues(ByVal argument As String) As Variant
+    Const methodName As String = "ParseMethodArgumentsIntoValues"
+    Dim isRegistered As Boolean
+    Dim logConclusionData As LogEntry
+
+    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
+    If isRegistered = False Then
+        Call RegisterMethod("ByVal argument As String", methodName, "Logging")
+    End If
+
+    Dim textQualifier As String
+    Dim argumentLength As Long
+    Dim argumentValues() As String
+    Dim collectedValues As Collection
+    Dim unquotedParts As Variant
+    Dim partIndex As Long
+    Dim valueCount As Long
+    Dim valueIndex As Long
+    Dim characterIndex As Long
+    Dim scanIndex As Long
+    Dim nextCharacter As String
+    Dim qualifierCloseIndex As Long
+    Dim currentValue As String
+    Dim usedQuotedValue As Boolean
+
+    textQualifier = """"
+    argumentLength = Len(argument)
+
+    If argumentLength = 0 Then
+        ReDim argumentValues(1 To 1)
+        argumentValues(1) = ""
+    ElseIf InStr(1, argument, textQualifier, vbBinaryCompare) = 0 Then
+        unquotedParts = Split(argument, delimiter)
+        valueCount = UBound(unquotedParts) - LBound(unquotedParts) + 1
+        ReDim argumentValues(1 To valueCount)
+        For partIndex = LBound(unquotedParts) To UBound(unquotedParts)
+            argumentValues(partIndex - LBound(unquotedParts) + 1) = unquotedParts(partIndex)
+        Next partIndex
+    Else
+        Set collectedValues = New Collection
+        characterIndex = 1
+        Do While characterIndex <= argumentLength
+            usedQuotedValue = False
+            qualifierCloseIndex = 0
+            If Mid$(argument, characterIndex, 1) = textQualifier Then
+                scanIndex = characterIndex + 1
+                Do While scanIndex <= argumentLength
+                    If Mid$(argument, scanIndex, 1) = textQualifier Then
+                        If scanIndex < argumentLength Then
+                            nextCharacter = Mid$(argument, scanIndex + 1, 1)
+                            If nextCharacter = textQualifier Then
+                                scanIndex = scanIndex + 2
+                            ElseIf nextCharacter = delimiter Then
+                                qualifierCloseIndex = scanIndex
+                                Exit Do
+                            Else
+                                scanIndex = scanIndex + 1
+                            End If
+                        Else
+                            qualifierCloseIndex = scanIndex
+                            Exit Do
+                        End If
+                    Else
+                        scanIndex = scanIndex + 1
+                    End If
+                Loop
+            End If
+
+            If qualifierCloseIndex > 0 Then
+                currentValue = Mid$(argument, characterIndex, qualifierCloseIndex - characterIndex + 1)
+
+                Call collectedValues.Add(currentValue)
+                characterIndex = qualifierCloseIndex + 1
+                usedQuotedValue = True
+
+                If characterIndex <= argumentLength Then
+                    If Mid$(argument, characterIndex, 1) = delimiter Then
+                        characterIndex = characterIndex + 1
+                        If characterIndex > argumentLength Then
+                            Call collectedValues.Add("")
+                        End If
+                    End If
+                End If
+            End If
+
+            If usedQuotedValue = False Then
+                currentValue = ""
+                Do While characterIndex <= argumentLength
+                    If Mid$(argument, characterIndex, 1) = delimiter Then
+                        Call collectedValues.Add(currentValue)
+                        characterIndex = characterIndex + 1
+                        If characterIndex > argumentLength Then
+                            Call collectedValues.Add("")
+                        End If
+                        Exit Do
+                    End If
+                    currentValue = currentValue & Mid$(argument, characterIndex, 1)
+                    characterIndex = characterIndex + 1
+                    If characterIndex > argumentLength Then
+                        Call collectedValues.Add(currentValue)
+                    End If
+                Loop
+            End If
+        Loop
+
+        valueCount = collectedValues.Count
+
+        ReDim argumentValues(1 To valueCount)
+        For valueIndex = 1 To valueCount
+            argumentValues(valueIndex) = collectedValues(valueIndex)
+        Next valueIndex
+    End If
+
+    ParseMethodArgumentsIntoValues = argumentValues
+End Function
+
 ' Core: Logging '
 
 Private Sub LogBeginning(ByVal methodName As String, ByVal tickCount As Currency, ByRef logConclusionData As LogEntry, ByVal arguments As String, Optional ByVal errorMessage As String)
@@ -3543,624 +3746,6 @@ Private Sub LogConclusion(ByVal conclusionStatus As String, ByRef logConclusionD
 
     depth = depth - 1
 End Sub
-
-' ************ '
-' Repetition   '
-' ************ '
-
-Sub RepeatAddColumnOnWorksheet(ByVal columnNames As String, ByVal columnWidth As Double, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatAddColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal columnNames As String, ByVal columnWidth As Double, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNames, "columnNames", validation)
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnNames & """" & ", "  & columnWidth & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim columnNamesArray() As String
-    Dim indexWorksheetName As Integer
-    Dim indexColumnName As Integer
-    Dim columnName As String
-    Dim worksheetName As String
-
-If InputContainsValue(columnNames, "|") And InputContainsValue(worksheetNames, "|") Then
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    columnNamesArray = Split(columnNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        For indexColumnName = 0 To UBound(columnNamesArray)
-            columnName = columnNamesArray(indexColumnName)
-            worksheetName = worksheetNamesArray(indexWorksheetName)
-
-            Call AddColumnOnWorksheet(columnName, columnWidth, worksheetName)
-        Next indexColumnName
-    Next indexWorksheetName
-ElseIf InputContainsValue(columnNames, "|") Then
-    columnNamesArray = Split(columnNames, "|")
-    For indexColumnName = 0 To UBound(columnNamesArray)
-        columnName = columnNamesArray(indexColumnName)
-
-        Call AddColumnOnWorksheet(columnName, columnWidth, worksheetNames)
-    Next indexColumnName
-Else
-    worksheetNamesArray = Split(worksheetNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(indexWorksheetName)
-
-        Call AddColumnOnWorksheet(columnNames, columnWidth, worksheetName)
-    Next indexWorksheetName
-End If
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatApplyCellStyleToColumnOnWorksheet(ByVal cellStyle As String, ByVal columnNames As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatApplyCellStyleToColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal cellStyle As String, ByVal columnNames As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNames, "columnNames", validation)
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & cellStyle & """" & ", " & """" & columnNames & """" & ", " & """" & worksheetNames & """", validation)
-
-    Dim columnNamesArray() As String
-    Dim worksheetNamesArray() As String
-    Dim columnName As String
-    Dim worksheetName As String
-
-    Dim index As Integer
-    If InputContainsValue(columnNames, "|") Then
-        columnNamesArray = Split(columnNames, "|")
-        For index = 0 To UBound(columnNamesArray)
-            columnName = columnNamesArray(index)
-
-            Call ApplyCellStyleToColumnOnWorksheet(cellStyle, columnName, worksheetNames)
-        Next index
-    End If
-
-    If InputContainsValue(worksheetNames, "|") Then
-        worksheetNamesArray = Split(worksheetNames, "|")
-        For index = 0 To UBound(worksheetNamesArray)
-            worksheetName = worksheetNamesArray(index)
-
-            Call ApplyCellStyleToColumnOnWorksheet(cellStyle, columnNames, worksheetName)
-        Next index
-    End If
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatColorWorksheet(ByVal colorName As String, ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatColorWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal colorName As String, Withheld ByRef colorDictionary As Object, ByVal colorDictionaryVariableName As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & colorName & """" & ", " & """" & colorDictionaryVariableName & """" & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call ColorWorksheet(colorName, colorDictionary, colorDictionaryVariableName, worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatCreateWorksheet(ByVal worksheetNames As String, ByVal insertAfterWorksheetName As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatCreateWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetNames As String, ByVal insertAfterWorksheetName As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetNames & """" & ", " & """" & insertAfterWorksheetName & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call CreateWorksheet(worksheetName, insertAfterWorksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatDeleteCellStyle(ByVal cellStyleNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatDeleteCellStyle"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal cellStyleNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(cellStyleNames, "cellStyleNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & cellStyleNames & """", validation)
-
-    Dim cellStyleNamesArray() As String
-    Dim cellStyle As String
-
-    cellStyleNamesArray = Split(cellStyleNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(cellStyleNamesArray)
-        cellStyle = cellStyleNamesArray(index)
-
-        Call DeleteCellStyle(cellStyle)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatDeleteColumnOnWorksheet(ByVal columnNames As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatDeleteColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal columnNames As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNames, "columnNames", validation)
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnNames & """" & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim columnNamesArray() As String
-    Dim indexWorksheetName As Integer
-    Dim indexColumnName As Integer
-    Dim columnName As String
-    Dim worksheetName As String
-
-If InputContainsValue(columnNames, "|") And InputContainsValue(worksheetNames, "|") Then
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    columnNamesArray = Split(columnNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        For indexColumnName = 0 To UBound(columnNamesArray)
-            columnName = columnNamesArray(indexColumnName)
-            worksheetName = worksheetNamesArray(indexWorksheetName)
-
-            Call DeleteColumnOnWorksheet(columnName, worksheetName)
-        Next indexColumnName
-    Next indexWorksheetName
-ElseIf InputContainsValue(columnNames, "|") Then
-    columnNamesArray = Split(columnNames, "|")
-    For indexColumnName = 0 To UBound(columnNamesArray)
-        columnName = columnNamesArray(indexColumnName)
-
-        Call DeleteColumnOnWorksheet(columnName, worksheetNames)
-    Next indexColumnName
-Else
-    worksheetNamesArray = Split(worksheetNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(indexWorksheetName)
-
-        Call DeleteColumnOnWorksheet(columnNames, worksheetName)
-    Next indexWorksheetName
-End If
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatDeleteWorksheet(ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatDeleteWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call DeleteWorksheet(worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatFindAndReplaceInColumnOnWorksheet(ByVal findValue As String, ByVal replaceValue As String, ByVal columnNames As String, ByVal worksheetName As String, ByVal exactMatch As Boolean)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatFindAndReplaceInColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal findValue As String, ByVal replaceValue As String, ByVal columnNames As String, ByVal worksheetName As String, ByVal exactMatch As Boolean", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNames, "columnNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & findValue & """" & ", " & """" & replaceValue & """" & ", " & """" & columnNames & """" & ", " & """" & worksheetName & """" & ", " & IIf(exactMatch, "TRUE", "FALSE"), validation)
-
-    Dim columnNamesArray() As String
-    Dim columnName As String
-
-    columnNamesArray = Split(columnNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(columnNamesArray)
-        columnName = columnNamesArray(index)
-
-        Call FindAndReplaceInColumnOnWorksheet(findValue, replaceValue, columnName, worksheetName, exactMatch)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatHideWorksheet(ByVal worksheetNames As String, ByVal veryHidden As Boolean)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatHideWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetNames As String, ByVal veryHidden As Boolean", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetNames & """" & ", " & IIf(veryHidden, "TRUE", "FALSE"), validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call HideWorksheet(worksheetName, veryHidden)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatInsertValueOnNextEmptyRowInColumnOnWorksheet(ByVal value As String, ByVal columnName As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatInsertValueOnNextEmptyRowInColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal value As String, ByVal columnName As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & value & """" & ", "  & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call InsertValueOnNextEmptyRowInColumnOnWorksheet(value, columnName, worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatMoveWorksheetToEnd(ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatMoveWorksheetToEnd"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call MoveWorksheetToEnd(worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatMoveColumnBesideColumnOnWorksheet(ByVal sourceColumnNames As String, ByVal sideToInsertOn As String, ByVal anchorColumnName As String, ByVal worksheetName As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatMoveColumnBesideColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal sourceColumnNames As String, ByVal anchorColumnName As String, ByVal worksheetName As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(sourceColumnNames, "sourceColumnNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & sourceColumnNames & """" & ", " & """" & sideToInsertOn & """" & ", " & """" & anchorColumnName & """" & ", " & """" & worksheetName & """", validation)
-
-    Dim sourceColumnNamesArray() As String
-    Dim sourceColumnName As String
-
-    Dim index As Integer
-    If InputContainsValue(sourceColumnNames, "|") Then
-        sourceColumnNamesArray = Split(sourceColumnNames, "|")
-        For index = 0 To UBound(sourceColumnNamesArray)
-            sourceColumnName = sourceColumnNamesArray(index)
-
-            Call MoveColumnBesideColumnOnWorksheet(sourceColumnName, sideToInsertOn, anchorColumnName, worksheetName)
-        Next index
-    End If
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatNormalizeLayoutOnWorksheet(ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatNormalizeLayoutOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call NormalizeLayoutOnWorksheet(worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatPopulateColumnFromWorksheetOntoWorksheet(ByVal columnNamesToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatPopulateColumnFromWorksheetOntoWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal columnNamesToPopulate As String, ByVal fromKeyColumnName As String, ByVal fromWorksheetName As String, ByVal ontoKeyColumnName As String, ByVal ontoWorksheetName As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNamesToPopulate, "columnNamesToPopulate", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnNamesToPopulate & """" & ", " & """" & fromKeyColumnName & """" & ", " & """" & fromWorksheetName & """" & ", " & """" & ontoKeyColumnName & """" & ", " & """" & ontoWorksheetName & """", validation)
-
-    Dim columnNamesToPopulateArray() As String
-    Dim columnNameToPopulate As String
-
-    columnNamesToPopulateArray = Split(columnNamesToPopulate, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(columnNamesToPopulateArray)
-        columnNameToPopulate = columnNamesToPopulateArray(index)
-
-        Call PopulateColumnFromWorksheetOntoWorksheet(columnNameToPopulate, fromKeyColumnName, fromWorksheetName, ontoKeyColumnName, ontoWorksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatSetFrozenPanesOnWorksheet(ByVal frozenRowCount As Long, ByVal frozenColumnCount As Long, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatSetFrozenPanesOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal frozenRowCount As Long, ByVal frozenColumnCount As Long, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, frozenRowCount & ", " & frozenColumnCount & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call SetFrozenPanesOnWorksheet(frozenRowCount, frozenColumnCount, worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatSetWidthOnColumnOnWorksheet(ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatSetWidthOnColumnOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal columnWidth As Double, ByVal columnName As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, columnWidth & ", " & """" & columnName & """" & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim worksheetName As String
-
-    worksheetNamesArray = Split(worksheetNames, "|")
-
-    Dim index As Integer
-    For index = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(index)
-
-        Call SetWidthOnColumnOnWorksheet(columnWidth, columnName, worksheetName)
-    Next index
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-Sub RepeatSortColumnByOrderOnWorksheet(ByVal columnNames As String, ByVal sortOrder As String, ByVal worksheetNames As String)
-    Dim tickCount As Currency: tickCount = GetTickCount64()
-    Const methodName As String = "RepeatSortColumnByOrderOnWorksheet"
-    Dim isRegistered As Boolean
-    Dim logConclusionData As LogEntry
-
-    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
-    If isRegistered = False Then
-        Call RegisterMethod("ByVal columnNames As String, ByVal sortOrder As String, ByVal worksheetNames As String", methodName, "Repetition")
-    End If
-
-    Dim validation As String
-    Call ValidateRepeatArgument(columnNames, "columnNames", validation)
-    Call ValidateRepeatArgument(worksheetNames, "worksheetNames", validation)
-
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnNames & """" & ", " & """" & sortOrder & """" & ", " & """" & worksheetNames & """", validation)
-
-    Dim worksheetNamesArray() As String
-    Dim columnNamesArray() As String
-    Dim indexWorksheetName As Integer
-    Dim indexColumnName As Integer
-    Dim columnName As String
-    Dim worksheetName As String
-
-If InputContainsValue(columnNames, "|") And InputContainsValue(worksheetNames, "|") Then
-    worksheetNamesArray = Split(worksheetNames, "|")
-    columnNamesArray = Split(columnNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        For indexColumnName = 0 To UBound(columnNamesArray)
-            columnName = columnNamesArray(indexColumnName)
-            worksheetName = worksheetNamesArray(indexWorksheetName)
-
-            Call SortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetName)
-        Next indexColumnName
-    Next indexWorksheetName
-ElseIf InputContainsValue(columnNames, "|") Then
-    columnNamesArray = Split(columnNames, "|")
-    For indexColumnName = 0 To UBound(columnNamesArray)
-        columnName = columnNamesArray(indexColumnName)
-
-        Call SortColumnByOrderOnWorksheet(columnName, sortOrder, worksheetNames)
-    Next indexColumnName
-Else
-    worksheetNamesArray = Split(worksheetNames, "|")
-    For indexWorksheetName = 0 To UBound(worksheetNamesArray)
-        worksheetName = worksheetNamesArray(indexWorksheetName)
-
-        Call SortColumnByOrderOnWorksheet(columnNames, sortOrder, worksheetName)
-    Next indexWorksheetName
-End If
-
-    Call LogConclusion("Completed", logConclusionData)
-End Sub
-
-' Functions: Repetition '
 
 ' ************ '
 ' Sequencing   '
@@ -4429,6 +4014,530 @@ Sub DeleteRowsBasedOnFormulaOnWorksheet(ByVal formulaToApply As String, ByVal us
 End Sub
 
 ' Functions: Sequencing'
+
+' ************ '
+' Background   '
+' ************ '
+
+Sub ConfigureMethodSetting(ByVal methodName As String, ByVal settingName As String, ByVal settingValue As Long, Optional ByVal floor As Long, Optional ByVal ceiling As Long)
+    Dim setMethodSettingOnly As Boolean
+    Dim methodDictionary As Object
+    Dim methodSettingsDictionary As Object
+    Dim methodSubSettingDictionary As Object
+
+    If floor = 0 And ceiling = 0 Then
+        setMethodSettingOnly = True
+    End If
+
+    If methodRegistry.Exists(methodName) = False Then
+        Set methodDictionary = CreateObject("Scripting.Dictionary")
+        Set methodRegistry(methodName) = methodDictionary
+    Else
+        Set methodDictionary = methodRegistry(methodName)
+    End If
+	
+    If methodDictionary.Exists("Settings") = False Then
+        Set methodSettingsDictionary = CreateObject("Scripting.Dictionary")
+        Set methodDictionary("Settings") = methodSettingsDictionary
+    Else
+        Set methodSettingsDictionary = methodDictionary("Settings")
+    End If
+
+    If methodSettingsDictionary.Exists(settingName) = False Then
+        Set methodSubSettingDictionary = CreateObject("Scripting.Dictionary")
+        Set methodSettingsDictionary(settingName) = methodSubSettingDictionary
+    Else
+        Set methodSubSettingDictionary = methodSettingsDictionary(settingName)
+    End If
+
+    If setMethodSettingOnly = False Then
+        methodSubSettingDictionary("Default") = settingValue
+        methodSubSettingDictionary("Floor")   = floor
+        methodSubSettingDictionary("Ceiling") = ceiling
+    End If
+
+    If methodSubSettingDictionary.Exists("Value") = False Then
+        methodSubSettingDictionary("Value") = settingValue
+    Else
+        If setMethodSettingOnly = True Then
+            methodSubSettingDictionary("Value") = settingValue
+        End If
+    End If
+
+
+    If methodSubSettingDictionary.Exists("Default") Then
+        If VarType(methodSubSettingDictionary("Default")) = vbBoolean Then
+            methodSubSettingDictionary("Default") = Abs(CLng(methodSubSettingDictionary("Default")))
+        End If
+
+        If VarType(methodSubSettingDictionary("Floor")) = vbBoolean Then
+            methodSubSettingDictionary("Floor") = Abs(CLng(methodSubSettingDictionary("Floor")))
+        End If
+
+        If VarType(methodSubSettingDictionary("Ceiling")) = vbBoolean Then
+            methodSubSettingDictionary("Ceiling") = Abs(CLng(methodSubSettingDictionary("Ceiling")))
+        End If
+
+        If VarType(methodSubSettingDictionary("Value")) = vbBoolean Then
+            methodSubSettingDictionary("Value") = Abs(CLng(methodSubSettingDictionary("Value")))
+        End If
+
+        If methodSubSettingDictionary("Value") > methodSubSettingDictionary("Ceiling") Then
+            methodSubSettingDictionary("Value") = methodSubSettingDictionary("Ceiling")
+        ElseIf methodSubSettingDictionary("Value") < methodSubSettingDictionary("Floor") Then
+            methodSubSettingDictionary("Value") = methodSubSettingDictionary("Floor")
+        End If
+    End If
+
+    If methodSubSettingDictionary.Exists("Default") Then
+        If methodSubSettingDictionary("Floor") = 0 And methodSubSettingDictionary("Ceiling") = 1 Then
+            methodSubSettingDictionary("Default") = CBool(methodSubSettingDictionary("Default"))
+            methodSubSettingDictionary("Floor") = CBool(methodSubSettingDictionary("Floor"))
+            methodSubSettingDictionary("Ceiling") = CBool(methodSubSettingDictionary("Ceiling"))
+            methodSubSettingDictionary("Value") = CBool(methodSubSettingDictionary("Value"))
+        End If
+    End If
+End Sub
+
+Sub Intermission(ByVal intermissionsArray As Variant, ByVal checkpointName As String)
+If IsArray(intermissionsArray) = False Then Exit Sub
+
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+
+    ' https://learn.microsoft.com/en-us/office/vba/api/excel.range.replace
+    mainWorkbook.Worksheets("About").Range("A1").Replace What:="", Replacement:="", LookAt:=xlPart
+
+    Dim intermissionState As String
+
+    Dim index As Integer
+    For index = LBound(intermissionsArray) To UBound(intermissionsArray)
+        intermissionState = intermissionsArray(index)
+
+        Select Case intermissionState
+            Case "Break Script", "Break", "BS", "B"
+                End
+            Case "Delete About Names", "DAN"
+                Dim aboutNamedRanges As String: aboutNamedRanges = "AugmentationCheckpoints|AugmentationModules|CreationDate|DependenciesList|DurationMilliseconds|EditionName|FoundationCheckpoints|LogSummary|" & _
+                    "ProgressionStatus|ReportDetails|ReportName|ReportVision|RetrievedDate|ScriptDuration|TemplateDetails|TemplateVersion"
+                Dim aboutNamedRangesArray() As String: aboutNamedRangesArray = Split(aboutNamedRanges, "|")
+                Dim aboutNamedRange As String
+
+                Dim aboutNameIndex As Integer
+                For aboutNameIndex = LBound(aboutNamedRangesArray) To UBound(aboutNamedRangesArray)
+                    aboutNamedRange = aboutNamedRangesArray(aboutNameIndex)
+
+                    If NamedRangeExists(aboutNamedRange) Then
+                        mainWorkbook.Names(aboutNamedRange).Delete
+                    End If
+                Next aboutNameIndex
+            Case "Delete Worksheet Log", "DWL"
+                If WorksheetExists("Log") Then
+                    mainWorkbook.Worksheets("Log").Delete
+                End If
+            Case "Delete Worksheet Run Status", "DWRS"
+                If WorksheetExists("Run Status") Then
+                    mainWorkbook.Worksheets("Run Status").Delete
+                End If
+            Case "Duplicate Workbook", "Duplicate", "DW", "D"
+                mainWorkbook.SaveCopyAs Left(mainWorkbook.FullName, Len(mainWorkbook.FullName) - 5) & " (" & checkpointName & ")" & ".xlsx"
+            Case "End Workbook", "End", "EW", "E"
+                mainWorkbook.Close
+            Case "Open Workbook", "Open", "OW", "O"
+                Dim closingWorkbook As Workbook
+                Set closingWorkbook = ActiveWorkbook
+                
+                Workbooks.Open checkpointName
+                Set mainWorkbook = ActiveWorkbook
+                closingWorkbook.Close
+            Case "Quit Excel", "Quit", "QE", "Q"
+                Excel.Application.Quit
+                Workbooks(2).Close SaveChanges:=False
+                Workbooks(1).Close SaveChanges:=False
+            Case "Reset View", "Reset", "RW", "R"
+                Dim worksheetCount As Long: worksheetCount = mainWorkbook.Worksheets.Count
+                Dim worksheetIsHidden As Boolean
+
+                Dim indexResetView As Long
+                For indexResetView = 1 To worksheetCount
+                    If mainWorkbook.Worksheets(indexResetView).Name <> "Log" Then
+                        worksheetIsHidden = False
+                        If mainWorkbook.Worksheets(indexResetView).Visible = xlSheetHidden Then worksheetIsHidden = True
+
+                        If worksheetIsHidden = True Then
+                            mainWorkbook.Worksheets(indexResetView).Visible = xlSheetVisible
+                        End If
+
+                        mainWorkbook.Worksheets(indexResetView).Select
+                        Application.Goto Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A1"), Scroll:=True
+
+                        If worksheetIsHidden = True Then
+                            mainWorkbook.Worksheets(indexResetView).Visible = xlSheetHidden
+                        End If
+                    End If
+                Next indexResetView
+
+                mainWorkbook.Activate
+                mainWorkbook.Worksheets("About").Select
+                mainWorkbook.Worksheets("About").Activate
+            Case "Save Workbook", "Save", "SW", "S"
+                mainWorkbook.Save
+            Case "Testing Mode", "Testing", "TM", "T"
+                If NamedRangeExists("Foundation Checkpoints") Then
+                    Call SetAboutNamedRange("N/A", "Foundation Checkpoints", True)
+                End If
+
+                If NamedRangeExists("Augmentation Checkpoints") Then
+                    Call SetAboutNamedRange("N/A", "Augmentation Checkpoints", True)
+                End If
+        End Select
+    Next index
+End Sub
+
+Sub RegisterMethod(ByVal contract As String, ByVal methodName As String, ByVal categoryName As String)
+    Dim methodDictionary As Object
+    
+    If methodRegistry.Exists(methodName) = False Then
+        Set methodDictionary = CreateObject("Scripting.Dictionary")
+        Set methodRegistry(methodName) = methodDictionary
+    Else
+        Set methodDictionary = methodRegistry(methodName)
+    End If
+    
+    methodDictionary("Category")    = categoryName
+    methodDictionary("Declaration") = methodName & "(" & contract & ") @ " & categoryName & " (" & templateVersion & ")"
+    methodDictionary("Registered")  = True
+
+    If contract <> "" Then
+        methodDictionary("Contract") = contract
+    Else
+        Exit Sub
+    End If
+
+    Dim parameters() As String
+    Dim parameter As String
+    Dim positionOfAs As Integer
+    Dim result As String
+    
+    parameters = Split(contract, ",")
+    
+    Dim index As Integer
+    For index = LBound(parameters) To UBound(parameters)
+        parameter = Trim(parameters(index))
+
+        If Left(parameter, 8) = "Context " Then
+            parameter = Trim(Mid(parameter, 9))
+        End If
+
+        If Left(parameter, 9) = "Withheld " Then
+            parameter = Trim(Mid(parameter, 10))
+        End If
+
+        If Left(parameter, 9) = "Optional " Then
+            parameter = Trim(Mid(parameter, 10))
+        End If
+
+        If Left(parameter, 6) = "ByVal " Then
+            parameter = Trim(Mid(parameter, 7))
+        End If
+
+        If Left(parameter, 6) = "ByRef " Then
+            parameter = Trim(Mid(parameter, 7))
+        End If
+
+        If Left(parameter, 11) = "ParamArray " Then
+            parameter = Trim(Mid(parameter, 12))
+        End If
+
+        positionOfAs = InStr(1, parameter, " As ", vbTextCompare)
+        parameter = Left(parameter, positionOfAs - 1)
+    
+        result = result & parameter & ", "
+
+        If index = UBound(parameters) Then
+            result = Left(result, Len(result) - 2)
+        End If
+    Next index
+
+    methodDictionary("Parameters") = result
+End Sub
+
+Sub SaveWorkbook(ByVal workbookName As String, ByVal directoryPath As String)
+    Dim fullFilePath As String
+    Dim previousDisplayAlerts As Boolean: previousDisplayAlerts = Application.DisplayAlerts
+    
+    If Right$(directoryPath, 1) <> "\" Then
+        directoryPath = directoryPath & "\"
+    End If
+
+    fullFilePath = directoryPath & workbookName & ".xlsx"
+    
+    If Dir(fullFilePath) <> "" Then
+        Application.DisplayAlerts = False
+    End If
+
+    Call mainWorkbook.SaveAs(Filename:=fullFilePath, FileFormat:=xlOpenXMLWorkbook)
+    
+    Application.DisplayAlerts = previousDisplayAlerts
+End Sub
+
+Sub SetAboutNamedRange(ByVal namedRangeValue As String, ByVal aboutNamedRange As String, Optional ByVal overwrite As Boolean)
+    Dim currentNamedRangeValue As String
+
+    With mainWorkbook.Worksheets("About")
+        Select Case aboutNamedRange
+            Case "ReportName", "ReportName", "Report", "Name"
+                If NamedRangeExists("ReportName") Then
+                    .Range("ReportName").Value = namedRangeValue
+                    .Range("ReportName").Font.Bold = True
+                End If
+            Case "TemplateVersion", "Template Version", "Template", "Version"
+                If NamedRangeExists("TemplateVersion") Then
+                    .Range("TemplateVersion").Value = "Spreadsheet Operations Template (" & namedRangeValue & ")"
+                    .Range("TemplateVersion").Font.Bold = True
+                End If
+            Case "FoundationCheckpoints", "Foundation Checkpoints", "Foundation"
+                If NamedRangeExists("FoundationCheckpoints") Then
+                    currentNamedRangeValue = GetAboutNamedRange("Foundation Checkpoints")
+
+                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
+                        .Range("FoundationCheckpoints").Value = "Foundation Checkpoints: " & namedRangeValue & "."
+                    Else
+                        .Range("FoundationCheckpoints").Value = "Foundation Checkpoints: " & currentNamedRangeValue & ", " & namedRangeValue & "."
+                    End If
+
+                    .Range("FoundationCheckpoints").Font.Bold = False
+                    .Range("FoundationCheckpoints").Characters(Start:=1, Length:=22).Font.Bold = True
+                End If
+            Case "AugmentationCheckpoints", "Augmentation Checkpoints", "Augmentation"
+                If NamedRangeExists("AugmentationCheckpoints") Then
+                    currentNamedRangeValue = GetAboutNamedRange("Augmentation Checkpoints")
+
+                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
+                        .Range("AugmentationCheckpoints").Value = "Augmentation Checkpoints: " & namedRangeValue & "."
+                    Else
+                        .Range("AugmentationCheckpoints").Value = "Augmentation Checkpoints: " & currentNamedRangeValue & ", " & namedRangeValue & "."
+                    End If
+
+                    .Range("AugmentationCheckpoints").Font.Bold = False
+                    .Range("AugmentationCheckpoints").Characters(Start:=1, Length:=24).Font.Bold = True
+                End If
+            Case "ReportVision", "Report Vision", "Vision"
+                If NamedRangeExists("ReportVision") Then
+                    .Range("ReportVision").Value = namedRangeValue
+                    .Range("ReportVision").Font.Bold = False
+                End If
+            Case "DependenciesList", "Dependencies List", "Dependencies"
+                If NamedRangeExists("DependenciesList") Then
+                    currentNamedRangeValue = GetAboutNamedRange("Dependencies List")
+
+                    If overwrite = True Or currentNamedRangeValue = "N/A" Then
+                        .Range("DependenciesList").Value = "Dependencies List: " & namedRangeValue & "."
+                    Else
+                        .Range("DependenciesList").Value = "Dependencies List: " & currentNamedRangeValue & ", " & namedRangeValue & "."
+                    End If
+
+                    .Range("DependenciesList").Font.Bold = False
+                    .Range("DependenciesList").Characters(Start:=1, Length:=17).Font.Bold = True
+                End If
+            Case "CreationDate", "Creation Date", "Creation", "CD"
+                If NamedRangeExists("CreationDate") Then
+                    .Range("CreationDate").Value = "Creation Date: " & namedRangeValue & "."
+                    .Range("CreationDate").Font.Bold = False
+                    .Range("CreationDate").Characters(Start:=1, Length:=13).Font.Bold = True
+                End If
+            Case "EditionName", "Edition Name", "Edition"
+                If NamedRangeExists("EditionName") Then
+                    .Range("EditionName").Value = "Edition Name: " & namedRangeValue & "."
+                    .Range("EditionName").Font.Bold = False
+                    .Range("EditionName").Characters(Start:=1, Length:=12).Font.Bold = True
+                End If
+            Case "Duration (Milliseconds)", "Duration Milliseconds", "Duration"
+                If NamedRangeExists("DurationMilliseconds") Then
+                    currentNamedRangeValue = GetAboutNamedRange("Duration (Milliseconds)")
+
+                    If overwrite = True Then
+                        .Range("DurationMilliseconds").Value = "Duration (Milliseconds): " & namedRangeValue & "."
+                    Else
+                        .Range("DurationMilliseconds").Value = "Duration (Milliseconds): " & (CDbl(currentNamedRangeValue) + CDbl(namedRangeValue)) & "."
+                    End If
+
+                    .Range("DurationMilliseconds").Font.Bold = False
+                    .Range("DurationMilliseconds").Characters(Start:=1, Length:=23).Font.Bold = True
+                End If
+            Case "LogSummary", "Log Summary", "Summary"
+                If NamedRangeExists("LogSummary") Then
+                    currentNamedRangeValue = GetAboutNamedRange("Log Summary")
+
+                    Dim logRows As Long
+                    Dim logRowsSummary As String
+                    
+                    If WorksheetExists("Log") = False Then
+                        logRows = 0
+                        logRowsSummary = logRows & " Rows."
+                    Else
+                        Dim logWorksheet As Worksheet: Set logWorksheet = mainWorkbook.Worksheets("Log")
+                        logRows = logWorksheet.Cells(logWorksheet.Rows.Count, 1).End(xlUp).Row - 1
+
+                        If logRows = 1 Then
+                            logRowsSummary = logRows & " Row."
+                        Else
+                            logRowsSummary = logRows & " Rows."
+                        End If
+                    End If
+
+                    Dim currentRunsValue As Long
+                    Dim currentCheckpointsValue As Long
+
+                    Dim argumentRunsValue As Long
+                    Dim argumentCheckpointsValue As Long
+
+                    Dim currentParts() As String
+                    Dim argumentParts() As String
+
+                    If currentNamedRangeValue = "N/A" Then
+                        currentNamedRangeValue = "0 Runs. 0 Checkpoints. 0 Rows."
+                    End If
+
+                    currentParts  = Split(currentNamedRangeValue, ". ")
+                    argumentParts = Split(namedRangeValue, ". ")
+
+                    currentRunsValue        = CLng(Val(currentParts(0)))
+                    currentCheckpointsValue = CLng(Val(currentParts(1)))
+
+                    argumentRunsValue        = CLng(Val(argumentParts(0)))
+                    argumentCheckpointsValue = CLng(Val(argumentParts(1)))
+
+                    Dim combinedRunsValue As Long: combinedRunsValue = currentRunsValue + argumentRunsValue
+                    Dim runsSummary As String
+
+                    If combinedRunsValue = 1 Then
+                        runsSummary = combinedRunsValue & " Run. "
+                    Else
+                        runsSummary = combinedRunsValue & " Runs. "
+                    End If
+
+                    Dim combinedCheckpointsValue As Long: combinedCheckpointsValue = currentCheckpointsValue + argumentCheckpointsValue
+                    Dim checkpointsSummary As String
+
+                    If combinedCheckpointsValue = 1 Then
+                        checkpointsSummary = combinedCheckpointsValue & " Checkpoint. "
+                    Else
+                        checkpointsSummary = combinedCheckpointsValue & " Checkpoints. "
+                    End If
+
+                    .Range("LogSummary").Value = "Log Summary: " & runsSummary & checkpointsSummary & logRowsSummary
+                    .Range("LogSummary").Font.Bold = False
+                    .Range("LogSummary").Characters(Start:=1, Length:=11).Font.Bold = True
+                End If
+        End Select
+    End With
+End Sub
+
+' Functions: Background '
+
+Function CheckpointIsNew(ByVal checkpointName As String) As Boolean
+    If WorksheetExists("About") = False Then
+        CheckpointIsNew = True
+
+        Exit Function
+    End If
+
+    Dim foundationCheckpointsValue As String
+    Dim augmentationCheckpointsValue As String
+
+    foundationCheckpointsValue = mainWorkbook.Worksheets("About").Range("A3").Value
+    foundationCheckpointsValue = Replace(foundationCheckpointsValue, "Progression Status: ", "")
+    foundationCheckpointsValue = Replace(foundationCheckpointsValue, "Foundation Checkpoints: ", "")
+
+    augmentationCheckpointsValue = mainWorkbook.Worksheets("About").Range("A4").Value
+    augmentationCheckpointsValue = Replace(augmentationCheckpointsValue, "Augmentation Modules: ", "")
+    augmentationCheckpointsValue = Replace(augmentationCheckpointsValue, "Augmentation Checkpoints: ", "")
+    
+    If InStr(foundationCheckpointsValue, checkpointName) Or InStr(augmentationCheckpointsValue, checkpointName) Then
+        CheckpointIsNew = False
+    Else
+        CheckpointIsNew = True
+    End If
+End Function
+
+Function GetAboutNamedRange(ByVal aboutNamedRange As String) As String
+    Dim namedRangeValue As String
+
+    Select Case aboutNamedRange
+        Case "ReportDetails", "Report Details", "ReportName", "ReportName", "Report", "Name"
+            If NamedRangeExists("ReportDetails") Then
+                namedRangeValue = aboutWorksheet.Range("ReportDetails").Value
+            ElseIf NamedRangeExists("ReportName") Then
+                namedRangeValue = aboutWorksheet.Range("ReportName").Value
+            End If
+        Case "TemplateDetails", "Template Details", "TemplateVersion", "Template Version", "Template", "Version"
+            If NamedRangeExists("TemplateDetails") Then
+                namedRangeValue = aboutWorksheet.Range("TemplateDetails").Value
+            ElseIf NamedRangeExists("TemplateVersion") Then
+                namedRangeValue = aboutWorksheet.Range("TemplateVersion").Value
+            End If
+
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, "(") + 1)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "FoundationCheckpoints", "Foundation Checkpoints", "Foundation", "ProgressionStatus", "Progression Status", "Progression"
+            If NamedRangeExists("FoundationCheckpoints") Then
+                namedRangeValue = aboutWorksheet.Range("FoundationCheckpoints").Value
+            ElseIf NamedRangeExists("ProgressionStatus") Then
+                namedRangeValue = aboutWorksheet.Range("ProgressionStatus").Value
+            End If
+
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "AugmentationCheckpoints", "Augmentation Checkpoints", "Augmentation", "AugmentationModules", "Augmentation Modules"
+            If NamedRangeExists("AugmentationCheckpoints") Then
+                namedRangeValue = aboutWorksheet.Range("AugmentationCheckpoints").Value
+            ElseIf NamedRangeExists("AugmentationModules") Then
+                namedRangeValue = aboutWorksheet.Range("AugmentationModules").Value
+            End If
+
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "ReportVision", "Report Vision", "Vision"
+            namedRangeValue = aboutWorksheet.Range("ReportVision").Value
+        Case "DependenciesList", "Dependencies List", "Dependencies"
+            namedRangeValue = aboutWorksheet.Range("DependenciesList").Value
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "CreationDate", "Creation Date", "Creation", "CD", "RetrievedDate", "Retrieved Date", "Retrieved"
+            If NamedRangeExists("CreationDate") Then
+                namedRangeValue = aboutWorksheet.Range("CreationDate").Value
+            ElseIf NamedRangeExists("RetrievedDate") Then
+                namedRangeValue = aboutWorksheet.Range("RetrievedDate").Value
+            End If
+
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "EditionName", "Edition Name", "Edition"
+            namedRangeValue = aboutWorksheet.Range("EditionName").Value
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "ScriptDuration", "Script Duration", "Duration (Milliseconds)", "Duration Milliseconds", "Duration"
+            namedRangeValue = aboutWorksheet.Range("DurationMilliseconds").Value
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case "LogSummary", "Log Summary", "Summary"
+            namedRangeValue = aboutWorksheet.Range("LogSummary").Value
+            namedRangeValue = Mid(namedRangeValue, InStr(namedRangeValue, ":") + 2)
+            namedRangeValue = Left(namedRangeValue, Len(namedRangeValue) - 1)
+        Case Else
+            namedRangeValue = ""
+    End Select
+
+    GetAboutNamedRange = namedRangeValue
+End Function
+
+Function GetQueryPerformanceCounter() As Double
+    Dim queryPerformanceCounterValue As Currency
+    Call QueryPerformanceCounter(queryPerformanceCounterValue)
+    GetQueryPerformanceCounter = CDbl(queryPerformanceCounterValue) * 10000#
+End Function
 
 ' ************ '
 ' Validation   '
@@ -5017,28 +5126,6 @@ Sub ValidateNumeric(ByVal numeric As Variant, ByVal numericDataType As String, B
     End If
 End Sub
 
-Sub ValidateRepeatArgument(ByVal argument As String, ByVal parameterName As String, ByRef validation As String)
-    Dim validationMessage As String
-
-    If InStr(argument, "||") <> 0 Then
-        validationMessage = "Argument contains multiple instances of ""||"" next to each other."
-    ElseIf Right(argument, 1) = "|" Then
-        validationMessage = "Argument contains instance of ""|"" at the very end."
-    ElseIf Left(argument, 1) = "|" Then
-        validationMessage = "Argument contains instance of ""|"" at the very start."
-    End If
-
-    If validationMessage <> "" Then
-        validationMessage = "Parameter """ & parameterName & """ failed validation. " & validationMessage
-
-        If validation = "" Then
-            validation = validationMessage
-        Else
-            validation = validation & " " & validationMessage
-        End If
-    End If
-End Sub
-
 Sub ValidateRequiredText(ByVal requiredText As String, ByVal parameterName As String, ByRef validation As String, Optional ByVal floor As Long, Optional ByVal ceiling As Long)
     Dim validationMessage As String
 
@@ -5160,23 +5247,6 @@ Function CellStyleExists(ByVal cellStyleName As String) As Boolean
     CellStyleExists = False
 End Function
 
-Function InputContainsValue(ByVal inputText As String, ByVal searchValue As String, Optional ByVal caseSensitive As Boolean) As Boolean
-    Dim compareMode As VbCompareMethod
-
-    If Len(searchValue) = 0 Then
-        InputContainsValue = False
-        Exit Function
-    End If
-
-    If caseSensitive Then
-        compareMode = vbBinaryCompare
-    Else
-        compareMode = vbTextCompare
-    End If
-
-    InputContainsValue = InStr(1, inputText, searchValue, compareMode) > 0
-End Function
-
 Function NamedRangeExists(ByVal namedRange As String) As Boolean
     Dim workbookNamedRange As Name
 
@@ -5234,17 +5304,17 @@ Sub Run()
     Set mainWorkbook = ActiveWorkbook
 
     Set cellStyles = CreateObject("Scripting.Dictionary")
-    Set constants = CreateObject("Scripting.Dictionary")
     Set environment = CreateObject("Scripting.Dictionary")
     Set international = CreateObject("Scripting.Dictionary")
-    Set mappings = CreateObject("Scripting.Dictionary")
     Set methodRegistry = CreateObject("Scripting.Dictionary")
+    Set paths = CreateObject("Scripting.Dictionary")
     Set report = CreateObject("Scripting.Dictionary")
     Set telemetry = CreateObject("Scripting.Dictionary")
 
     baseTickCount = CDbl(logEngineTickCount * 10000)
     operationSequenceNumber = 1&
     logEngineActive = False
+    delimiter = "|"
     helperColumn = "Helper Column"
     formulaColumn = "Formula Column"
     sortingColumn = "Sorting Column"

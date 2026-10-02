@@ -1,12 +1,11 @@
 ' Alteration  '
-' Background  '
 ' Conjuration '
 ' Destruction '
 ' Elementals  '
 ' Formatting  '
 ' Logging     '
-' Repetition  '
 ' Sequencing  '
+' Background  '
 ' Validation  '
 
 Option Compare Text
@@ -16,16 +15,16 @@ Public logEngineActive As Boolean
 Public baseTickCount As Double
 Public depth As Long
 Public operationSequenceNumber As Long
+Public delimiter As String
 Public helperColumn As String
 Public formulaColumn As String
 Public sortingColumn As String
 Public templateVersion As String
 Public cellStyles As Object
-Public constants As Object
 Public environment As Object
 Public international As Object
-Public mappings As Object
 Public methodRegistry As Object
+Public paths As Object
 Public report As Object
 Public telemetry As Object
 Public mainWorkbook As Workbook
