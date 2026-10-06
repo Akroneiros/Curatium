@@ -299,7 +299,7 @@ WriteBase64IntoFileWithHash(base64Text, filePath, expectedHash) {
         RegisterMethod("base64Text As String [Constraint: Base64], filePath As String [Constraint: Valid Path], expectedHash As String [Constraint: SHA-256]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [base64Text, filePath, expectedHash], "Write Base64 into File with Hash" . " (" . filePath . ")")
-    
+
     requiredSizeInBytes   := 0
     decodedByteCount      := 0
     cryptStringBase64Flag := 0x1
@@ -428,7 +428,7 @@ WriteTextToFile(text, filePath, encoding, mode) {
         case "UTF-8-BOM": encoding := "UTF-8"
         case "UTF-16 LE BOM": encoding := "UTF-16"
     }
-    
+
     if mode = "Append Break" {
         text := newLine . text
     }
@@ -577,7 +577,7 @@ GetPathComponents(filePath) {
     return pathComponents
 }
 
-GetTextFileLineCount(filePath) {    
+GetTextFileLineCount(filePath) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -596,7 +596,7 @@ GetTextFileLineCount(filePath) {
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath])
 
     settings := methodRegistry[methodName]["Settings"]
-    
+
     maxFastSize := settings["Max Fast Size"]["Value"]
 
     totalLineCount := 0
@@ -743,7 +743,7 @@ ParseDelimitedRowsToArrayOfMaps(content, delimiter := "|") {
 
         arrayOfMaps.Push(rowMap)
     }
-    
+
     return arrayOfMaps
 }
 
@@ -766,7 +766,7 @@ ReadFile(filePath) {
     fileBuffer      := FileRead(filePath, "RAW")
     fileSizeInBytes := fileBuffer.Size
     fileContents    := ""
-    
+
     firstByte  := NumGet(fileBuffer.Ptr, 0, "UChar")
     secondByte := fileSizeInBytes > 1 ? NumGet(fileBuffer.Ptr, 1, "UChar") : 0
     thirdByte  := fileSizeInBytes > 2 ? NumGet(fileBuffer.Ptr, 2, "UChar") : 0

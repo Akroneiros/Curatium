@@ -123,17 +123,18 @@ RegisterApplications() {
     applicationRootDirectories := RemoveDuplicatesFromArray(applicationRootDirectories)
 
     applicationDirectories := []
-    for directoryPath in system["Mappings"]["Candidate Base Directories"] {
+    for directoryPath in system["Mappings"]["Application Base Directories"] {
         Loop Files, directoryPath "\*", "D" {
-            SplitPath(A_LoopFileFullPath, &candidateRootDirectory, &candidateParentDirectory)
+            SplitPath(A_LoopFileFullPath, &rootDirectory, &applicationParentDirectory)
+
             for applicationRootDirectory in applicationRootDirectories {
-                if applicationRootDirectory = candidateRootDirectory {
-                    if StrLen(candidateParentDirectory) = 2 {
-                        candidateParentDirectory := candidateParentDirectory . "\"
+                if applicationRootDirectory = rootDirectory {
+                    if StrLen(applicationParentDirectory) = 2 {
+                        applicationParentDirectory := applicationParentDirectory . "\"
                     }
                     applicationDirectories.Push(Map(
-                        "Parent", candidateParentDirectory,
-                        "Root",   candidateRootDirectory,
+                        "Parent", applicationParentDirectory,
+                        "Root",   rootDirectory,
                         "Path",   A_LoopFileFullPath
                     ))
                     break
@@ -192,7 +193,7 @@ RegisterApplications() {
 
                     requiredLength := 4
                     applicationNamePartiallyMatchesExecutableNameCondition := false
-                    
+
                     SplitPath(executableName, , , , &executableNameNoExtension)
                     shorterText   := StrLower(applicationName)
                     longerText    := StrLower(executableNameNoExtension)
@@ -278,7 +279,7 @@ RegisterApplications() {
                                 if displayIcon {
                                     executablePath := RegExReplace(displayIcon, ",-?\d+$")
                                     executablePath := StrReplace(executablePath, "/", "\")
-                                    
+
                                     if FileExist(executablePath) && (SubStr(StrLower(executablePath), -StrLen(executableName)) = StrLower(executableName)) {
                                         if application.Has("Executable Collision") {
                                             if !InStr(executablePath, applicationName) {
@@ -355,7 +356,7 @@ RegisterApplications() {
                 }
             }
         }
-        
+
         if !application.Has("Executable Path") && application.Has("Application Directory") {
             if application["Application Executable Directory Candidates"].Length != 1 {
                 totalDotOccurencesInDirectoryName := 0
@@ -369,15 +370,15 @@ RegisterApplications() {
                         if InStr(application["Application Directory"], applicationExecutableDirectoryCandidate["Directory"]) {
                             applicationDirectory := application["Application Directory"]
                             executableName       := applicationExecutableDirectoryCandidate["Executable"]
-                            
+
                             directoryNameSegments := StrSplit(applicationDirectory, "\")
                             versionSegmentIndex   := 0
-                            
+
                             for index, directoryNameSegment in directoryNameSegments {
                                 if directoryNameSegment = "" {
                                     continue
                                 }
-                                
+
                                 StrReplace(directoryNameSegment, ".", "", , &dotOccurrencesInDirectoryNameSegment)
                                 if dotOccurrencesInDirectoryNameSegment >= 2 {
                                     firstDigitPositionInSegment := RegExMatch(directoryNameSegment, "\d")
@@ -387,20 +388,19 @@ RegisterApplications() {
                                     }
                                 }
                             }
-                            
+
                             if versionSegmentIndex = 0 {
                                 continue
                             }
 
                             relativePathBeforeVersionSegment := ""
                             relativePathAfterVersionSegment  := ""
-                            
+
                             for index, directoryNameSegment in directoryNameSegments {
                                 if directoryNameSegment = "" {
                                     continue
                                 }
 
-                                
                                 if index < versionSegmentIndex {
                                     if relativePathBeforeVersionSegment != "" {
                                         relativePathBeforeVersionSegment .= "\"
@@ -415,52 +415,52 @@ RegisterApplications() {
                                     relativePathAfterVersionSegment .= directoryNameSegment
                                 }
                             }
-                            
+
                             parentDirectory := ""
                             if relativePathBeforeVersionSegment != "" {
                                 parentDirectory := relativePathBeforeVersionSegment . "\"
                             } else {
                                 parentDirectory := RegExReplace(applicationDirectory, "[^\\]+\\$", "")
                             }
-                            
+
                             highestVersionKey            := ""
                             highestVersionExecutablePath := ""
-                            
+
                             Loop Files, parentDirectory . "*", "D" {
                                 directoryName := A_LoopFileName
-                                
+
                                 StrReplace(directoryName, ".", "", , &dotOccurrencesInDirectoryName)
                                 if dotOccurrencesInDirectoryName < 2 {
                                     continue
                                 }
-                                
+
                                 firstDigitPositionInDirectoryName := RegExMatch(directoryName, "\d")
                                 if firstDigitPositionInDirectoryName = 0 {
                                     continue
                                 }
-                                
+
                                 versionText := SubStr(directoryName, firstDigitPositionInDirectoryName)
                                 if !RegExMatch(versionText, "^\d+(?:\.\d+)*$") {
                                     continue
                                 }
-                                
+
                                 versionKey := ""
                                 for versionPart in StrSplit(versionText, ".") {
                                     versionKey .= Format("{:06}", Number(versionPart))
                                 }
-                                
+
                                 executablePath := parentDirectory . directoryName
                                 if relativePathAfterVersionSegment != "" {
                                     executablePath .= "\" . relativePathAfterVersionSegment
                                 }
                                 executablePath .= "\" . executableName
-                                
+
                                 if FileExist(executablePath) && (highestVersionKey = "" || StrCompare(versionKey, highestVersionKey) > 0) {
                                     highestVersionKey            := versionKey
                                     highestVersionExecutablePath := executablePath
                                 }
                             }
-                            
+
                             if highestVersionExecutablePath != "" {
                                 application["Executable Path"]   := highestVersionExecutablePath
                                 application["Resolution Method"] := "Reference Multiple Dots"
@@ -554,52 +554,6 @@ RegisterApplications() {
                     case "100%", "125%", "150%", "175%":
                         CreateImagesFromCatalog("Ultra High Definition")
                 }
-        }
-    }
-
-    if system["Directories"].Has("Application Image Override Directory") {
-        applicationDirectories := GetDirectoriesFromDirectory(system["Configuration"]["Settings"]["Application Image Override Directory"])
-        for applicationDirectory in applicationDirectories {
-            SplitPath(RTrim(applicationDirectory, "\"), &applicationName)
-
-            actionImageDirectories := GetDirectoriesFromDirectory(applicationDirectory)
-            for actionDirectoryPath in actionImageDirectories {
-                SplitPath(RTrim(actionDirectoryPath, "\/"), &actionDirectoryName)
-
-                if !RegExMatch(actionDirectoryName, "^\s*(.+?)\s*\(([a-p])\)\s*$", &matchResults) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Directory does not match format of Action Name (a...p): " . actionDirectoryName)
-                }
-
-                if !imageRegistry[applicationName].Has(matchResults[1]) {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as it doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
-                }
-
-                variantFound := false
-                overridePath := actionDirectoryPath . system["Environment"]["Display Resolution"] . " @ " . system["Environment"]["DPI Scale"] . "."
-                for variant in imageRegistry[applicationName][matchResults[1]] {
-                    if variant["Variant"] = matchResults[2] {
-                        overridePath := overridePath . variant["Extension"]
-                        if FileExist(overridePath) {
-                            variantFound := true
-                            break
-                        }
-                    }
-                }
-
-                if !variantFound {
-                    LogConclusion("Failed", logConclusionData, A_LineNumber, "Can't be overriden as variant " . matchResults[2] . " doesn't exist for the application " . applicationName . " and Action Name: " . matchResults[1])
-                }
-
-                for variant in imageRegistry[applicationName][matchResults[1]] {
-                    if variant["Variant"] = matchResults[2] {
-                        variant["Path"] := overridePath
-
-                        imageDimensions   := StrSplit(GetImageDimensions(variant["Path"]), "x")
-                        variant["Width"]  := imageDimensions[1] + 0
-                        variant["Height"] := imageDimensions[2] + 0
-                    }
-                }
-            }
         }
     }
 
@@ -752,10 +706,9 @@ RegisterApplications() {
                     }
 
                     application["Cell Styles VBA"]   := ""
-                    application["Constants VBA"]     := ""
                     application["Environment VBA"]   := ""
                     application["International VBA"] := ""
-                    application["Mappings VBA"]      := ""
+                    application["Paths VBA"]         := ""
 
                     application["Environment"]["User Interface Language Code Identifier"] := excelApplication.LanguageSettings.LanguageID(2)
                     application["Default Cell Styles"] := ExtractRowMapFromArrayOfMapsForKeyValueMatch(excelDefaultCellStylesMappings, "User Interface Language Code Identifier", application["Environment"]["User Interface Language Code Identifier"])
@@ -771,15 +724,9 @@ RegisterApplications() {
                             application["International"][settingName] := Round(value)
                         }
                     }
-   
+
                     for cellStyle, value in applicationRegistry["Excel"]["Default Cell Styles"] {
                         application["Cell Styles VBA"] := application["Cell Styles VBA"] . '    cellStyles("' . cellStyle . '") = ' . ConvertStringToVbaStringExpression(value) . newLine
-                    }
-
-                    for name, filePath in system["Paths"] {
-                        if InStr(filePath, system["Directories"]["Constants"]) {
-                            application["Constants VBA"] := application["Constants VBA"] . '    constants("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
-                        }
                     }
 
                     for environment, value in application["Environment"] {
@@ -800,7 +747,7 @@ RegisterApplications() {
                                 default:
                                     application["International VBA"] := application["International VBA"] . '    international("' . settingName . '") = ' . "CBool(" . value . ")"
                             }
-                        } else {                            
+                        } else {
                             application["International VBA"] := application["International VBA"] . '    international("' . settingName . '") = ' . ConvertStringToVbaStringExpression(value)
                         }
 
@@ -808,8 +755,14 @@ RegisterApplications() {
                     }
 
                     for name, filePath in system["Paths"] {
+                        if InStr(filePath, system["Directories"]["Constants"]) {
+                            application["Paths VBA"] := application["Paths VBA"] . '    paths("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
+                        }
+                    }
+
+                    for name, filePath in system["Paths"] {
                         if InStr(filePath, system["Directories"]["Mappings"]) {
-                            application["Mappings VBA"] := application["Mappings VBA"] . '    mappings("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
+                            application["Paths VBA"] := application["Paths VBA"] . '    paths("' . name . '") = ' . ConvertStringToVbaStringExpression(filePath) . newLine
                         }
                     }
 
@@ -895,22 +848,8 @@ RegisterApplications() {
                     wordApplication := 0
             }
 
-            resolutionMethodInitialism := unset
-            switch application["Resolution Method"] {
-                case "App Paths":
-                    resolutionMethodInitialism := "AP"
-                case "Reference":
-                    resolutionMethodInitialism := "R"
-                case "Reference Multiple Dots":
-                    resolutionMethodInitialism := "RMD"
-                case "Uninstall Display Icon":
-                    resolutionMethodInitialism := "UDI"
-                case "Uninstall Install Location":
-                    resolutionMethodInitialism := "UIL"
-            }
-
-            configuration := applicationName . "|" . application["Executable Path"] . "|" . application["Executable Hash"] . "|" . application["Executable Version"] . "|" . application["Executable Binary Type"]
-            configuration := configuration . "|" . resolutionMethodInitialism
+            configuration := application["Counter"] . "|" . RegisterSymbol(application["Executable Path"], "Value") . "|" . RegisterSymbol(EncodeSha256HexToBase(application["Executable Hash"], 86), "Value") . "|" .
+                RegisterSymbol(application["Executable Version"], "Value") . "|" . RegisterSymbol(application["Executable Binary Type"], "Value") . "|" . RegisterSymbol(application["Resolution Method"], "Value")
             installedApplications.Push(configuration)
         }
     }
@@ -937,8 +876,9 @@ CloseApplication(applicationName) {
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
     static methodName := A_ThisFunc
-    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registration")) {
-        RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 4, Map(
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 5, Map(
+            "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
             "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)
         ))
     }
@@ -946,22 +886,44 @@ CloseApplication(applicationName) {
 
     settings := methodRegistry[methodName]["Settings"]
 
+    tinyDelay := settings["Tiny Delay"]["Value"]
     timeout := settings["Timeout"]["Value"]
 
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
-    if !ProcessExist(executableName) {
+    if applicationRegistry[applicationName].Has("Process Identifier") {
+        processIdentifierToClose := applicationRegistry[applicationName]["Process Identifier"]
+        applicationRegistry[applicationName].Delete("Process Identifier")
+    } else {
+        processIdentifierToClose := executableName
+    }
+
+    if !ProcessExist(processIdentifierToClose) {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
-    closedProcessIdentifier := ProcessClose(executableName)
-    if !closedProcessIdentifier {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to close process for application.")
+    Sleep(tinyDelay)
+
+    if !ProcessExist(processIdentifierToClose) {
+        LogConclusion("Skipped", logConclusionData)
+        return
     }
 
-    if ProcessWaitClose(executableName, timeout) {
+    closedProcessIdentifier := ProcessClose(processIdentifierToClose)
+    if !closedProcessIdentifier {
+        if !ProcessExist(processIdentifierToClose) {
+            LogConclusion("Skipped", logConclusionData)
+            return
+        }
+
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to close process for application.")
+        return
+    }
+
+    if ProcessWaitClose(processIdentifierToClose, timeout) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Process did not close within the timeout of " . timeout . " seconds.")
+        return
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -977,7 +939,7 @@ StartOfficeApplication(applicationName, filePath := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    static applicationNameWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}"', "Access", "Excel", "Outlook", "PowerPoint", "Project", "Visio", "Word")
+    static applicationNameWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}"', "Access", "Excel", "Outlook", "PowerPoint", "Project", "Publisher", "Visio", "Word")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("applicationName As String [Whitelist: " . applicationNameWhitelist . "], filePath As String [Optional] [Constraint: Path]", methodName, A_LineFile, A_LineNumber + 7, Map(
@@ -999,7 +961,7 @@ StartOfficeApplication(applicationName, filePath := "") {
     windowTimeoutInSeconds := settings["Window Timeout in Seconds"]["Value"]
 
     switch applicationName {
-        case "Access", "Excel", "Outlook", "PowerPoint", "Project", "Visio", "Word":
+        case "Access", "Excel", "Outlook", "PowerPoint", "Project", "Publisher", "Visio", "Word":
             if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
             }
@@ -1017,6 +979,7 @@ StartOfficeApplication(applicationName, filePath := "") {
         "Outlook",    "Outlook.Application",
         "PowerPoint", "PowerPoint.Application",
         "Project",    "MSProject.Application",
+        "Publisher",  "Publisher.Application",
         "Visio",      "Visio.Application",
         "Word",       "Word.Application"
     )
@@ -1095,6 +1058,16 @@ StartOfficeApplication(applicationName, filePath := "") {
             } catch as failedToAddOrOpenProjectFileError {
                 LogConclusion("Failed", logConclusionData, failedToAddOrOpenProjectFileError.Line, failedToAddOrOpenProjectFileError.Message)
             }
+        case "Publisher":
+            try {
+                if filePath = "" {
+                    officeApplication.NewDocument()
+                } else {
+                    officeApplication.Open(filePath, false)
+                }
+            } catch as failedToAddOrOpenPublisherPublicationError {
+                LogConclusion("Failed", logConclusionData, failedToAddOrOpenPublisherPublicationError.Line, failedToAddOrOpenPublisherPublicationError.Message)
+            }
         case "Visio":
             try {
                 if filePath = "" {
@@ -1117,7 +1090,9 @@ StartOfficeApplication(applicationName, filePath := "") {
             }
     }
 
-    if applicationName != "Outlook" {
+    if applicationName = "Publisher" {
+        officeApplication.ActiveWindow.Visible := true
+    } else if applicationName != "Outlook" {
         officeApplication.Visible := true
     }
 
@@ -1152,6 +1127,8 @@ StartOfficeApplication(applicationName, filePath := "") {
                     if officeWindowHandleSearch.Has("Window Handle") {
                         officeWindowHandle := officeWindowHandleSearch["Window Handle"]
                     }
+                case "Publisher":
+                    officeWindowHandle := officeApplication.ActiveWindow.Hwnd
                 case "Word":
                     officeWindowHandle := officeApplication.ActiveWindow.Hwnd
             }
@@ -1266,7 +1243,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Extension Run"
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " . 
+        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " .
             "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
                 "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)
             ))
@@ -1481,7 +1458,7 @@ OpenVisualBasicEditorAndRunCode(excelApplication, code) {
             shortDelay := shortDelay + (attempts * methodRegistry[methodName]["Settings"]["Short Delay"]["Delta"])
 
             logConclusionData["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Tiny delay was " . tinyDelay . " milliseconds. Short delay was " . shortDelay . " milliseconds."
-            
+
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
 
@@ -1696,7 +1673,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             longDelay   := longDelay + (attempts * methodRegistry[methodName]["Settings"]["Long Delay"]["Delta"])
 
             logConclusionData["Context"] := "Failed on attempt " . attempts . " of " . maxAttempts . ". Short delay was " . shortDelay . " milliseconds. Medium delay was " . mediumDelay . " milliseconds. Long delay was " . longDelay . " milliseconds."
-            
+
             IncreaseMethodSetting("KeyboardShortcut", "Tiny Delay")
         }
 
@@ -1736,9 +1713,9 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
         if !IsSet(sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates) {
             continue ; Query failed, go to next attempt.
         }
-        
+
         sqlServerManagementStudioResultsWindowCoordinates := ModifyScreenCoordinates(80, -80, sqlServerManagementStudioQueryExecutedSuccessfullyImageCoordinates)
-        
+
         PerformMouseActionAtCoordinates("Left", sqlServerManagementStudioResultsWindowCoordinates)
         Sleep(mediumDelay)
         PerformMouseActionAtCoordinates("Right", sqlServerManagementStudioResultsWindowCoordinates)
@@ -1788,7 +1765,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
             IncreaseMethodSetting(methodName, "Medium Delay")
             IncreaseMethodSetting(methodName, "Long Delay")
         }
-        
+
         break
     }
 
@@ -1831,7 +1808,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     }
 
     settings := methodRegistry[methodName]["Settings"]
-    
+
     tinyDelay    := settings["Tiny Delay"]["Value"]
     shortDelay   := settings["Short Delay"]["Value"]
     mediumDelay  := settings["Medium Delay"]["Value"]
@@ -1862,7 +1839,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     Sleep(tinyDelay)
     SendInput("{Backspace}") ; Remove character in case present.
     Sleep(shortDelay)
-    
+
     overallStartTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
     firstSeenTickCount    := 0
     dialogHasAppeared     := false

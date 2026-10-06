@@ -138,7 +138,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
                 dataEntries.Push(actionName . "|" . actionLetter . "|" . hashToCounter[fileHash] . "|" . encodedHash . "|" . extension . "|" . base64Data)
             }
-            
+
             catalogEntries.Push(imageLibraryDataReference . "|" . hashToCounter[fileHash] . "|" . resolution . "|" . scale . "|" . horizontalPercentRange . "|" . verticalPercentRange)
         }
     }
@@ -187,7 +187,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
     if FileExist(projectImageCatalogFilePath) && FileExist(sharedImageCatalogFilePath) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Image Library Catalog with the same name found in both Images and Project: " . imageLibraryCatalogName)
     }
-    
+
     if FileExist(projectImageCatalogFilePath) && !FileExist(sharedImageCatalogFilePath) {
         catalogDirectory           := system["Directories"]["Project"]
         imageLibraryCatalogHash    := GetFileHash(projectImageCatalogFilePath, "SHA-256")
@@ -286,7 +286,7 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
                         verticalRangeStart   := Floor(screenHeight * verticalParts[1] / 100)
                         verticalRangeEnd     := Ceil(screenHeight * verticalParts[2] / 100) - 1
 
-                        imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(Map(
+                        variantEntry := Map(
                             "Path",                   path,
                             "Name",                   libraryData["Name"],
                             "Variant",                StrLower(libraryData["Variant"]),
@@ -296,7 +296,19 @@ CreateImagesFromCatalog(imageLibraryCatalogName) {
                             "Horizontal Range End",   horizontalRangeEnd,
                             "Vertical Range",         verticalRange,
                             "Vertical Range Start",   verticalRangeStart,
-                            "Vertical Range End",     verticalRangeEnd))
+                            "Vertical Range End",     verticalRangeEnd)
+
+                        variantReplaced := false
+                        for variantIndex, existingVariantEntry in imageRegistry[libraryData["Directory"]][libraryData["Name"]] {
+                            if existingVariantEntry["Variant"] = variantEntry["Variant"] {
+                                imageRegistry[libraryData["Directory"]][libraryData["Name"]][variantIndex] := variantEntry
+                                variantReplaced := true
+                                break
+                            }
+                        }
+                        if !variantReplaced {
+                            imageRegistry[libraryData["Directory"]][libraryData["Name"]].Push(variantEntry)
+                        }
                     }
                 }
             }
@@ -436,7 +448,7 @@ ExtractImageCoordinates(imageSearchResults) {
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [imageSearchResults])
 
     if imageSearchResults["Success"] = false {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] . 
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Image (" . imageSearchResults["Name"] . ")" . " not found in directory (" . imageSearchResults["Directory"] .
             "). Failed after " . imageSearchResults["Times Attempted"] . " attempts with " . imageSearchResults["Medium Delay"] . " milliseconds delay between each attempt.")
     }
 
@@ -585,7 +597,7 @@ SearchForDirectoryImage(directoryName, imageName, timesToAttempt := 60, variant 
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryName, imageName, timesToAttempt, variant])
 
     settings := methodRegistry[methodName]["Settings"]
-    
+
     mediumDelay := settings["Medium Delay"]["Value"]
 
     if !imageRegistry.Has(directoryName) {

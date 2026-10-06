@@ -35,25 +35,24 @@ AbortExecution() {
     LogConclusion("Failed", logConclusionData, A_LineNumber, "Execution aborted early by pressing escape.")
 }
 
-LogEngine(runtimeOverride := Map()) {
+LogEngine() {
     global methodRegistry
     global system
     global logToFile
 
-    static configuration := system["Configuration"]
-    static constants     := system["Constants"]
-    static directories   := system["Directories"]
-    static environment   := system["Environment"]
-    static hardware      := system["Hardware"]
-    static logging       := system["Logging"]
-    static mappings      := system["Mappings"]
-    static paths         := system["Paths"]
-    static runtime       := system["Runtime"]
-    static telemetry     := system["Telemetry"]
+    configuration := system["Configuration"]
+    constants     := system["Constants"]
+    directories   := system["Directories"]
+    environment   := system["Environment"]
+    hardware      := system["Hardware"]
+    logging       := system["Logging"]
+    mappings      := system["Mappings"]
+    paths         := system["Paths"]
+    runtime       := system["Runtime"]
+    telemetry     := system["Telemetry"]
 
     settings := methodRegistry["LogEngine"]["Settings"]
 
-    fileLoggingEnabled              := settings["File Logging Enabled"]["Value"]
     telemetryDurationInMilliseconds := settings["Telemetry Duration in Milliseconds"]["Value"]
 
     system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
@@ -117,10 +116,18 @@ LogEngine(runtimeOverride := Map()) {
 
         SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
 
-        logging["Execution Log"].Push("Label|Value")
+        logging["Execution Log"].Push("Label or Application|Value")
         logging["Operation Log"].Push("Operation Sequence Number|Status|Query Performance Counter|UTC Timestamp Integer|Method or Context|Arguments or Error Message|Overlay Key|Overlay Value")
-        logging["Run Telemetry"].Push("Label|Value")
+        logging["Run Telemetry"].Push("Label|Output")
         logging["Symbol Ledger"].Push("Reference|Type|Symbol")
+
+        for argument in [
+            "", "|",
+            "<Constraint: Base64>",
+            "<Data Type: Array>", "<Data Type: Map>", "<Data Type: Object>"
+        ] {
+            RegisterSymbol(argument, "Argument")
+        }
 
         for context in [
             "Cycle: Beginning.", "Cycle: Completed.", "Cycle: Failed.", "Cycle: Intermission."
@@ -134,6 +141,20 @@ LogEngine(runtimeOverride := Map()) {
             RegisterSymbol(error, "Error")
         }
 
+        for label in [
+            "Application Library Hash", "AutoHotkey Version", "Base Library Hash", "BIOS", "Chrono Library Hash", "Color Mode", "Commit Limit Bytes", "Commit Peak Bytes",
+            "Commit Total Bytes", "Commit Used Percent", "Computer Alias", "Computer Name", "Computer Uptime in Seconds", "Country or Region", "CPU", "Display GPU",
+            "Display Language", "Display Resolution", "DPI Scale", "Duration in Milliseconds", "File Library Hash", "Image Library Hash", "Input Language", "Kernel Nonpaged Bytes",
+            "Kernel Paged Bytes", "Kernel Total Bytes", "Keyboard Layout", "Library Release", "Logging Library Hash", "Memory Size and Type", "Monitor", "Monitor Count",
+            "Motherboard", "Number of Readings", "Operating System", "Operation Log Line Number", "Physical Total Bytes", "Physical Used Bytes", "Physical Used Percent", "Project Hash",
+            "Project Name", "QPC Frequency", "QPC Midpoint Timestamp", "QPC Post Timestamp", "QPC Pre Timestamp", "Refresh Rate", "Regional Format", "Run Telemetry Order",
+            "Session Uptime in Seconds", "System Cache Bytes", "System Disk", "System Disk Free Bytes", "System Disk Total Bytes", "System Disk Windows Free Size", "System Disk Windows Total Size", "System Handle Count",
+            "System Process Count", "System Thread Count", "Tick Count", "Tick Count Pre", "Time Zone Key Name", "Time Zone UTC Offset", "Timeout Before Lock", "Username",
+            "UTC Timestamp Precise", "Windows Installation Date"
+        ] {
+            RegisterSymbol(label, "Label")
+        }
+
         for overlayValue in [
             "",
             "Initializing Variables" . overlay["Status"]["Beginning"], "Verifying Requirements" . overlay["Status"]["Beginning"], "Loading Code to Memory" . overlay["Status"]["Beginning"], "Selecting Configuration" . overlay["Status"]["Beginning"],
@@ -142,12 +163,12 @@ LogEngine(runtimeOverride := Map()) {
             RegisterSymbol(overlayValue, "Overlay")
         }
 
-        for argument in [
-            "", "|",
-            "<Constraint: Base64>",
-            "<Data Type: Array>", "<Data Type: Map>", "<Data Type: Object>"
+        for value in [
+            "",
+            "Reference Multiple Dots", "Uninstall Install Location", "Uninstall Display Icon", "Reference", "App Paths",
+            "32-bit", "64-bit", "DOS", "N/A", "OS/2", "PIF", "POSIX", "Windows 16-bit"
         ] {
-            RegisterSymbol(argument, "Argument")
+            RegisterSymbol(value, "Value")
         }
 
         for whitelist in [
@@ -202,8 +223,10 @@ LogEngine(runtimeOverride := Map()) {
                         case "A": typeSection := "Argument"
                         case "C": typeSection := "Context"
                         case "E": typeSection := "Error"
+                        case "L": typeSection := "Label"
                         case "M": typeSection := "Method"
                         case "O": typeSection := "Overlay"
+                        case "V": typeSection := "Value"
                         case "W": typeSection := "Whitelist"
                     }
 
@@ -236,7 +259,7 @@ LogEngine(runtimeOverride := Map()) {
                             case "Image Library":       sourceFilePath := paths["Image Library"]
                             case "Logging Library":     sourceFilePath := paths["Logging Library"]
                         }
-                        
+
                         RegisterMethod(declaration, methodName, sourceFilePath, validationLineNumber)
                     }
                 }
@@ -252,9 +275,9 @@ LogEngine(runtimeOverride := Map()) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("runtimeOverride As Map [Optional]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, telemetry["QPC Pre Timestamp"], telemetry["UTC Timestamp File Time"], telemetry["QPC Post Timestamp"], [runtimeOverride], "Log Engine")
+    logConclusionData := LogBeginning(methodName, telemetry["QPC Pre Timestamp"], telemetry["UTC Timestamp File Time"], telemetry["QPC Post Timestamp"], [], "Log Engine")
 
     if logging["Cycle"] = "Beginning" {
         RemoveDuplicatesFromArray([])
@@ -263,19 +286,6 @@ LogEngine(runtimeOverride := Map()) {
         BatchAppendOperationLog([])
         BatchAppendSymbolLedger("", [])
         BatchAppendRunTelemetry([])
-
-        if runtimeOverride.Count != 0 {
-            if runtimeOverride.Has("Disable File Logging") && runtimeOverride["Disable File Logging"] = true {
-                methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Default"] := false
-                methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Value"]   := false
-                fileLoggingEnabled := false
-                logToFile          := false
-            }
-        } else {
-            if fileLoggingEnabled {
-                logToFile := true
-            }
-        }
 
         for directory in [
             directories["Log"],
@@ -288,18 +298,6 @@ LogEngine(runtimeOverride := Map()) {
                     LogConclusion("Failure", logConclusionData, directoryCreationError.Line, directoryCreationError.Message)
                 }
             }
-        }
-
-        if fileLoggingEnabled && logToFile {
-            BatchAppendExecutionLog(logging["Execution Log"])
-            BatchAppendOperationLog(logging["Operation Log"])
-            BatchAppendRunTelemetry(logging["Run Telemetry"])
-            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
-
-            logging["Execution Log"] := []
-            logging["Operation Log"] := []
-            logging["Run Telemetry"] := []
-            logging["Symbol Ledger"] := []
         }
 
         Loop Files, RTrim(directories["Constants"], "\/") . "\*", "F" {
@@ -331,39 +329,6 @@ LogEngine(runtimeOverride := Map()) {
     telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
     telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
 
-    for runTelemetryLine in [
-        "Run Telemetry Order|" .           runTelemetryOrder,
-        "Operation Log Line Number|" .     operationLogLineNumber,
-        "Duration in Milliseconds|" .      telemetry["Duration in Milliseconds"],
-        "Number of Readings|" .            telemetry["Number of Readings"],
-        "QPC Pre Timestamp|" .             telemetry["QPC Pre Timestamp"] - telemetry["QPC Midpoint Timestamp"],
-        "QPC Post Timestamp|" .            telemetry["QPC Post Timestamp"] - telemetry["QPC Midpoint Timestamp"],
-        "QPC Midpoint Timestamp|" .        telemetry["QPC Midpoint Timestamp"],
-        "Tick Count|" .                    telemetry["Tick Count"],
-        "Tick Count Pre|" .                telemetry["Tick Count Pre"] - telemetry["Tick Count"],
-        "UTC Timestamp Precise|" .         telemetry["UTC Timestamp Precise"],
-        "Computer Uptime in Seconds|" .    telemetry["Computer Uptime in Seconds"],
-        "Session Uptime in Seconds|" .     telemetry["Session Uptime in Seconds"],
-        "Commit Total Bytes|" .            telemetry["System Resource Snapshot"]["Commit Total Bytes"],
-        "Commit Limit Bytes|" .             telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
-        "Commit Peak Bytes|" .             telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
-        "Commit Used Percent|" .           telemetry["System Resource Snapshot"]["Commit Used Percent"],
-        "Kernel Total Bytes|" .            telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
-        "Kernel Paged Bytes|" .            telemetry["System Resource Snapshot"]["Kernel Paged Bytes"],
-        "Kernel Nonpaged Bytes|" .         telemetry["System Resource Snapshot"]["Kernel Nonpaged Bytes"],
-        "Physical Used Bytes|" .           telemetry["System Resource Snapshot"]["Physical Used Bytes"],
-        "Physical Total Bytes|" .          telemetry["System Resource Snapshot"]["Physical Total Bytes"],
-        "Physical Used Percent|" .         telemetry["System Resource Snapshot"]["Physical Used Percent"],
-        "System Cache Bytes|" .            telemetry["System Resource Snapshot"]["System Cache Bytes"],
-        "System Handle Count|" .           telemetry["System Resource Snapshot"]["System Handle Count"],
-        "System Process Count|" .          telemetry["System Resource Snapshot"]["System Process Count"],
-        "System Thread Count|" .           telemetry["System Resource Snapshot"]["System Thread Count"],
-        "System Disk Free Bytes|" .        telemetry["System Disk Space Snapshot"]["Free Bytes"],
-        "System Disk Windows Free Size|" . telemetry["System Disk Space Snapshot"]["Windows Free Size"]
-    ] {
-        logging["Run Telemetry"].Push(runTelemetryLine)
-    }
-
     if logging["Cycle"] = "Beginning" {
         CombineCode("Intro", "Main")
         ComputeMouseMoveSpeed("0x0", "2x2")
@@ -394,17 +359,11 @@ LogEngine(runtimeOverride := Map()) {
         ValidateDataUsingSpecification("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
 
         constantValues := Map(
-            "BIP-39",                           "bdeca5734c5c8ca4a1adb2b5863c0cd46ac74837f24321235b5b7b1b32879229",
-            "EFF Dice-Generated Passphrases",   "63d2175db6fb24702e49fbd72d339c4d8bd50c5a37804cbfc666e0ed04e843bf",
-            "Excel International",              "f22a6b4c3a81f479bb7844429d5effff494023ae29fdd414bed848d54143f0f0",
-            "Heroes",                           "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
-            "Middle-earth",                     "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
-            "NATO Phonetic Alphabet",           "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
-            "Resolutions",                      "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
-            "Scales",                           "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d",
-            "Word Built-In Style Enumerations", "4ac373c7f0bc8cf725e55453e0c20ccea9076d1fc9321e9841243bac06e6a1e3",
-            "Word International",               "d586eccccd709b85ebabbcd09a339a828fc46945df05e680c6ca52403dae8755",
-            "XKCD Color Survey",                "b4e194b06581c27bebaada8375a3dffa88e12cf815841574a614cd2249bcef87"
+            "Heroes",                 "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
+            "Middle-earth",           "ffc72a6b738fdd75ea16964e6d43695c843ef2dea986d173196795e7d11d5dbd",
+            "NATO Phonetic Alphabet", "4222037720c26e12cffba2514436bc4b5029cdc3b3ccaa34f827415e8d46bbcf",
+            "Resolutions",            "cc45d04bc98d76c9aa8ceb1e455c21082dfd8e6695c84b5382464bee2cd20364",
+            "Scales",                 "91eb6122786767eb83c7d87c43610fb87018d20ef2c25e43d3d38f31f49ec18d"
         )
 
         for constant in constantValues {
@@ -416,19 +375,9 @@ LogEngine(runtimeOverride := Map()) {
         }
 
         for constant, hashValue in constantValues {
-            if constant = "Excel International" || constant = "Word International" {
-                continue
-            }
-
             content := ReadFileOnHashMatch(paths[constant], hashValue)
             constants[constant] := ParseDelimitedRowsToArrayOfMaps(content)
         }
-
-        for index, rowMap in system["Constants"]["BIP-39"] {
-            rowMap["Counter"] := index
-        }
-
-        system["Constants"]["EFF Dice-Generated Passphrases"] := ConvertValueForKeyInArrayOfMapsToInteger("Dice Sequence", system["Constants"]["EFF Dice-Generated Passphrases"])
 
         for index, rowMap in system["Constants"]["Resolutions"] {
             rowMap["Counter"] := index
@@ -489,10 +438,10 @@ LogEngine(runtimeOverride := Map()) {
 
             closestResolutionKey := ""
             smallestDifference   := -1
-            
+
             for resolutionKey, knownPixelCount in resolutionPixelCount {
                 currentDifference := Abs(displayResolutionPixelCount - knownPixelCount)
-                
+
                 if currentDifference < smallestDifference {
                     smallestDifference   := currentDifference
                     closestResolutionKey := resolutionKey
@@ -501,7 +450,7 @@ LogEngine(runtimeOverride := Map()) {
 
             LogConclusion("Error", logConclusionData, A_LineNumber, "Display Resolution currently set to " . environment["Display Resolution"] . " which is invalid. Closest supported value is " . closestResolutionKey . ".")
         }
-        
+
         environment["Display Resolution Counter"] := constants["Resolution Counters"][environment["Display Resolution"]]
         environment["DPI Scale Counter"]          := constants["Scale Counters"][environment["DPI Scale"]]
 
@@ -559,23 +508,94 @@ LogEngine(runtimeOverride := Map()) {
 
         if !FileExist(paths["Project Configuration"]) {
             defaultConfiguration := StrReplace(
-            '{' . newLine . 
+            '{' . newLine .
+                '    "Application Whitelist": [' . newLine .
+                    '        ' .  newLine .
+                '    ],' . newLine .
                 '    "Application Executable Directory Candidates": [' . newLine .
-                    '        '  . newLine . 
-                '    ],' . newLine . 
-                '    "Application Whitelist": [' . newLine . 
-                    '        ' .  newLine . 
-                '    ],' . newLine . 
-                '    "Candidate Base Directories": [' . newLine . 
-                    '        "' . systemDrive . 'Portable Files\' . '",' . newLine . 
-                    '        "' . systemDrive . 'Program Files (Portable)\' . '"' . newLine . 
-                    '    ],' . newLine . 
-                '    "Settings": {' . newLine . 
-                    '        "Advanced Mode": ' . 'false' . ',' . newLine . 
-                    '        "Application Image Override Directory": "' . "" . '",' . newline . 
-                    '        "Computer Alias": "' . "" . '",' . newline . 
-                    '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '"' . newLine . 
-                '    }' . newLine . 
+                    '        '  . newLine .
+                '    ],' . newLine .
+                '    "Application Base Directories": [' . newLine .
+                    '        "' . systemDrive . 'Portable Files\' . '",' . newLine .
+                    '        "' . systemDrive . 'Program Files (Portable)\' . '"' . newLine .
+                    '    ],' . newLine .
+                '    "Settings": {' . newLine .
+                    '        "Logging Mode": "' .         'Off' . '",' . newLine .
+                    '        "Termination Action": "' .   'Make Overlay Opaque and Wait for Escape' . '",' . newLine .
+                    '        "Image Variant Preset": "' . 'NATO Phonetic Alphabet' . '",' . newLine .
+                    '        "Computer Alias": "' .        "" . '",' . newline .
+                    '        "Advanced Mode": ' .          'false' . newLine .
+                '    },' . newLine .
+                '    "Execution Log": {' . newLine .
+                '        "Project Name": ' .          'true' . ',' . newLine .
+                '        "Library Release": ' .       'true' . ',' . newLine .
+                '        "AutoHotkey Version": ' .    'true' . ',' . newLine .
+                '        "Project Hash": ' .          'true' . ',' . newLine .
+                '        "Application Library Hash": ' . 'false' . ',' . newLine .
+                '        "Base Library Hash": ' .     'false' . ',' . newLine .
+                '        "Chrono Library Hash": ' .   'false' . ',' . newLine .
+                '        "File Library Hash": ' .     'false' . ',' . newLine .
+                '        "Image Library Hash": ' .    'false' . ',' . newLine .
+                '        "Logging Library Hash": ' .  'false' . ',' . newLine .
+                '        "Operating System": ' .      'false' . ',' . newLine .
+                '        "Windows Installation Date": ' . 'false' . ',' . newLine .
+                '        "Computer Name": ' .         'true' . ',' . newLine .
+                '        "Computer Alias": ' .        'false' . ',' . newLine .
+                '        "Username": ' .              'true' . ',' . newLine .
+                '        "Time Zone Key Name": ' .    'true' . ',' . newLine .
+                '        "Time Zone UTC Offset": ' .  'true' . ',' . newLine .
+                '        "QPC Frequency": ' .         'true' . ',' . newLine .
+                '        "Country or Region": ' .     'true' . ',' . newLine .
+                '        "Display Language": ' .      'true' . ',' . newLine .
+                '        "Regional Format": ' .       'true' . ',' . newLine .
+                '        "Input Language": ' .        'true' . ',' . newLine .
+                '        "Keyboard Layout": ' .       'true' . ',' . newLine .
+                '        "Motherboard": ' .           'false' . ',' . newLine .
+                '        "BIOS": ' .                  'false' . ',' . newLine .
+                '        "CPU": ' .                   'false' . ',' . newLine .
+                '        "Memory Size and Type": ' .  'false' . ',' . newLine .
+                '        "System Disk": ' .           'false' . ',' . newLine .
+                '        "System Disk Total Bytes": ' . 'false' . ',' . newLine .
+                '        "System Disk Windows Total Size": ' . 'false' . ',' . newLine .
+                '        "Display GPU": ' .           'false' . ',' . newLine .
+                '        "Monitor": ' .               'false' . ',' . newLine .
+                '        "Monitor Count": ' .         'false' . ',' . newLine .
+                '        "Display Resolution": ' .    'true' . ',' . newLine .
+                '        "Refresh Rate": ' .          'false' . ',' . newLine .
+                '        "DPI Scale": ' .             'true' . ',' . newLine .
+                '        "Color Mode": ' .            'false' . ',' . newLine .
+                '        "Timeout Before Lock": ' .   'false' . newLine .
+                '    },' . newLine .
+                '    "Run Telemetry": {' . newLine .
+                '        "Run Telemetry Order": ' .        'true' . ',' . newLine .
+                '        "Operation Log Line Number": ' .  'true' . ',' . newLine .
+                '        "Duration in Milliseconds": ' .   'true' . ',' . newLine .
+                '        "Number of Readings": ' .         'true' . ',' . newLine .
+                '        "QPC Pre Timestamp": ' .          'false' . ',' . newLine .
+                '        "QPC Post Timestamp": ' .         'false' . ',' . newLine .
+                '        "QPC Midpoint Timestamp": ' .     'true' . ',' . newLine .
+                '        "Tick Count": ' .                 'true' . ',' . newLine .
+                '        "Tick Count Pre": ' .             'false' . ',' . newLine .
+                '        "UTC Timestamp Precise": ' .      'true' . ',' . newLine .
+                '        "Computer Uptime in Seconds": ' . 'false' . ',' . newLine .
+                '        "Session Uptime in Seconds": ' .  'false' . ',' . newLine .
+                '        "Commit Total Bytes": ' .         'false' . ',' . newLine .
+                '        "Commit Limit Bytes": ' .         'false' . ',' . newLine .
+                '        "Commit Peak Bytes": ' .          'false' . ',' . newLine .
+                '        "Commit Used Percent": ' .        'false' . ',' . newLine .
+                '        "Kernel Total Bytes": ' .         'false' . ',' . newLine .
+                '        "Kernel Paged Bytes": ' .         'false' . ',' . newLine .
+                '        "Kernel Nonpaged Bytes": ' .      'false' . ',' . newLine .
+                '        "Physical Used Bytes": ' .        'false' . ',' . newLine .
+                '        "Physical Total Bytes": ' .       'false' . ',' . newLine .
+                '        "Physical Used Percent": ' .      'false' . ',' . newLine .
+                '        "System Cache Bytes": ' .         'false' . ',' . newLine .
+                '        "System Handle Count": ' .        'false' . ',' . newLine .
+                '        "System Process Count": ' .       'false' . ',' . newLine .
+                '        "System Thread Count": ' .        'false' . ',' . newLine .
+                '        "System Disk Free Bytes": ' .     'true' . ',' . newLine .
+                '        "System Disk Windows Free Size": ' . 'false' . newLine .
+                '    }' . newLine .
             '}', "\", "\\")
             WriteTextToFile(defaultConfiguration, paths["Project Configuration"], "UTF-8", "Create")
         }
@@ -589,8 +609,6 @@ LogEngine(runtimeOverride := Map()) {
         }
 
         ValidateConfiguration(configuration)
-
-        SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
 
         if configuration["Application Whitelist"].Length != 0 {
             for application in mappings["Applications"] {
@@ -624,26 +642,26 @@ LogEngine(runtimeOverride := Map()) {
             }
         }
 
-        mappings["Candidate Base Directories"] := []
-        for candidateBaseDirectory in [
+        mappings["Application Base Directories"] := []
+        for applicationBaseDirectory in [
             EnvGet("LOCALAPPDATA"), EnvGet("LOCALAPPDATA") . "\Programs", EnvGet("ProgramData"), EnvGet("ProgramFiles"), EnvGet("ProgramFiles(x86)"), EnvGet("ProgramW6432"), EnvGet("SystemDrive"), EnvGet("USERPROFILE")
         ] {
-            if DirExist(candidateBaseDirectory) {
-                if SubStr(candidateBaseDirectory, -1) = "\" {
-                    mappings["Candidate Base Directories"].Push(candidateBaseDirectory)
+            if DirExist(applicationBaseDirectory) {
+                if SubStr(applicationBaseDirectory, -1) = "\" {
+                    mappings["Application Base Directories"].Push(applicationBaseDirectory)
                 } else {
-                    mappings["Candidate Base Directories"].Push(candidateBaseDirectory . "\")
+                    mappings["Application Base Directories"].Push(applicationBaseDirectory . "\")
                 }
             }
         }
 
-        for configurationCandidateBaseDirectory in system["Configuration"]["Candidate Base Directories"] {
-            if DirExist(configurationCandidateBaseDirectory) {
-                mappings["Candidate Base Directories"].Push(configurationCandidateBaseDirectory)
+        for configurationApplicationBaseDirectory in system["Configuration"]["Application Base Directories"] {
+            if DirExist(configurationApplicationBaseDirectory) {
+                mappings["Application Base Directories"].Push(configurationApplicationBaseDirectory)
             }
         }
 
-        mappings["Candidate Base Directories"] := RemoveDuplicatesFromArray(mappings["Candidate Base Directories"])
+        mappings["Application Base Directories"] := RemoveDuplicatesFromArray(mappings["Application Base Directories"])
 
         configuration["Image Variant Preset"] := Map()
         for index, name in system["Constants"][system["Configuration"]["Settings"]["Image Variant Preset"]] {
@@ -693,6 +711,22 @@ LogEngine(runtimeOverride := Map()) {
             }
         }
 
+        SetLogFilenames(StrSplit(telemetry["UTC Timestamp Precise"], ".")[1])
+
+        if configuration["Settings"]["Logging Mode"] = "All" {
+            logToFile := true
+
+            BatchAppendExecutionLog(logging["Execution Log"])
+            BatchAppendOperationLog(logging["Operation Log"])
+            BatchAppendRunTelemetry(logging["Run Telemetry"])
+            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
+
+            logging["Execution Log"] := []
+            logging["Operation Log"] := []
+            logging["Run Telemetry"] := []
+            logging["Symbol Ledger"] := []
+        }
+
         environment["Color Mode"]          := GetColorMode()
         environment["Display Language"]    := GetDisplayLanguage()
         environment["Input Language"]      := GetInputLanguage()
@@ -724,78 +758,143 @@ LogEngine(runtimeOverride := Map()) {
         runtime["Image Library Hash"]       := GetFileHash(paths["Image Library"],       "SHA-256")
         runtime["Logging Library Hash"]     := GetFileHash(paths["Logging Library"],     "SHA-256")
 
+        executionLogLines := []
         for executionLogLine in [
-            "Project Name|" .             runtime["Project Name"],
-            "Library Release|" .          runtime["Library Release"],
-            "AutoHotkey Version|" .       runtime["AutoHotkey Version"],
-            "Project Hash|" .             EncodeSha256HexToBase(runtime["Project Hash"], 86),
-            "Application Library Hash|" . EncodeSha256HexToBase(runtime["Application Library Hash"], 86),
-            "Base Library Hash|" .        EncodeSha256HexToBase(runtime["Base Library Hash"], 86),
-            "Chrono Library Hash|" .      EncodeSha256HexToBase(runtime["Chrono Library Hash"], 86),
-            "File Library Hash|" .        EncodeSha256HexToBase(runtime["File Library Hash"], 86),
-            "Image Library Hash|" .       EncodeSha256HexToBase(runtime["Image Library Hash"], 86),
-            "Logging Library Hash|" .     EncodeSha256HexToBase(runtime["Logging Library Hash"], 86),
-            "Operating System|" .         environment["Operating System"]["Full Name"]
+            "Project Name" .             "|" . runtime["Project Name"],
+            "Library Release" .          "|" . runtime["Library Release"],
+            "AutoHotkey Version" .       "|" . runtime["AutoHotkey Version"],
+            "Project Hash" .             "|" . EncodeSha256HexToBase(runtime["Project Hash"], 86),
+            "Application Library Hash" . "|" . EncodeSha256HexToBase(runtime["Application Library Hash"], 86),
+            "Base Library Hash" .        "|" . EncodeSha256HexToBase(runtime["Base Library Hash"], 86),
+            "Chrono Library Hash" .      "|" . EncodeSha256HexToBase(runtime["Chrono Library Hash"], 86),
+            "File Library Hash" .        "|" . EncodeSha256HexToBase(runtime["File Library Hash"], 86),
+            "Image Library Hash" .       "|" . EncodeSha256HexToBase(runtime["Image Library Hash"], 86),
+            "Logging Library Hash" .     "|" . EncodeSha256HexToBase(runtime["Logging Library Hash"], 86),
+            "Operating System" .         "|" . environment["Operating System"]["Full Name"]
         ] {
-            logging["Execution Log"].Push(executionLogLine)
+            executionLogLines.Push(executionLogLine)
         }
 
         if configuration["Settings"]["Advanced Mode"] {
-            logging["Execution Log"].Push("Windows Installation Date|" . environment["Operating System"]["Installation Date"])
+            executionLogLines.Push("Windows Installation Date" . "|" . environment["Operating System"]["Installation Date"])
         }
 
         for executionLogLine in [
-            "Computer Name|" .          environment["Computer Name"],
-            "Computer Alias|" .         configuration["Settings"]["Computer Alias"],
-            "Username|" .               environment["Username"],
-            "Time Zone Key Name|" .     environment["Time Zone"]["Key Name"],
-            "Time Zone UTC Offset|" .   environment["Time Zone"]["UTC Offset"],
-            "QPC Frequency|" .          environment["QPC Frequency"],
-            "Country or Region|" .      environment["International"]["Geo"]["Friendly Name"],
-            "Display Language|" .       environment["Display Language"],
-            "Regional Format|" .        environment["Regional Format"],
-            "Input Language|" .         environment["Input Language"],
-            "Keyboard Layout|" .        environment["Keyboard Layout"]
+            "Computer Name" .        "|" . environment["Computer Name"],
+            "Computer Alias" .       "|" . configuration["Settings"]["Computer Alias"],
+            "Username" .             "|" . environment["Username"],
+            "Time Zone Key Name" .   "|" . environment["Time Zone"]["Key Name"],
+            "Time Zone UTC Offset" . "|" . environment["Time Zone"]["UTC Offset"],
+            "QPC Frequency" .        "|" . environment["QPC Frequency"],
+            "Country or Region" .    "|" . environment["International"]["Geo"]["Friendly Name"],
+            "Display Language" .     "|" . environment["Display Language"],
+            "Regional Format" .      "|" . environment["Regional Format"],
+            "Input Language" .       "|" . environment["Input Language"],
+            "Keyboard Layout" .      "|" .  environment["Keyboard Layout"]
         ] {
-            logging["Execution Log"].Push(executionLogLine)
+            executionLogLines.Push(executionLogLine)
         }
 
         if configuration["Settings"]["Advanced Mode"] {
             for executionLogLine in [
-                "Motherboard|" .                    hardware["Motherboard"]["Full Name"],
-                "BIOS|" .                           hardware["Motherboard"]["BIOS"],
-                "CPU|" .                            hardware["CPU"],
-                "Memory Size and Type|" .           hardware["Memory Size and Type"],
-                "System Disk|" .                    hardware["System Disk"],
-                "System Disk Total Bytes|" .        telemetry["System Disk Space Snapshot"]["Total Bytes"],
-                "System Disk Windows Total Size|" . telemetry["System Disk Space Snapshot"]["Windows Total Size"],
-                "Display GPU|" .                    hardware["Display GPU"],
-                "Monitor|" .                        hardware["Monitor"]
+                "Motherboard" .                    "|" . hardware["Motherboard"]["Full Name"],
+                "BIOS" .                           "|" . hardware["Motherboard"]["BIOS"],
+                "CPU" .                            "|" . hardware["CPU"],
+                "Memory Size and Type" .           "|" . hardware["Memory Size and Type"],
+                "System Disk" .                    "|" . hardware["System Disk"],
+                "System Disk Total Bytes" .        "|" . telemetry["System Disk Space Snapshot"]["Total Bytes"],
+                "System Disk Windows Total Size" . "|" . telemetry["System Disk Space Snapshot"]["Windows Total Size"],
+                "Display GPU" .                    "|" . hardware["Display GPU"],
+                "Monitor" .                        "|" . hardware["Monitor"]
             ] {
-                logging["Execution Log"].Push(executionLogLine)
+                executionLogLines.Push(executionLogLine)
             }
         }
 
         for executionLogLine in [
-            "Monitor Count|" .       hardware["Monitor Count"],
-            "Display Resolution|" .  environment["Display Resolution"],
-            "Refresh Rate|" .        environment["Refresh Rate"],
-            "DPI Scale|" .           environment["DPI Scale"],
-            "Color Mode|" .          environment["Color Mode"],
-            "Timeout Before Lock|" . environment["Timeout Before Lock"]
+            "Monitor Count" .       "|" . hardware["Monitor Count"],
+            "Display Resolution" .  "|" . environment["Display Resolution"],
+            "Refresh Rate" .        "|" . environment["Refresh Rate"],
+            "DPI Scale" .           "|" . environment["DPI Scale"],
+            "Color Mode" .          "|" . environment["Color Mode"],
+            "Timeout Before Lock" . "|" . environment["Timeout Before Lock"]
         ] {
-            logging["Execution Log"].Push(executionLogLine)
+            executionLogLines.Push(executionLogLine)
         }
 
-        if fileLoggingEnabled && logToFile {
+        for executionLogLine in executionLogLines {
+            labelPipePosition := InStr(executionLogLine, "|")
+            labelOfExecutionLogLine := SubStr(executionLogLine, 1, labelPipePosition - 1)
+            remainderOfExecutionLogLine := SubStr(executionLogLine, labelPipePosition)
+            valueOfExecutionLogLine := SubStr(remainderOfExecutionLogLine, 2)
+
+            if configuration["Execution Log"][labelOfExecutionLogLine] {
+                logging["Execution Log"].Push(RegisterSymbol(labelOfExecutionLogLine, "Label") . "|" . RegisterSymbol(valueOfExecutionLogLine, "Value"))
+            }
+        }
+
+        if configuration["Settings"]["Logging Mode"] = "All" {
             BatchAppendExecutionLog(logging["Execution Log"])
-            BatchAppendRunTelemetry(logging["Run Telemetry"])
 
             logging["Execution Log"] := []
-            logging["Run Telemetry"] := []
         }
-    } else {
-        if fileLoggingEnabled && logToFile {
+    }
+
+    for runTelemetryLine in [
+        "Run Telemetry Order" .           "|" . runTelemetryOrder,
+        "Operation Log Line Number" .     "|" . operationLogLineNumber,
+        "Duration in Milliseconds" .      "|" . telemetry["Duration in Milliseconds"],
+        "Number of Readings" .            "|" . telemetry["Number of Readings"],
+        "QPC Pre Timestamp" .             "|" . telemetry["QPC Pre Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+        "QPC Post Timestamp" .            "|" . telemetry["QPC Post Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+        "QPC Midpoint Timestamp" .        "|" . telemetry["QPC Midpoint Timestamp"],
+        "Tick Count" .                    "|" . telemetry["Tick Count"],
+        "Tick Count Pre" .                "|" . telemetry["Tick Count Pre"] - telemetry["Tick Count"],
+        "UTC Timestamp Precise" .         "|" . telemetry["UTC Timestamp Precise"],
+        "Computer Uptime in Seconds" .    "|" . telemetry["Computer Uptime in Seconds"],
+        "Session Uptime in Seconds" .     "|" . telemetry["Session Uptime in Seconds"],
+        "Commit Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Total Bytes"],
+        "Commit Limit Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
+        "Commit Peak Bytes" .             "|" . telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
+        "Commit Used Percent" .           "|" . telemetry["System Resource Snapshot"]["Commit Used Percent"],
+        "Kernel Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
+        "Kernel Paged Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Paged Bytes"],
+        "Kernel Nonpaged Bytes" .         "|" . telemetry["System Resource Snapshot"]["Kernel Nonpaged Bytes"],
+        "Physical Used Bytes" .           "|" . telemetry["System Resource Snapshot"]["Physical Used Bytes"],
+        "Physical Total Bytes" .          "|" . telemetry["System Resource Snapshot"]["Physical Total Bytes"],
+        "Physical Used Percent" .         "|" . telemetry["System Resource Snapshot"]["Physical Used Percent"],
+        "System Cache Bytes" .            "|" . telemetry["System Resource Snapshot"]["System Cache Bytes"],
+        "System Handle Count" .           "|" . telemetry["System Resource Snapshot"]["System Handle Count"],
+        "System Process Count" .          "|" . telemetry["System Resource Snapshot"]["System Process Count"],
+        "System Thread Count" .           "|" . telemetry["System Resource Snapshot"]["System Thread Count"],
+        "System Disk Free Bytes" .        "|" . telemetry["System Disk Space Snapshot"]["Free Bytes"],
+        "System Disk Windows Free Size" . "|" . telemetry["System Disk Space Snapshot"]["Windows Free Size"]
+    ] {
+        labelPipePosition := InStr(runTelemetryLine, "|")
+        labelOfRunTelemetryLine := SubStr(runTelemetryLine, 1, labelPipePosition - 1)
+        remainderOfRunTelemetryLine := SubStr(runTelemetryLine, labelPipePosition)
+
+        if configuration["Run Telemetry"][labelOfRunTelemetryLine] {
+            logging["Run Telemetry"].Push(RegisterSymbol(labelOfRunTelemetryLine, "Label") . remainderOfRunTelemetryLine)
+        }
+    }
+
+    if configuration["Settings"]["Logging Mode"] != "Off" {
+        if logging["Cycle"] = "Failed" && configuration["Settings"]["Logging Mode"] = "Failures Only" {
+            logToFile := true
+
+            BatchAppendExecutionLog(logging["Execution Log"])
+            BatchAppendOperationLog(logging["Operation Log"])
+            BatchAppendRunTelemetry(logging["Run Telemetry"])
+            BatchAppendSymbolLedger("", logging["Symbol Ledger"])
+
+            logging["Execution Log"] := []
+            logging["Operation Log"] := []
+            logging["Run Telemetry"] := []
+            logging["Symbol Ledger"] := []
+        }
+
+        if configuration["Settings"]["Logging Mode"] = "All" {
             BatchAppendRunTelemetry(logging["Run Telemetry"])
 
             logging["Run Telemetry"] := []
@@ -810,27 +909,6 @@ LogEngine(runtimeOverride := Map()) {
 
     if logging["Cycle"] != "Beginning" && logging["Cycle"] != "Intermission" {
         timestampNow := A_Now
-
-        if fileLoggingEnabled = false || logToFile = false {
-            if runtimeOverride.Count != 0 {
-                if runtimeOverride.Has("Enable File Logging") && runtimeOverride["Enable File Logging"] = true {
-                    methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Default"] := true
-                    methodRegistry["LogEngine"]["Settings"]["File Logging Enabled"]["Value"]   := true
-                    fileLoggingEnabled := true
-                    logToFile          := true
-                }
-
-                BatchAppendExecutionLog(logging["Execution Log"])
-                BatchAppendOperationLog(logging["Operation Log"])
-                BatchAppendRunTelemetry(logging["Run Telemetry"])
-                BatchAppendSymbolLedger("", logging["Symbol Ledger"])
-
-                logging["Execution Log"] := []
-                logging["Operation Log"] := []
-                logging["Run Telemetry"] := []
-                logging["Symbol Ledger"] := []
-            }
-        }
 
         for logFilePath in [
             paths["Execution Log"],
@@ -849,7 +927,7 @@ LogEngine(runtimeOverride := Map()) {
                 logFile.Close()
                 continue
             }
-            
+
             bytesToInspect := (logFileSize >= 2) ? 2 : 1
             logFile.Seek(-bytesToInspect, 2)
             trailingBytesBuffer := Buffer(bytesToInspect)
@@ -937,7 +1015,7 @@ OverlayHideLogForMethod(methodNameInput) {
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [methodNameInput], "Overlay Hide Log for Method (" . methodNameInput . ")")
 
     global methodRegistry
-    
+
     if !methodRegistry.Has(methodNameInput) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, 'Method "' . methodNameInput . '" not registered.')
     }
@@ -1076,7 +1154,7 @@ OverlayInsertSpacer() {
         RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Overlay Insert Spacer", true)
-    
+
     ; Method has Custom Overlay Rules: Executed directly in LogBeginning.
 
     LogConclusion("Completed", logConclusionData)
@@ -1220,10 +1298,10 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
             if !IsSet(customOverlayMethod) {
                 logConclusionData := LogProcessArguments(logConclusionData, arguments)
 
-                logBeginning := logBeginning . "|" . 
+                logBeginning := logBeginning . "|" .
                     logConclusionData["Arguments Log"]             ; Arguments or Error Message
             } else {
-                logBeginning := logBeginning . "|" . 
+                logBeginning := logBeginning . "|" .
                     ""                                             ; Arguments or Error Message
             }
         } else {
@@ -1234,7 +1312,7 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
     if logConclusionData["Overlay Key"] >= 1 {
         RegisterSymbol(overlayValue, "Overlay")
 
-        logBeginning := logBeginning . "|" . 
+        logBeginning := logBeginning . "|" .
             overlayKey .                          "|" .            ; Overlay Key
             symbolLedger["Overlay"][overlayValue]                  ; Overlay Value
     }
@@ -1299,7 +1377,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
             if logConclusionData.Has("Arguments") {
                 logConclusionData := LogProcessArguments(logConclusionData, logConclusionData["Arguments"])
 
-                logBeginning := logBeginning . "|" . 
+                logBeginning := logBeginning . "|" .
                     logConclusionData["Arguments Log"]                  ; Arguments or Error Message
             }
 
@@ -1346,12 +1424,12 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     qpcMidpointTimestampDelta := (NumGet(qpcPrePointer, "Int64") + (NumGet(qpcPostPointer, "Int64") - NumGet(qpcPrePointer, "Int64")) // 2) - system["Telemetry"]["QPC Midpoint Timestamp"]
     utcTimestampIntegerDelta  := Format("{:04}{:02}{:02}{:02}{:02}{:02}{:03}", year, month, day, hour, minute, second, millisecond) + 0 - system["Telemetry"]["UTC Timestamp Integer"]
 
-    logConclusion := logConclusion . "|" . 
+    logConclusion := logConclusion . "|" .
         EncodeIntegerToBase(qpcMidpointTimestampDelta, 94) .      "|" . ; Query Performance Counter
         utcTimestampIntegerDelta                                        ; UTC Timestamp Integer
 
     if logConclusionData.Has("Context") {
-        logConclusion := logConclusion . "|" . 
+        logConclusion := logConclusion . "|" .
             logConclusionData["Context"]                                ; Method or Context
     }
 
@@ -1364,37 +1442,37 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         if logConclusionData.Has("Validation") {
             errorLineNumber := methodRegistry[logConclusionData["Method Name"]]["Validation Line"]
         }
-        
+
         declaration := RegExReplace(methodRegistry[logConclusionData["Method Name"]]["Declaration"], " <\d+>$", "")
 
         newLine := system["Constants"]["New Line"]
         constructedErrorMessage := "Declaration: " .  declaration . " (" . system["Runtime"]["Library Release"] . ")" . newLine
         if methodRegistry[logConclusionData["Method Name"]]["Parameters"] != "" {
             constructedErrorMessage := constructedErrorMessage .
-                "Parameters: " . methodRegistry[logConclusionData["Method Name"]]["Parameters"] . newLine . 
+                "Parameters: " . methodRegistry[logConclusionData["Method Name"]]["Parameters"] . newLine .
                 "Arguments: " . logConclusionData["Arguments Full"] . newLine
         }
 
-        constructedErrorMessage := constructedErrorMessage . 
+        constructedErrorMessage := constructedErrorMessage .
             "Line Number: " . errorLineNumber . newLine
 
         logErrorMessage := StrReplace(constructedErrorMessage . "Error Output: " . errorMessage, newLine, "|")
         RegisterSymbol(logErrorMessage, "Error")
 
-        logConclusion := logConclusion . "|" . 
+        logConclusion := logConclusion . "|" .
             symbolLedger["Error"][logErrorMessage]                      ; Arguments or Error Message
 
         if system["Environment"].Has("Time Zone") {
             currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone"]["Key Name"])
 
-            constructedErrorMessage := constructedErrorMessage . 
+            constructedErrorMessage := constructedErrorMessage .
                 "Date Runtime: " . currentLocalDateTime
         } else {
-            constructedErrorMessage := constructedErrorMessage . 
+            constructedErrorMessage := constructedErrorMessage .
                 "Date Runtime: " . currentUtcDateTime . " (UTC)"
         }
 
-        constructedErrorMessage := constructedErrorMessage . 
+        constructedErrorMessage := constructedErrorMessage .
             newLine . "Error Output: " . errorMessage
 
         errorWindow := Gui("-Resize +AlwaysOnTop +OwnDialogs", windowTitle)
@@ -1420,14 +1498,22 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         OverlayUpdateStatus(logConclusionData, conclusionStatus)
     }
 
-    if IsSet(errorMessage) { 
-        if system["Environment"].Has("Time Zone") && FileExist(system["Paths"]["Run Telemetry"]) {
-            system["Logging"]["Cycle"] := "Failed"
-            LogEngine()
-        }
-
+    if IsSet(errorMessage) {
         if logConclusionData["Method Name"] = "AbortExecution" {
             ExitApp()
+        } else {
+            if system["Environment"].Has("Time Zone") {
+                system["Logging"]["Cycle"] := "Failed"
+                LogEngine()
+            }
+
+            if system["Configuration"].Has("Settings") {
+                if system["Configuration"]["Settings"].Has("Termination Action") {
+                    if system["Configuration"]["Settings"]["Termination Action"] = "Exit Application" {
+                        ExitApp()
+                    }
+                }
+            }
         }
 
         errorWindow.Show("AutoSize Center")
@@ -1576,8 +1662,8 @@ RegisterSymbol(value, type, writeToSymbolLedger := true) {
 
     if !entryExists && writeToSymbolLedger {
         symbolLine :=
-            value . "|" . 
-            typeCharacter . "|" . 
+            value . "|" .
+            typeCharacter . "|" .
             symbolLedger[type][value]
 
         if logToFile {

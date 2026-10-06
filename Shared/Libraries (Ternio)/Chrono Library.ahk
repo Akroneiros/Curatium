@@ -21,7 +21,7 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [runtimeDate, randomizePixelMovement], 
         "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
-    
+
     counter := 0
 
     if !randomizePixelMovement {
@@ -403,14 +403,14 @@ TelemetryTimestamp(durationInMilliseconds) {
 
     if !IsSet(bestPairedReading) {
         bestPairedReading := structuredPairedReadings[1]
-        
+
         for structuredPairedReading in structuredPairedReadings {
             if bestPairedReading["Query Performance Counter Delta"] > structuredPairedReading["Query Performance Counter Delta"] {
                 bestPairedReading := structuredPairedReading
             }
         }
     }
-    
+
     NumPut("UInt64", bestPairedReading["Timestamp"], fileTimePointer)
     DllCall("Kernel32\FileTimeToSystemTime", "Ptr", fileTimePointer, "Ptr", systemTimeBuffer.Ptr, "Int")
 
@@ -436,7 +436,7 @@ TelemetryTimestamp(durationInMilliseconds) {
         microsecond       := ticksWithinSecond // 10
 
         result["UTC Timestamp Precise"] := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}", year, month, day, hour, minute, second, microsecond)
-    } else {       
+    } else {
         result["UTC Timestamp Precise"] := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
     }
 
@@ -520,7 +520,7 @@ ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyNa
     dateParts := StrSplit(parts[1], "-")
     timeAndFractionParts := StrSplit(parts[2], ".")
     timeParts := StrSplit(timeAndFractionParts[1], ":")
-    
+
     hasMilliseconds := timeAndFractionParts.Length = 2
     milliseconds := 0
     if hasMilliseconds {
@@ -638,7 +638,7 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
         RegisterMethod("utcTimestamp As String", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp])
-    
+
     utcTimestampLength := StrLen(utcTimestamp)
     if utcTimestampLength != 19 && utcTimestampLength != 23 && utcTimestampLength != 26 {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected length of 19, 23 or 26 but got: " . utcTimestampLength)
@@ -666,7 +666,7 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
     } else {
         utcTimestampCombinedDigits := year . month . day . hour . minute . second . millisecond
     }
-    
+
     utcTimestampInteger := utcTimestampCombinedDigits + 0
 
     return utcTimestampInteger
@@ -722,10 +722,10 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
     static timezoneCache := Map()
     if !timezoneCache.Has(timeZoneKeyName) {
         preparedBuffer := Buffer(DYNAMIC_TIME_ZONE_INFORMATION_SIZE, 0)
-        
+
         StrPut(timeZoneKeyName, preparedBuffer.Ptr + TIME_ZONE_KEY_NAME_OFFSET, 128, "UTF-16")
         NumPut("UChar", 0, preparedBuffer, DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET)
-        
+
         timezoneCache[timeZoneKeyName] := preparedBuffer
     }
 
@@ -841,7 +841,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
         "Date Order",  dateOrder,
         "Success",     false
     )
-    
+
     if isoDate != "" {
         extractionResults["Extracted Date"] := isoDate
 
