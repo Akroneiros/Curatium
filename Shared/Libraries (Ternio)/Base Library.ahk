@@ -180,9 +180,9 @@ BuildSpreadsheetOperationsTemplate(release) {
             spreadsheetOperationsTemplate["Release Date"]  := releaseDate
             spreadsheetOperationsTemplate["Intro SHA-256"] := IniRead(versionManifestPath, version, "IntroSHA-256")
             spreadsheetOperationsTemplate["Outro SHA-256"] := IniRead(versionManifestPath, version, "OutroSHA-256")
-            spreadsheetOperationsTemplate["Intro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Intro.vba", 
+            spreadsheetOperationsTemplate["Intro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Intro.vba",
                 spreadsheetOperationsTemplate["Intro SHA-256"])
-            spreadsheetOperationsTemplate["Outro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Outro.vba", 
+            spreadsheetOperationsTemplate["Outro Code"]    := ReadFileOnHashMatch(system["Directories"]["Spreadsheet Operations Template"] . "Spreadsheet Operations Template (v" . version . ", " . releaseDate . ") Outro.vba",
                 spreadsheetOperationsTemplate["Outro SHA-256"])
             break
         }
@@ -414,7 +414,7 @@ PerformMouseActionAtCoordinates(mouseAction, coordinatePair) {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("mouseAction As String [Whitelist: " . mouseActionWhitelist . "], coordinatePair As String [Constraint: Coordinate Pair]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [mouseAction, coordinatePair], 
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [mouseAction, coordinatePair],
         "Perform Mouse Action at Coordinates (" . mouseAction . " @ " . coordinatePair . ")")
 
     coordinates := StrSplit(coordinatePair, "x")
@@ -474,10 +474,10 @@ PerformMouseDragBetweenCoordinates(startCoordinatePair, endCoordinatePair, mouse
     static mouseActionWhitelist := Format('"{1}", "{2}"', "Left", "Right")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional]", 
+        RegisterMethod("startCoordinatePair As String [Constraint: Coordinate Pair], endCoordinatePair As String [Constraint: Coordinate Pair], mouseButton As String [Whitelist: " . mouseActionWhitelist . "], modifierKeys As String [Optional]",
             A_ThisFunc, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys], 
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [startCoordinatePair, endCoordinatePair, mouseButton, modifierKeys],
         "PerformMouseDrag (" . mouseButton . ", " . startCoordinatePair . " to " . endCoordinatePair . ")")
 
     modeBeforeAction := A_CoordModeMouse
@@ -1944,7 +1944,7 @@ KeyboardShortcut(primaryModifier, key, secondaryModifier := "") {
     static modifierWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "ALT", "CTRL", "CONTROL", "SHIFT", "WIN", "WINDOWS")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]", 
+        RegisterMethod("primaryModifier As String [Whitelist: " . modifierWhitelist . "], key As String, secondaryModifier As String [Optional] [Whitelist: " . modifierWhitelist . "]",
             methodName, A_LineFile, A_LineNumber + 5, Map(
                 "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
                 "Legacy Threshold", Map("Default", 128, "Floor", 16, "Ceiling", 256)
@@ -2266,7 +2266,7 @@ SetMethodSetting(settingMethod, settingName, settingValue) {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("settingMethod As String, settingName As String, settingValue As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [settingMethod, settingName, settingValue], 
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [settingMethod, settingName, settingValue],
         "Set Method Setting (" . settingMethod . ", " . settingName . ")")
 
     ConfigureMethodSetting(settingMethod, settingName, settingValue)

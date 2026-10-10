@@ -5,7 +5,7 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false) {
+PreventSystemGoingIdleUntilDateTime(untilDateTime) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -15,79 +15,81 @@ PreventSystemGoingIdleUntilRuntime(runtimeDate, randomizePixelMovement := false)
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
+    dateTimeLabel := "N/A"
+    if ValidateDataUsingSpecification(untilDateTime, "String", "ISO Date Time") = "" {
+        dateTimeLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(untilDateTime, "-"), " "), ":"), "WDay") + 0], SubStr(untilDateTime, 12))
+    }
+
+    overlayValue := Format("Prevent System Going Idle Until Date Time ({})", dateTimeLabel)
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], randomizePixelMovement As Integer [Optional: false] [Constraint: Boolean]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("untilDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000)
+        ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [runtimeDate, randomizePixelMovement], 
-        "Prevent System Going Idle Until Runtime (" . FormatTime(runtimeDate, "yyyy-MM-dd HH:mm:ss") . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [untilDateTime], overlayValue)
 
-    counter := 0
+    settings := methodRegistry[methodName]["Settings"]
 
-    if !randomizePixelMovement {
-        while DateDiff(runtimeDate, A_Now, "Seconds") > 60 {
-            counter += 1
-            if counter >= 48 {
-                MouseMove(0, 0, 0, "R")
-                counter := 0
-            }
+    millisecondsBetweenMouseMoves := settings["Milliseconds Between Mouse Moves"]["Value"]
 
-            Sleep(10000)
+    untilDateTime := StrReplace(StrReplace(StrReplace(untilDateTime, "-", ""), ":", ""), " ", "")
+
+    previousMouseCoordinateMode := A_CoordModeMouse
+    CoordMode("Mouse", "Screen")
+
+    while DateDiff(untilDateTime, A_NowUTC, "Seconds") > 1 {
+        secondsRemainingBeforeFinalSecond := DateDiff(untilDateTime, A_NowUTC, "Seconds") - 1
+        millisecondsUntilNextMouseMove    := millisecondsBetweenMouseMoves
+
+        if secondsRemainingBeforeFinalSecond * 1000 < millisecondsUntilNextMouseMove {
+            millisecondsUntilNextMouseMove := secondsRemainingBeforeFinalSecond * 1000
         }
-    } else {
-        while DateDiff(runtimeDate, A_Now, "Seconds") > 60 {
-            counter += 1
-            if counter >= 48 {
-                MouseGetPos(&mouseX, &mouseY)
-                screenWidth  := A_ScreenWidth
-                screenHeight := A_ScreenHeight
 
-                direction := Random(1, 4)
-
-                if direction = 1 && mouseX >= screenWidth - 1 {
-                    direction := 2
-                } else if direction = 2 && mouseX <= 0 {
-                    direction := 1
-                } else if direction = 3 && mouseY >= screenHeight - 1 {
-                    direction := 4
-                } else if direction = 4 && mouseY <= 0 {
-                    direction := 3
-                }
-
-                if direction = 1 {
-                    MouseMove 1, 0, 0, "R"
-                } else if direction = 2 {
-                    MouseMove -1, 0, 0, "R"
-                } else if direction = 3 {
-                    MouseMove 0, 1, 0, "R"
-                } else {
-                    MouseMove 0, -1, 0, "R"
-                }
-
-                Sleep(Random(200, 800))
-                if direction = 1 {
-                    MouseMove -1, 0, 0, "R"
-                } else if direction = 2 {
-                    MouseMove 1, 0, 0, "R"
-                } else if direction = 3 {
-                    MouseMove 0, -1, 0, "R"
-                } else {
-                    MouseMove 0, 1, 0, "R"
-                }
-
-                counter := 0
-            }
-
-            Sleep(10000)
+        if millisecondsUntilNextMouseMove > 0 {
+            Sleep(millisecondsUntilNextMouseMove)
         }
+
+        if DateDiff(untilDateTime, A_NowUTC, "Seconds") <= 1 {
+            break
+        }
+
+        screenWidth  := A_ScreenWidth
+        screenHeight := A_ScreenHeight
+
+        direction := Random(1, 4)
+        deltaX    := 0
+        deltaY    := 0
+
+        MouseGetPos(&mouseX, &mouseY)
+        if direction = 1 && mouseX >= screenWidth - 1 {
+            direction := 2
+        } else if direction = 2 && mouseX <= 0 {
+            direction := 1
+        } else if direction = 3 && mouseY >= screenHeight - 1 {
+            direction := 4
+        } else if direction = 4 && mouseY <= 0 {
+            direction := 3
+        }
+
+        if direction = 1 {
+            deltaX := 1
+        } else if direction = 2 {
+            deltaX := -1
+        } else if direction = 3 {
+            deltaY := 1
+        } else {
+            deltaY := -1
+        }
+
+        MouseMove(deltaX, deltaY, 0, "R")
+        Sleep(Random(64, 128))
+        MouseMove(-deltaX, -deltaY, 0, "R")
     }
 
-    while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
-        Sleep(240)
-    }
+    CoordMode("Mouse", previousMouseCoordinateMode)
 
-    while A_Now < runtimeDate {
-        Sleep(16)
+    while A_NowUTC < untilDateTime {
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -234,34 +236,6 @@ SetFileTimestamp(filePath, isoDateTime, timeType) {
     LogConclusion("Completed", logConclusionData)
 }
 
-ValidateRuntimeDate(runtimeDate, minimumStartupInSeconds) {
-    static timingBuffer     := Buffer(24, 0)
-    static qpcPrePointer    := timingBuffer.Ptr
-    static timestampPointer := timingBuffer.Ptr + 8
-    static qpcPostPointer   := timingBuffer.Ptr + 16
-
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
-    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
-    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-
-    static methodName := A_ThisFunc
-    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("runtimeDate As String [Constraint: Raw Date Time], minimumStartupInSeconds As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
-    }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [runtimeDate, minimumStartupInSeconds], "Validate Runtime Date (" . runtimeDate . ")")
-
-    if runtimeDate <= A_Now {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "runtimeDate is in the past.")
-    }
-
-    timeUntilStart := DateDiff(runtimeDate, A_Now, "Seconds")
-    if timeUntilStart < minimumStartupInSeconds && SubStr(runtimeDate, 1, 8) = SubStr(A_Now, 1, 8) {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "runtimeDate must be at least " . minimumStartupInSeconds . " seconds into the future. Current difference: " . timeUntilStart . " seconds.")
-    }
-
-    LogConclusion("Completed", logConclusionData)
-}
-
 WaitUntilFileIsModifiedToday(filePath) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
@@ -275,8 +249,8 @@ WaitUntilFileIsModifiedToday(filePath) {
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 6, Map(
-            "Check Interval", Map("Default", 4000, "Floor", 1000, "Ceiling", 10000),
-            "Mouse Interval", Map("Default", 120000, "Floor", 1000, "Ceiling", 840000),
+            "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000),
+            "Milliseconds Between File Checks", Map("Default", 2000, "Floor", 1000, "Ceiling", 10000),
             "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)
         ))
     }
@@ -284,13 +258,16 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    checkInterval  := settings["Check Interval"]["Value"]
-    mouseInterval  := settings["Mouse Interval"]["Value"]
-    maxWaitMinutes := settings["Max Wait Minutes"]["Value"]
+    millisecondsBetweenMouseMoves := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenFileChecks := settings["Milliseconds Between File Checks"]["Value"]
+    maxWaitMinutes                := settings["Max Wait Minutes"]["Value"]
 
     dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-    maxLoops    := (maxWaitMinutes * 60000) // checkInterval
+    maxLoops    := (maxWaitMinutes * 60000) // millisecondsBetweenFileChecks
     timeSinceLastMouse := 0
+
+    previousMouseCoordinateMode := A_CoordModeMouse
+    CoordMode("Mouse", "Screen")
 
     Loop maxLoops {
         if FileExist(filePath) {
@@ -302,14 +279,47 @@ WaitUntilFileIsModifiedToday(filePath) {
             }
         }
 
-        Sleep(checkInterval)
-        timeSinceLastMouse += checkInterval
+        Sleep(millisecondsBetweenFileChecks)
+        timeSinceLastMouse += millisecondsBetweenFileChecks
 
-        if timeSinceLastMouse >= mouseInterval {
-            MouseMove(0, 0, 0, "R") ; For preventing screen saver from activating.
+        if timeSinceLastMouse >= millisecondsBetweenMouseMoves {
+            screenWidth  := A_ScreenWidth
+            screenHeight := A_ScreenHeight
+
+            direction := Random(1, 4)
+            deltaX    := 0
+            deltaY    := 0
+
+            MouseGetPos(&mouseX, &mouseY)
+            if direction = 1 && mouseX >= screenWidth - 1 {
+                direction := 2
+            } else if direction = 2 && mouseX <= 0 {
+                direction := 1
+            } else if direction = 3 && mouseY >= screenHeight - 1 {
+                direction := 4
+            } else if direction = 4 && mouseY <= 0 {
+                direction := 3
+            }
+
+            if direction = 1 {
+                deltaX := 1
+            } else if direction = 2 {
+                deltaX := -1
+            } else if direction = 3 {
+                deltaY := 1
+            } else {
+                deltaY := -1
+            }
+
+            MouseMove(deltaX, deltaY, 0, "R")
+            Sleep(Random(64, 128))
+            MouseMove(-deltaX, -deltaY, 0, "R")
+
             timeSinceLastMouse := 0
         }
     }
+
+    CoordMode("Mouse", previousMouseCoordinateMode)
 
     LogConclusion("Completed", logConclusionData)
 }
@@ -446,6 +456,30 @@ TelemetryTimestamp(durationInMilliseconds) {
 ; **************************** ;
 ; Helper Methods               ;
 ; **************************** ;
+
+AddOrSubtractTimeAmountFromIsoDateTime(timeUnit, time, isoDateTime) {
+    static timingBuffer     := Buffer(24, 0)
+    static qpcPrePointer    := timingBuffer.Ptr
+    static timestampPointer := timingBuffer.Ptr + 8
+    static qpcPostPointer   := timingBuffer.Ptr + 16
+
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
+
+    static timeUnitWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Days", "Hours", "Minutes", "Seconds")
+    static methodName := A_ThisFunc
+    if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
+        RegisterMethod("timeUnit As String [Whitelist: " . timeUnitWhitelist . "], time as Integer, isoDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 2, Map())
+    }
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [timeUnit, time, isoDateTime])
+
+    compactDateTime := StrReplace(StrReplace(StrReplace(isoDateTime, "-"), " "), ":")
+    modifiedCompactDateTime := DateAdd(compactDateTime, time, timeUnit)
+    modifiedIsoDateTime := FormatTime(modifiedCompactDateTime, "yyyy-MM-dd HH:mm:ss")
+
+    return modifiedIsoDateTime
+}
 
 ConvertIntegerToUtcTimestamp(integerValue) {
     static timingBuffer     := Buffer(24, 0)

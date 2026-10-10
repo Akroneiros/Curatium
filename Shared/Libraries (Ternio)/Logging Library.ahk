@@ -1388,7 +1388,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
             }
     }
 
-    logConclusion := 
+    logConclusion :=
         logConclusionData["Operation Sequence Number"] .          "|" . ; Operation Sequence Number
         SubStr(conclusionStatus, 1, 1)                                  ; Status
 
@@ -2185,7 +2185,7 @@ BatchAppendSymbolLedger(symbolType, array) {
             }
         }
     }
-  
+
     if symbolLedgerArray.Length != 0 {
         symbolLedgerArray := RemoveDuplicatesFromArray(symbolLedgerArray)
 

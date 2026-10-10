@@ -21,10 +21,11 @@ RegisterApplications() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 7, Map(
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 8, Map(
             "Excel Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Excel Short Delay", Map("Default", 256, "Floor", 64, "Ceiling", 2048),
             "Excel Medium Delay", Map("Default", 640, "Floor", 160, "Ceiling", 5120),
+            "Seconds to Wait for Excel to Close", Map("Default", 8, "Floor", 1, "Ceiling", 60),
             "Log to Execution Log", Map("Default", 1, "Floor", 0, "Ceiling", 1)
         ))
     }
@@ -36,10 +37,11 @@ RegisterApplications() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    excelTinyDelay    := settings["Excel Tiny Delay"]["Value"]
-    excelShortDelay   := settings["Excel Short Delay"]["Value"]
-    excelMediumDelay  := settings["Excel Medium Delay"]["Value"]
-    logToExecutionLog := settings["Log to Execution Log"]["Value"]
+    excelTinyDelay               := settings["Excel Tiny Delay"]["Value"]
+    excelShortDelay              := settings["Excel Short Delay"]["Value"]
+    excelMediumDelay             := settings["Excel Medium Delay"]["Value"]
+    secondsToWaitForExcelToClose := settings["Seconds to Wait for Excel to Close"]["Value"]
+    logToExecutionLog            := settings["Log to Execution Log"]["Value"]
 
     applications                             := system["Mappings"]["Applications"]
     applicationExecutableDirectoryCandidates := system["Mappings"]["Application Executable Directory Candidates"]
@@ -773,7 +775,7 @@ RegisterApplications() {
                     excelWorksheet   := 0
                     excelWorkbook    := 0
                     excelApplication := 0
-                    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+                    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
                 case "SoapUI":
                     if application["Executable Version"] = "N/A" {
                         if RegExMatch(application["Executable Filename"], "i)SoapUI-(\d+\.\d+(?:\.\d+)*)\.exe$", &versionMatch) {
@@ -879,7 +881,7 @@ CloseApplication(applicationName) {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("applicationName As String [Constraint: Application Name]", methodName, A_LineFile, A_LineNumber + 5, Map(
             "Tiny Delay", Map("Default", 64, "Floor", 16, "Ceiling", 256, "Delta", 32),
-            "Timeout", Map("Default", 4, "Floor", 1, "Ceiling", 120)
+            "Timeout", Map("Default", 10, "Floor", 1, "Ceiling", 120)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [applicationName], "Close Application (" . applicationName . ")")
@@ -892,38 +894,25 @@ CloseApplication(applicationName) {
     executableName := applicationRegistry[applicationName]["Executable Filename"]
 
     if applicationRegistry[applicationName].Has("Process Identifier") {
-        processIdentifierToClose := applicationRegistry[applicationName]["Process Identifier"]
         applicationRegistry[applicationName].Delete("Process Identifier")
-    } else {
-        processIdentifierToClose := executableName
     }
 
-    if !ProcessExist(processIdentifierToClose) {
+    if !ProcessExist(executableName) {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
     Sleep(tinyDelay)
 
-    if !ProcessExist(processIdentifierToClose) {
+    if !ProcessExist(executableName) {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
-    closedProcessIdentifier := ProcessClose(processIdentifierToClose)
-    if !closedProcessIdentifier {
-        if !ProcessExist(processIdentifierToClose) {
-            LogConclusion("Skipped", logConclusionData)
-            return
-        }
+    ProcessClose(executableName)
 
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to close process for application.")
-        return
-    }
-
-    if ProcessWaitClose(processIdentifierToClose, timeout) {
+    if ProcessWaitClose(executableName, timeout) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Process did not close within the timeout of " . timeout . " seconds.")
-        return
     }
 
     LogConclusion("Completed", logConclusionData)
@@ -1164,9 +1153,15 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
     overlayValue      := (displayName = "" ? documentName : displayName) . " Excel Starting Run"
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Seconds to Wait for Excel to Close", Map("Default", 8, "Floor", 1, "Ceiling", 60)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [documentName, saveDirectory, code, spreadsheetOperationsTemplate, displayName], overlayValue)
+
+    settings := methodRegistry[methodName]["Settings"]
+
+    secondsToWaitForExcelToClose := settings["Seconds to Wait for Excel to Close"]["Value"]
 
     applicationName := "Excel"
     if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
@@ -1219,7 +1214,7 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
     OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
     WaitForExcelToClose()
     excelApplication := 0
-    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+    ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
 
     try {
         FileDelete(sentinelFilePath)
@@ -1245,7 +1240,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " .
             "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
-                "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096)
+                "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096),
+                "Seconds to Wait for Excel to Close", Map("Default", 8, "Floor", 1, "Ceiling", 60)
             ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"),
@@ -1259,6 +1255,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     settings := methodRegistry[methodName]["Settings"]
 
     mediumDelay := settings["Medium Delay"]["Value"]
+    secondsToWaitForExcelToClose := settings["Seconds to Wait for Excel to Close"]["Value"]
 
     excelFilePath := SearchForUniqueFileInDirectory(documentName, saveDirectory, "xlsx")
     if excelFilePath = "" {
@@ -1290,7 +1287,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
         WaitForExcelToClose()
         excelApplication := 0
-        ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+        ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
 
         LogConclusion("Completed", logConclusionData)
         return
@@ -1336,7 +1333,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
             WaitForExcelToClose()
             aboutWorksheet   := 0
             excelApplication := 0
-            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
 
             LogConclusion("Completed", logConclusionData)
         } else {
@@ -1375,7 +1372,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
             WaitForExcelToClose()
             aboutWorksheet   := 0
             excelApplication := 0
-            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], 2)
+            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
 
             LogConclusion("Completed", logConclusionData)
         } else {
@@ -1538,9 +1535,10 @@ WaitForExcelToClose() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 5, Map(
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-            "Mouse Move Interval Seconds", Map("Default", 120, "Floor", 1, "Ceiling", 840)
+            "Seconds Until to Look for Error Window", Map("Default", 60, "Floor", 1, "Ceiling", 840),
+            "Milliseconds Between Mouse Moves", Map("Default", 480000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
@@ -1552,30 +1550,76 @@ WaitForExcelToClose() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    totalSecondsToWait       := settings["Total Seconds to Wait"]["Value"]
-    mouseMoveIntervalSeconds := settings["Mouse Move Interval Seconds"]["Value"]
+    totalSecondsToWait               := settings["Total Seconds to Wait"]["Value"]
+    secondsUntilToLookForErrorWindow := settings["Seconds Until to Look for Error Window"]["Value"]
+    millisecondsBetweenMouseMoves    := settings["Milliseconds Between Mouse Moves"]["Value"]
 
-    secondDelay               := 1000
-    secondsSinceLastMouseMove := 0
+    secondDelay                       := 1000
+    userInterfaceIsGone               := false
+    secondsSinceLastErrorWindowSearch := 0
+    previousMouseCoordinateMode       := A_CoordModeMouse
+    lastMouseMoveTickCount            := DllCall("Kernel32\GetTickCount64", "UInt64")
 
-    userInterfaceIsGone := false
+    CoordMode("Mouse", "Screen")
     Loop totalSecondsToWait {
         windowCount := WinGetList("ahk_pid " . applicationRegistry["Excel"]["Process Identifier"]).Length
+
         if windowCount = 0 {
             Sleep(secondDelay)
             userInterfaceIsGone := true
             break
         }
 
-        secondsSinceLastMouseMove += 1
-        if secondsSinceLastMouseMove >= mouseMoveIntervalSeconds {
-            MouseMove 1, 0, 0, "R"
-            MouseMove -1, 0, 0, "R"
-            secondsSinceLastMouseMove := 0
+        secondsSinceLastErrorWindowSearch += 1
+        if secondsSinceLastErrorWindowSearch >= secondsUntilToLookForErrorWindow {
+            excelErrorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", 1)
+            if excelErrorWindowSearchResults["Success"] = true {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel is displaying an error message.")
+            }
+
+            secondsSinceLastErrorWindowSearch := 0
+        }
+
+        if DllCall("Kernel32\GetTickCount64", "UInt64") - lastMouseMoveTickCount >= millisecondsBetweenMouseMoves {
+            MouseGetPos(&mouseX, &mouseY)
+            screenWidth := A_ScreenWidth
+            screenHeight := A_ScreenHeight
+
+            direction := Random(1, 4)
+
+            if direction = 1 && mouseX >= screenWidth - 1 {
+                direction := 2
+            } else if direction = 2 && mouseX <= 0 {
+                direction := 1
+            } else if direction = 3 && mouseY >= screenHeight - 1 {
+                direction := 4
+            } else if direction = 4 && mouseY <= 0 {
+                direction := 3
+            }
+
+            deltaX := 0
+            deltaY := 0
+
+            if direction = 1 {
+                deltaX := 1
+            } else if direction = 2 {
+                deltaX := -1
+            } else if direction = 3 {
+                deltaY := 1
+            } else {
+                deltaY := -1
+            }
+
+            MouseMove(deltaX, deltaY, 0, "R")
+            Sleep(Random(64, 128))
+            MouseMove(-deltaX, -deltaY, 0, "R")
+            lastMouseMoveTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
         }
 
         Sleep(secondDelay)
     }
+
+    CoordMode("Mouse", previousMouseCoordinateMode)
 
     if !userInterfaceIsGone {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel did not close within " . totalSecondsToWait . " seconds.")
@@ -1600,7 +1644,10 @@ StartSqlServerManagementStudioAndConnect() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "Seconds to Wait for Connect Window to Appear", Map("Default", 60, "Floor", 1, "Ceiling", 120),
+            "Seconds to Wait for Connect Window to Close", Map("Default", 40, "Floor", 1, "Ceiling", 120)
+        ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Start SQL Server Management Studio and Connect")
 
@@ -1609,13 +1656,18 @@ StartSqlServerManagementStudioAndConnect() {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "The application " . applicationName . " is not available.")
     }
 
+    settings := methodRegistry[methodName]["Settings"]
+
+    secondsToWaitForConnectWindowToAppear := settings["Seconds to Wait for Connect Window to Close"]["Value"]
+    secondsToWaitForConnectWindowToClose  := settings["Seconds to Wait for Connect Window to Close"]["Value"]
+
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')
-    sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], 60, "Connect to Server Window not found.")
+    sqlServerManagementStudioConnectToServerWindowSearchResults := SearchForWindow("Connect ahk_exe " . applicationRegistry["SQL Server Management Studio"]["Executable Filename"], secondsToWaitForConnectWindowToAppear, "Connect to Server Window not found.")
     ActivateWindow(sqlServerManagementStudioConnectToServerWindowSearchResults)
 
     SendInput("{Enter}") ; Connect
 
-    if !WinWaitClose("Connect ahk id " . sqlServerManagementStudioConnectToServerWindowSearchResults["Window Handle"],, 40) {
+    if !WinWaitClose("Connect ahk id " . sqlServerManagementStudioConnectToServerWindowSearchResults["Window Handle"],, secondsToWaitForConnectWindowToClose) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Connection failed.")
     }
 
@@ -1773,6 +1825,13 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to execute SQL query and save as CSV in " . maxAttempts . " attempts.")
     }
 
+    KeyboardShortcut("CTRL", "W") ; Close
+    Sleep(mediumDelay)
+    KeyboardShortcut("ALT", "N") ; Don't Save
+    Sleep(mediumDelay)
+    SendInput("{Esc}") ; Close window in the event the previous action failed.
+    Sleep(shortDelay)
+
     LogConclusion("Completed", logConclusionData)
 }
 
@@ -1780,7 +1839,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; Toad for Oracle              ;
 ; **************************** ;
 
-ExecuteAutomationApp(appName, runtimeDate := "") {
+ExecuteAutomationApp(appName, executionDateTime := "") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -1790,9 +1849,18 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
+    overlayValue := Format("Execute Automation App ({})", appName)
+    if executionDateTime != "" {
+        dateTimeLabel := "N/A"
+        if ValidateDataUsingSpecification(executionDateTime, "String", "ISO Date Time") = "" {
+            dateTimeLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(executionDateTime, "-"), " "), ":"), "WDay") + 0], SubStr(executionDateTime, 12))
+        }
+
+        overlayValue := Format("Execute Automation App ({} @ {})", appName, dateTimeLabel)
+    }
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("appName As String, runtimeDate As String [Optional] [Constraint: Raw Date Time]", methodName, A_LineFile, A_LineNumber + 8, Map(
+        RegisterMethod("appName As String, executionDateTime As String [Optional] [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 8, Map(
             "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
             "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
@@ -1800,7 +1868,7 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
             "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)
         ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, runtimeDate], "Execute Automation App (" . appName . ")")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, executionDateTime], overlayValue)
 
     applicationName := "Toad for Oracle"
     if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
@@ -1899,15 +1967,16 @@ ExecuteAutomationApp(appName, runtimeDate := "") {
     toadForOracleRunSelectedAppsImageSearchResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
     toadForOracleRunSelectedAppsImageCoordinates   := ExtractImageCoordinates(toadForOracleRunSelectedAppsImageSearchResults)
 
-    if runtimeDate != "" {
+    if executionDateTime != "" {
+        executionDateTime := StrReplace(StrReplace(StrReplace(executionDateTime, "-", ""), ":", ""), " ", "")
+
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsImageCoordinates)
 
-        while A_Now < DateAdd(runtimeDate, -1, "Seconds") {
+        while DateDiff(executionDateTime, A_NowUTC, "Seconds") > 1 {
             Sleep(shortDelay)
         }
 
-        while A_Now < runtimeDate {
-            Sleep(tinyDelay)
+        while A_NowUTC < executionDateTime {
         }
     }
 
