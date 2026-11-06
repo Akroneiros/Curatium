@@ -23,16 +23,19 @@ PreventSystemGoingIdleUntilDateTime(untilDateTime) {
     overlayValue := Format("Prevent System Going Idle Until Date Time ({})", dateTimeLabel)
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("untilDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 4, Map(
-            "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000)
+        RegisterMethod("untilDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 5, Map(
+            "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000),
+            "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [untilDateTime], overlayValue)
 
     settings := methodRegistry[methodName]["Settings"]
 
-    millisecondsBetweenMouseMoves := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
 
+    lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
     untilDateTime := StrReplace(StrReplace(StrReplace(untilDateTime, "-", ""), ":", ""), " ", "")
 
     previousMouseCoordinateMode := A_CoordModeMouse
@@ -85,6 +88,12 @@ PreventSystemGoingIdleUntilDateTime(untilDateTime) {
         MouseMove(deltaX, deltaY, 0, "R")
         Sleep(Random(64, 128))
         MouseMove(-deltaX, -deltaY, 0, "R")
+
+        if DllCall("Kernel32\GetTickCount64", "UInt64") - lastFunctionKeyPressTickCount >= millisecondsBetweenFunctionKeyPresses {
+            functionKeyNumber := Random(13, 24)
+            Send("{F" . functionKeyNumber . "}")
+            lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+        }
     }
 
     CoordMode("Mouse", previousMouseCoordinateMode)
@@ -248,9 +257,10 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 6, Map(
+        RegisterMethod("filePath As String [Constraint: Valid Path]", methodName, A_LineFile, A_LineNumber + 7, Map(
             "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000),
             "Milliseconds Between File Checks", Map("Default", 2000, "Floor", 1000, "Ceiling", 10000),
+            "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000),
             "Max Wait Minutes", Map("Default", 360, "Floor", 1, "Ceiling", 1438)
         ))
     }
@@ -258,13 +268,15 @@ WaitUntilFileIsModifiedToday(filePath) {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    millisecondsBetweenMouseMoves := settings["Milliseconds Between Mouse Moves"]["Value"]
-    millisecondsBetweenFileChecks := settings["Milliseconds Between File Checks"]["Value"]
-    maxWaitMinutes                := settings["Max Wait Minutes"]["Value"]
+    millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenFileChecks         := settings["Milliseconds Between File Checks"]["Value"]
+    millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
+    maxWaitMinutes                        := settings["Max Wait Minutes"]["Value"]
 
-    dateOfToday := FormatTime(A_Now, "yyyy-MM-dd")
-    maxLoops    := (maxWaitMinutes * 60000) // millisecondsBetweenFileChecks
+    dateOfToday        := FormatTime(A_Now, "yyyy-MM-dd")
+    maxLoops           := (maxWaitMinutes * 60000) // millisecondsBetweenFileChecks
     timeSinceLastMouse := 0
+    lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
 
     previousMouseCoordinateMode := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
@@ -316,6 +328,12 @@ WaitUntilFileIsModifiedToday(filePath) {
             MouseMove(-deltaX, -deltaY, 0, "R")
 
             timeSinceLastMouse := 0
+        }
+
+        if DllCall("Kernel32\GetTickCount64", "UInt64") - lastFunctionKeyPressTickCount >= millisecondsBetweenFunctionKeyPresses {
+            functionKeyNumber := Random(13, 24)
+            Send("{F" . functionKeyNumber . "}")
+            lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
         }
     }
 

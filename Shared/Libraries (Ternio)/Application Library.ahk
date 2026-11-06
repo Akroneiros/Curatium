@@ -1538,7 +1538,8 @@ WaitForExcelToClose() {
         RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
             "Seconds Until to Look for Error Window", Map("Default", 60, "Floor", 1, "Ceiling", 840),
-            "Milliseconds Between Mouse Moves", Map("Default", 480000, "Floor", 2000, "Ceiling", 898000)
+            "Milliseconds Between Mouse Moves", Map("Default", 20000, "Floor", 2000, "Ceiling", 898000),
+            "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
@@ -1550,15 +1551,17 @@ WaitForExcelToClose() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    totalSecondsToWait               := settings["Total Seconds to Wait"]["Value"]
-    secondsUntilToLookForErrorWindow := settings["Seconds Until to Look for Error Window"]["Value"]
-    millisecondsBetweenMouseMoves    := settings["Milliseconds Between Mouse Moves"]["Value"]
+    totalSecondsToWait                    := settings["Total Seconds to Wait"]["Value"]
+    secondsUntilToLookForErrorWindow      := settings["Seconds Until to Look for Error Window"]["Value"]
+    millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
 
     secondDelay                       := 1000
     userInterfaceIsGone               := false
     secondsSinceLastErrorWindowSearch := 0
     previousMouseCoordinateMode       := A_CoordModeMouse
     lastMouseMoveTickCount            := DllCall("Kernel32\GetTickCount64", "UInt64")
+    lastFunctionKeyPressTickCount     := lastMouseMoveTickCount
 
     CoordMode("Mouse", "Screen")
     Loop totalSecondsToWait {
@@ -1616,6 +1619,12 @@ WaitForExcelToClose() {
             lastMouseMoveTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
         }
 
+        if DllCall("Kernel32\GetTickCount64", "UInt64") - lastFunctionKeyPressTickCount >= millisecondsBetweenFunctionKeyPresses {
+            functionKeyNumber := Random(13, 24)
+            Send("{F" . functionKeyNumber . "}")
+            lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+        }
+
         Sleep(secondDelay)
     }
 
@@ -1644,9 +1653,9 @@ StartSqlServerManagementStudioAndConnect() {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 4, Map(
-            "Seconds to Wait for Connect Window to Appear", Map("Default", 60, "Floor", 1, "Ceiling", 120),
-            "Seconds to Wait for Connect Window to Close", Map("Default", 40, "Floor", 1, "Ceiling", 120)
+        RegisterMethod("", methodName, A_LineFile, A_LineNumber + 5, Map(
+            "Seconds to Wait for Connect Window to Appear", Map("Default", 120, "Floor", 1, "Ceiling", 240),
+            "Seconds to Wait for Connect Window to Close", Map("Default", 60, "Floor", 1, "Ceiling", 120)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Start SQL Server Management Studio and Connect")
@@ -1860,12 +1869,14 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
     }
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("appName As String, executionDateTime As String [Optional] [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 8, Map(
+        RegisterMethod("appName As String, executionDateTime As String [Optional] [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 10, Map(
             "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
             "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
             "Long Delay", Map("Default", 1280, "Floor", 640, "Ceiling", 5120),
-            "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000)
+            "Massive Delay", Map("Default", 30000, "Floor", 10000, "Ceiling", 60000),
+            "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000),
+            "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, executionDateTime], overlayValue)
@@ -1877,11 +1888,13 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    tinyDelay    := settings["Tiny Delay"]["Value"]
-    shortDelay   := settings["Short Delay"]["Value"]
-    mediumDelay  := settings["Medium Delay"]["Value"]
-    longDelay    := settings["Long Delay"]["Value"]
-    massiveDelay := settings["Massive Delay"]["Value"]
+    tinyDelay                             := settings["Tiny Delay"]["Value"]
+    shortDelay                            := settings["Short Delay"]["Value"]
+    mediumDelay                           := settings["Medium Delay"]["Value"]
+    longDelay                             := settings["Long Delay"]["Value"]
+    massiveDelay                          := settings["Massive Delay"]["Value"]
+    millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
+    millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
 
     toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
@@ -1908,9 +1921,14 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
     SendInput("{Backspace}") ; Remove character in case present.
     Sleep(shortDelay)
 
-    overallStartTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
-    firstSeenTickCount    := 0
-    dialogHasAppeared     := false
+    overallStartTickCount         := DllCall("Kernel32\GetTickCount64", "UInt64")
+    firstSeenTickCount            := 0
+    dialogHasAppeared             := false
+    lastMouseMoveTickCount        := DllCall("Kernel32\GetTickCount64", "UInt64")
+    lastFunctionKeyPressTickCount := lastMouseMoveTickCount
+
+    previousMouseCoordinateMode := A_CoordModeMouse
+    CoordMode("Mouse", "Screen")
 
     while true {
         dialogExists := WinExist("ahk_exe " . toadForOracleExecutableFilename . " ahk_class TReconnectForm")
@@ -1973,12 +1991,54 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsImageCoordinates)
 
         while DateDiff(executionDateTime, A_NowUTC, "Seconds") > 1 {
+            if DllCall("Kernel32\GetTickCount64", "UInt64") - lastMouseMoveTickCount >= millisecondsBetweenMouseMoves {
+                MouseGetPos(&mouseX, &mouseY)
+                screenWidth  := A_ScreenWidth
+                screenHeight := A_ScreenHeight
+
+                direction := Random(1, 4)
+                if direction = 1 && mouseX >= screenWidth - 1 {
+                    direction := 2
+                } else if direction = 2 && mouseX <= 0 {
+                    direction := 1
+                } else if direction = 3 && mouseY >= screenHeight - 1 {
+                    direction := 4
+                } else if direction = 4 && mouseY <= 0 {
+                    direction := 3
+                }
+
+                deltaX := 0
+                deltaY := 0
+                if direction = 1 {
+                    deltaX := 1
+                } else if direction = 2 {
+                    deltaX := -1
+                } else if direction = 3 {
+                    deltaY := 1
+                } else {
+                    deltaY := -1
+                }
+
+                MouseMove(deltaX, deltaY, 0, "R")
+                Sleep(Random(64, 128))
+                MouseMove(-deltaX, -deltaY, 0, "R")
+                lastMouseMoveTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+            }
+
+            if DllCall("Kernel32\GetTickCount64", "UInt64") - lastFunctionKeyPressTickCount >= millisecondsBetweenFunctionKeyPresses {
+                functionKeyNumber := Random(13, 24)
+                Send("{F" . functionKeyNumber . "}")
+                lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
+            }
+
             Sleep(shortDelay)
         }
 
         while A_NowUTC < executionDateTime {
         }
     }
+
+    CoordMode("Mouse", previousMouseCoordinateMode)
 
     PerformMouseActionAtCoordinates("Left", toadForOracleRunSelectedAppsImageCoordinates)
     Sleep(tinyDelay)
