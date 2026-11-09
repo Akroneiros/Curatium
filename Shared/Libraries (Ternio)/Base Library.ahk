@@ -1070,7 +1070,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
 
                         if !applications.Has(dataValue) {
-                            validation := dataConstraint . " does not exist."
+                            validation := dataConstraint . " is not supported."
                         }
                     case "Base52", "Base62", "Base66", "Base86", "Base92", "Base94":
                         baseCharacterSet := unset
@@ -1085,49 +1085,94 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
 
                         Loop Parse dataValue {
-                            if !baseCharacterSet.Has(A_LoopField) {
-                                validation := dataConstraint . " has invalid character: " . A_LoopField
+                            currentCharacter := A_LoopField
+
+                            if !baseCharacterSet.Has(currentCharacter) {
+                                validation := dataConstraint . ' contains the invalid character "' . currentCharacter . '" at position ' . A_Index . "."
                                 break
                             }
                         }
                     case "Base64":
-                        if !RegExMatch(dataValue, "^[A-Za-z0-9+/]*={0,2}$") {
-                            validation := dataConstraint . " invalid characters. Only A–Z, a–z, 0–9, +, /, and = allowed."
-                        } else if Mod(StrLen(dataValue), 4) != 0 {
+                        if Mod(StrLen(dataValue), 4) != 0 {
                             validation := dataConstraint . " invalid length. Length must be a multiple of 4."
-                        } else if RegExMatch(dataValue, "=[^=]") {
-                            validation := dataConstraint . " invalid padding. The character = can only appear at the end."
+                        } else if !RegExMatch(dataValue, "\A[A-Za-z0-9+/]*={0,2}\z") {
+                            paddingCharacterCount := 0
+                            paddingHasStarted     := false
+
+                            Loop Parse dataValue {
+                                if A_LoopField = "=" {
+                                    if !paddingHasStarted {
+                                        paddingHasStarted := true
+                                    }
+                                    paddingCharacterCount++
+                                    if paddingCharacterCount > 2 {
+                                        validation := dataConstraint . " invalid padding. More than two padding characters (=) are not allowed."
+                                        break
+                                    }
+                                } else if paddingHasStarted {
+                                    validation := dataConstraint . " invalid padding. The character = can only appear at the end."
+                                    break
+                                } else {
+                                    characterCode := Ord(A_LoopField)
+                                    if !(characterCode >= 65 && characterCode <= 90) && !(characterCode >= 97 && characterCode <= 122) && !(characterCode >= 48 && characterCode <= 57) && A_LoopField != "+" && A_LoopField != "/" {
+                                        validation := dataConstraint . ' contains the invalid character "' . A_LoopField . '" at position ' . A_Index . ". " . "Only A–Z, a–z, 0–9, +, /, and = are allowed."
+                                        break
+                                    }
+                                }
+                            }
                         }
                     case "Coordinate Pair":
                         widthDisplayResolution  := A_ScreenWidth
                         heightDisplayResolution := A_ScreenHeight
 
-                        if !RegExMatch(dataValue, "^(?<x>\d+)x(?<y>\d+)$", &matchObject) {
-                            validation := dataConstraint . " is not formatted correctly."
-                        } else if ((x := matchObject["x"] + 0), (y := matchObject["y"] + 0), (x < 0 || x >= widthDisplayResolution || y < 0 || y >= heightDisplayResolution)) {
-                            if x < 0 || x >= widthDisplayResolution {
+                        coordinateParts := StrSplit(dataValue, "x")
+
+                        if coordinateParts.Length != 2 {
+                            validation := dataConstraint . " must contain the separator x."
+                        } else if coordinateParts[1] == "" {
+                            validation := dataConstraint . " is missing the X value."
+                        } else if coordinateParts[2] == "" {
+                            validation := dataConstraint . " is missing the Y value."
+                        } else if !IsDigit(coordinateParts[1]) {
+                            validation := dataConstraint . " has a non-digit X value."
+                        } else if !IsDigit(coordinateParts[2]) {
+                            validation := dataConstraint . " has a non-digit Y value."
+                        } else {
+                            xCoordinate := coordinateParts[1] + 0
+                            yCoordinate := coordinateParts[2] + 0
+
+                            if xCoordinate >= widthDisplayResolution {
                                 validation := dataConstraint . " has X out of bounds. Valid 0 to " . (widthDisplayResolution - 1) . "."
-                            } else {
+                            } else if yCoordinate >= heightDisplayResolution {
                                 validation := dataConstraint . " has Y out of bounds. Valid 0 to " . (heightDisplayResolution - 1) . "."
                             }
                         }
                     case "Directory", "Valid Directory":
-                        isDrive := RegExMatch(dataValue, "^[A-Za-z]:\\")
-                        isUNC   := RegExMatch(dataValue, "^\\\\[^\\]+\\[^\\]+\\")
+                        isUncPrefix   := SubStr(dataValue, 1, 2) = "\\"
+                        isUncPath     := isUncPrefix && RegExMatch(dataValue, "^\\\\[^\\]+\\[^\\]+\\")
+                        firstCharCode := Ord(SubStr(dataValue, 1, 1))
+                        isDrivePath := !isUncPrefix && SubStr(dataValue, 2, 2) = ":\" && ((firstCharCode >= 65 && firstCharCode <= 90) || (firstCharCode >= 97 && firstCharCode <= 122))
 
-                        if !(isDrive || isUNC) {
-                            validation := dataConstraint . " must start with a drive (C:\) or UNC path (\\server\share\)."
-                        } else if InStr(dataValue, ":", , 3) {
+                        if !isDrivePath && !isUncPath {
+                            if isUncPrefix {
+                                validation := dataConstraint . " must start with a valid UNC path (\\server\share\)."
+                            } else {
+                                validation := dataConstraint . " must start with a drive path (C:\)."
+                            }
+                        } else if isDrivePath && InStr(dataValue, ":", , 3) {
                             validation := dataConstraint . " must not contain any colon except the drive letter."
-                        } else if SubStr(dataValue, StrLen(dataValue)) != "\" {
+                        } else if isUncPath && InStr(dataValue, ":") {
+                            validation := dataConstraint . " must not contain any colon."
+                        } else if SubStr(dataValue, -1) != "\" {
                             validation := dataConstraint . " must end with a backslash \."
-                        } else if RegExMatch(dataValue, '[<|?*""]') {
-                            validation := dataConstraint . " contains invalid character."
+                        } else if RegExMatch(dataValue, '[<>"|?*]') {
+                            validation := dataConstraint . " contains an invalid character."
                         } else if !DirExist(dataValue) && dataConstraint = "Directory" {
                             validation := dataConstraint . " doesn't exist."
                         }
                     case "Display Resolution":
                         validation := dataConstraint . " is invalid."
+
                         for resolution in system["Constants"]["Resolutions"] {
                             if resolution["Resolution"] = dataValue {
                                 validation := ""
@@ -1136,6 +1181,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
                     case "DPI Scale":
                         validation := dataConstraint . " is invalid."
+
                         for scale in system["Constants"]["Scales"] {
                             if scale["Scale"] = dataValue {
                                 validation := ""
@@ -1194,7 +1240,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                                 isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
 
                                 if !isHexadecimalDigit {
-                                    validation := dataConstraint . " contains an invalid character '" . currentCharacter . "' at position " . A_Index . ". " . hexadecimalAllowedCharactersMessage
+                                    validation := dataConstraint . ' contains the invalid character "' . currentCharacter . '" at position ' . A_Index . "." . " " . hexadecimalAllowedCharactersMessage
                                     break
                                 }
                             }
@@ -1208,8 +1254,7 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
                         } else {
                             if dataConstraint = "Raw Date Time" {
-                                dataValue := SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) .
-                                    " " . SubStr(dataValue, 9, 2)  . ":" . SubStr(dataValue, 11, 2) . ":" . SubStr(dataValue, 13, 2)
+                                dataValue := SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) . " " . SubStr(dataValue, 9, 2)  . ":" . SubStr(dataValue, 11, 2) . ":" . SubStr(dataValue, 13, 2)
                             }
 
                             dateTimeparts := StrSplit(dataValue, " ")

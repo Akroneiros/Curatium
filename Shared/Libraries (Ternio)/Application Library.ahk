@@ -973,19 +973,19 @@ StartOfficeApplication(applicationName, filePath := "") {
         "Word",       "Word.Application"
     )
 
+    attempts          := 0
     officeApplication := unset
 
-    index := 1
-    while index <= maxAttempts {
+    while attempts < maxAttempts {
+        attempts++
+
         try {
             officeApplication := ComObject(programmaticIdentifiers[applicationName])
             break
         } catch as failedToStartOfficeApplicationError {
-            if index = maxAttempts {
+            if attempts = maxAttempts {
                 LogConclusion("Failed", logConclusionData, failedToStartOfficeApplicationError.Line, failedToStartOfficeApplicationError.Message)
             }
-
-            index += 1
 
             Sleep(longDelay)
         }
@@ -1239,7 +1239,8 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("documentName As String, saveDirectory As String [Constraint: Directory], code As String, spreadsheetOperationsTemplate As Map, displayName As String [Optional], " .
-            "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 4, Map(
+            "foundationCheckpointsCondition As String [Optional], augmentationCheckpointsCondition As String [Optional]", methodName, A_LineFile, A_LineNumber + 5, Map(
+                "Max Attempts", Map("Default", 4, "Floor", 1, "Ceiling", 16, "Delta", 1),
                 "Medium Delay", Map("Default", 1024, "Floor", 256, "Ceiling", 4096),
                 "Seconds to Wait for Excel to Close", Map("Default", 8, "Floor", 1, "Ceiling", 60)
             ))
@@ -1254,6 +1255,7 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
 
     settings := methodRegistry[methodName]["Settings"]
 
+    maxAttempts := settings["Max Attempts"]["Value"]
     mediumDelay := settings["Medium Delay"]["Value"]
     secondsToWaitForExcelToClose := settings["Seconds to Wait for Excel to Close"]["Value"]
 
@@ -1262,131 +1264,132 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         LogConclusion("Failed", logConclusionData, A_LineNumber, 'Parameter "' . "documentName" . '" failed validation. ' . "Unable to find file.")
     }
 
-    excelApplication  := StartOfficeApplication("Excel", excelFilePath)
-    combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
+    attempts           := 0
+    excelApplication   := unset
+    combinedExcelCode  := unset
+    aboutWorksheet     := unset
+    aboutValues        := unset
+    documentHashBefore := unset
+    documentHashAfter  := unset
 
-    aboutWorksheet      := unset
-    aboutWorksheetFound := false
+    foundationConditionParts := unset
+    foundationMatchedIndex   := unset
+    foundationBuiltPrefix    := unset
+    augmentationConditionParts := unset
+    augmentationMatchedIndex   := unset
+    augmentationBuiltPrefix    := unset
 
-    for worksheet in excelApplication.ActiveWorkbook.Worksheets {
-        if worksheet.Name = "About" {
-            aboutWorksheetFound := true
+    while attempts < maxAttempts {
+        attempts++
+
+        excelApplication := StartOfficeApplication("Excel", excelFilePath)
+
+        if attempts = 1 {
+            combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
+            
+            for worksheet in excelApplication.ActiveWorkbook.Worksheets {
+                if worksheet.Name = "About" {
+                    aboutWorksheet := excelApplication.ActiveWorkbook.Worksheets("About")
+                    aboutValues    := Map(
+                        "FoundationCheckpoints",   "A3",
+                        "AugmentationCheckpoints", "A4"
+                    )
+
+                    for fieldName, cellAddress in aboutValues {
+                        aboutValues[fieldName] := aboutWorksheet.Range(cellAddress).Value
+                    }
+
+                    aboutValues["FoundationCheckpoints"]   := SubStr(aboutValues["FoundationCheckpoints"], InStr(aboutValues["FoundationCheckpoints"], ":") + 2)
+                    aboutValues["AugmentationCheckpoints"] := SubStr(aboutValues["AugmentationCheckpoints"], InStr(aboutValues["AugmentationCheckpoints"], ":") + 2)
+                    break
+                }
+            }
+
+            if !IsSet(aboutWorksheet) && (foundationCheckpointsCondition != "" || augmentationCheckpointsCondition != "") {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with conditions passed in.")
+            }
+
+            if foundationCheckpointsCondition = "" && augmentationCheckpointsCondition != "" {
+                LogConclusion("Failed", logConclusionData, A_LineNumber, "If conditions for Augmentation Checkpoints are present it also requires conditions for Foundation Checkpoints.")
+            }
+
+            aboutWorksheet := unset
+
+            if foundationCheckpointsCondition != "" {
+                foundationConditionParts := StrSplit(foundationCheckpointsCondition, ", ")
+                foundationMatchedIndex   := 0
+                foundationBuiltPrefix    := ""
+
+                for index, currentPart in foundationConditionParts {
+                    if foundationBuiltPrefix = "" {
+                        foundationBuiltPrefix := currentPart
+                    } else {
+                        foundationBuiltPrefix .= ", " . currentPart
+                    }
+
+                    if aboutValues["FoundationCheckpoints"] = foundationBuiltPrefix . "." {
+                        foundationMatchedIndex := index
+                        break
+                    }
+                }
+            }
+
+            if augmentationCheckpointsCondition != "" {
+                augmentationConditionParts := StrSplit(augmentationCheckpointsCondition, ", ")
+                augmentationMatchedIndex   := 0
+                augmentationBuiltPrefix    := ""
+
+                for index, currentPart in augmentationConditionParts {
+                    if augmentationBuiltPrefix = "" {
+                        augmentationBuiltPrefix := currentPart
+                    } else {
+                        augmentationBuiltPrefix .= ", " . currentPart
+                    }
+
+                    if aboutValues["AugmentationCheckpoints"] = augmentationBuiltPrefix . "." {
+                        augmentationMatchedIndex := index
+                        break
+                    }
+                }
+            }
+        }
+
+        if (foundationCheckpointsCondition != "" && foundationMatchedIndex = 0) || (augmentationCheckpointsCondition != "" && augmentationMatchedIndex = 0) {
+            activeWorkbook := excelApplication.ActiveWorkbook
+            activeWorkbook.Close(false)
+            excelApplication.DisplayAlerts := false
+            excelApplication.Quit()
+
+            try {
+                activeWorkbook   := 0
+                excelApplication := 0
+            }
+
+            Sleep(mediumDelay)
+
+            LogConclusion("Skipped", logConclusionData)
             break
         }
-    }
 
-    if !aboutWorksheetFound && (foundationCheckpointsCondition != "" || augmentationCheckpointsCondition != "") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Worksheet About not found with conditions passed in.")
-    }
+        if attempts = 1 {
+            documentHashBefore := GetFileHash(excelFilePath, "SHA-256")
+        }
 
-    if foundationCheckpointsCondition = "" && augmentationCheckpointsCondition != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "If conditions for Augmentation Checkpoints are present it also requires conditions for Foundation Checkpoints.")
-    }
-
-    if foundationCheckpointsCondition = "" && augmentationCheckpointsCondition = "" {
         OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
         WaitForExcelToClose()
-        excelApplication := 0
+        try {
+            excelApplication := 0
+        }
         ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
+        documentHashAfter := GetFileHash(excelFilePath, "SHA-256")
 
-        LogConclusion("Completed", logConclusionData)
-        return
-    }
-
-    aboutValues := unset
-    if aboutWorksheetFound {
-        aboutWorksheet := excelApplication.ActiveWorkbook.Worksheets("About")
-
-        aboutValues := Map(
-            "FoundationCheckpoints",   "A3",
-            "AugmentationCheckpoints", "A4"
-        )
-
-        for fieldName, cellAddress in aboutValues {
-            aboutValues[fieldName] := aboutWorksheet.Range(cellAddress).Value
-        }
-
-        aboutValues["FoundationCheckpoints"]   := SubStr(aboutValues["FoundationCheckpoints"], InStr(aboutValues["FoundationCheckpoints"], ":") + 2)
-        aboutValues["AugmentationCheckpoints"] := SubStr(aboutValues["AugmentationCheckpoints"], InStr(aboutValues["AugmentationCheckpoints"], ":") + 2)
-    }
-
-    foundationConditionParts := StrSplit(foundationCheckpointsCondition, ", ")
-    foundationMatchedIndex   := 0
-    foundationBuiltPrefix    := ""
-
-    for index, currentPart in foundationConditionParts {
-        if foundationBuiltPrefix = "" {
-            foundationBuiltPrefix := currentPart
-        } else {
-            foundationBuiltPrefix .= ", " . currentPart
-        }
-
-        if aboutValues["FoundationCheckpoints"] = foundationBuiltPrefix . "." {
-            foundationMatchedIndex := index
+        if documentHashBefore != documentHashAfter {
+            LogConclusion("Completed", logConclusionData)
             break
         }
-    }
 
-    if foundationCheckpointsCondition != "" && augmentationCheckpointsCondition = "" {
-        if foundationMatchedIndex > 0 {
-            OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
-            WaitForExcelToClose()
-            aboutWorksheet   := 0
-            excelApplication := 0
-            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
-
-            LogConclusion("Completed", logConclusionData)
-        } else {
-            activeWorkbook := excelApplication.ActiveWorkbook
-            activeWorkbook.Close(false)
-            excelApplication.DisplayAlerts := false
-            excelApplication.Quit()
-
-            aboutWorksheet   := 0
-            activeWorkbook   := 0
-            excelApplication := 0
-            Sleep(mediumDelay)
-
-            LogConclusion("Skipped", logConclusionData)
-        }
-    } else if foundationCheckpointsCondition != "" && augmentationCheckpointsCondition != "" {
-        augmentationConditionParts := StrSplit(augmentationCheckpointsCondition, ", ")
-        augmentationMatchedIndex   := 0
-        augmentationBuiltPrefix    := ""
-
-        for index, currentPart in augmentationConditionParts {
-            if augmentationBuiltPrefix = "" {
-                augmentationBuiltPrefix := currentPart
-            } else {
-                augmentationBuiltPrefix .= ", " . currentPart
-            }
-
-            if aboutValues["AugmentationCheckpoints"] = augmentationBuiltPrefix . "." {
-                augmentationMatchedIndex := index
-                break
-            }
-        }
-
-        if foundationMatchedIndex > 0 && augmentationMatchedIndex > 0 {
-            OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
-            WaitForExcelToClose()
-            aboutWorksheet   := 0
-            excelApplication := 0
-            ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
-
-            LogConclusion("Completed", logConclusionData)
-        } else {
-            activeWorkbook := excelApplication.ActiveWorkbook
-            activeWorkbook.Close(false)
-            excelApplication.DisplayAlerts := false
-            excelApplication.Quit()
-
-            aboutWorksheet   := 0
-            activeWorkbook   := 0
-            excelApplication := 0
-            Sleep(mediumDelay)
-
-            LogConclusion("Skipped", logConclusionData)
+        if attempts = maxAttempts {
+            LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to open Excel document and run code in " . maxAttempts . " attempts.")
         }
     }
 }
@@ -1537,7 +1540,7 @@ WaitForExcelToClose() {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-            "Seconds Until to Look for Error Window", Map("Default", 60, "Floor", 1, "Ceiling", 840),
+            "Seconds Until to Look for Error Window", Map("Default", 10, "Floor", 1, "Ceiling", 840),
             "Milliseconds Between Mouse Moves", Map("Default", 20000, "Floor", 2000, "Ceiling", 898000),
             "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
@@ -1575,8 +1578,9 @@ WaitForExcelToClose() {
 
         secondsSinceLastErrorWindowSearch += 1
         if secondsSinceLastErrorWindowSearch >= secondsUntilToLookForErrorWindow {
-            excelErrorWindowSearchResults := SearchForWindow("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", 1)
-            if excelErrorWindowSearchResults["Success"] = true {
+            windowHandle := WinWait("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", , 1)
+
+            if windowHandle {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel is displaying an error message.")
             }
 
