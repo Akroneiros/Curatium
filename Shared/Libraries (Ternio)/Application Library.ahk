@@ -1212,8 +1212,13 @@ ExcelStartingRun(documentName, saveDirectory, code, spreadsheetOperationsTemplat
     combinedExcelCode := CombineExcelCode(code, spreadsheetOperationsTemplate, excelApplication)
 
     OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
-    WaitForExcelToClose()
-    excelApplication := 0
+    waitForExcelToCloseResults := WaitForExcelToClose()
+    if !waitForExcelToCloseResults["Success"] {
+        LogConclusion("Failed", logConclusionData, A_LineNumber - 2, waitForExcelToCloseResults["Error Message"])
+    }
+    try {
+        excelApplication := 0
+    }
     ProcessWaitClose(applicationRegistry["Excel"]["Process Identifier"], secondsToWaitForExcelToClose)
 
     try {
@@ -1376,7 +1381,10 @@ ExcelExtensionRun(documentName, saveDirectory, code, spreadsheetOperationsTempla
         }
 
         OpenVisualBasicEditorAndRunCode(excelApplication, combinedExcelCode)
-        WaitForExcelToClose()
+        waitForExcelToCloseResults := WaitForExcelToClose()
+        if !waitForExcelToCloseResults["Success"] {
+            LogConclusion("Failed", logConclusionData, A_LineNumber - 2, waitForExcelToCloseResults["Error Message"])
+        }
         try {
             excelApplication := 0
         }
@@ -1540,12 +1548,11 @@ WaitForExcelToClose() {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("", methodName, A_LineFile, A_LineNumber + 6, Map(
             "Total Seconds to Wait", Map("Default", 14400, "Floor", 10, "Ceiling", 43200),
-            "Seconds Until to Look for Error Window", Map("Default", 10, "Floor", 1, "Ceiling", 840),
             "Milliseconds Between Mouse Moves", Map("Default", 20000, "Floor", 2000, "Ceiling", 898000),
             "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [], "Wait for Excel to Close")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"))
 
     applicationName := "Excel"
     if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
@@ -1555,36 +1562,34 @@ WaitForExcelToClose() {
     settings := methodRegistry[methodName]["Settings"]
 
     totalSecondsToWait                    := settings["Total Seconds to Wait"]["Value"]
-    secondsUntilToLookForErrorWindow      := settings["Seconds Until to Look for Error Window"]["Value"]
     millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
     millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
 
+    waitForExcelToCloseResults := Map(
+        "Success", false
+    )
+
     secondDelay                       := 1000
-    userInterfaceIsGone               := false
-    secondsSinceLastErrorWindowSearch := 0
+    startTickCount                    := DllCall("Kernel32\GetTickCount64", "UInt64")
     previousMouseCoordinateMode       := A_CoordModeMouse
-    lastMouseMoveTickCount            := DllCall("Kernel32\GetTickCount64", "UInt64")
-    lastFunctionKeyPressTickCount     := lastMouseMoveTickCount
+    lastMouseMoveTickCount            := startTickCount
+    lastFunctionKeyPressTickCount     := startTickCount
+    endTickCount                      := startTickCount + (totalSecondsToWait * secondDelay)
 
     CoordMode("Mouse", "Screen")
-    Loop totalSecondsToWait {
+    while DllCall("Kernel32\GetTickCount64", "UInt64") < endTickCount {
         windowCount := WinGetList("ahk_pid " . applicationRegistry["Excel"]["Process Identifier"]).Length
 
         if windowCount = 0 {
-            Sleep(secondDelay)
-            userInterfaceIsGone := true
+            waitForExcelToCloseResults["Success"] := true
             break
         }
 
-        secondsSinceLastErrorWindowSearch += 1
-        if secondsSinceLastErrorWindowSearch >= secondsUntilToLookForErrorWindow {
-            windowHandle := WinWait("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", , 1)
+        windowHandle := WinWait("ahk_exe " . applicationRegistry["Excel"]["Executable Filename"] . " ahk_class #32770", , 0)
 
-            if windowHandle {
-                LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel is displaying an error message.")
-            }
-
-            secondsSinceLastErrorWindowSearch := 0
+        if windowHandle {
+            waitForExcelToCloseResults["Error Message"] := "Excel is displaying an error message."
+            break
         }
 
         if DllCall("Kernel32\GetTickCount64", "UInt64") - lastMouseMoveTickCount >= millisecondsBetweenMouseMoves {
@@ -1629,16 +1634,19 @@ WaitForExcelToClose() {
             lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
         }
 
-        Sleep(secondDelay)
+        remainingMilliseconds := endTickCount - DllCall("Kernel32\GetTickCount64", "UInt64")
+        if remainingMilliseconds > 0 {
+            Sleep(Min(secondDelay, remainingMilliseconds))
+        }
     }
 
     CoordMode("Mouse", previousMouseCoordinateMode)
 
-    if !userInterfaceIsGone {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Excel did not close within " . totalSecondsToWait . " seconds.")
+    if waitForExcelToCloseResults["Success"] = false && !waitForExcelToCloseResults.Has("Error Message") {
+        waitForExcelToCloseResults["Error Message"] := "Excel did not close within " . totalSecondsToWait . " seconds."
     }
 
-    LogConclusion("Completed", logConclusionData)
+    return waitForExcelToCloseResults
 }
 
 ; **************************** ;
@@ -1671,7 +1679,7 @@ StartSqlServerManagementStudioAndConnect() {
 
     settings := methodRegistry[methodName]["Settings"]
 
-    secondsToWaitForConnectWindowToAppear := settings["Seconds to Wait for Connect Window to Close"]["Value"]
+    secondsToWaitForConnectWindowToAppear := settings["Seconds to Wait for Connect Window to Appear"]["Value"]
     secondsToWaitForConnectWindowToClose  := settings["Seconds to Wait for Connect Window to Close"]["Value"]
 
     Run('"' . applicationRegistry["SQL Server Management Studio"]["Executable Path"] . '"')

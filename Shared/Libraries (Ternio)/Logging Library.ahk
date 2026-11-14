@@ -55,9 +55,11 @@ LogEngine() {
 
     telemetryDurationInMilliseconds := settings["Telemetry Duration in Milliseconds"]["Value"]
 
-    system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
-    telemetry           := system["Telemetry"]
-    runTelemetryOrder   := IncrementCounter("Run Telemetry Order")
+    if logging["Cycle"] = "Pending" || logging["Cycle"] = "Intermission" {
+        system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
+        telemetry           := system["Telemetry"]
+        IncrementCounter("Run Telemetry Order")
+    }
 
     operationLogLineNumber := unset
 
@@ -78,7 +80,7 @@ LogEngine() {
 
     if logging["Cycle"] != "Beginning" && logging["Cycle"] != "Intermission" {
         if OverlayIsVisible() {
-            OverlayChangeTransparency(255)
+            WinSetTransparent(255, "ahk_id " . overlay["GUI"].Hwnd)
         }
     }
 
@@ -130,7 +132,7 @@ LogEngine() {
         }
 
         for context in [
-            "Cycle: Beginning.", "Cycle: Completed.", "Cycle: Failed.", "Cycle: Intermission."
+            ""
         ] {
             RegisterSymbol(context, "Context")
         }
@@ -201,8 +203,6 @@ LogEngine() {
         if FileExist(paths["Project Symbol Ledger"]) {
             try {
                 projectSymbolLedgerContent := FileRead(paths["Project Symbol Ledger"], "UTF-8")
-            } catch {
-                logConclusionData["Context"] := "Cycle: " . logging["Cycle"] . ". Project Symbol Ledger found but failed to read it."
             }
 
             if IsSet(projectSymbolLedgerContent) {
@@ -277,7 +277,10 @@ LogEngine() {
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
         RegisterMethod("", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, telemetry["QPC Pre Timestamp"], telemetry["UTC Timestamp File Time"], telemetry["QPC Post Timestamp"], [], "Log Engine")
+    logConclusionData := unset
+    if logging["Cycle"] = "Beginning" || logging["Cycle"] = "Intermission" {
+        logConclusionData := LogBeginning(methodName, telemetry["QPC Pre Timestamp"], telemetry["UTC Timestamp File Time"], telemetry["QPC Post Timestamp"], [], "Log Engine")
+    }
 
     if logging["Cycle"] = "Beginning" {
         RemoveDuplicatesFromArray([])
@@ -324,10 +327,12 @@ LogEngine() {
         environment["Operating System"]     := GetOperatingSystem()
     }
 
-    telemetry["System Disk Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
-    telemetry["System Resource Snapshot"]   := GetSystemResourceSnapshot()
-    telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
-    telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
+    if logging["Cycle"] = "Beginning" || logging["Cycle"] = "Intermission" {
+        telemetry["System Disk Space Snapshot"] := GetDriveSpaceSnapshot(systemDrive)
+        telemetry["System Resource Snapshot"]   := GetSystemResourceSnapshot()
+        telemetry["Computer Uptime in Seconds"] := Round(telemetry["QPC Midpoint Timestamp"] / environment["QPC Frequency"])
+        telemetry["Session Uptime in Seconds"]  := DateDiff(SubStr(telemetry["UTC Timestamp Integer"], 1, 14) . "", environment["Session Startup Time"], "Seconds")
+    }
 
     if logging["Cycle"] = "Beginning" {
         CombineCode("Intro", "Main")
@@ -341,6 +346,7 @@ LogEngine() {
 
         ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
         ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
+        ConvertUtcTimestampToLocalTimestampWithTimeZoneKey("2020-01-01 12:00:00", system["Environment"]["Time Zone"]["Key Name"])
         ExtractTrailingDateAsIso("(01.01.2000)", "Month-Day-Year")
         GetDirectoryTimeAsUtc(directories["Constants"], "Created")
         GetFileTimeAsUtc(paths["Scales"], "Created")
@@ -840,42 +846,44 @@ LogEngine() {
         }
     }
 
-    for runTelemetryLine in [
-        "Run Telemetry Order" .           "|" . runTelemetryOrder,
-        "Operation Log Line Number" .     "|" . operationLogLineNumber,
-        "Duration in Milliseconds" .      "|" . telemetry["Duration in Milliseconds"],
-        "Number of Readings" .            "|" . telemetry["Number of Readings"],
-        "QPC Pre Timestamp" .             "|" . telemetry["QPC Pre Timestamp"] - telemetry["QPC Midpoint Timestamp"],
-        "QPC Post Timestamp" .            "|" . telemetry["QPC Post Timestamp"] - telemetry["QPC Midpoint Timestamp"],
-        "QPC Midpoint Timestamp" .        "|" . telemetry["QPC Midpoint Timestamp"],
-        "Tick Count" .                    "|" . telemetry["Tick Count"],
-        "Tick Count Pre" .                "|" . telemetry["Tick Count Pre"] - telemetry["Tick Count"],
-        "UTC Timestamp Precise" .         "|" . telemetry["UTC Timestamp Precise"],
-        "Computer Uptime in Seconds" .    "|" . telemetry["Computer Uptime in Seconds"],
-        "Session Uptime in Seconds" .     "|" . telemetry["Session Uptime in Seconds"],
-        "Commit Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Total Bytes"],
-        "Commit Limit Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
-        "Commit Peak Bytes" .             "|" . telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
-        "Commit Used Percent" .           "|" . telemetry["System Resource Snapshot"]["Commit Used Percent"],
-        "Kernel Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
-        "Kernel Paged Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Paged Bytes"],
-        "Kernel Nonpaged Bytes" .         "|" . telemetry["System Resource Snapshot"]["Kernel Nonpaged Bytes"],
-        "Physical Used Bytes" .           "|" . telemetry["System Resource Snapshot"]["Physical Used Bytes"],
-        "Physical Total Bytes" .          "|" . telemetry["System Resource Snapshot"]["Physical Total Bytes"],
-        "Physical Used Percent" .         "|" . telemetry["System Resource Snapshot"]["Physical Used Percent"],
-        "System Cache Bytes" .            "|" . telemetry["System Resource Snapshot"]["System Cache Bytes"],
-        "System Handle Count" .           "|" . telemetry["System Resource Snapshot"]["System Handle Count"],
-        "System Process Count" .          "|" . telemetry["System Resource Snapshot"]["System Process Count"],
-        "System Thread Count" .           "|" . telemetry["System Resource Snapshot"]["System Thread Count"],
-        "System Disk Free Bytes" .        "|" . telemetry["System Disk Space Snapshot"]["Free Bytes"],
-        "System Disk Windows Free Size" . "|" . telemetry["System Disk Space Snapshot"]["Windows Free Size"]
-    ] {
-        labelPipePosition := InStr(runTelemetryLine, "|")
-        labelOfRunTelemetryLine := SubStr(runTelemetryLine, 1, labelPipePosition - 1)
-        remainderOfRunTelemetryLine := SubStr(runTelemetryLine, labelPipePosition)
+    if logging["Cycle"] = "Beginning" || logging["Cycle"] = "Intermission" {
+        for runTelemetryLine in [
+            "Run Telemetry Order" .           "|" . logging["Counters"]["Run Telemetry Order"],
+            "Operation Log Line Number" .     "|" . operationLogLineNumber,
+            "Duration in Milliseconds" .      "|" . telemetry["Duration in Milliseconds"],
+            "Number of Readings" .            "|" . telemetry["Number of Readings"],
+            "QPC Pre Timestamp" .             "|" . telemetry["QPC Pre Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+            "QPC Post Timestamp" .            "|" . telemetry["QPC Post Timestamp"] - telemetry["QPC Midpoint Timestamp"],
+            "QPC Midpoint Timestamp" .        "|" . telemetry["QPC Midpoint Timestamp"],
+            "Tick Count" .                    "|" . telemetry["Tick Count"],
+            "Tick Count Pre" .                "|" . telemetry["Tick Count Pre"] - telemetry["Tick Count"],
+            "UTC Timestamp Precise" .         "|" . telemetry["UTC Timestamp Precise"],
+            "Computer Uptime in Seconds" .    "|" . telemetry["Computer Uptime in Seconds"],
+            "Session Uptime in Seconds" .     "|" . telemetry["Session Uptime in Seconds"],
+            "Commit Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Total Bytes"],
+            "Commit Limit Bytes" .            "|" . telemetry["System Resource Snapshot"]["Commit Limit Bytes"],
+            "Commit Peak Bytes" .             "|" . telemetry["System Resource Snapshot"]["Commit Peak Bytes"],
+            "Commit Used Percent" .           "|" . telemetry["System Resource Snapshot"]["Commit Used Percent"],
+            "Kernel Total Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Total Bytes"],
+            "Kernel Paged Bytes" .            "|" . telemetry["System Resource Snapshot"]["Kernel Paged Bytes"],
+            "Kernel Nonpaged Bytes" .         "|" . telemetry["System Resource Snapshot"]["Kernel Nonpaged Bytes"],
+            "Physical Used Bytes" .           "|" . telemetry["System Resource Snapshot"]["Physical Used Bytes"],
+            "Physical Total Bytes" .          "|" . telemetry["System Resource Snapshot"]["Physical Total Bytes"],
+            "Physical Used Percent" .         "|" . telemetry["System Resource Snapshot"]["Physical Used Percent"],
+            "System Cache Bytes" .            "|" . telemetry["System Resource Snapshot"]["System Cache Bytes"],
+            "System Handle Count" .           "|" . telemetry["System Resource Snapshot"]["System Handle Count"],
+            "System Process Count" .          "|" . telemetry["System Resource Snapshot"]["System Process Count"],
+            "System Thread Count" .           "|" . telemetry["System Resource Snapshot"]["System Thread Count"],
+            "System Disk Free Bytes" .        "|" . telemetry["System Disk Space Snapshot"]["Free Bytes"],
+            "System Disk Windows Free Size" . "|" . telemetry["System Disk Space Snapshot"]["Windows Free Size"]
+        ] {
+            labelPipePosition := InStr(runTelemetryLine, "|")
+            labelOfRunTelemetryLine := SubStr(runTelemetryLine, 1, labelPipePosition - 1)
+            remainderOfRunTelemetryLine := SubStr(runTelemetryLine, labelPipePosition)
 
-        if configuration["Run Telemetry"][labelOfRunTelemetryLine] {
-            logging["Run Telemetry"].Push(RegisterSymbol(labelOfRunTelemetryLine, "Label") . remainderOfRunTelemetryLine)
+            if configuration["Run Telemetry"][labelOfRunTelemetryLine] {
+                logging["Run Telemetry"].Push(RegisterSymbol(labelOfRunTelemetryLine, "Label") . remainderOfRunTelemetryLine)
+            }
         }
     }
 
@@ -901,11 +909,9 @@ LogEngine() {
         }
     }
 
-    if !logConclusionData.Has("Context") {
-        logConclusionData["Context"] := "Cycle: " . logging["Cycle"] . "."
+    if logging["Cycle"] = "Beginning" || logging["Cycle"] = "Intermission" {
+        LogConclusion("Completed", logConclusionData)
     }
-
-    LogConclusion("Completed", logConclusionData)
 
     if logging["Cycle"] != "Beginning" && logging["Cycle"] != "Intermission" {
         timestampNow := A_Now
@@ -1331,7 +1337,7 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 
     if IsSet(overlayValue) {
         if runTelemetryTickCount - lastRunTelemetryTickCount >= runTelemetryInterval {
-            lastRunTelemetryTickCount := runTelemetryTickCount
+            lastRunTelemetryTickCount  := runTelemetryTickCount
             system["Logging"]["Cycle"] := "Intermission"
             LogEngine()
         }
@@ -1392,15 +1398,6 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         logConclusionData["Operation Sequence Number"] .          "|" . ; Operation Sequence Number
         SubStr(conclusionStatus, 1, 1)                                  ; Status
 
-    if !logConclusionData.Has("Context") && IsSet(errorMessage) {
-        logConclusionData["Context"] := ""
-    }
-
-    if logConclusionData.Has("Context") {
-        contextSymbol := RegisterSymbol(logConclusionData["Context"], "Context")
-        logConclusionData["Context"] := contextSymbol
-    }
-
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -1430,7 +1427,7 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
 
     if logConclusionData.Has("Context") {
         logConclusion := logConclusion . "|" .
-            logConclusionData["Context"]                                ; Method or Context
+            RegisterSymbol(logConclusionData["Context"], "Context")     ; Method or Context
     }
 
     errorWindow             := unset
