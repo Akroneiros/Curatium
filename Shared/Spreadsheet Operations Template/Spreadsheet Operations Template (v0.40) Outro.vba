@@ -746,29 +746,28 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
     Call ValidateRequiredText(columnDelimiter, "columnDelimiter", validation, 1, 1)
     Call ValidateWorksheet(worksheetName, "worksheetName", validation, False)
 
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnDelimiter & """" & ", " & """" & worksheetName & """" & ", ", validation)
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & columnDelimiter & """" & ", " & """" & worksheetName & """" & ", 0", validation)
 
     Dim worksheet As Worksheet
     Dim lastUsedRowNumber As Long
     Dim sourceRange As Range
     Dim sourceValues As Variant
+    Dim textQualifier As String
     Dim lineIndex As Long
     Dim lineText As String
-    Dim textQualifier As String
-    Dim lineLength As Long
-    Dim delimiterCount As Long
     Dim maximumDelimiterCount As Long
     Dim sourceContainsQualifier As Boolean
-    Dim lineParts As Variant
-    Dim parsedValues As Variant
+    Dim delimiterCount As Long
     Dim columnCount As Long
     Dim columnIndex As Long
+    Dim parsedValues As Variant
+    Dim lineParts As Variant
+    Dim lineLength As Long
     Dim destinationRange As Range
 
     Set worksheet = mainWorkbook.Worksheets(worksheetName)
 
     If worksheet.Range("A1").Value = "" Then
-        logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & 0
         Call LogConclusion("Failed", logConclusionData, "No text to split found.")
     End If
 
@@ -872,9 +871,11 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
                         Else
                             currentField = Mid$(lineText, characterIndex, qualifierCloseIndex - characterIndex + 1)
                         End If
+
                         Call lineFields.Add(currentField)
                         characterIndex = qualifierCloseIndex + 1
                         usedQuotedField = True
+
                         If characterIndex <= lineLength Then
                             If Mid$(lineText, characterIndex, 1) = columnDelimiter Then
                                 characterIndex = characterIndex + 1
@@ -896,6 +897,7 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
                                 End If
                                 Exit Do
                             End If
+
                             currentField = currentField & Mid$(lineText, characterIndex, 1)
                             characterIndex = characterIndex + 1
                             If characterIndex > lineLength Then
@@ -907,7 +909,10 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
             End If
 
             fieldCount = lineFields.Count
-            If fieldCount > maximumFieldCount Then maximumFieldCount = fieldCount
+            If fieldCount > maximumFieldCount Then
+                maximumFieldCount = fieldCount
+            End If
+
             Call parsedRows.Add(lineFields)
         Next lineIndex
 
@@ -927,13 +932,17 @@ Sub SplitDelimitedTextOnWorksheet(ByVal columnDelimiter As String, ByVal workshe
     destinationRange.Value = parsedValues
     On Error GoTo 0
 
-    Dim lastUsedColumnLetter
-    Dim lastUsedColumnNumber
+    Dim lastUsedColumnLetter As String
+    Dim lastUsedColumnNumber As Integer
+    Dim logArgumentsCell As Range
+    Dim logArgumentsCellValue As String
 
     lastUsedColumnLetter = LastUsedColumnLetterOnWorksheet(worksheetName)
     lastUsedColumnNumber = ConvertColumnLetterToColumnNumber(lastUsedColumnLetter)
+    Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+    logArgumentsCellValue = logArgumentsCell.Value
 
-    logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & lastUsedColumnNumber
+    logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 1) & lastUsedColumnNumber
 
     Call LogConclusion("Completed", logConclusionData)
     Exit Sub
@@ -942,6 +951,48 @@ SplitDelimitedTextOnWorksheetError:
 End Sub
 
 ' Functions: Alteration '
+
+Function GetPathFromFiles(ByRef files As Variant, ByVal filesVariableName As String) As String
+    Const methodName As String = "GetPathFromFiles"
+    Dim isRegistered As Boolean
+    Dim logConclusionData As LogEntry
+
+    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
+    If isRegistered = False Then
+        Call RegisterMethod("Withheld ByRef files As Variant, ByVal filesVariableName As String", methodName, "Alteration")
+    End If
+
+    Dim validation As String
+    Call ValidateRequiredText(filesVariableName, "filesVariableName", validation, 1, 255)
+
+    If validation <> "" Then
+        Call LogBeginning(methodName, GetTickCount64(), logConclusionData, """" & filesVariableName & """", validation)
+    End If
+
+    If IsArray(files) = False Then
+        Call LogBeginning(methodName, GetTickCount64(), logConclusionData, """" & filesVariableName & """", "Expected an array of file paths but received a non-array value.")
+    End If
+
+    Dim lowerBound As Long
+    Dim upperBound As Long
+    Dim elementCount As Long
+
+    lowerBound = LBound(files)
+    upperBound = UBound(files)
+    elementCount = upperBound - lowerBound + 1
+
+    If upperBound < lowerBound Then
+        Call LogBeginning(methodName, GetTickCount64(), logConclusionData, """" & filesVariableName & """", "The files array contains zero file paths when one is expected.")
+    End If
+
+    If elementCount = 0 Or (elementCount = 1 And Len(CStr(files(lowerBound))) = 0) Then
+        Call LogBeginning(methodName, GetTickCount64(), logConclusionData, """" & filesVariableName & """", "The files array contains zero file paths when one is expected.")
+    ElseIf elementCount >= 2 Then
+        Call LogBeginning(methodName, GetTickCount64(), logConclusionData, """" & filesVariableName & """", "The files array contains " & elementCount & " file paths when one is expected.")
+    End If
+
+    GetPathFromFiles = CStr(files(lowerBound))
+End Function
 
 ' ************ '
 ' Conjuration  '
@@ -1180,7 +1231,7 @@ Sub ImportTextFileOntoNewWorksheet(ByVal filePath As String, ByVal worksheetName
     Call ValidateWorksheet(worksheetName, "worksheetName", validation, True)
     Call ValidateRequiredText(characterEncoding, "characterEncoding", validation)
 
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & filePath & """" & " ," & """" & worksheetName & """" & ", " & """" & characterEncoding & """" & ", ", validation)
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & filePath & """" & " ," & """" & worksheetName & """" & ", " & """" & characterEncoding & """" & ", 0", validation)
 
     Dim worksheet As Worksheet
     Dim fileStream As Object
@@ -1212,7 +1263,6 @@ Sub ImportTextFileOntoNewWorksheet(ByVal filePath As String, ByVal worksheetName
     End If
 
     If Len(fileText) = 0 Then
-        logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & 0
         Call LogConclusion("Failed", logConclusionData, "Decoded file text is empty.")
     End If
 
@@ -1232,11 +1282,122 @@ Sub ImportTextFileOntoNewWorksheet(ByVal filePath As String, ByVal worksheetName
     destinationRange.Value = lineValues
     On Error GoTo 0
 
-    logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & LastUsedRowNumberOnWorksheet(worksheetName)
+    Dim lastUsedRowNumber As Long
+    Dim logArgumentsCell As Range
+    Dim logArgumentsCellValue As String
+
+    lastUsedRowNumber = LastUsedRowNumberOnWorksheet(worksheetName)
+    Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+    logArgumentsCellValue = logArgumentsCell.Value
+
+    logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 1) & lastUsedRowNumber
 
     Call LogConclusion("Completed", logConclusionData)
     Exit Sub
 ImportTextFileOntoNewWorksheetError:
+    Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
+End Sub
+
+Sub ImportWorksheetFromWorkbook(ByVal worksheetName As String, ByRef workbook As Workbook, ByVal workbookVariableName As String) ' Repeat Support: worksheetName. '
+    Dim tickCount As Currency: tickCount = GetTickCount64()
+    Const methodName As String = "ImportWorksheetFromWorkbook"
+    Dim isRegistered As Boolean
+    Dim logConclusionData As LogEntry
+
+    Dim worksheetNames As Variant
+    Dim worksheetNamesHasMultipleValues As Boolean
+
+    If Len(worksheetName) <> 0 And InStr(worksheetName, "|") Then
+        worksheetNames = ParseMethodArgumentsIntoValues(worksheetName)
+        If LBound(worksheetNames) < UBound(worksheetNames) Then worksheetNamesHasMultipleValues = True
+    End If
+
+    If worksheetNamesHasMultipleValues = True Then
+        If methodRegistry.Exists("Repeat" & methodName) = True Then If methodRegistry("Repeat" & methodName).Exists("Registered") = True Then isRegistered = True
+        If isRegistered = False Then
+            Call RegisterMethod("ByVal worksheetNames As String, Withheld ByRef workbook As Workbook, ByVal workbookVariableName As String", "Repeat" & methodName, "Repetition")
+        End If
+
+        Call LogBeginning("Repeat" & methodName, tickCount, logConclusionData, """" & worksheetName & """" & ", " & """" & workbookVariableName & """")
+
+        Dim worksheetNameIndex As Long
+
+        For worksheetNameIndex = LBound(worksheetNames) To UBound(worksheetNames)
+            worksheetName = worksheetNames(worksheetNameIndex)
+
+            Call ImportWorksheetFromWorkbook(worksheetName, workbook, workbookVariableName)
+        Next worksheetNameIndex
+
+        Call LogConclusion("Completed", logConclusionData)
+        Exit Sub
+    End If
+
+    If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
+    If isRegistered = False Then
+        Call RegisterMethod("ByVal worksheetName As String, Withheld ByRef workbook As Workbook, ByVal workbookVariableName As String, Context numberOfColumns As Double, Context numberOfRows As Double", methodName, "Conjuration")
+    End If
+
+    If Len(worksheetName) >= 3 And InStr(worksheetName, "|") And Left$(worksheetName, 1) = """" And Right$(worksheetName, 1) = """" Then
+        worksheetName = Mid$(worksheetName, 2, Len(worksheetName) - 2)
+    End If
+
+    Dim validation As String
+    Call ValidateWorksheet(worksheetName, "worksheetName", validation, True)
+    Call ValidateRequiredText(workbookVariableName, "workbookVariableName", validation, 1, 255)
+
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & worksheetName & """" & ", " & """" & workbookVariableName & """" & ", 0, 0", validation)
+
+    If workbook Is Nothing = True Then
+        Call LogConclusion("Failed", logConclusionData, "workbook not previously assigned, unable to proceed.")
+    End If
+
+    If TypeName(workbook) <> "Workbook" Then
+        Call LogConclusion("Failed", logConclusionData, "workbook is no longer a valid open workbook, unable to proceed.")
+    End If
+
+    Dim worksheetEntry As Worksheet
+    Dim worksheetFound As Boolean
+
+    For Each worksheetEntry In workbook.Worksheets
+        If StrComp(worksheetEntry.Name, worksheetName, vbTextCompare) = 0 Then
+            worksheetFound = True
+            Exit For
+        End If
+    Next worksheetEntry
+
+    If worksheetFound = False Then
+        Call LogConclusion("Failed", logConclusionData, "Worksheet not found in workbook.")
+    End If
+
+    Dim worksheet As Worksheet
+
+    Set worksheet = workbook.Worksheets(worksheetName)
+
+    On Error GoTo ImportWorksheetFromWorkbookError
+    Call worksheet.Copy(Before:=mainWorkbook.Worksheets(1))
+    On Error GoTo 0
+
+    Set worksheet = mainWorkbook.Worksheets(1)
+
+    If worksheet.Range("A1").Value <> "" Then
+        Dim lastUsedColumnLetter As String
+        Dim lastUsedColumnNumber As Integer
+        Dim lastUsedRowNumber As Long
+        Dim logArgumentsCell As Range
+        Dim logArgumentsCellValue As String
+
+        lastUsedColumnLetter = LastUsedColumnLetterOnWorksheet(worksheetName)
+        lastUsedColumnNumber = ConvertColumnLetterToColumnNumber(lastUsedColumnLetter)
+        lastUsedRowNumber = LastUsedRowNumberOnWorksheet(worksheetName)
+        Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+        logArgumentsCellValue = logArgumentsCell.Value
+
+        logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 4) & lastUsedColumnNumber & ", " & lastUsedRowNumber
+    End If
+
+    Call LogConclusion("Completed", logConclusionData)
+    Exit Sub
+ImportWorksheetFromWorkbookError:
     Call LogConclusion("Failed", logConclusionData, "Error " & Err.Number & ": " & Err.Description)
 End Sub
 
@@ -1313,14 +1474,14 @@ Sub OpenWorkbook(ByVal filePath As String, ByRef workbook As Workbook, ByVal wor
 
     If methodRegistry.Exists(methodName) = True Then If methodRegistry(methodName).Exists("Registered") = True Then isRegistered = True
     If isRegistered = False Then
-        Call RegisterMethod("ByVal filePath As String, Withheld ByRef workbook As Workbook, ByVal workbookVariableName As String", methodName, "Conjuration")
+        Call RegisterMethod("ByVal filePath As String, Withheld ByRef workbook As Workbook, ByVal workbookVariableName As String, Context fileSizeInBytes As Double", methodName, "Conjuration")
     End If
 
     Dim validation As String
     Call ValidateFilePath(filePath, "filePath", validation)
     Call ValidateRequiredText(workbookVariableName, "workbookVariableName", validation, 1, 255)
 
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & filePath & """" & ", " & """" & workbookVariableName & """", validation)
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & filePath & """" & ", " & """" & workbookVariableName & """" & ", 0", validation)
 
     If workbook Is Nothing = False Then
         Call LogConclusion("Failed", logConclusionData, "workbook already assigned, unable to proceed.")
@@ -1328,6 +1489,14 @@ Sub OpenWorkbook(ByVal filePath As String, ByRef workbook As Workbook, ByVal wor
 
     Dim fileSizeInBytes As Double
     fileSizeInBytes = GetFileSizeInBytes(filePath)
+
+    Dim logArgumentsCell As Range
+    Dim logArgumentsCellValue As String
+
+    Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+    logArgumentsCellValue = logArgumentsCell.Value
+
+    logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 1) & fileSizeInBytes
 
     If fileSizeInBytes < 1024 Then
         Call LogConclusion("Failed", logConclusionData, "File size is under 1 KB which is too small to be a workbook.")
@@ -1639,35 +1808,41 @@ Sub DeleteCellStyle(ByVal cellStyleName As String) ' Repeat Support: cellStyleNa
         cellStyleName = Mid$(cellStyleName, 2, Len(cellStyleName) - 2)
     End If
 
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & cellStyleName & """" & ", ")
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & cellStyleName & """" & ", " & """""")
 
     Dim regionalizedCellStyleName As String
     If cellStyles.Exists(cellStyleName) = True Then
         regionalizedCellStyleName = cellStyles(cellStyleName)
+
+        Dim logArgumentsCell As Range
+        Dim logArgumentsCellValue As String
+
+        Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+        logArgumentsCellValue = logArgumentsCell.Value
+
+        logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 1) & regionalizedCellStyleName & """"
     End If
 
-    logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & """" & regionalizedCellStyleName & """"
-
-    Dim deleteCellStyleName As String
+    Dim cellStyleNameToDelete As String
     If CellStyleExists(cellStyleName) = True Then
-        deleteCellStyleName = cellStyleName
+        cellStyleNameToDelete = cellStyleName
     ElseIf regionalizedCellStyleName <> "" Then
         If CellStyleExists(regionalizedCellStyleName) = True Then
-            deleteCellStyleName = regionalizedCellStyleName
+            cellStyleNameToDelete = regionalizedCellStyleName
         End If
     End If
 
-    If deleteCellStyleName = "" Or Right$(deleteCellStyleName, 1) = " " Then
+    If cellStyleNameToDelete = "" Or Right$(cellStyleNameToDelete, 1) = " " Then
         Call LogConclusion("Skipped", logConclusionData)
 
         Exit Sub
     End If
 
-    If deleteCellStyleName = "Normal" Or deleteCellStyleName = cellStyles("Normal") Then
-        Call LogConclusion("Failed", logConclusionData, "The cell style """ & "Normal" & """ is reserved and can't be deleted.")
+    If cellStyleNameToDelete = "Normal" Or cellStyleNameToDelete = cellStyles("Normal") Then
+        Call LogConclusion("Failed", logConclusionData, "The cell style """"Normal"""" is reserved and can't be deleted.")
     End If
 
-    mainWorkbook.Styles(deleteCellStyleName).Delete
+    mainWorkbook.Styles(cellStyleNameToDelete).Delete
     Call LogConclusion("Completed", logConclusionData)
 End Sub
 
@@ -2394,7 +2569,7 @@ Sub ColorWorksheet(ByVal colorName As String, ByRef colorDictionary As Object, B
     Call ValidateRequiredText(colorDictionaryVariableName, "colorDictionaryVariableName", validation, 1, 255)
     Call ValidateWorksheet(worksheetName, "worksheetName", validation)
 
-    Call LogBeginning(methodName, tickCount, logConclusionData, """" & colorName & """" & ", " & """" & colorDictionaryVariableName & """" & ", " & """" & worksheetName & """" & ", ", validation)
+    Call LogBeginning(methodName, tickCount, logConclusionData, """" & colorName & """" & ", " & """" & colorDictionaryVariableName & """" & ", " & """" & worksheetName & """" & ", " & """""", validation)
 
     Dim worksheet As Worksheet
     Dim hex As String
@@ -2404,27 +2579,27 @@ Sub ColorWorksheet(ByVal colorName As String, ByRef colorDictionary As Object, B
     Set worksheet = mainWorkbook.Worksheets(worksheetName)
 
     If TypeName(colorDictionary) <> "Dictionary" Then
-        logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & """#"""
         Call LogConclusion("Failed", logConclusionData, "Passed in colorDictionary is not a dictionary as expected.")
     End If
 
     If colorDictionary.Exists(colorName) = False Then
-        logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2).Value & """#"""
         Call LogConclusion("Failed", logConclusionData, "Color not found in colorDictionary.")
     End If
 
     On Error GoTo ColorWorksheetError
     hex = colorDictionary(colorName)("Hex")
     color = colorDictionary(colorName)("Long")
-
-    With logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
-        originalValueLength = Len(.Value)
-        .Value = .Value & """" & hex & """"
-        .Characters(Start:=originalValueLength + 2, Length:=Len("""" & hex & """") - 2).Font.Color = color
-    End With
-
     worksheet.Tab.Color = color
     On Error GoTo 0
+
+    Dim logArgumentsCell As Range
+    Dim logArgumentsCellValue As String
+
+    Set logArgumentsCell = logWorksheet.Cells(logConclusionData.operationSequenceNumber, 2)
+    logArgumentsCellValue = logArgumentsCell.Value
+
+    logArgumentsCell.Value = Left$(logArgumentsCellValue, Len(logArgumentsCellValue) - 1) & hex & """"
+    logArgumentsCell.Characters(Start:=Len(logArgumentsCell.Value) - 7, Length:=7).Font.Color = color
 
     Call LogConclusion("Completed", logConclusionData)
     Exit Sub
@@ -3178,15 +3353,16 @@ Sub LogCheckpoint(ByVal checkpointType As String, ByVal checkpointName As String
     If checkpointStatus = "Beginning" And checkpointType ="Augmentation" Then checkpointColorCode = -13056
     If checkpointStatus = "Conclusion" And checkpointType ="Augmentation" Then checkpointColorCode = -1897831
 
-    mainWorkbook.Worksheets("Log").Range("A" & logConclusionData.operationSequenceNumber & ":" & "B" & logConclusionData.operationSequenceNumber).Font.Color = checkpointColorCode
+    mainWorkbook.Activate
+    logWorksheet.Activate
 
-    Dim lastRowCheckpoint As Long
-    lastRowCheckpoint = LastUsedRowNumberOnWorksheet("Log")
-    If lastRowCheckpoint <= 30 Then lastRowCheckpoint = 31
+    With mainWorkbook.Worksheets("Log").Range("A" & logConclusionData.operationSequenceNumber & ":B" & logConclusionData.operationSequenceNumber)
+        .Font.Color = checkpointColorCode
+        .Select
+    End With
 
-    mainWorkbook.Worksheets("Log").Select
-    Call Application.Goto(Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A" & (lastRowCheckpoint - 30)), Scroll:=True)
-    mainWorkbook.Worksheets("Log").Range("A" & logConclusionData.operationSequenceNumber & ":B" & logConclusionData.operationSequenceNumber).Select
+    ActiveWindow.ScrollRow = logConclusionData.operationSequenceNumber - ActiveWindow.VisibleRange.Rows.Count + 2
+    If ActiveWindow.ScrollRow < 1 Then ActiveWindow.ScrollRow = 1
 
     If checkpointStatus = "Conclusion" Then
         If checkpointType = "Foundation" Then
@@ -3237,7 +3413,7 @@ Sub LogCheckpoint(ByVal checkpointType As String, ByVal checkpointName As String
 End Sub
 
 Sub LogEngine()
-If logEngineActive = True Then Exit Sub
+If logEngineIsActive = True Then Exit Sub
 
     Const methodName As String = "LogEngine"
     Dim isRegistered As Boolean
@@ -3506,7 +3682,7 @@ If logEngineActive = True Then Exit Sub
         Next cellStyleKey
     End If
 
-    logEngineActive = True
+    logEngineIsActive = True
 
     Call LogConclusion("Completed", logConclusionData)
 
@@ -3659,7 +3835,7 @@ Private Sub LogConclusion(ByVal conclusionStatus As String, ByRef logConclusionD
     Dim tickCount As Currency: tickCount = GetTickCount64()
     Dim duration As Double
 
-    If errorMessage <> "" Then       
+    If errorMessage <> "" Then
         Dim qpc As Currency: Call QueryPerformanceCounter(qpc)
         Dim utcTimestamp As String: utcTimestamp = GetUtcTimestamp()
 
@@ -3668,7 +3844,6 @@ Private Sub LogConclusion(ByVal conclusionStatus As String, ByRef logConclusionD
 
         Call SetAboutNamedRange("0 Runs. 0 Checkpoint. 0 Rows.", "Log Summary")
 
-        Dim lastRowCheckpoint As Long
         Dim horizontalRange As Range
         Dim firstRowBeginning As Long
         Dim verticalRange As Range
@@ -3678,11 +3853,11 @@ Private Sub LogConclusion(ByVal conclusionStatus As String, ByRef logConclusionD
         Application.DisplayAlerts = True
         Application.EnableEvents = True
 
-        lastRowCheckpoint = logConclusionData.operationSequenceNumber
-        If lastRowCheckpoint <= 30 Then lastRowCheckpoint = 31             
+        mainWorkbook.Activate
+        logWorksheet.Activate
 
-        logWorksheet.Select
-        Call Application.Goto(Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A" & (lastRowCheckpoint - 30)), Scroll:=True)
+        ActiveWindow.ScrollRow = logConclusionData.operationSequenceNumber - ActiveWindow.VisibleRange.Rows.Count + 2
+        If ActiveWindow.ScrollRow < 1 Then ActiveWindow.ScrollRow = 1
 
         Set horizontalRange = logWorksheet.Range("A" & logConclusionData.operationSequenceNumber & ":F" & logConclusionData.operationSequenceNumber)
 
@@ -3735,7 +3910,6 @@ Private Sub LogConclusion(ByVal conclusionStatus As String, ByRef logConclusionD
         End With
 
         Call mainWorkbook.Worksheets("Run Status").Move(After:=mainWorkbook.Worksheets("Log"))
-        logWorksheet.Select
 
         errorMessage = methodRegistry(logConclusionData.methodName)("Declaration") & ". " & errorMessage
         Err.Raise 1000, Description:=errorMessage
@@ -4141,20 +4315,20 @@ If IsArray(intermissionsArray) = False Then Exit Sub
                     mainWorkbook.Worksheets("Run Status").Delete
                 End If
             Case "Duplicate Workbook", "Duplicate", "DW", "D"
-                mainWorkbook.SaveCopyAs Left(mainWorkbook.FullName, Len(mainWorkbook.FullName) - 5) & " (" & checkpointName & ")" & ".xlsx"
+                Call mainWorkbook.SaveCopyAs(Left(mainWorkbook.FullName, Len(mainWorkbook.FullName) - 5) & " (" & checkpointName & ")" & ".xlsx")
             Case "End Workbook", "End", "EW", "E"
                 mainWorkbook.Close
             Case "Open Workbook", "Open", "OW", "O"
                 Dim closingWorkbook As Workbook
                 Set closingWorkbook = ActiveWorkbook
                 
-                Workbooks.Open checkpointName
+                Call Workbooks.Open(checkpointName)
                 Set mainWorkbook = ActiveWorkbook
                 closingWorkbook.Close
             Case "Quit Excel", "Quit", "QE", "Q"
                 Excel.Application.Quit
-                Workbooks(2).Close SaveChanges:=False
-                Workbooks(1).Close SaveChanges:=False
+                Call Workbooks(2).Close(SaveChanges:=False)
+                Call Workbooks(1).Close(SaveChanges:=False)
             Case "Reset View", "Reset", "RW", "R"
                 Dim worksheetCount As Long: worksheetCount = mainWorkbook.Worksheets.Count
                 Dim worksheetIsHidden As Boolean
@@ -4170,7 +4344,7 @@ If IsArray(intermissionsArray) = False Then Exit Sub
                         End If
 
                         mainWorkbook.Worksheets(indexResetView).Select
-                        Application.Goto Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A1"), Scroll:=True
+                        Call Application.Goto(Reference:=ActiveSheet.Cells.SpecialCells(xlCellTypeVisible).Range("A1"), Scroll:=True)
 
                         If worksheetIsHidden = True Then
                             mainWorkbook.Worksheets(indexResetView).Visible = xlSheetHidden
@@ -5313,7 +5487,7 @@ Sub Run()
 
     baseTickCount = CDbl(logEngineTickCount * 10000)
     operationSequenceNumber = 1&
-    logEngineActive = False
+    logEngineIsActive = False
     delimiter = "|"
     helperColumn = "Helper Column"
     formulaColumn = "Formula Column"

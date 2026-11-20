@@ -11,7 +11,7 @@
 Option Compare Text
 Option Explicit
 
-Public logEngineActive As Boolean
+Public logEngineIsActive As Boolean
 Public baseTickCount As Double
 Public depth As Long
 Public operationSequenceNumber As Long
@@ -36,9 +36,9 @@ Private Declare PtrSafe Function CloseHandle Lib "Kernel32" (ByVal objectHandle 
 Private Declare PtrSafe Function CreateFileW Lib "Kernel32" (ByVal filenamePointer As LongPtr, ByVal desiredAccess As Long, ByVal shareMode As Long, _
     ByVal securityAttributesPointer As LongPtr, ByVal creationDisposition As Long, ByVal flagsAndAttributes As Long, ByVal templateFileHandle As LongPtr) As LongPtr
 Private Declare PtrSafe Function GetFileSizeEx Lib "Kernel32" (ByVal fileHandle As LongPtr, ByRef fileSize As Currency) As Long
-Private Declare PtrSafe Sub GetSystemTime Lib "Kernel32" (ByRef systemTime As SystemTimeStructure)
 Private Declare PtrSafe Function GetTickCount64 Lib "Kernel32" () As Currency
 Private Declare PtrSafe Function QueryPerformanceCounter Lib "Kernel32" (ByRef queryPerformanceCounterValue As Currency) As Long
+Private Declare PtrSafe Sub GetSystemTime Lib "Kernel32" (ByRef systemTime As SystemTimeStructure)
 Private Declare PtrSafe Sub Sleep Lib "Kernel32" (ByVal millisecondsToPause As Long)
 
 Private Type LogEntry
