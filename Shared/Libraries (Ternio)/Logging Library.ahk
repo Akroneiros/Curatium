@@ -55,6 +55,13 @@ LogEngine() {
 
     telemetryDurationInMilliseconds := settings["Telemetry Duration in Milliseconds"]["Value"]
 
+    if logging["Cycle"] = "Pending" {
+        ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+        queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
+        DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
+        environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
+    }
+
     if logging["Cycle"] = "Pending" || logging["Cycle"] = "Intermission" {
         system["Telemetry"] := TelemetryTimestamp(telemetryDurationInMilliseconds)
         telemetry           := system["Telemetry"]
@@ -85,11 +92,6 @@ LogEngine() {
     }
 
     if logging["Cycle"] = "Beginning" {
-        ; https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
-        queryPerformanceCounterFrequencyBuffer := Buffer(8, 0)
-        DllCall("QueryPerformanceFrequency", "Ptr", queryPerformanceCounterFrequencyBuffer.Ptr, "Int")
-        environment["QPC Frequency"] := NumGet(queryPerformanceCounterFrequencyBuffer, 0, "Int64")
-
         SplitPath(A_ScriptFullPath, , , , &projectName)
         SplitPath(A_LineFile, , &librariesDirectoryPath)
         SplitPath(librariesDirectoryPath, , &sharedDirectoryPath, , &librariesVersion)
@@ -344,12 +346,14 @@ LogEngine() {
         KeyboardShortcut("CTRL", "F16")
         ModifyScreenCoordinates(2, 2, "0x0")
 
+        AdjustTimestampByTimeAmount("2000-01-01 00:00:00", "Seconds", 1)
         ConvertIntegerToUtcTimestamp(telemetry["UTC Timestamp Integer"])
         ConvertUtcTimestampToInteger(telemetry["UTC Timestamp Precise"])
-        ConvertUtcTimestampToLocalTimestampWithTimeZoneKey("2020-01-01 12:00:00", system["Environment"]["Time Zone"]["Key Name"])
+        ConvertLocalTimestampToUtcTimestampUsingTimeZoneKey("2020-01-01 12:00:00", system["Environment"]["Time Zone"]["Key Name"])
+        ConvertUtcTimestampToLocalTimestampUsingTimeZoneKey("2020-01-01 12:00:00", system["Environment"]["Time Zone"]["Key Name"])
         ExtractTrailingDateAsIso("(01.01.2000)", "Month-Day-Year")
-        GetDirectoryTimeAsUtc(directories["Constants"], "Created")
-        GetFileTimeAsUtc(paths["Scales"], "Created")
+        GetDirectoryTimeAsTimestamp(directories["Constants"], "Created")
+        GetFileTimeAsTimestamp(paths["Scales"], "Created")
 
         GetDirectoriesFromDirectory(directories["Constants"])
         GetFilesFromDirectory(directories["Constants"])
@@ -362,7 +366,7 @@ LogEngine() {
 
         OverlayIsVisible()
 
-        ValidateDataUsingSpecification("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
+        ValidateDataUsingConstraint("v0.39, 2024-02-16", "String", "Spreadsheet Operations Template")
 
         constantValues := Map(
             "Heroes",                 "221c6504b42787aff09b43cb85a93511e3e4c06f52c084694119637c6794817d",
@@ -493,7 +497,7 @@ LogEngine() {
 
         mappings["Applications"] := ConvertValueForKeyInArrayOfMapsToInteger("Counter", mappings["Applications"])
 
-        ValidateDataUsingSpecification("Excel", "String", "Application Name")
+        ValidateDataUsingConstraint("Excel", "String", "Application Name")
 
         for applicationExecutableDirectoryCandidate in mappings["Application Executable Directory Candidates"] {
             applicationExecutableDirectoryCandidate["Source"] := "Shared"
@@ -887,6 +891,11 @@ LogEngine() {
         }
     }
 
+    if logging["Cycle"] = "Failed" && !configuration.Has("Settings") {
+        configuration["Settings"] := Map()
+        configuration["Settings"]["Logging Mode"] := "Off"
+    }
+
     if configuration["Settings"]["Logging Mode"] != "Off" {
         if logging["Cycle"] = "Failed" && configuration["Settings"]["Logging Mode"] = "Failures Only" {
             logToFile := true
@@ -1272,19 +1281,25 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
         validation := ""
 
         for index, argument in arguments {
-            parameterName  := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-            dataType       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-            dataConstraint := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-            optional       := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
-            whitelist      := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
+            parameterName := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
+            dataType      := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
+            constraint    := methodRegistry[methodName]["Parameter Contracts"][index]["Constraint"]
+            optional      := methodRegistry[methodName]["Parameter Contracts"][index]["Optional"]
+            whitelist     := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
 
             validationOfArgument := ""
-            if dataType = "String" && optional = "" && argument = "" {
-                validationOfArgument := "No value passed as argument when required."
-            } else if dataType = "String" && optional = "Optional" && argument = "" {
-                ; Skip validation as it's optional.
+            if dataType != "String" {
+                validationOfArgument := ValidateDataUsingConstraint(argument, dataType, constraint)
             } else {
-                validationOfArgument := ValidateDataUsingSpecification(argument, dataType, dataConstraint, whitelist)
+                if optional = "" && argument = "" {
+                    validationOfArgument := "No value passed as argument when required."
+                } else if optional = "Optional" && argument = "" {
+                    ; Skip validation as it's optional.
+                } else if whitelist.Length != 0 {
+                    validationOfArgument := ValidateDataUsingWhitelist(argument, whitelist)
+                } else {
+                    validationOfArgument := ValidateDataUsingConstraint(argument, dataType, constraint)
+                }
             }
 
             if validationOfArgument != "" {
@@ -1302,7 +1317,85 @@ LogBeginning(methodName, qpcPre, timestamp, qpcPost, arguments := [], overlayVal
 
         if logConclusionData["Overlay Key"] != -1 {
             if !IsSet(customOverlayMethod) {
-                logConclusionData := LogProcessArguments(logConclusionData, arguments)
+                argumentsFull := ""
+                argumentsLog  := ""
+
+                for index, argument in arguments {
+                    parameterContract := methodRegistry[methodName]["Parameter Contracts"][index]
+                    dataType          := parameterContract["Data Type"]
+                    constraint        := parameterContract["Constraint"]
+                    whitelist         := parameterContract["Whitelist"]
+
+                    argumentValueFull := argument
+                    argumentValueLog  := argument
+
+                    switch dataType {
+                        case "Array", "Map":
+                            argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                            argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+                            argumentValueLog  := Format('"{1}"', argumentValueLog)
+
+                        case "Integer":
+                            if Type(argument) != dataType {
+                                argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                                argumentValueFull := Format('"{1}"', argumentValueFull)
+                                argumentValueLog  := Format('"{1}"', argumentValueLog)
+                            }
+
+                        case "Object":
+                            argumentValueFull := "<Data Type: Object>"
+                            argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+                            argumentValueLog  := Format('"{1}"', argumentValueLog)
+
+                        case "String":
+                            if Type(argument) != dataType {
+                                argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                            } else if constraint = "Base64" {
+                                argumentValueFull := "<Constraint: Base64>"
+                            } else if InStr(argument, "`n") || InStr(argument, "`r") {
+                                argumentValueFull := "<Text Block Rows: " . StrSplit(argument, "`n").Length . ">"
+                            } else {
+                                if StrLen(argument) >= 255 {
+                                    argumentValueFull := SubStr(argument, 1, 255) . "…"
+                                }
+                            }
+
+                            if whitelist.Length != 0 && !logConclusionData.Has("Validation") {
+                                argumentValueLog := symbolLedger["Whitelist"][argumentValueLog]
+                                argumentValueLog := Format('\{1}\', argumentValueLog)
+                            } else {
+                                argumentValueLog := RegisterSymbol(argumentValueFull, "Argument")
+                                argumentValueLog := Format('"{1}"', argumentValueLog)
+                            }
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+
+                        case "Variant":
+                            if Type(argument) = "String" {
+                                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                                argumentValueFull := Format('"{1}"', argumentValueFull)
+                                argumentValueLog  := Format('"{1}"', argumentValueLog)
+                            }
+                    }
+
+                    argumentsFull .= argumentValueFull
+                    argumentsLog  .= argumentValueLog
+
+                    if index < arguments.Length {
+                        argumentsFull .= ", "
+                        argumentsLog  .= ", "
+                    }
+                }
+
+                logConclusionData["Arguments Full"] := argumentsFull
+                logConclusionData["Arguments Log"]  := argumentsLog
 
                 logBeginning := logBeginning . "|" .
                     logConclusionData["Arguments Log"]             ; Arguments or Error Message
@@ -1381,7 +1474,85 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
             methodRegistry[logConclusionData["Method Name"]]["Symbol"]  ; Method or Context
 
             if logConclusionData.Has("Arguments") {
-                logConclusionData := LogProcessArguments(logConclusionData, logConclusionData["Arguments"])
+                methodName := logConclusionData["Method Name"]
+                arguments  := logConclusionData["Arguments"]
+
+                argumentsFull := ""
+                argumentsLog  := ""
+
+                for index, argument in arguments {
+                    parameterContract := methodRegistry[methodName]["Parameter Contracts"][index]
+                    dataType          := parameterContract["Data Type"]
+                    constraint        := parameterContract["Constraint"]
+                    whitelist         := parameterContract["Whitelist"]
+
+                    argumentValueFull := argument
+                    argumentValueLog  := argument
+
+                    switch dataType {
+                        case "Array", "Map":
+                            argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                            argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+                            argumentValueLog  := Format('"{1}"', argumentValueLog)
+
+                        case "Integer":
+                            if Type(argument) != dataType {
+                                argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                                argumentValueFull := Format('"{1}"', argumentValueFull)
+                                argumentValueLog  := Format('"{1}"', argumentValueLog)
+                            }
+
+                        case "Object":
+                            argumentValueFull := "<Data Type: Object>"
+                            argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+                            argumentValueLog  := Format('"{1}"', argumentValueLog)
+
+                        case "String":
+                            if Type(argument) != dataType {
+                                argumentValueFull := "<Data Type: " . Type(argument) . ">"
+                            } else if constraint = "Base64" {
+                                argumentValueFull := "<Constraint: Base64>"
+                            } else if InStr(argument, "`n") || InStr(argument, "`r") {
+                                argumentValueFull := "<Text Block Rows: " . StrSplit(argument, "`n").Length . ">"
+                            } else {
+                                if StrLen(argument) >= 255 {
+                                    argumentValueFull := SubStr(argument, 1, 255) . "…"
+                                }
+                            }
+
+                            if whitelist.Length != 0 && !logConclusionData.Has("Validation") {
+                                argumentValueLog := symbolLedger["Whitelist"][argumentValueLog]
+                                argumentValueLog := Format('\{1}\', argumentValueLog)
+                            } else {
+                                argumentValueLog := RegisterSymbol(argumentValueFull, "Argument")
+                                argumentValueLog := Format('"{1}"', argumentValueLog)
+                            }
+
+                            argumentValueFull := Format('"{1}"', argumentValueFull)
+
+                        case "Variant":
+                            if Type(argument) = "String" {
+                                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
+
+                                argumentValueFull := Format('"{1}"', argumentValueFull)
+                                argumentValueLog  := Format('"{1}"', argumentValueLog)
+                            }
+                    }
+
+                    argumentsFull .= argumentValueFull
+                    argumentsLog  .= argumentValueLog
+
+                    if index < arguments.Length {
+                        argumentsFull .= ", "
+                        argumentsLog  .= ", "
+                    }
+                }
 
                 logBeginning := logBeginning . "|" .
                     logConclusionData["Arguments Log"]                  ; Arguments or Error Message
@@ -1433,8 +1604,8 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
     errorWindow             := unset
     constructedErrorMessage := unset
     if IsSet(errorMessage) {
-        windowTitle          := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
-        currentUtcDateTime   := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + utcTimestampIntegerDelta)
+        windowTitle         := "AutoHotkey v" . system["Runtime"]["AutoHotkey Version"] . ": " . A_ScriptName
+        currentUtcTimestamp := ConvertIntegerToUtcTimestamp(system["Telemetry"]["UTC Timestamp Integer"] + utcTimestampIntegerDelta)
 
         if logConclusionData.Has("Validation") {
             errorLineNumber := methodRegistry[logConclusionData["Method Name"]]["Validation Line"]
@@ -1460,13 +1631,13 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
             symbolLedger["Error"][logErrorMessage]                      ; Arguments or Error Message
 
         if system["Environment"].Has("Time Zone") {
-            currentLocalDateTime := ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(currentUtcDateTime, system["Environment"]["Time Zone"]["Key Name"])
+            currentLocalTimestamp := ConvertUtcTimestampToLocalTimestampUsingTimeZoneKey(currentUtcTimestamp, system["Environment"]["Time Zone"]["Key Name"])
 
             constructedErrorMessage := constructedErrorMessage .
-                "Date Runtime: " . currentLocalDateTime
+                "Date Runtime: " . currentLocalTimestamp
         } else {
             constructedErrorMessage := constructedErrorMessage .
-                "Date Runtime: " . currentUtcDateTime . " (UTC)"
+                "Date Runtime: " . currentUtcTimestamp . " (UTC)"
         }
 
         constructedErrorMessage := constructedErrorMessage .
@@ -1516,91 +1687,6 @@ LogConclusion(conclusionStatus, logConclusionData, errorLineNumber := unset, err
         errorWindow.Show("AutoSize Center")
         WinWaitClose("ahk_id " . errorWindow.Hwnd)
     }
-}
-
-LogProcessArguments(logConclusionData, arguments) {
-    global symbolLedger
-
-    argumentsFormatted := Map(
-        "Arguments Full", "",
-        "Arguments Log",  ""
-    )
-
-    methodName := logConclusionData["Method Name"]
-    for index, argument in arguments {
-        argumentsFormatted["Parameter"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Parameter Name"]
-        argumentsFormatted["Argument"]        := argument
-        argumentsFormatted["Data Type"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Data Type"]
-        argumentsFormatted["Data Constraint"] := methodRegistry[methodName]["Parameter Contracts"][index]["Data Constraint"]
-        argumentsFormatted["Whitelist"]       := methodRegistry[methodName]["Parameter Contracts"][index]["Whitelist"]
-
-        argumentValueFull := argument
-        argumentValueLog  := argument
-        switch argumentsFormatted["Data Type"] {
-            case "Array", "Map":
-                argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
-
-                argumentValueFull := Format('"{1}"', argumentValueFull)
-                argumentValueLog  := Format('"{1}"', argumentValueLog)
-            case "Integer":
-                if Type(argument) != argumentsFormatted["Data Type"] {
-                    argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
-
-                    argumentValueFull := Format('"{1}"', argumentValueFull)
-                    argumentValueLog  := Format('"{1}"', argumentValueLog)
-                }
-            case "Object":
-                argumentValueFull := "<Data Type: Object>"
-                argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
-
-                argumentValueFull := Format('"{1}"', argumentValueFull)
-                argumentValueLog  := Format('"{1}"', argumentValueLog)
-            case "String":
-                if Type(argument) != argumentsFormatted["Data Type"] {
-                    argumentValueFull := "<Data Type: " . Type(argument) . ">"
-                } else if argumentsFormatted["Data Constraint"] = "Base64" {
-                    argumentValueFull := "<Constraint: Base64>"
-                } else if InStr(argument, "`n") || InStr(argument, "`r") {
-                    argumentValueFull := "<Text Block Rows: " . StrSplit(argument, "`n").Length . ">"
-                } else {
-                    if StrLen(argument) >= 255 {
-                        argumentValueFull := SubStr(argument, 1, 255) . "…"
-                    }
-                }
-
-                if argumentsFormatted["Whitelist"].Length != 0 && !logConclusionData.Has("Validation") {
-                    argumentValueLog  := symbolLedger["Whitelist"][argumentValueLog]
-                    argumentValueLog  := Format('\{1}\', argumentValueLog)
-                } else {
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
-                    argumentValueLog  := Format('"{1}"', argumentValueLog)
-                }
-
-                argumentValueFull := Format('"{1}"', argumentValueFull)
-            case "Variant":
-                if Type(argument) = "String" {
-                    argumentValueLog  := RegisterSymbol(argumentValueFull, "Argument")
-
-                    argumentValueFull := Format('"{1}"', argumentValueFull)
-                    argumentValueLog  := Format('"{1}"', argumentValueLog)
-                }
-        }
-
-        argumentsFormatted["Arguments Full"] .= argumentValueFull
-        argumentsFormatted["Arguments Log"]  .= argumentValueLog
-
-        if index < arguments.Length {
-            argumentsFormatted["Arguments Full"] .= ", "
-            argumentsFormatted["Arguments Log"]  .= ", "
-        }
-    }
-
-    logConclusionData["Arguments Full"] := argumentsFormatted["Arguments Full"]
-    logConclusionData["Arguments Log"]  := argumentsFormatted["Arguments Log"]
-
-    return logConclusionData
 }
 
 OverlayUpdateLine(overlayKey, overlayValue) {
@@ -1678,7 +1764,7 @@ RegisterSymbol(value, type, writeToSymbolLedger := true) {
 SetLogFilenames(utcTimestamp) {
     global system
 
-    validation := ValidateDataUsingSpecification(utcTimestamp, "String", "ISO Date Time")
+    validation := ValidateDataUsingConstraint(utcTimestamp, "String", "ISO Date Time")
     if validation != "" {
         return
     }

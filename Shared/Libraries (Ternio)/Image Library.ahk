@@ -92,7 +92,7 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
             validation := unset
             for rangePart in rangeParts {
-                validation := ValidateDataUsingSpecification(rangePart, "String", "Percent Range")
+                validation := ValidateDataUsingConstraint(rangePart, "String", "Percent Range")
 
                 if validation != "" {
                     subdirectory := StrSplit(RTrim(actionDirectoryPath, "\"), "\").Pop()
@@ -105,12 +105,12 @@ ConvertImagesToBase64ImageLibrary(directoryPath) {
 
             parts := StrSplit(baseTextWithoutRanges, "@", " `t")
 
-            resolutionValidation := ValidateDataUsingSpecification(parts[1], "String", "Display Resolution")
+            resolutionValidation := ValidateDataUsingConstraint(parts[1], "String", "Display Resolution")
             if resolutionValidation != "" {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, resolutionValidation . " " . A_LoopFileName ".")
             }
 
-            scaleValidation := ValidateDataUsingSpecification(parts[2], "String", "DPI Scale")
+            scaleValidation := ValidateDataUsingConstraint(parts[2], "String", "DPI Scale")
             if scaleValidation != "" {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, scaleValidation . " " . A_LoopFileName ".")
             }

@@ -1860,7 +1860,7 @@ ExecuteSqlQueryAndSaveAsCsv(code, saveDirectory, filename) {
 ; Toad for Oracle              ;
 ; **************************** ;
 
-ExecuteAutomationApp(appName, executionDateTime := "") {
+ExecuteAutomationApp(appName, utcTimestamp := "") {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -1870,18 +1870,27 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    overlayValue := Format("Execute Automation App ({})", appName)
-    if executionDateTime != "" {
-        dateTimeLabel := "N/A"
-        if ValidateDataUsingSpecification(executionDateTime, "String", "ISO Date Time") = "" {
-            dateTimeLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(executionDateTime, "-"), " "), ":"), "WDay") + 0], SubStr(executionDateTime, 12))
+    utcTimestampLabel := "N/A"
+    overlayValue      := Format("Execute Automation App ({})", appName)
+    if utcTimestamp != "" {
+        if ValidateDataUsingConstraint(utcTimestamp, "String", "ISO Date Time") = "" {
+            utcTimestampOverlay := utcTimestamp
+
+            utcTimestampOverlayLength := StrLen(utcTimestampOverlay)
+            if utcTimestampOverlayLength = 26 {
+                utcTimestampOverlay := SubStr(utcTimestampOverlay, 1, -7)
+            } else if utcTimestampOverlayLength = 23 {
+                utcTimestampOverlay := SubStr(utcTimestampOverlay, 1, -4)
+            }
+
+            utcTimestampLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(utcTimestampOverlay, "-"), " "), ":"), "WDay") + 0], SubStr(utcTimestampOverlay, 12))
         }
 
-        overlayValue := Format("Execute Automation App ({} @ {})", appName, dateTimeLabel)
+        overlayValue := Format("Execute Automation App ({} @ {})", appName, utcTimestampLabel)
     }
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("appName As String, executionDateTime As String [Optional] [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 10, Map(
+        RegisterMethod("appName As String, utcTimestamp As String [Optional] [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 10, Map(
             "Tiny Delay", Map("Default", 16, "Floor", 16, "Ceiling", 128),
             "Short Delay", Map("Default", 448, "Floor", 128, "Ceiling", 1536),
             "Medium Delay", Map("Default", 896, "Floor", 256, "Ceiling", 3584),
@@ -1891,7 +1900,7 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
             "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, executionDateTime], overlayValue)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [appName, utcTimestamp], overlayValue)
 
     applicationName := "Toad for Oracle"
     if !(applicationRegistry.Has(applicationName) && applicationRegistry[applicationName]["Installed"]) {
@@ -1907,6 +1916,17 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
     massiveDelay                          := settings["Massive Delay"]["Value"]
     millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
     millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
+
+    if utcTimestamp != "" {
+        utcTimestampLength := StrLen(utcTimestamp)
+        if utcTimestampLength = 26 {
+            utcTimestamp := SubStr(utcTimestamp, 1, -7)
+        } else if utcTimestampLength = 23 {
+            utcTimestamp := SubStr(utcTimestamp, 1, -4)
+        }
+
+        utcTimestamp := RegExReplace(utcTimestamp, "\D")
+    }
 
     toadForOracleExecutableFilename := applicationRegistry["Toad for Oracle"]["Executable Filename"]
 
@@ -1997,12 +2017,10 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
     toadForOracleRunSelectedAppsImageSearchResults := SearchForDirectoryImage("Toad for Oracle", "Run selected apps")
     toadForOracleRunSelectedAppsImageCoordinates   := ExtractImageCoordinates(toadForOracleRunSelectedAppsImageSearchResults)
 
-    if executionDateTime != "" {
-        executionDateTime := StrReplace(StrReplace(StrReplace(executionDateTime, "-", ""), ":", ""), " ", "")
-
+    if utcTimestamp != "" {
         PerformMouseActionAtCoordinates("Move", toadForOracleRunSelectedAppsImageCoordinates)
 
-        while DateDiff(executionDateTime, A_NowUTC, "Seconds") > 1 {
+        while DateDiff(utcTimestamp, A_NowUTC, "Seconds") > 1 {
             if DllCall("Kernel32\GetTickCount64", "UInt64") - lastMouseMoveTickCount >= millisecondsBetweenMouseMoves {
                 MouseGetPos(&mouseX, &mouseY)
                 screenWidth  := A_ScreenWidth
@@ -2046,7 +2064,7 @@ ExecuteAutomationApp(appName, executionDateTime := "") {
             Sleep(shortDelay)
         }
 
-        while A_NowUTC < executionDateTime {
+        while A_NowUTC < utcTimestamp {
         }
     }
 

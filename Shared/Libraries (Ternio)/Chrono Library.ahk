@@ -5,7 +5,7 @@
 #Include Image Library.ahk
 #Include Logging Library.ahk
 
-PreventSystemGoingIdleUntilDateTime(untilDateTime) {
+PreventSystemGoingIdleUntilTimestamp(utcTimestamp) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -15,34 +15,50 @@ PreventSystemGoingIdleUntilDateTime(untilDateTime) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    dateTimeLabel := "N/A"
-    if ValidateDataUsingSpecification(untilDateTime, "String", "ISO Date Time") = "" {
-        dateTimeLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(untilDateTime, "-"), " "), ":"), "WDay") + 0], SubStr(untilDateTime, 12))
+    utcTimestampLabel := "N/A"
+    if ValidateDataUsingConstraint(utcTimestamp, "String", "ISO Date Time") = "" {
+        utcTimestampOverlay := utcTimestamp
+
+        utcTimestampOverlayLength := StrLen(utcTimestampOverlay)
+        if utcTimestampOverlayLength = 26 {
+            utcTimestampOverlay := SubStr(utcTimestampOverlay, 1, -7)
+        } else if utcTimestampOverlayLength = 23 {
+            utcTimestampOverlay := SubStr(utcTimestampOverlay, 1, -4)
+        }
+
+        utcTimestampLabel := Format("{} @ {} UTC", ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][FormatTime(StrReplace(StrReplace(StrReplace(utcTimestampOverlay, "-"), " "), ":"), "WDay") + 0], SubStr(utcTimestampOverlay, 12))
     }
 
-    overlayValue := Format("Prevent System Going Idle Until Date Time ({})", dateTimeLabel)
+    overlayValue := Format("Prevent System Going Idle Until Date Time ({})", utcTimestampLabel)
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("untilDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 5, Map(
+        RegisterMethod("utcTimestamp As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 5, Map(
             "Milliseconds Between Mouse Moves", Map("Default", 4000, "Floor", 2000, "Ceiling", 598000),
             "Milliseconds Between Function Key Presses", Map("Default", 60000, "Floor", 2000, "Ceiling", 898000)
         ))
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [untilDateTime], overlayValue)
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp], overlayValue)
 
     settings := methodRegistry[methodName]["Settings"]
 
     millisecondsBetweenMouseMoves         := settings["Milliseconds Between Mouse Moves"]["Value"]
     millisecondsBetweenFunctionKeyPresses := settings["Milliseconds Between Function Key Presses"]["Value"]
 
+    utcTimestampLength := StrLen(utcTimestamp)
+    if utcTimestampLength = 26 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -7)
+    } else if utcTimestampLength = 23 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -4)
+    }
+
+    utcTimestamp                  := RegExReplace(utcTimestamp, "\D")
     lastFunctionKeyPressTickCount := DllCall("Kernel32\GetTickCount64", "UInt64")
-    untilDateTime := StrReplace(StrReplace(StrReplace(untilDateTime, "-", ""), ":", ""), " ", "")
 
     previousMouseCoordinateMode := A_CoordModeMouse
     CoordMode("Mouse", "Screen")
 
-    while DateDiff(untilDateTime, A_NowUTC, "Seconds") > 1 {
-        secondsRemainingBeforeFinalSecond := DateDiff(untilDateTime, A_NowUTC, "Seconds") - 1
+    while DateDiff(utcTimestamp, A_NowUTC, "Seconds") > 1 {
+        secondsRemainingBeforeFinalSecond := DateDiff(utcTimestamp, A_NowUTC, "Seconds") - 1
         millisecondsUntilNextMouseMove    := millisecondsBetweenMouseMoves
 
         if secondsRemainingBeforeFinalSecond * 1000 < millisecondsUntilNextMouseMove {
@@ -53,7 +69,7 @@ PreventSystemGoingIdleUntilDateTime(untilDateTime) {
             Sleep(millisecondsUntilNextMouseMove)
         }
 
-        if DateDiff(untilDateTime, A_NowUTC, "Seconds") <= 1 {
+        if DateDiff(utcTimestamp, A_NowUTC, "Seconds") <= 1 {
             break
         }
 
@@ -98,13 +114,13 @@ PreventSystemGoingIdleUntilDateTime(untilDateTime) {
 
     CoordMode("Mouse", previousMouseCoordinateMode)
 
-    while A_NowUTC < untilDateTime {
+    while A_NowUTC < utcTimestamp {
     }
 
     LogConclusion("Completed", logConclusionData)
 }
 
-SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
+SetDirectoryTimestamp(directoryPath, utcTimestamp, timeType) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -117,29 +133,35 @@ SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("directoryPath As String [Constraint: Directory], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("directoryPath As String [Constraint: Directory], utcTimestamp As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, isoDateTime, timeType], "Set Directory Timestamp")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [directoryPath, utcTimestamp, timeType], "Set Directory Timestamp")
 
-    directoryPath := RTrim(directoryPath, "\")
+    utcTimestampLength := StrLen(utcTimestamp)
+    if utcTimestampLength = 26 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -7)
+    } else if utcTimestampLength = 23 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -4)
+    }
 
-    currentDirectoryDateTime := GetDirectoryTimeAsUtc(directoryPath, timeType)
-    if currentDirectoryDateTime = isoDateTime {
+    currentDirectoryTimestamp := GetDirectoryTimeAsTimestamp(directoryPath, timeType)
+    if currentDirectoryTimestamp = utcTimestamp {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
-    isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
+    utcTimestamp  := RegExReplace(utcTimestamp, "\D")
+    directoryPath := RTrim(directoryPath, "\")
 
     utcSystemTimeBuffer := Buffer(16, 0)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
-    NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
-    NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
-    NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
-    NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
+    NumPut("UShort", SubStr(utcTimestamp, 1, 4), utcSystemTimeBuffer, 0)
+    NumPut("UShort", SubStr(utcTimestamp, 5, 2), utcSystemTimeBuffer, 2)
+    NumPut("UShort", 0,                          utcSystemTimeBuffer, 4)
+    NumPut("UShort", SubStr(utcTimestamp, 7, 2), utcSystemTimeBuffer, 6)
+    NumPut("UShort", SubStr(utcTimestamp, 9, 2), utcSystemTimeBuffer, 8)
+    NumPut("UShort", SubStr(utcTimestamp, 11, 2), utcSystemTimeBuffer, 10)
+    NumPut("UShort", SubStr(utcTimestamp, 13, 2), utcSystemTimeBuffer, 12)
+    NumPut("UShort", 0,                           utcSystemTimeBuffer, 14)
 
     utcFileTimeBuffer := Buffer(8, 0)
     if !DllCall("Kernel32\SystemTimeToFileTime", "Ptr", utcSystemTimeBuffer, "Ptr", utcFileTimeBuffer, "Int") {
@@ -174,7 +196,7 @@ SetDirectoryTimestamp(directoryPath, isoDateTime, timeType) {
     LogConclusion("Completed", logConclusionData)
 }
 
-SetFileTimestamp(filePath, isoDateTime, timeType) {
+SetFileTimestamp(filePath, utcTimestamp, timeType) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -187,27 +209,34 @@ SetFileTimestamp(filePath, isoDateTime, timeType) {
     static timeTypeWhitelist := Format('"{1}", "{2}", "{3}"', "Accessed", "Created", "Modified")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("filePath As String [Constraint: Path], isoDateTime As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("filePath As String [Constraint: Path], utcTimestamp As String [Constraint: ISO Date Time], timeType As String [Whitelist: " . timeTypeWhitelist . "]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath, isoDateTime, timeType], "Set File Timestamp")
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [filePath, utcTimestamp, timeType], "Set File Timestamp")
 
-    currentFileDateTime := GetFileTimeAsUtc(filePath, timeType)
-    if currentFileDateTime = isoDateTime {
+    utcTimestampLength := StrLen(utcTimestamp)
+    if utcTimestampLength = 26 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -7)
+    } else if utcTimestampLength = 23 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -4)
+    }
+
+    currentFileTimestamp := GetFileTimeAsTimestamp(filePath, timeType)
+    if currentFileTimestamp = utcTimestamp {
         LogConclusion("Skipped", logConclusionData)
         return
     }
 
-    isoDateTimeDigits := RegExReplace(isoDateTime, "[^0-9]")
+    utcTimestamp := RegExReplace(utcTimestamp, "\D")
 
     utcSystemTimeBuffer := Buffer(16, 0)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 1, 4), utcSystemTimeBuffer,  0)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 5, 2), utcSystemTimeBuffer,  2)
-    NumPut("UShort", 0,                               utcSystemTimeBuffer,  4)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 7, 2), utcSystemTimeBuffer,  6)
-    NumPut("UShort", SubStr(isoDateTimeDigits, 9, 2), utcSystemTimeBuffer,  8)
-    NumPut("UShort", SubStr(isoDateTimeDigits,11, 2), utcSystemTimeBuffer, 10)
-    NumPut("UShort", SubStr(isoDateTimeDigits,13, 2), utcSystemTimeBuffer, 12)
-    NumPut("UShort", 0,                               utcSystemTimeBuffer, 14)
+    NumPut("UShort", SubStr(utcTimestamp, 1, 4), utcSystemTimeBuffer, 0)
+    NumPut("UShort", SubStr(utcTimestamp, 5, 2), utcSystemTimeBuffer, 2)
+    NumPut("UShort", 0,                          utcSystemTimeBuffer, 4)
+    NumPut("UShort", SubStr(utcTimestamp, 7, 2), utcSystemTimeBuffer, 6)
+    NumPut("UShort", SubStr(utcTimestamp, 9, 2), utcSystemTimeBuffer, 8)
+    NumPut("UShort", SubStr(utcTimestamp, 11, 2), utcSystemTimeBuffer, 10)
+    NumPut("UShort", SubStr(utcTimestamp, 13, 2), utcSystemTimeBuffer, 12)
+    NumPut("UShort", 0,                           utcSystemTimeBuffer, 14)
 
     utcFileTimeBuffer := Buffer(8, 0)
 
@@ -351,10 +380,8 @@ TelemetryTimestamp(durationInMilliseconds) {
         "Duration in Milliseconds",  durationInMilliseconds
     )
 
-    static kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
-    static preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
-
-    pairedReadings := []
+    kernel32ModuleHandle   := DllCall("GetModuleHandle", "Str", "Kernel32", "Ptr")
+    preciseFunctionAddress := DllCall("GetProcAddress", "Ptr", kernel32ModuleHandle, "AStr", "GetSystemTimePreciseAsFileTime", "Ptr")
 
     originalAutoHotkeyThreadHandle   := DllCall("GetCurrentThread", "Ptr")
     originalAutoHotkeyThreadPriority := DllCall("GetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int")
@@ -363,30 +390,35 @@ TelemetryTimestamp(durationInMilliseconds) {
         DllCall("SetThreadPriority", "Ptr", originalAutoHotkeyThreadHandle, "Int", 2) ; Change to Highest.
     }
 
+    tickCountPre     := unset
     timingBuffer     := Buffer(24, 0)
     systemTimeBuffer := Buffer(16, 0)
     qpcPrePointer    := timingBuffer.Ptr
     fileTimePointer  := timingBuffer.Ptr + 8
     qpcPostPointer   := timingBuffer.Ptr + 16
+    qpcPreValue      := unset
+    qpcLoopStopValue := unset
+    pairedReadings   := []
 
-    startTime := DllCall("Kernel32\GetTickCount64", "UInt64")
+    DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
+    qpcPreValue      := NumGet(qpcPrePointer, "Int64")
+    qpcLoopStopValue := qpcPreValue + (system["Environment"]["QPC Frequency"] * durationInMilliseconds // 1000)
+
     if preciseFunctionAddress {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < durationInMilliseconds {
+        while qpcPreValue < qpcLoopStopValue {
             tickCountPre := DllCall("Kernel32\GetTickCount64", "UInt64")
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
             DllCall("Kernel32\GetSystemTimePreciseAsFileTime", "Ptr", fileTimePointer)
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-            tickCountPost := DllCall("Kernel32\GetTickCount64", "UInt64")
-            pairedReadings.Push([tickCountPre, NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), tickCountPost])
+            pairedReadings.Push([tickCountPre, qpcPreValue := NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), DllCall("Kernel32\GetTickCount64", "UInt64")])
         }
     } else {
-        while DllCall("Kernel32\GetTickCount64", "UInt64") - startTime < durationInMilliseconds {
+        while qpcPreValue < qpcLoopStopValue {
             tickCountPre := DllCall("Kernel32\GetTickCount64", "UInt64")
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPrePointer, "Int")
             DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", fileTimePointer)
             DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
-            tickCountPost := DllCall("Kernel32\GetTickCount64", "UInt64")
-            pairedReadings.Push([tickCountPre, NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), tickCountPost])
+            pairedReadings.Push([tickCountPre, qpcPreValue := NumGet(qpcPrePointer, "Int64"), NumGet(fileTimePointer, "UInt64"), NumGet(qpcPostPointer, "Int64"), DllCall("Kernel32\GetTickCount64", "UInt64")])
         }
     }
 
@@ -475,7 +507,7 @@ TelemetryTimestamp(durationInMilliseconds) {
 ; Helper Methods               ;
 ; **************************** ;
 
-AddOrSubtractTimeAmountFromIsoDateTime(timeUnit, time, isoDateTime) {
+AdjustTimestampByTimeAmount(isoTimestamp, timeUnit, time) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -485,18 +517,88 @@ AddOrSubtractTimeAmountFromIsoDateTime(timeUnit, time, isoDateTime) {
     DllCall("Kernel32\GetSystemTimeAsFileTime", "Ptr", timestampPointer)
     DllCall("Kernel32\QueryPerformanceCounter", "Ptr", qpcPostPointer, "Int")
 
-    static timeUnitWhitelist := Format('"{1}", "{2}", "{3}", "{4}"', "Days", "Hours", "Minutes", "Seconds")
+    static timeUnitWhitelist := Format('"{1}", "{2}", "{3}", "{4}", "{5}", "{6}"', "Days", "Hours", "Minutes", "Seconds", "Milliseconds", "Microseconds")
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("timeUnit As String [Whitelist: " . timeUnitWhitelist . "], time as Integer, isoDateTime As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("isoTimestamp As String [Constraint: ISO Date Time], timeUnit As String [Whitelist: " . timeUnitWhitelist . "], time as Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
-    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [timeUnit, time, isoDateTime])
+    logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [isoTimestamp, timeUnit, time])
 
-    compactDateTime := StrReplace(StrReplace(StrReplace(isoDateTime, "-"), " "), ":")
-    modifiedCompactDateTime := DateAdd(compactDateTime, time, timeUnit)
-    modifiedIsoDateTime := FormatTime(modifiedCompactDateTime, "yyyy-MM-dd HH:mm:ss")
+    subseconds         := ""
+    isoTimestampLength := StrLen(isoTimestamp)
 
-    return modifiedIsoDateTime
+    if isoTimestampLength = 26 {
+        subseconds   := SubStr(isoTimestamp, -7)
+        isoTimestamp := SubStr(isoTimestamp, 1, -7)
+    } else if isoTimestampLength = 23 {
+        subseconds   := SubStr(isoTimestamp, -4)
+        isoTimestamp := SubStr(isoTimestamp, 1, -4)
+    }
+
+    if timeUnit = "Milliseconds" || timeUnit = "Microseconds" {
+        inputPrecision := 0
+        if StrLen(subseconds) = 7 {
+            inputPrecision := 6
+        } else if StrLen(subseconds) = 4 {
+            inputPrecision := 3
+        }
+
+        adjustmentPrecision := 3
+        if timeUnit = "Microseconds" {
+            adjustmentPrecision := 6
+        }
+        precision := Max(inputPrecision, adjustmentPrecision)
+
+        if timeUnit = "Milliseconds" {
+            wholeSecondsToAdd := time // 1000
+            remainderUnits := Mod(time, 1000) * 1000
+        } else {
+            wholeSecondsToAdd := time // 1000000
+            remainderUnits := Mod(time, 1000000)
+        }
+
+        if remainderUnits < 0 {
+            remainderUnits += 1000000
+            wholeSecondsToAdd -= 1
+        }
+
+        currentUnits := 0
+        if subseconds != "" {
+            currentUnits := SubStr(subseconds, 2) + 0
+            if inputPrecision = 3 {
+                currentUnits *= 1000
+            }
+        }
+
+        totalUnits := currentUnits + remainderUnits
+        carrySeconds := totalUnits // 1000000
+        remainingUnits := Mod(totalUnits, 1000000)
+        if remainingUnits < 0 {
+            remainingUnits += 1000000
+            carrySeconds -= 1
+        }
+
+        wholeSecondsToAdd += carrySeconds
+
+        subseconds := "." . SubStr(Format("{:06}", remainingUnits), 1, precision)
+
+        time     := wholeSecondsToAdd
+        timeUnit := "Seconds"
+    }
+
+    adjustedIsoDateTime := DateAdd(RegExReplace(isoTimestamp, "\D"), time, timeUnit)
+
+    if adjustedIsoDateTime = "" {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Resulting timestamp is outside the supported range of 1601-01-01 00:00:00 through 30827-12-31 23:59:59.")
+    }
+
+    if (adjustedIsoDateTime + 0) > 99991231235959 {
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Resulting timestamp is higher than 9999-12-31 23:59:59.")
+    }
+
+    adjustedIsoDateTime := FormatTime(adjustedIsoDateTime, "yyyy-MM-dd HH:mm:ss") . subseconds
+
+    return adjustedIsoDateTime
 }
 
 ConvertIntegerToUtcTimestamp(integerValue) {
@@ -511,48 +613,34 @@ ConvertIntegerToUtcTimestamp(integerValue) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("integerValue As Integer", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("integerValue As Integer [Constraint: Integer UTC Timestamp]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [integerValue])
 
-    digitText := integerValue . ""
-    if !RegExMatch(digitText, "^\d+$") {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Input must contain only digits. Got: " . digitText)
+    integerValueText       := integerValue . ""
+    integerValueTextLength := StrLen(integerValueText)
+
+    year        := SubStr(integerValueText,  1, 4)
+    month       := SubStr(integerValueText,  5, 2)
+    day         := SubStr(integerValueText,  7, 2)
+    hour        := SubStr(integerValueText,  9, 2)
+    minute      := SubStr(integerValueText, 11, 2)
+    second      := SubStr(integerValueText, 13, 2)
+
+    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+    if integerValueTextLength = 17 {
+        utcTimestamp .= "." . SubStr(integerValueText, 15)
     }
 
-    digitTextLength := StrLen(digitText)
-    if digitTextLength != 14 && digitTextLength != 17 {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected 14 digits (no fractional) or 17 digits. Got length: " . digitTextLength)
-    }
-
-    year        := SubStr(digitText,  1, 4)
-    month       := SubStr(digitText,  5, 2)
-    day         := SubStr(digitText,  7, 2)
-    hour        := SubStr(digitText,  9, 2)
-    minute      := SubStr(digitText, 11, 2)
-    second      := SubStr(digitText, 13, 2)
-    millisecond := unset
-
-    if digitTextLength = 17 {
-        millisecond := SubStr(digitText, 15)
-    }
-
-    validation := ValidateDataUsingSpecification(year . "-" . month . "-" . day . " " . hour . ":" . minute . ":" . second, "String", "ISO Date Time")
+    validation := ValidateDataUsingConstraint(utcTimestamp, "String", "ISO Date Time")
     if validation != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, validation)
-    }
-
-    utcTimestamp := unset
-    if digitTextLength = 14 {
-        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
-    } else if digitTextLength = 17 {
-        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+        LogConclusion("Failed", logConclusionData, A_LineNumber, "Integer UTC Timestamp converted to " . validation)
     }
 
     return utcTimestamp
 }
 
-ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyName) {
+ConvertLocalTimestampToUtcTimestampUsingTimeZoneKey(localTimestamp, timeZoneKeyName) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -564,35 +652,40 @@ ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyNa
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("localTimestamp As String, timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("localTimestamp As String [Constraint: ISO Date Time], timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [localTimestamp, timeZoneKeyName])
 
-    parts := StrSplit(localTimestamp, " ")
-    dateParts := StrSplit(parts[1], "-")
-    timeAndFractionParts := StrSplit(parts[2], ".")
-    timeParts := StrSplit(timeAndFractionParts[1], ":")
+    localTimestampLength := StrLen(localTimestamp)
+    if localTimestampLength = 26 {
+        localTimestamp := SubStr(localTimestamp, 1, -3)
+    }
 
-    hasMilliseconds := timeAndFractionParts.Length = 2
-    milliseconds := 0
-    if hasMilliseconds {
-        fraction := timeAndFractionParts[2]
-        if StrLen(fraction) > 3 {
-            fraction := SubStr(fraction, 1, 3)
-        } else if StrLen(fraction) < 3 {
-            fraction := fraction . SubStr("000", 1, 3 - StrLen(fraction))
-        }
-        milliseconds := fraction + 0
+    localTimestamp       := RegExReplace(localTimestamp, "\D")
+    localTimestampLength := StrLen(localTimestamp)
+
+    year   := SubStr(localTimestamp,  1, 4) + 0
+    month  := SubStr(localTimestamp,  5, 2) + 0
+    day    := SubStr(localTimestamp,  7, 2) + 0
+    hour   := SubStr(localTimestamp,  9, 2) + 0
+    minute := SubStr(localTimestamp, 11, 2) + 0
+    second := SubStr(localTimestamp, 13, 2) + 0
+
+    milliseconds := unset
+    if localTimestampLength = 17 {
+        milliseconds := SubStr(localTimestamp, 15) + 0
+    } else {
+        milliseconds := 0
     }
 
     localSystemTimeBuffer := Buffer(16, 0)
-    NumPut("UShort", dateParts[1] + 0, localSystemTimeBuffer, 0)
-    NumPut("UShort", dateParts[2] + 0, localSystemTimeBuffer, 2)
-    NumPut("UShort", dateParts[3] + 0, localSystemTimeBuffer, 6)
-    NumPut("UShort", timeParts[1] + 0, localSystemTimeBuffer, 8)
-    NumPut("UShort", timeParts[2] + 0, localSystemTimeBuffer, 10)
-    NumPut("UShort", timeParts[3] + 0, localSystemTimeBuffer, 12)
-    NumPut("UShort", milliseconds,     localSystemTimeBuffer, 14)
+    NumPut("UShort", year, localSystemTimeBuffer, 0)
+    NumPut("UShort", month, localSystemTimeBuffer, 2)
+    NumPut("UShort", day, localSystemTimeBuffer, 6)
+    NumPut("UShort", hour, localSystemTimeBuffer, 8)
+    NumPut("UShort", minute, localSystemTimeBuffer, 10)
+    NumPut("UShort", second, localSystemTimeBuffer, 12)
+    NumPut("UShort", milliseconds, localSystemTimeBuffer, 14)
 
     static DYNAMIC_TIME_ZONE_INFORMATION_SIZE    := 432
     static DYNAMIC_DAYLIGHT_TIME_DISABLED_OFFSET := 428
@@ -609,27 +702,27 @@ ConvertLocalTimestampToUtcTimestampWithTimeZoneKey(localTimestamp, timeZoneKeyNa
 
     static utcSystemTimeBuffer := Buffer(16, 0)
 
-    convertedLocalTimeToUtcSuccessfully := DllCall("Kernel32\TzSpecificLocalTimeToSystemTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Int", 0)
+    convertedLocalTimeToUtcSuccessfully := DllCall("Kernel32\TzSpecificLocalTimeToSystemTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Int")
     if !convertedLocalTimeToUtcSuccessfully {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert local timestamp to UTC. [Kernel32\TzSpecificLocalTimeToSystemTimeEx, Error: " A_LastError "]")
     }
 
-    year        := NumGet(utcSystemTimeBuffer, 0,  "UShort")
-    month       := NumGet(utcSystemTimeBuffer, 2,  "UShort")
-    day         := NumGet(utcSystemTimeBuffer, 6,  "UShort")
-    hour        := NumGet(utcSystemTimeBuffer, 8,  "UShort")
-    minute      := NumGet(utcSystemTimeBuffer, 10, "UShort")
-    second      := NumGet(utcSystemTimeBuffer, 12, "UShort")
-    millisecond := NumGet(utcSystemTimeBuffer, 14, "UShort")
+    year         := NumGet(utcSystemTimeBuffer, 0,  "UShort")
+    month        := NumGet(utcSystemTimeBuffer, 2,  "UShort")
+    day          := NumGet(utcSystemTimeBuffer, 6,  "UShort")
+    hour         := NumGet(utcSystemTimeBuffer, 8,  "UShort")
+    minute       := NumGet(utcSystemTimeBuffer, 10, "UShort")
+    second       := NumGet(utcSystemTimeBuffer, 12, "UShort")
+    milliseconds := NumGet(utcSystemTimeBuffer, 14, "UShort")
 
-    utcTime := unset
-    if hasMilliseconds {
-        utcTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+    utcTimestamp := unset
+    if localTimestampLength = 17 {
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, milliseconds)
     } else {
-        utcTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+        utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
     }
 
-    return utcTime
+    return utcTimestamp
 }
 
 ConvertUnixTimeToUtcTimestamp(unixSeconds) {
@@ -687,44 +780,21 @@ ConvertUtcTimestampToInteger(utcTimestamp) {
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("utcTimestamp As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("utcTimestamp As String [Constraint: ISO Date Time]", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp])
 
     utcTimestampLength := StrLen(utcTimestamp)
-    if utcTimestampLength != 19 && utcTimestampLength != 23 && utcTimestampLength != 26 {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, "Expected length of 19, 23 or 26 but got: " . utcTimestampLength)
+    if utcTimestampLength = 26 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -3)
     }
 
-    year        := SubStr(utcTimestamp,  1, 4)
-    month       := SubStr(utcTimestamp,  6, 2)
-    day         := SubStr(utcTimestamp,  9, 2)
-    hour        := SubStr(utcTimestamp, 12, 2)
-    minute      := SubStr(utcTimestamp, 15, 2)
-    second      := SubStr(utcTimestamp, 18, 2)
-    millisecond := unset
-
-    if utcTimestampLength >= 23 {
-        millisecond := SubStr(utcTimestamp, 21, 3)
-    }
-
-    validation := ValidateDataUsingSpecification(year . "-" . month . "-" . day . " " . hour . ":" . minute . ":" . second, "String", "ISO Date Time")
-    if validation != "" {
-        LogConclusion("Failed", logConclusionData, A_LineNumber, validation)
-    }
-
-    if utcTimestampLength = 19 {
-        utcTimestampCombinedDigits := year . month . day . hour . minute . second
-    } else {
-        utcTimestampCombinedDigits := year . month . day . hour . minute . second . millisecond
-    }
-
-    utcTimestampInteger := utcTimestampCombinedDigits + 0
+    utcTimestampInteger := RegExReplace(utcTimestamp, "\D") + 0
 
     return utcTimestampInteger
 }
 
-ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName) {
+ConvertUtcTimestampToLocalTimestampUsingTimeZoneKey(utcTimestamp, timeZoneKeyName) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -736,35 +806,39 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
 
     static methodName := A_ThisFunc
     if !(methodRegistry.Has(methodName) && methodRegistry[methodName].Has("Registered")) {
-        RegisterMethod("utcTimestamp As String, timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
+        RegisterMethod("utcTimestamp As String [Constraint: ISO Date Time], timeZoneKeyName As String", methodName, A_LineFile, A_LineNumber + 2, Map())
     }
     logConclusionData := LogBeginning(methodName, NumGet(qpcPrePointer, "Int64"), NumGet(timestampPointer, "Int64"), NumGet(qpcPostPointer, "Int64"), [utcTimestamp, timeZoneKeyName])
 
-    parts := StrSplit(utcTimestamp, " ")
-    dateParts := StrSplit(parts[1], "-")
+    utcTimestampLength := StrLen(utcTimestamp)
+    if utcTimestampLength = 26 {
+        utcTimestamp := SubStr(utcTimestamp, 1, -3)
+    }
 
-    timeAndFractionParts := StrSplit(parts[2], ".")
-    timeParts := StrSplit(timeAndFractionParts[1], ":")
+    utcTimestamp       := RegExReplace(utcTimestamp, "\D")
+    utcTimestampLength := StrLen(utcTimestamp)
 
-    hasMilliseconds := timeAndFractionParts.Length = 2
-    milliseconds := 0
-    if hasMilliseconds {
-        fraction := timeAndFractionParts[2]
-        if StrLen(fraction) > 3 {
-            fraction := SubStr(fraction, 1, 3)
-        } else if StrLen(fraction) < 3 {
-            fraction := fraction . SubStr("000", 1, 3 - StrLen(fraction))
-        }
-        milliseconds := fraction + 0
+    year   := SubStr(utcTimestamp,  1, 4) + 0
+    month  := SubStr(utcTimestamp,  5, 2) + 0
+    day    := SubStr(utcTimestamp,  7, 2) + 0
+    hour   := SubStr(utcTimestamp,  9, 2) + 0
+    minute := SubStr(utcTimestamp, 11, 2) + 0
+    second := SubStr(utcTimestamp, 13, 2) + 0
+
+    milliseconds := unset
+    if utcTimestampLength = 17 {
+        milliseconds := SubStr(utcTimestamp, 15) + 0
+    } else {
+        milliseconds := 0
     }
 
     utcSystemTimeBuffer := Buffer(16, 0)
-    NumPut("UShort", dateParts[1] + 0, utcSystemTimeBuffer, 0)
-    NumPut("UShort", dateParts[2] + 0, utcSystemTimeBuffer, 2)
-    NumPut("UShort", dateParts[3] + 0, utcSystemTimeBuffer, 6)
-    NumPut("UShort", timeParts[1] + 0, utcSystemTimeBuffer, 8)
-    NumPut("UShort", timeParts[2] + 0, utcSystemTimeBuffer, 10)
-    NumPut("UShort", timeParts[3] + 0, utcSystemTimeBuffer, 12)
+    NumPut("UShort", year, utcSystemTimeBuffer, 0)
+    NumPut("UShort", month, utcSystemTimeBuffer, 2)
+    NumPut("UShort", day, utcSystemTimeBuffer, 6)
+    NumPut("UShort", hour, utcSystemTimeBuffer, 8)
+    NumPut("UShort", minute, utcSystemTimeBuffer, 10)
+    NumPut("UShort", second, utcSystemTimeBuffer, 12)
     NumPut("UShort", milliseconds, utcSystemTimeBuffer, 14)
 
     static DYNAMIC_TIME_ZONE_INFORMATION_SIZE        := 432
@@ -785,27 +859,27 @@ ConvertUtcTimestampToLocalTimestampWithTimeZoneKey(utcTimestamp, timeZoneKeyName
 
     static localSystemTimeBuffer := Buffer(16, 0)
 
-    convertedUtcToLocalSuccessfully := DllCall("Kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Int", 0)
+    convertedUtcToLocalSuccessfully := DllCall("Kernel32\SystemTimeToTzSpecificLocalTimeEx", "Ptr", dynamicTimeZoneInformationBuffer.Ptr, "Ptr", utcSystemTimeBuffer.Ptr, "Ptr", localSystemTimeBuffer.Ptr, "Int")
     if !convertedUtcToLocalSuccessfully {
         LogConclusion("Failed", logConclusionData, A_LineNumber, "Failed to convert UTC timestamp to local timestamp. [Kernel32\SystemTimeToTzSpecificLocalTimeEx, Error: " A_LastError "]")
     }
 
-    year        := NumGet(localSystemTimeBuffer, 0,  "UShort")
-    month       := NumGet(localSystemTimeBuffer, 2,  "UShort")
-    day         := NumGet(localSystemTimeBuffer, 6,  "UShort")
-    hour        := NumGet(localSystemTimeBuffer, 8,  "UShort")
-    minute      := NumGet(localSystemTimeBuffer, 10, "UShort")
-    second      := NumGet(localSystemTimeBuffer, 12, "UShort")
-    millisecond := NumGet(localSystemTimeBuffer, 14, "UShort")
+    year         := NumGet(localSystemTimeBuffer, 0,  "UShort")
+    month        := NumGet(localSystemTimeBuffer, 2,  "UShort")
+    day          := NumGet(localSystemTimeBuffer, 6,  "UShort")
+    hour         := NumGet(localSystemTimeBuffer, 8,  "UShort")
+    minute       := NumGet(localSystemTimeBuffer, 10, "UShort")
+    second       := NumGet(localSystemTimeBuffer, 12, "UShort")
+    milliseconds := NumGet(localSystemTimeBuffer, 14, "UShort")
 
-    localTime := unset
-    if hasMilliseconds {
-        localTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, millisecond)
+    localTimestamp := unset
+    if utcTimestampLength = 17 {
+        localTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:03}", year, month, day, hour, minute, second, milliseconds)
     } else {
-        localTime := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+        localTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
     }
 
-    return localTime
+    return localTimestamp
 }
 
 ExtractTrailingDateAsIso(inputValue, dateOrder) {
@@ -897,7 +971,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
     if isoDate != "" {
         extractionResults["Extracted Date"] := isoDate
 
-        validation := ValidateDataUsingSpecification(isoDate, "String", "ISO Date")
+        validation := ValidateDataUsingConstraint(isoDate, "String", "ISO Date")
         if validation != "" {
             extractionResults["Validation"] := validation
         } else {
@@ -908,7 +982,7 @@ ExtractTrailingDateAsIso(inputValue, dateOrder) {
     return extractionResults
 }
 
-GetDirectoryTimeAsUtc(directoryPath, timeType) {
+GetDirectoryTimeAsTimestamp(directoryPath, timeType) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8
@@ -966,12 +1040,12 @@ GetDirectoryTimeAsUtc(directoryPath, timeType) {
 
     DllCall("Kernel32\CloseHandle", "Ptr", directoryHandle)
 
-    directoryTimeAsUtc := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+    utcTimestamp := Format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
 
-    return directoryTimeAsUtc
+    return utcTimestamp
 }
 
-GetFileTimeAsUtc(filePath, timeType) {
+GetFileTimeAsTimestamp(filePath, timeType) {
     static timingBuffer     := Buffer(24, 0)
     static qpcPrePointer    := timingBuffer.Ptr
     static timestampPointer := timingBuffer.Ptr + 8

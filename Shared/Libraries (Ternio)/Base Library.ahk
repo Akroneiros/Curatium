@@ -598,7 +598,7 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist #" . index . " did not return the data type of String.")
         }
 
-        validation := ValidateDataUsingSpecification(applicationWhitelist, "String", "Application Name")
+        validation := ValidateDataUsingConstraint(applicationWhitelist, "String", "Application Name")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Whitelist #" . index . " does not exist (" . applicationWhitelist . ").")
         }
@@ -631,7 +631,7 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " and Directory did not return the data type of String.")
         }
 
-        validation := ValidateDataUsingSpecification(applicationExecutableDirectoryCandidateMap["Name"], "String", "Application Name")
+        validation := ValidateDataUsingConstraint(applicationExecutableDirectoryCandidateMap["Name"], "String", "Application Name")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Executable Directory Candidate #" . index . " does not exist (" . applicationExecutableDirectoryCandidateMap["Name"] . ").")
         }
@@ -642,7 +642,7 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Base Directory #" . index . " did not return the data type of String.")
         }
 
-        validation := ValidateDataUsingSpecification(applicationBaseDirectory, "String", "Valid Directory")
+        validation := ValidateDataUsingConstraint(applicationBaseDirectory, "String", "Valid Directory")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Root entry for Application Base Directory #" . index . " is not a Valid Directory (" . applicationBaseDirectory . ")")
         }
@@ -661,7 +661,7 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings missing " . subSettingName . ".")
         }
 
-        validation := ValidateDataUsingSpecification(configuration["Settings"][subSettingName], subSetting["Data Type"])
+        validation := ValidateDataUsingConstraint(configuration["Settings"][subSettingName], subSetting["Data Type"])
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings for " . subSettingName . " did not return the data type of " . subSetting["Data Type"] . ".")
         }
@@ -671,7 +671,7 @@ ValidateConfiguration(configuration) {
                 continue
             }
 
-            validation := ValidateDataUsingSpecification(configuration["Settings"][subSettingName], subSetting["Data Type"], subSetting["Constraint"])
+            validation := ValidateDataUsingConstraint(configuration["Settings"][subSettingName], subSetting["Data Type"], subSetting["Constraint"])
             if validation != "" {
                 LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Settings entry for " . subSettingName . " failed validation. " . validation)
             }
@@ -712,7 +712,7 @@ ValidateConfiguration(configuration) {
             }
         }
 
-        validation := ValidateDataUsingSpecification(configuration["Execution Log"][executionLogEntry], "Integer", "Boolean")
+        validation := ValidateDataUsingConstraint(configuration["Execution Log"][executionLogEntry], "Integer", "Boolean")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Execution Log entry for " . executionLogEntry . " failed validation. " . validation)
         }
@@ -730,7 +730,7 @@ ValidateConfiguration(configuration) {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Run Telemetry missing " . runTelemetryEntry . ".")
         }
 
-        validation := ValidateDataUsingSpecification(configuration["Run Telemetry"][runTelemetryEntry], "Integer", "Boolean")
+        validation := ValidateDataUsingConstraint(configuration["Run Telemetry"][runTelemetryEntry], "Integer", "Boolean")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "Configuration Run Telemetry entry for " . runTelemetryEntry . " failed validation. " . validation)
         }
@@ -834,9 +834,9 @@ ParseDeclaration(declaration) {
             dataTypesValue := StrSplit(metadataValue, " ")[1]
             metadataValue := SubStr(metadataValue, StrLen(dataTypesValue) + 2)
 
-            dataConstraint := ""
-            optionalValue  := ""
-            whitelist      := []
+            constraint    := ""
+            optionalValue := ""
+            whitelist     := []
 
             for metadataBlock in StrSplit(metadataValue, "]", true) {
                 if metadataBlock = "" {
@@ -860,7 +860,7 @@ ParseDeclaration(declaration) {
                             optionalValue := conceptValue
                         }
                     case "constraint":
-                        dataConstraint := conceptValue
+                        constraint := conceptValue
                     case "whitelist":
                         if optionalValue = "Optional" {
                             whitelist.Push("")
@@ -875,11 +875,11 @@ ParseDeclaration(declaration) {
             }
 
             parameterContracts.Push(Map(
-                "Parameter Name",  parameterName,
-                "Data Type",       dataTypesValue,
-                "Data Constraint", dataConstraint,
-                "Optional",        optionalValue,
-                "Whitelist",       whitelist
+                "Parameter Name", parameterName,
+                "Data Type",      dataTypesValue,
+                "Constraint",     constraint,
+                "Optional",       optionalValue,
+                "Whitelist",      whitelist
             ))
 
             if index < parameterParts.Length {
@@ -970,7 +970,7 @@ RegisterMethod(contract, methodName, sourceFilePath, validationLineNumber, metho
     return methodName
 }
 
-ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitelist := []) {
+ValidateDataUsingConstraint(dataValue, dataType, constraint := "") {
     static hexadecimalAllowedCharactersMessage     := "Only 0–9, A–F, and a–f are allowed."
     static windowsInvalidFilenameCharactersPattern := '[\\/:*?"<>|]'
     static windowsInvalidFilenameCharactersList    := '\ / : * ? " < > |'
@@ -987,79 +987,77 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 
     static spreadsheetOperationsTemplateReleases := unset
 
-    validation := ""
-
     switch dataType {
         case "Array":
             if Type(dataValue) != "Array" {
-                validation := "Value must be an Array."
+                return "Data Type must be an Array."
             }
         case "Float":
             if Type(dataValue) != "Float" {
-                validation := "Value must be a Float."
+                return "Data Type must be a Float."
             }
         case "Integer":
             if Type(dataValue) != "Integer" {
-                validation := "Value must be an Integer."
+                return "Data Type must be an Integer."
             } else {
-                switch dataConstraint {
+                switch constraint {
                     case "Boolean":
                         if dataValue < 0 || dataValue > 1 {
-                            validation := dataConstraint . " must be between 0 and 1."
+                            return constraint . " is invalid (must be between 0 and 1)."
                         }
                     case "Byte":
                         if dataValue < 0 || dataValue > 255 {
-                            validation := dataConstraint . " must be between 0 and 255."
+                            return constraint . " is invalid (must be between 0 and 255)."
                         }
                     case "Day":
                         if dataValue < 1 || dataValue > 31 {
-                            validation := dataConstraint . " must be between 1 and 31."
+                            return constraint . " is invalid (must be between 1 and 31)."
                         }
                     case "Hour":
                         if dataValue < 0 || dataValue > 23 {
-                            validation := dataConstraint . " must be between 0 and 23."
+                            return constraint . " is invalid (must be between 0 and 23)."
+                        }
+                    case "Integer UTC Timestamp":
+                        if (dataValue >= 16010101000000 && dataValue <= 99991231235959 || dataValue >= 16010101000000000 && dataValue <= 99991231235959999) {
+                            ; Allowed with 14 digits (excluding milliseconds) or 17 digits (including milliseconds).
+                        } else if dataValue < 16010101000000 {
+                            return constraint . " is invalid (under the value 16010101000000, i.e. 1601-01-01 00:00:00)."
+                        } else if dataValue < 16010101000000000 {
+                            return constraint . " is invalid (over the maximum value 99991231235959 for a timestamp without milliseconds, but under the minimum value 16010101000000000 for a timestamp with milliseconds)."
+                        } else {
+                            return constraint . " is invalid (over the value 99991231235959999, i.e. 9999-12-31 23:59:59.999)."
                         }
                     case "Minute":
                         if dataValue < 0 || dataValue > 59 {
-                            validation := dataConstraint . " must be between 0 and 59."
+                            return constraint . " is invalid (must be between 0 and 59)."
                         }
                     case "Month":
                         if dataValue < 1 || dataValue > 12 {
-                            validation := dataConstraint . " must be between 1 and 12."
+                            return constraint . " is invalid (must be between 1 and 12)."
                         }
                     case "Second":
                         if dataValue < 0 || dataValue > 59 {
-                            validation := dataConstraint . " must be between 0 and 59."
+                            return constraint . " is invalid (must be between 0 and 59)."
                         }
                     case "Year":
                         if dataValue < 1601 || dataValue > 9999 {
-                            validation := dataConstraint . " must be between 1601 and 9999."
+                            return constraint . " is invalid (must be between 1601 and 9999)."
                         }
                 }
             }
         case "Map":
             if Type(dataValue) != "Map" {
-                validation := "Value must be a Map."
+                return "Data Type must be a Map."
             }
         case "Object":
             ; No validation, but allowed Data Type.
         case "String":
             if Type(dataValue) != "String" {
-                validation := "Value must be a String."
-            } else if whitelist.Length != 0 {
-                valueIsWhitelisted := false
-                for whitelistEntry in whitelist {
-                    if dataValue == whitelistEntry {
-                        valueIsWhitelisted := true
-                        break
-                    }
-                }
-
-                if !valueIsWhitelisted {
-                    validation := "Value did not match whitelisted values."
-                }
+                return "Data Type must be a String."
+            } else if dataValue = "" && constraint != "" {
+                return "String can't be empty."
             } else {
-                switch dataConstraint {
+                switch constraint {
                     case "Application Name":
                         if !IsSet(applications) {
                             applications := Map()
@@ -1070,12 +1068,12 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
 
                         if !applications.Has(dataValue) {
-                            validation := dataConstraint . " is not supported."
+                            return constraint . " is not supported."
                         }
                     case "Base52", "Base62", "Base66", "Base86", "Base92", "Base94":
                         baseCharacterSet := unset
 
-                        switch dataConstraint {
+                        switch constraint {
                             case "Base52": baseCharacterSet := base52CharacterSet
                             case "Base62": baseCharacterSet := base62CharacterSet
                             case "Base66": baseCharacterSet := base66CharacterSet
@@ -1088,36 +1086,26 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                             currentCharacter := A_LoopField
 
                             if !baseCharacterSet.Has(currentCharacter) {
-                                validation := dataConstraint . ' contains the invalid character "' . currentCharacter . '" at position ' . A_Index . "."
-                                break
+                                return constraint . ' contains the invalid character "' . currentCharacter . '" at position ' . A_Index . "."
                             }
                         }
                     case "Base64":
                         if Mod(StrLen(dataValue), 4) != 0 {
-                            validation := dataConstraint . " invalid length. Length must be a multiple of 4."
+                            return constraint . " length is invalid. Length must be a multiple of 4."
                         } else if !RegExMatch(dataValue, "\A[A-Za-z0-9+/]*={0,2}\z") {
                             paddingCharacterCount := 0
-                            paddingHasStarted     := false
+                            validCharacters := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
                             Loop Parse dataValue {
                                 if A_LoopField = "=" {
-                                    if !paddingHasStarted {
-                                        paddingHasStarted := true
-                                    }
                                     paddingCharacterCount++
                                     if paddingCharacterCount > 2 {
-                                        validation := dataConstraint . " invalid padding. More than two padding characters (=) are not allowed."
-                                        break
+                                        return constraint . " padding is invalid. More than two padding characters (=) are not allowed."
                                     }
-                                } else if paddingHasStarted {
-                                    validation := dataConstraint . " invalid padding. The character = can only appear at the end."
-                                    break
-                                } else {
-                                    characterCode := Ord(A_LoopField)
-                                    if !(characterCode >= 65 && characterCode <= 90) && !(characterCode >= 97 && characterCode <= 122) && !(characterCode >= 48 && characterCode <= 57) && A_LoopField != "+" && A_LoopField != "/" {
-                                        validation := dataConstraint . ' contains the invalid character "' . A_LoopField . '" at position ' . A_Index . ". " . "Only A–Z, a–z, 0–9, +, /, and = are allowed."
-                                        break
-                                    }
+                                } else if paddingCharacterCount > 0 {
+                                    return constraint . " padding is invalid. The character = can only appear at the end."
+                                } else if !InStr(validCharacters, A_LoopField, true) {
+                                    return constraint . ' contains the invalid character "' . A_LoopField . '" at position ' . A_Index . ". " . "Only A–Z, a–z, 0–9, +, /, and = are allowed."
                                 }
                             }
                         }
@@ -1128,23 +1116,23 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         coordinateParts := StrSplit(dataValue, "x")
 
                         if coordinateParts.Length != 2 {
-                            validation := dataConstraint . " must contain the separator x."
+                            return constraint . " must contain the separator x."
                         } else if coordinateParts[1] == "" {
-                            validation := dataConstraint . " is missing the X value."
+                            return constraint . " is missing the X value."
                         } else if coordinateParts[2] == "" {
-                            validation := dataConstraint . " is missing the Y value."
+                            return constraint . " is missing the Y value."
                         } else if !IsDigit(coordinateParts[1]) {
-                            validation := dataConstraint . " has a non-digit X value."
+                            return constraint . " has a non-digit X value."
                         } else if !IsDigit(coordinateParts[2]) {
-                            validation := dataConstraint . " has a non-digit Y value."
+                            return constraint . " has a non-digit Y value."
                         } else {
                             xCoordinate := coordinateParts[1] + 0
                             yCoordinate := coordinateParts[2] + 0
 
                             if xCoordinate >= widthDisplayResolution {
-                                validation := dataConstraint . " has X out of bounds. Valid 0 to " . (widthDisplayResolution - 1) . "."
+                                return constraint . " has X out of bounds. Valid 0 to " . (widthDisplayResolution - 1) . "."
                             } else if yCoordinate >= heightDisplayResolution {
-                                validation := dataConstraint . " has Y out of bounds. Valid 0 to " . (heightDisplayResolution - 1) . "."
+                                return constraint . " has Y out of bounds. Valid 0 to " . (heightDisplayResolution - 1) . "."
                             }
                         }
                     case "Directory", "Valid Directory":
@@ -1155,210 +1143,254 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
 
                         if !isDrivePath && !isUncPath {
                             if isUncPrefix {
-                                validation := dataConstraint . " must start with a valid UNC path (\\server\share\)."
+                                return constraint . " must start with a valid UNC path (\\server\share\)."
                             } else {
-                                validation := dataConstraint . " must start with a drive path (C:\)."
+                                return constraint . " must start with a drive path (C:\)."
                             }
                         } else if isDrivePath && InStr(dataValue, ":", , 3) {
-                            validation := dataConstraint . " must not contain any colon except the drive letter."
+                            return constraint . " must not contain any colon except the drive letter."
                         } else if isUncPath && InStr(dataValue, ":") {
-                            validation := dataConstraint . " must not contain any colon."
+                            return constraint . " must not contain any colon."
                         } else if SubStr(dataValue, -1) != "\" {
-                            validation := dataConstraint . " must end with a backslash \."
+                            return constraint . " must end with a backslash \."
                         } else if RegExMatch(dataValue, '[<>"|?*]') {
-                            validation := dataConstraint . " contains an invalid character."
-                        } else if !DirExist(dataValue) && dataConstraint = "Directory" {
-                            validation := dataConstraint . " doesn't exist."
+                            return constraint . " contains an invalid character."
+                        } else if !DirExist(dataValue) && constraint = "Directory" {
+                            return constraint . " doesn't exist."
                         }
                     case "Display Resolution":
-                        validation := dataConstraint . " is invalid."
-
+                        displayResolutionMatchFound := false
                         for resolution in system["Constants"]["Resolutions"] {
                             if resolution["Resolution"] = dataValue {
-                                validation := ""
+                                displayResolutionMatchFound := true
                                 break
                             }
+                        }
+
+                        if !displayResolutionMatchFound {
+                            return constraint . " is invalid."
                         }
                     case "DPI Scale":
-                        validation := dataConstraint . " is invalid."
-
-                        for scale in system["Constants"]["Scales"] {
-                            if scale["Scale"] = dataValue {
-                                validation := ""
+                        dpiScaleMatchFound := false
+                        for resolution in system["Constants"]["Scales"] {
+                            if resolution["Scale"] = dataValue {
+                                dpiScaleMatchFound := true
                                 break
                             }
                         }
+
+                        if !dpiScaleMatchFound {
+                            return constraint . " is invalid."
+                        }
                     case "Drive Letter", "Valid Drive Letter":
-                        if StrLen(dataValue) >= 4 || StrLen(dataValue) = 2 {
-                            validation := dataConstraint . " can't be valid due to wrong length. Length of one or three is acceptable."
-                        } else if StrLen(dataValue) = 3 {
+                        dataValueLength := StrLen(dataValue)
+
+                        if dataValueLength >= 4 || dataValueLength = 2 {
+                            return constraint . " length is invalid (must be 1 or 3)."
+                        } else if dataValueLength = 3 {
                             if SubStr(dataValue, 2, 2) != ":\" {
-                                validation := dataConstraint . " when three characters can only end with :\."
+                                return constraint . " when three characters can only end with :\."
                             }
 
                             dataValue := SubStr(dataValue, 1, 1)
                         }
 
-                        if validation = "" && !RegExMatch(dataValue, "^[A-Za-z]$") {
-                            validation := dataConstraint . " has invalid letter."
+                        if !RegExMatch(dataValue, "^[A-Za-z]$") {
+                            return constraint . " has invalid letter."
                         }
 
-                        if dataConstraint = "Drive Letter" {
+                        if constraint = "Drive Letter" {
                             if StrLen(dataValue) = 1 {
                                 dataValue := dataValue . ":\"
                             }
 
                             if !DirExist(dataValue) {
-                                validation := dataConstraint . " doesn't exist."
+                                return constraint . " doesn't exist."
                             }
                         }
                     case "Filename":
                         if RegExMatch(dataValue, "[\x00-\x1F]") {
-                            validation := dataConstraint . " contains control characters (ASCII 0–31)."
+                            return constraint . " contains control characters (ASCII 0–31)."
                         } else if RegExMatch(dataValue, windowsInvalidFilenameCharactersPattern) {
-                            validation := dataConstraint . " contains invalid characters (" . windowsInvalidFilenameCharactersList . ")."
+                            return constraint . " contains invalid characters (" . windowsInvalidFilenameCharactersList . ")."
                         } else if dataValue = "." || dataValue = ".." {
-                            validation := dataConstraint . " is reserved."
+                            return constraint . " is reserved."
                         } else if RegExMatch(dataValue, windowsReservedDeviceNamesPattern) {
-                            validation := dataConstraint . " uses a reserved device name (CON, PRN, AUX, NUL, COM1–COM9, LPT1–LPT9)."
+                            return constraint . " uses a reserved device name (CON, PRN, AUX, NUL, COM1–COM9, LPT1–LPT9)."
                         } else if Trim(dataValue, " .") = "" {
-                            validation := dataConstraint . " can't consist only of spaces or periods."
+                            return constraint . " can't consist only of spaces or periods."
                         } else if SubStr(dataValue, -1) = "." {
-                            validation := dataConstraint . " can't end with a period."
+                            return constraint . " can't end with a period."
                         } else if SubStr(dataValue, -1) = " " {
-                            validation := dataConstraint . " can't end with a space."
+                            return constraint . " can't end with a space."
                         }
                     case "Hexadecimal String":
-                        if Mod(StrLen(dataValue), 2) != 0 {
-                            validation := dataConstraint . " must contain an even number of characters (two characters per byte)."
-                        } else {
-                            totalCharacterCount := StrLen(dataValue)
-                            Loop totalCharacterCount {
-                                currentCharacter     := SubStr(dataValue, A_Index, 1)
-                                currentCharacterCode := Ord(currentCharacter)
+                        if StrLen(dataValue) & 1 {
+                            return constraint . " must contain an even number of characters (two characters per byte)."
+                        }
 
-                                isHexadecimalDigit := (currentCharacterCode >= 48 && currentCharacterCode <= 57) || (currentCharacterCode >= 65 && currentCharacterCode <= 70) || (currentCharacterCode >= 97 && currentCharacterCode <= 102)
-
-                                if !isHexadecimalDigit {
-                                    validation := dataConstraint . ' contains the invalid character "' . currentCharacter . '" at position ' . A_Index . "." . " " . hexadecimalAllowedCharactersMessage
-                                    break
-                                }
-                            }
+                        if invalidPosition := RegExMatch(dataValue, "[^0-9A-Fa-f]", &invalidMatch) {
+                            return constraint . ' contains the invalid character "' . invalidMatch[] . '" at position ' . invalidPosition . ". " . hexadecimalAllowedCharactersMessage
                         }
                     case "ISO Date", "ISO Date Time", "Raw Date Time":
-                        if dataConstraint = "ISO Date" && !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2}$") {
-                            validation := dataConstraint . " is invalid (must be YYYY-MM-DD)."
-                        } else if dataConstraint = "ISO Date Time" && !RegExMatch(dataValue, "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$") {
-                            validation := dataConstraint . " is invalid (must be YYYY-MM-DD HH:MM:SS)."
-                        } else if dataConstraint = "Raw Date Time" && !RegExMatch(dataValue, "^\d{14}$") {
-                            validation := dataConstraint . " is invalid (must be YYYYMMDDHHMMSS)."
-                        } else {
-                            if dataConstraint = "Raw Date Time" {
-                                dataValue := SubStr(dataValue, 1, 4)  . "-" . SubStr(dataValue, 5, 2)  . "-" .  SubStr(dataValue, 7, 2) . " " . SubStr(dataValue, 9, 2)  . ":" . SubStr(dataValue, 11, 2) . ":" . SubStr(dataValue, 13, 2)
-                            }
+                        dataValueLength          := StrLen(dataValue)
+                        numericalDataValue       := RegExReplace(dataValue, "\D")
+                        numericalDataValueLength := StrLen(numericalDataValue)
 
-                            dateTimeparts := StrSplit(dataValue, " ")
-                            dateParts     := StrSplit(dateTimeparts[1], "-")
-                            year  := dateParts[1] + 0
-                            month := dateParts[2] + 0
-                            day   := dateParts[3] + 0
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(year, "Integer", "Year")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(month, "Integer", "Month")
-                            }
-
-                            if validation = "" {
-                                validation := ValidateDataUsingSpecification(day, "Integer", "Day")
-                            }
-
-                            if validation = "" {
-                                isLeap := (Mod(year, 400) = 0) || (Mod(year, 4) = 0 && Mod(year, 100) != 0)
-                                daysInMonth := [31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-                                if day > daysInMonth[month] {
-                                    validation := "Day is invalid for this month and year."
+                        switch constraint {
+                            case "ISO Date":
+                                if dataValueLength != 10 {
+                                    return constraint . " length is invalid (must be 10)."
                                 }
-                            }
+                            case "ISO Date Time":
+                                if dataValueLength != 19 && dataValueLength != 23 && dataValueLength != 26 {
+                                    return constraint . " length is invalid (must be 19, 23 or 26)."
+                                }
+                            case "Raw Date Time":
+                                if dataValueLength != 14 {
+                                    return constraint . " length is invalid (must be 14)."
+                                }
+                        }
 
-                            if dataConstraint != "ISO Date" && validation = "" {
-                                timeParts := StrSplit(dateTimeparts[2], ":")
-                                hour   := timeParts[1] + 0
-                                minute := timeParts[2] + 0
-                                second := timeParts[3] + 0
-
-                                if validation = "" {
-                                    validation := ValidateDataUsingSpecification(hour, "Integer", "Hour")
+                        switch constraint {
+                            case "ISO Date":
+                                if numericalDataValueLength != 8 {
+                                    return constraint . " numerical length is invalid (must be 8)."
                                 }
 
-                                if validation = "" {
-                                    validation := ValidateDataUsingSpecification(minute, "Integer", "Minute")
+                                if SubStr(dataValue, 5, 1) != "-" || SubStr(dataValue, 8, 1) != "-" {
+                                    return constraint . " format is invalid (must be YYYY-MM-DD)."
+                                }
+                            case "ISO Date Time":
+                                if (numericalDataValueLength != 14 && numericalDataValueLength != 17 && numericalDataValueLength != 20) {
+                                    return constraint . " numerical length is invalid (must be 14, 17 or 20)."
                                 }
 
-                                if validation = "" {
-                                    validation := ValidateDataUsingSpecification(second, "Integer", "Second")
+                                if SubStr(dataValue, 5, 1) != "-" || SubStr(dataValue, 8, 1) != "-" {
+                                    return constraint . " format is invalid (must be YYYY-MM-DD)."
                                 }
+
+                                if SubStr(dataValue, 11, 1) != " " {
+                                    return constraint . " format is invalid (must be a space between date and time)."
+                                }
+
+                                if SubStr(dataValue, 14, 1) != ":" || SubStr(dataValue, 17, 1) != ":" {
+                                    return constraint . " format is invalid (must be HH:MM:SS)."
+                                }
+
+                                if dataValueLength > 19 && SubStr(dataValue, 20, 1) != "." {
+                                    return constraint . " format is invalid (must be a decimal point before subseconds)."
+                                }
+                            case "Raw Date Time":
+                                if numericalDataValueLength != 14 {
+                                    return constraint . " numerical length is invalid (must be 14)."
+                                }
+                        }
+
+                        year  := SubStr(numericalDataValue, 1, 4) + 0
+                        month := SubStr(numericalDataValue, 5, 2) + 0
+                        day   := SubStr(numericalDataValue, 7, 2) + 0
+
+                        if year < 1601 || year > 9999 {
+                            return constraint . " Year is invalid (must be between 1601 and 9999)."
+                        }
+
+                        if month < 1 || month > 12 {
+                            return constraint . " Month is invalid (must be between 1 and 12)."
+                        }
+
+                        if day < 1 || day > 31 {
+                            return constraint . " Day is invalid (must be between 1 and 31)."
+                        }
+
+                        isLeapYear  := Mod(year, 400) = 0 || Mod(year, 4) = 0 && Mod(year, 100) != 0
+                        daysInMonth := [31, (isLeapYear ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+                        if day > daysInMonth[month] {
+                            return constraint . " Day is invalid for this month and year."
+                        }
+
+                        if constraint != "ISO Date" {
+                            hour   := SubStr(numericalDataValue, 9, 2) + 0
+                            minute := SubStr(numericalDataValue, 11, 2) + 0
+                            second := SubStr(numericalDataValue, 13, 2) + 0
+
+                            if hour < 0 || hour > 23 {
+                                return constraint . " Hour is invalid (must be between 0 and 23)."
                             }
 
-                            if validation != "" {
-                                validation := dataConstraint . " " . validation
+                            if minute < 0 || minute > 59 {
+                                return constraint . " Minute is invalid (must be between 0 and 59)."
+                            }
+
+                            if second < 0 || second > 59 {
+                                return constraint . " Second is invalid (must be between 0 and 59)."
                             }
                         }
                     case "Path", "Valid Path":
                         SplitPath(dataValue, &filename, &directoryPath)
                         directoryPath := directoryPath . "\"
 
-                        validation := ValidateDataUsingSpecification(filename, "String", "Filename")
+                        if RegExMatch(filename, "[\x00-\x1F]") {
+                            return constraint . " Filename contains control characters (ASCII 0–31)."
+                        } else if RegExMatch(filename, windowsInvalidFilenameCharactersPattern) {
+                            return constraint . " Filename contains invalid characters (" . windowsInvalidFilenameCharactersList . ")."
+                        } else if filename = "." || filename = ".." {
+                            return constraint . " Filename is reserved."
+                        } else if RegExMatch(filename, windowsReservedDeviceNamesPattern) {
+                            return constraint . " Filename uses a reserved device name (CON, PRN, AUX, NUL, COM1–COM9, LPT1–LPT9)."
+                        } else if Trim(filename, " .") = "" {
+                            return constraint . " Filename can't consist only of spaces or periods."
+                        } else if SubStr(filename, -1) = "." {
+                            return constraint . " Filename can't end with a period."
+                        } else if SubStr(filename, -1) = " " {
+                            return constraint . " Filename can't end with a space."
+                        }
 
-                        if validation = "" {
-                            if dataConstraint = "Path" {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Directory")
-                            }
-
-                            if dataConstraint = "Valid Path" {
-                                validation := ValidateDataUsingSpecification(directoryPath, "String", "Valid Directory")
-                            }
+                        if constraint = "Path" {
+                            validation := ValidateDataUsingConstraint(directoryPath, "String", "Directory")
+                        } else if constraint = "Valid Path" {
+                            validation := ValidateDataUsingConstraint(directoryPath, "String", "Valid Directory")
                         }
 
                         if validation != "" {
-                            validation := dataConstraint . " " . validation
+                            return constraint . " " . validation
                         }
 
-                        if validation = "" && dataConstraint = "Path" {
+                        if validation = "" && constraint = "Path" {
                             if !FileExist(dataValue) {
-                                validation := dataConstraint . " invalid as the file doesn't exist."
+                                return constraint . " invalid as the file doesn't exist."
                             }
                         }
                     case "Percent Range":
                         dataValue := StrReplace(dataValue, ",", ".")
 
                         if !RegExMatch(dataValue, "^\d{1,3}(?:\.\d)?-\d{1,3}(?:\.\d)?$") {
-                            validation := dataConstraint . " must be two numbers (0–100) with up to one decimal, separated by -."
+                            return constraint . " must be two numbers (0–100) with up to one decimal, separated by -."
                         } else {
                             parts  := StrSplit(dataValue, "-")
                             first  := parts[1] + 0
                             second := parts[2] + 0
 
                             if first = 100 {
-                                validation := dataConstraint . " first value maximum allowed is 99.9."
+                                return constraint . " first value maximum allowed is 99.9."
                             } else if first < 0 || first > 100 || second < 0 || second > 100 {
-                                validation := dataConstraint . " values must be between 0 and 100."
+                                return constraint . " values must be between 0 and 100."
                             } else if first >= second {
-                                validation := dataConstraint . " first value must be lower than second."
+                                return constraint . " first value must be lower than second."
                             }
                         }
                     case "SHA-256":
-                        if StrLen(dataValue) != 64 {
-                            validation := dataConstraint . " expected length is 64 but got " . StrLen(dataValue) "."
+                        dataValueLength := StrLen(dataValue)
+
+                        if dataValueLength != 64 {
+                            return constraint . " expected length is 64 but got " . dataValueLength . "."
                         } else if !RegExMatch(dataValue, "^[0-9a-fA-F]+$") {
-                            validation := dataConstraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
+                            return constraint . " must be hex digits only. " . hexadecimalAllowedCharactersMessage
                         }
                     case "Single Line":
                         if RegExMatch(dataValue, "[\r\n\v\f\x{0085}\x{2028}\x{2029}]") {
-                            validation := dataConstraint . " must be a single line (no line breaks allowed)."
+                            return constraint . " must be a single line (no line breaks allowed)."
                         }
                     case "Spreadsheet Operations Template":
                         if !IsSet(spreadsheetOperationsTemplateReleases) {
@@ -1382,21 +1414,43 @@ ValidateDataUsingSpecification(dataValue, dataType, dataConstraint := "", whitel
                         }
 
                         if !releaseIsWhitelisted {
-                            validation := dataConstraint . " value did not match an existing release."
+                            return constraint . " value did not match an existing release."
                         }
                 }
             }
         case "Variant":
-            if whitelist.Length != 0 {
-                validation := "Whitelist not supported for Data Type of Variant."
-            } else if Type(dataValue) != "Integer" && Type(dataValue) != "String" {
-                validation := "Value must be an Integer or a String."
+            if Type(dataValue) != "Integer" && Type(dataValue) != "String" {
+                return "Data Type must be an Integer or a String."
             }
         default:
-            validation := "Data Type of " . dataType . " not recognized."
+            return "Data Type named " . dataType . " not recognized."
     }
 
-    return validation
+    return ""
+}
+
+ValidateDataUsingWhitelist(dataValue, whitelist := []) {
+    if Type(dataValue) != "String" {
+        return "Value must be a String."
+    } else if Type(whitelist) != "Array" {
+        return "Whitelist must be an Array."
+    } else if whitelist.Length = 0 {
+        return "No whitelisted values to compare against."
+    } else {
+        valueIsWhitelisted := false
+        for whitelistEntry in whitelist {
+            if dataValue == whitelistEntry {
+                valueIsWhitelisted := true
+                break
+            }
+        }
+
+        if !valueIsWhitelisted {
+            return "Value did not match whitelisted values."
+        }
+    }
+
+    return ""
 }
 
 ; **************************** ;

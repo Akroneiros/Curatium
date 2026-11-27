@@ -69,7 +69,7 @@ CombineCsvFilesFromPaths(paths, savePath, encoding, mode) {
     dataRows  := []
 
     for index, csvFilePath in paths {
-        validation := ValidateDataUsingSpecification(csvFilePath, "String", "Path")
+        validation := ValidateDataUsingConstraint(csvFilePath, "String", "Path")
         if validation != "" {
             LogConclusion("Failed", logConclusionData, A_LineNumber, "CSV file in array index " . index . " has an invalid path.")
         }
